@@ -1,7 +1,27 @@
 [project]
-name = "vles-shopbot"
-version = "2.1.0"
-description = "Бот для автоматической продажи VLESS VPN"
+name = "vless-shopbot-pro"
+version = "2.0.0"
+description = "Продвинутый Telegram-бот для автоматической продажи VLESS VPN с улучшенным веб-интерфейсом и аналитикой"
+authors = [
+    {name = "Karshie Umid", email = "umid.t.karshiev@gmail.com"},
+    {name = "evansvl", email = "evansvl@example.com"}
+]
+readme = "README.md"
+license = {text = "MIT"}
+keywords = ["telegram", "bot", "vpn", "vless", "shop", "automation", "3x-ui"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Communications :: Chat",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "aiogram==3.21.0",
     "flask==3.1.1",
