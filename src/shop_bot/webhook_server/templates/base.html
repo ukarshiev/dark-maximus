@@ -12,97 +12,213 @@
 	</head>
 	<body>
 		<div class="container">
-			<header class="main-header">
-				<nav class="navigation">
+			<!-- Кнопка бургерного меню (только для мобильных) -->
+			<button class="burger-menu" id="burgerMenu">
+				<span></span>
+				<span></span>
+				<span></span>
+			</button>
+			
+			<!-- Боковое меню -->
+			<aside class="sidebar" id="sidebar">
+				<nav class="sidebar-nav">
 					<a
 						href="{{ url_for('dashboard_page') }}"
 						class="nav-link {% if request.endpoint == 'dashboard_page' %}active{% endif %}"
-						>Dashboard</a
 					>
+						<span class="nav-icon">🏠</span>
+						<span class="nav-text">Главная</span>
+					</a>
 					<a
 						href="{{ url_for('users_page') }}"
 						class="nav-link {% if request.endpoint == 'users_page' %}active{% endif %}"
-						>Пользователи</a
 					>
+						<span class="nav-icon">👥</span>
+						<span class="nav-text">Пользователи</span>
+					</a>
+					<a
+						href="{{ url_for('transactions_page') }}"
+						class="nav-link {% if request.endpoint == 'transactions_page' %}active{% endif %}"
+					>
+						<span class="nav-icon">💳</span>
+						<span class="nav-text">Платежи</span>
+					</a>
+					<a
+						href="{{ url_for('keys_page') }}"
+						class="nav-link {% if request.endpoint == 'keys_page' %}active{% endif %}"
+					>
+						<span class="nav-icon">🔑</span>
+						<span class="nav-text">Ключи</span>
+					</a>
 					<a
 						href="{{ url_for('settings_page') }}"
 						class="nav-link {% if request.endpoint == 'settings_page' %}active{% endif %}"
-						>Настройки</a
 					>
+						<span class="nav-icon">⚙️</span>
+						<span class="nav-text">Настройки</span>
+					</a>
 				</nav>
 
-				<div class="header-controls">
+				<!-- Управление ботами -->
+				<div class="bot-controls">
 					<div class="bot-control">
-						{% if bot_status.shop_bot_running %}
-						<p class="status-running">Shop: <strong>Запущен</strong></p>
-						<form action="{{ url_for('stop_shop_bot_route') }}" method="post">
-							<button type="submit" class="button button-stop button-small">
-								Остановить
-							</button>
-						</form>
-						{% else %}
-						<p class="status-stopped">Shop: <strong>Остановлен</strong></p>
-						{% if all_settings_ok %}
-						<form action="{{ url_for('start_shop_bot_route') }}" method="post">
-							<button type="submit" class="button button-start button-small">
-								Запустить
-							</button>
-						</form>
-						{% else %}
-						<button
-							class="button button-disabled button-small"
-							disabled
-							title="Заполните обязательные настройки Telegram"
-						>
-							Запустить
-						</button>
-						{% endif %} {% endif %}
+						<div class="bot-status">
+							<div class="bot-label-row">
+								<span class="bot-label">Shop:</span>
+								<label class="bot-toggle">
+									<input type="checkbox" 
+										   class="bot-checkbox" 
+										   data-bot="shop"
+										   {% if bot_status.shop_bot_running %}checked{% endif %}
+										   {% if not all_settings_ok %}disabled{% endif %}>
+									<span class="toggle-slider"></span>
+								</label>
+								<span class="bot-status-text {% if bot_status.shop_bot_running %}status-running{% else %}status-stopped{% endif %}">
+									{% if bot_status.shop_bot_running %}Запущен{% else %}Остановлен{% endif %}
+								</span>
+							</div>
+						</div>
 					</div>
 
 					<div class="bot-control">
-						{% if bot_status.support_bot_running %}
-						<p class="status-running">Support: <strong>Запущен</strong></p>
-						<form
-							action="{{ url_for('stop_support_bot_route') }}"
-							method="post"
-						>
-							<button type="submit" class="button button-stop button-small">
-								Остановить
-							</button>
-						</form>
-						{% else %}
-						<p class="status-stopped">Support: <strong>Остановлен</strong></p>
-						<form
-							action="{{ url_for('start_support_bot_route') }}"
-							method="post"
-						>
-							<button type="submit" class="button button-start button-small">
-								Запустить
-							</button>
-						</form>
-						{% endif %}
+						<div class="bot-status">
+							<div class="bot-label-row">
+								<span class="bot-label">Support:</span>
+								<label class="bot-toggle">
+									<input type="checkbox" 
+										   class="bot-checkbox" 
+										   data-bot="support"
+										   {% if bot_status.support_bot_running %}checked{% endif %}>
+									<span class="toggle-slider"></span>
+								</label>
+								<span class="bot-status-text {% if bot_status.support_bot_running %}status-running{% else %}status-stopped{% endif %}">
+									{% if bot_status.support_bot_running %}Запущен{% else %}Остановлен{% endif %}
+								</span>
+							</div>
+						</div>
 					</div>
 
-					<div class="user-session-controls">
-						<span>Вы вошли в систему.</span>
-						<form
-							action="{{ url_for('logout_page') }}"
-							method="post"
-							style="display: inline"
-						>
-							<button type="submit" class="button button-logout">Выйти</button>
-						</form>
+				<div class="user-session-controls">
+					<form action="{{ url_for('logout_page') }}" method="post" class="logout-form">
+						<button type="submit" class="button button-logout">Выйти</button>
+					</form>
+					<div class="version-info">
+						<span class="version-text">Версия: 2.5.0</span>
 					</div>
 				</div>
-			</header>
+				</div>
+			</aside>
 
-			{% with messages = get_flashed_messages(with_categories=true) %} {% if
-			messages %} {% for category, message in messages %}
-			<div class="flash flash-{{ category }}">{{ message }}</div>
-			{% endfor %} {% endif %} {% endwith %}
+			<!-- Основной контент -->
+			<main class="main-content">
+				{% with messages = get_flashed_messages(with_categories=true) %} {% if
+				messages %} {% for category, message in messages %}
+				<div class="flash flash-{{ category }}">{{ message }}</div>
+				{% endfor %} {% endif %} {% endwith %}
 
-			<main>{% block content %}{% endblock %}</main>
+				{% block content %}{% endblock %}
+			</main>
 		</div>
+
+		<!-- Модальное окно для детального просмотра пользователя -->
+		<div id="userModal" class="modal">
+			<div class="modal-content modal-large">
+				<div class="modal-header">
+					<div class="modal-header-content">
+						<div class="modal-user-info">
+							<div class="modal-info-column">
+								<div class="modal-info-row">
+									<span class="modal-info-label">Telegram ID:</span>
+									<span id="modalUserId"></span>
+									<button class="modal-action-btn" onclick="openTelegramProfile()" title="Перейти в Telegram">🔗</button>
+								</div>
+								<div class="modal-info-row">
+									<span class="modal-info-label">Username:</span>
+									<span id="modalUsername"></span>
+									<button class="modal-action-btn" onclick="copyUsername()" title="Копировать username">📋</button>
+								</div>
+								<div class="modal-info-row">
+									<span class="modal-info-label">Статус:</span>
+									<span id="modalStatus"></span>
+								</div>
+							</div>
+							<div class="modal-info-column">
+								<div class="modal-info-row">
+									<span class="modal-info-label">Активные ключи:</span>
+									<span id="modalKeys"></span>
+								</div>
+								<div class="modal-info-row">
+									<span class="modal-info-label">Заработано:</span>
+									<span id="modalEarned"></span>
+								</div>
+							</div>
+						</div>
+					</div>
+					<span class="close" onclick="closeUserModal()">&times;</span>
+				</div>
+				<div class="modal-body">
+					<!-- Вкладки -->
+					<div class="modal-tabs">
+						<button class="tab-button active" onclick="switchTab('payments')">Платежи</button>
+						<button class="tab-button" onclick="switchTab('keys')">Ключи</button>
+					</div>
+
+					<!-- Вкладка: Платежи -->
+					<div id="tab-payments" class="tab-content active">
+						<div class="modal-table-container">
+							<table class="modal-table">
+								<thead>
+									<tr>
+										<th>ID</th>
+										<th>Хост</th>
+										<th>План</th>
+										<th>Цена</th>
+										<th>Статус</th>
+										<th>Дата</th>
+									</tr>
+								</thead>
+								<tbody id="modalPaymentsTable">
+									<!-- Данные загружаются через JavaScript -->
+								</tbody>
+							</table>
+						</div>
+					</div>
+
+					<!-- Вкладка: Ключи -->
+					<div id="tab-keys" class="tab-content">
+						<div class="modal-table-container">
+							<table class="modal-table">
+								<thead>
+									<tr>
+										<th>ID</th>
+										<th>Хост</th>
+										<th>План</th>
+										<th>Стоимость</th>
+										<th>Ключ</th>
+										<th>Дата</th>
+									</tr>
+								</thead>
+								<tbody id="modalKeysTable">
+									<!-- Данные загружаются через JavaScript -->
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button id="banButton" class="button button-danger" onclick="banUser()" style="display: none;">
+						Бан
+					</button>
+					<button id="unbanButton" class="button button-start" onclick="unbanUser()" style="display: none;">
+						Отозвать бан
+					</button>
+					<button id="revokeButton" class="button button-danger" onclick="revokeKeys()">
+						Отозвать ключи
+					</button>
+				</div>
+			</div>
+		</div>
+
 		<script src="{{ url_for('static', filename='js/script.js') }}"></script>
 	</body>
 </html>

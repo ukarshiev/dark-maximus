@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Ключи{% endblock %}
+{% block content %}
+
+<div class="keys-container">
+	<div class="keys-header">
+		<h1>Ключи VPN</h1>
+	</div>
+
+	<section class="keys-section">
+		<div class="table-container">
+			<table class="keys-table">
+				<thead>
+					<tr>
+						<th>ID</th>
+						<th>Пользователь</th>
+						<th>Хост</th>
+						<th>План</th>
+						<th>Стоимость</th>
+						<th>Ключ</th>
+						<th>Дата</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for key in keys %}
+					<tr>
+						<td>{{ key.key_id }}</td>
+						<td>
+							<div class="user-info">
+								<div><strong>ID:</strong> 
+									<a href="#" class="user-id-link" onclick="openUserModal({{ key.user_id }}, '{{ key.username or 'N/A' }}', false, 1)">
+										{{ key.user_id }}
+									</a>
+								</div>
+								<div><strong>Username:</strong> {{ key.username or 'N/A' }}</div>
+								<div><strong>Email:</strong> {{ key.email or 'N/A' }}</div>
+							</div>
+						</td>
+						<td>{{ key.host_name }}</td>
+						<td>{{ key.plan_name or 'N/A' }}</td>
+						<td>{{ key.price or 'N/A' }} RUB</td>
+						<td>
+							{% if key.connection_string %}
+								<div class="key-cell">
+									<span class="key-text" title="{{ key.connection_string }}">{{ key.connection_string[:50] }}{% if key.connection_string|length > 50 %}...{% endif %}</span>
+									<button class="copy-btn" onclick="copyKey('{{ key.connection_string }}')" title="Копировать ключ">
+										📋
+									</button>
+								</div>
+							{% else %}
+								-
+							{% endif %}
+						</td>
+						<td>
+							{% if key.created_date %}
+								{{ key.created_date.strftime('%Y-%m-%d %H:%M:%S') }}
+							{% else %}
+								N/A
+							{% endif %}
+						</td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+
+		<!-- Пагинация -->
+		<div class="pagination-panel">
+			<div class="pagination-controls">
+				<!-- Кнопка обновления -->
+				<button class="button button-primary button-small-refresh" onclick="refreshKeys()" id="refreshBtn">
+					<span id="refreshIcon">🔄</span>
+					<span id="refreshText">Обновить</span>
+				</button>
+				
+				<!-- Пагинация -->
+				{% if total_pages > 1 %}
+				<div class="pagination">
+					{% if current_page > 1 %}
+						<a href="{{ url_for('keys_page', page=current_page-1, per_page=per_page) }}" class="pagination-link">«</a>
+					{% endif %}
+					
+					{% for page_num in range(1, total_pages + 1) %}
+						{% if page_num == current_page %}
+							<span class="pagination-link active">{{ page_num }}</span>
+						{% else %}
+							<a href="{{ url_for('keys_page', page=page_num, per_page=per_page) }}" class="pagination-link">{{ page_num }}</a>
+						{% endif %}
+					{% endfor %}
+					
+					{% if current_page < total_pages %}
+						<a href="{{ url_for('keys_page', page=current_page+1, per_page=per_page) }}" class="pagination-link">»</a>
+					{% endif %}
+				</div>
+				{% endif %}
+				
+				<!-- Переключатель количества записей -->
+				<div class="per-page-selector">
+					<select id="perPageSelect" onchange="changePerPage(this.value)">
+						<option value="5" {% if per_page == 5 %}selected{% endif %}>5</option>
+						<option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+						<option value="15" {% if per_page == 15 %}selected{% endif %}>15</option>
+						<option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+						<option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+					</select>
+				</div>
+			</div>
+		</div>
+	</section>
+</div>
+
+<script>
+function changePerPage(value) {
+	const url = new URL(window.location);
+	url.searchParams.set('per_page', value);
+	url.searchParams.set('page', '1');
+	window.location.href = url.toString();
+}
+
+function refreshKeys() {
+	const refreshBtn = document.getElementById('refreshBtn');
+	const refreshIcon = document.getElementById('refreshIcon');
+	const refreshText = document.getElementById('refreshText');
+	
+	refreshBtn.disabled = true;
+	refreshIcon.classList.add('spinning');
+	refreshText.textContent = 'Проверяем...';
+	
+	fetch('/refresh-keys', {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		}
+	})
+	.then(response => response.json())
+	.then(data => {
+		if (data.status === 'success') {
+			refreshText.textContent = data.message;
+			setTimeout(() => {
+				window.location.reload();
+			}, 1000);
+		} else {
+			refreshText.textContent = 'Ошибка: ' + data.message;
+			setTimeout(() => {
+				refreshBtn.disabled = false;
+				refreshIcon.classList.remove('spinning');
+				refreshText.textContent = 'Обновить';
+			}, 2000);
+		}
+	})
+	.catch(error => {
+		console.error('Error:', error);
+		refreshText.textContent = 'Ошибка соединения';
+		setTimeout(() => {
+			refreshBtn.disabled = false;
+			refreshIcon.classList.remove('spinning');
+			refreshText.textContent = 'Обновить';
+		}, 2000);
+	});
+}
+
+// Функция для копирования ключа
+function copyKey(key) {
+	navigator.clipboard.writeText(key).then(() => {
+		const notification = document.createElement('div');
+		notification.textContent = 'Ключ скопирован!';
+		notification.style.cssText = `
+			position: fixed;
+			top: 20px;
+			right: 20px;
+			background: #28a745;
+			color: white;
+			padding: 10px 20px;
+			border-radius: 5px;
+			z-index: 1000;
+			font-size: 14px;
+		`;
+		document.body.appendChild(notification);
+		
+		setTimeout(() => {
+			document.body.removeChild(notification);
+		}, 2000);
+	}).catch(err => {
+		console.error('Ошибка копирования: ', err);
+		alert('Не удалось скопировать ключ');
+	});
+}
+</script>
+
+{% endblock %}

@@ -38,8 +38,8 @@ from shop_bot.data_manager.database import (
     register_user_if_not_exists, get_next_key_number, get_key_by_id,
     update_key_info, set_trial_used, set_terms_agreed, get_setting, get_all_hosts,
     get_plans_for_host, get_plan_by_id, log_transaction, get_referral_count,
-    add_to_referral_balance, create_pending_transaction, get_all_users,
-    set_referral_balance, set_referral_balance_all
+    add_to_referral_balance, create_pending_transaction, create_pending_ton_transaction, get_all_users,
+    set_referral_balance, set_referral_balance_all, update_transaction_on_payment
 )
 
 from shop_bot.config import (
@@ -133,9 +133,9 @@ def get_user_router() -> Router:
             except (IndexError, ValueError):
                 logger.warning(f"Invalid referral code received: {command.args}")
                 
-        register_user_if_not_exists(user_id, username, referrer_id)
         user_id = message.from_user.id
         username = message.from_user.username or message.from_user.full_name
+        register_user_if_not_exists(user_id, username, referrer_id)
         user_data = get_user(user_id)
 
         if user_data and user_data.get('agreed_to_terms'):
@@ -1032,6 +1032,100 @@ def get_user_router() -> Router:
         months = plan['months']
         user_id = callback.from_user.id
 
+        # Проверяем, если цена 0 рублей - обрабатываем бесплатно
+        if price_rub == 0:
+            await callback.message.edit_text("🎉 Бесплатный тариф! Обрабатываю ваш запрос...")
+            
+            # Получаем данные из state
+            action = data.get('action')
+            key_id = data.get('key_id')
+            host_name = data.get('host_name')
+            
+            # Создаем ключ бесплатно
+            try:
+                email = ""
+                if action == "new":
+                    key_number = get_next_key_number(user_id)
+                    email = f"user{user_id}-key{key_number}@{host_name.replace(' ', '').lower()}.bot"
+                elif action == "extend":
+                    key_data = get_key_by_id(key_id)
+                    if not key_data or key_data['user_id'] != user_id:
+                        await callback.message.edit_text("❌ Ошибка: ключ для продления не найден.")
+                        await state.clear()
+                        return
+                    email = key_data['key_email']
+                
+                days_to_add = months * 30
+                result = await xui_api.create_or_update_key_on_host(
+                    host_name=host_name,
+                    email=email,
+                    days_to_add=days_to_add
+                )
+
+                if not result:
+                    await callback.message.edit_text("❌ Не удалось создать/обновить ключ в панели.")
+                    await state.clear()
+                    return
+
+                if action == "new":
+                    key_id = add_new_key(user_id, host_name, result['client_uuid'], result['email'], result['expiry_timestamp_ms'])
+                elif action == "extend":
+                    update_key_info(key_id, result['client_uuid'], result['expiry_timestamp_ms'])
+                
+                # Обновляем статистику
+                update_user_stats(user_id, 0, months)
+                
+                # Логируем транзакцию
+                user_info = get_user(user_id)
+                log_username = user_info.get('username', 'N/A') if user_info else 'N/A'
+                log_metadata = json.dumps({
+                    "plan_id": plan_id,
+                    "plan_name": plan['plan_name'],
+                    "host_name": host_name,
+                    "customer_email": customer_email
+                })
+
+                log_transaction(
+                    username=log_username,
+                    transaction_id=None,
+                    payment_id=str(uuid.uuid4()),
+                    user_id=user_id,
+                    status='paid',
+                    amount_rub=0.0,
+                    amount_currency=None,
+                    currency_name=None,
+                    payment_method='Free',
+                    metadata=log_metadata
+                )
+                
+                # Отправляем результат пользователю
+                connection_string = result['connection_string']
+                new_expiry_date = datetime.fromtimestamp(result['expiry_timestamp_ms'] / 1000)
+                
+                all_user_keys = get_user_keys(user_id)
+                key_number = next((i + 1 for i, key in enumerate(all_user_keys) if key['key_id'] == key_id), len(all_user_keys))
+
+                final_text = get_purchase_success_text(
+                    action="создан" if action == "new" else "продлен",
+                    key_number=key_number,
+                    expiry_date=new_expiry_date,
+                    connection_string=connection_string
+                )
+                
+                await callback.message.edit_text(
+                    text=final_text,
+                    reply_markup=keyboards.create_key_info_keyboard(key_id)
+                )
+                
+                await state.clear()
+                return
+                
+            except Exception as e:
+                logger.error(f"Error processing free plan for user {user_id}: {e}", exc_info=True)
+                await callback.message.edit_text("❌ Ошибка при выдаче бесплатного ключа.")
+                await state.clear()
+                return
+
         try:
             price_str_for_api = f"{price_rub:.2f}"
             price_float_for_metadata = float(price_rub)
@@ -1227,6 +1321,12 @@ def get_user_router() -> Router:
             await callback.message.edit_text("❌ Оплата через TON временно недоступна.")
             await state.clear()
             return
+            
+        # Проверяем формат адреса кошелька
+        if not wallet_address.startswith('EQ') and not wallet_address.startswith('UQ'):
+            await callback.message.edit_text("❌ Неверный формат адреса TON кошелька. Адрес должен начинаться с EQ или UQ.")
+            await state.clear()
+            return
 
         await callback.answer("Создаю ссылку и QR-код для TON Connect...")
             
@@ -1240,6 +1340,100 @@ def get_user_router() -> Router:
             await state.clear()
             return
 
+        # Проверяем, если цена 0 рублей - обрабатываем бесплатно
+        if price_rub == 0:
+            await callback.message.edit_text("🎉 Бесплатный тариф! Обрабатываю ваш запрос...")
+            
+            # Получаем данные из state
+            action = data.get('action')
+            key_id = data.get('key_id')
+            host_name = data.get('host_name')
+            
+            # Создаем ключ бесплатно
+            try:
+                email = ""
+                if action == "new":
+                    key_number = get_next_key_number(user_id)
+                    email = f"user{user_id}-key{key_number}@{host_name.replace(' ', '').lower()}.bot"
+                elif action == "extend":
+                    key_data = get_key_by_id(key_id)
+                    if not key_data or key_data['user_id'] != user_id:
+                        await callback.message.edit_text("❌ Ошибка: ключ для продления не найден.")
+                        await state.clear()
+                        return
+                    email = key_data['key_email']
+                
+                days_to_add = months * 30
+                result = await xui_api.create_or_update_key_on_host(
+                    host_name=host_name,
+                    email=email,
+                    days_to_add=days_to_add
+                )
+
+                if not result:
+                    await callback.message.edit_text("❌ Не удалось создать/обновить ключ в панели.")
+                    await state.clear()
+                    return
+
+                if action == "new":
+                    key_id = add_new_key(user_id, host_name, result['client_uuid'], result['email'], result['expiry_timestamp_ms'])
+                elif action == "extend":
+                    update_key_info(key_id, result['client_uuid'], result['expiry_timestamp_ms'])
+                
+                # Обновляем статистику
+                update_user_stats(user_id, 0, months)
+                
+                # Логируем транзакцию
+                user_info = get_user(user_id)
+                log_username = user_info.get('username', 'N/A') if user_info else 'N/A'
+                log_metadata = json.dumps({
+                    "plan_id": plan_id,
+                    "plan_name": plan['plan_name'],
+                    "host_name": host_name,
+                    "customer_email": data.get('customer_email')
+                })
+
+                log_transaction(
+                    username=log_username,
+                    transaction_id=None,
+                    payment_id=str(uuid.uuid4()),
+                    user_id=user_id,
+                    status='paid',
+                    amount_rub=0.0,
+                    amount_currency=None,
+                    currency_name=None,
+                    payment_method='Free',
+                    metadata=log_metadata
+                )
+                
+                # Отправляем результат пользователю
+                connection_string = result['connection_string']
+                new_expiry_date = datetime.fromtimestamp(result['expiry_timestamp_ms'] / 1000)
+                
+                all_user_keys = get_user_keys(user_id)
+                key_number = next((i + 1 for i, key in enumerate(all_user_keys) if key['key_id'] == key_id), len(all_user_keys))
+
+                final_text = get_purchase_success_text(
+                    action="создан" if action == "new" else "продлен",
+                    key_number=key_number,
+                    expiry_date=new_expiry_date,
+                    connection_string=connection_string
+                )
+                
+                await callback.message.edit_text(
+                    text=final_text,
+                    reply_markup=keyboards.create_key_info_keyboard(key_id)
+                )
+                
+                await state.clear()
+                return
+                
+            except Exception as e:
+                logger.error(f"Error processing free plan for user {user_id}: {e}", exc_info=True)
+                await callback.message.edit_text("❌ Ошибка при выдаче бесплатного ключа.")
+                await state.clear()
+                return
+
         price_ton = (price_rub / usdt_rub_rate / ton_usdt_rate).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
         amount_nanoton = int(price_ton * 1_000_000_000)
         
@@ -1248,17 +1442,37 @@ def get_user_router() -> Router:
             "user_id": user_id, "months": plan['months'], "price": float(price_rub),
             "action": data.get('action'), "key_id": data.get('key_id'),
             "host_name": data.get('host_name'), "plan_id": data.get('plan_id'),
-            "customer_email": data.get('customer_email'), "payment_method": "TON Connect"
+            "plan_name": plan['plan_name'],  # Добавляем название плана
+            "customer_email": data.get('customer_email'), "payment_method": "TON Connect",
+            "payment_id": payment_id  # Добавляем payment_id в metadata
         }
-        create_pending_transaction(payment_id, user_id, float(price_rub), metadata)
+        # Создаем ссылку для TON Connect (будет обновлена после создания)
+        payment_link = f"https://t.me/wallet?attach=wallet&startattach=tonconnect-v__2-id__{payment_id[:8]}-r__--7B--22manifestUrl--22--3A--22https--3A--2F--2Fparis--2Edark--2Dmaximus--2Ecom--2F--2Ewell--2Dknown--2Ftonconnect--2Dmanifest--2Ejson--22--2C--22items--22--3A--5B--7B--22name--22--3A--22ton--5Faddr--22--7D--5D--7D"
+        
+        # Сохраняем pending транзакцию с правильными ценами и ссылкой
+        create_pending_ton_transaction(payment_id, user_id, float(price_rub), float(price_ton), metadata, payment_link)
 
+        # Создаем простой payload без комментария для TON Connect
         transaction_payload = {
-            'messages': [{'address': wallet_address, 'amount': str(amount_nanoton), 'payload': payment_id}],
-            'valid_until': int(datetime.now().timestamp()) + 600
+            'valid_until': int(datetime.now().timestamp()) + 600,
+            'messages': [{
+                'address': wallet_address, 
+                'amount': amount_nanoton
+                # Убираем payload - он ломает TON Connect
+            }]
         }
+        
+        # Логируем данные для отладки
+        logger.info(f"TON Connect Debug - Wallet: {wallet_address}, Amount: {amount_nanoton}, Price TON: {price_ton}")
+        logger.info(f"TON Connect Debug - Transaction payload: {transaction_payload}")
 
         try:
-            connect_url = await _start_ton_connect_process(user_id, transaction_payload)
+            # Получаем экземпляр бота для обработки платежа
+            from shop_bot.bot_controller import BotController
+            bot_controller = BotController()
+            bot_instance = bot_controller.get_bot_instance()
+            
+            connect_url = await _start_ton_connect_process(user_id, transaction_payload, metadata, bot_instance)
             
             qr_img = qrcode.make(connect_url)
             bio = BytesIO()
@@ -1299,11 +1513,11 @@ _listener_tasks: Dict[int, asyncio.Task] = {}
 
 async def _get_ton_connect_instance(user_id: int) -> TonConnect:
     if user_id not in _user_connectors:
-        manifest_url = 'https://raw.githubusercontent.com/ton-blockchain/ton-connect/main/requests-responses.json'
+        manifest_url = 'https://paris.dark-maximus.com/.well-known/tonconnect-manifest.json'
         _user_connectors[user_id] = TonConnect(manifest_url=manifest_url)
     return _user_connectors[user_id]
 
-async def _listener_task(connector: TonConnect, user_id: int, transaction_payload: dict):
+async def _listener_task(connector: TonConnect, user_id: int, transaction_payload: dict, payment_metadata: dict = None, bot_instance = None):
     try:
         wallet_connected = False
         for _ in range(120):
@@ -1319,9 +1533,15 @@ async def _listener_task(connector: TonConnect, user_id: int, transaction_payloa
         logger.info(f"TON Connect: Wallet connected for user {user_id}. Address: {connector.account.address}")
         
         logger.info(f"TON Connect: Sending transaction request to user {user_id} with payload: {transaction_payload}")
-        await connector.send_transaction(transaction_payload)
+        result = await connector.send_transaction(transaction_payload)
         
         logger.info(f"TON Connect: Transaction request sent successfully for user {user_id}.")
+        
+        # Обрабатываем успешное завершение транзакции
+        if result and result.get('boc'):
+            logger.info(f"TON Connect: Transaction completed successfully for user {user_id}")
+            logger.info(f"TON Connect: Transaction result: {result}")
+            logger.info(f"TON Connect: Payment will be processed by webhook")
 
     except UserRejectsError:
         logger.warning(f"TON Connect: User {user_id} rejected the transaction.")
@@ -1333,14 +1553,14 @@ async def _listener_task(connector: TonConnect, user_id: int, transaction_payloa
         if user_id in _listener_tasks:
             del _listener_tasks[user_id]
 
-async def _start_ton_connect_process(user_id: int, transaction_payload: dict) -> str:
+async def _start_ton_connect_process(user_id: int, transaction_payload: dict, metadata: dict, bot_instance = None) -> str:
     if user_id in _listener_tasks and not _listener_tasks[user_id].done():
         _listener_tasks[user_id].cancel()
 
     connector = await _get_ton_connect_instance(user_id)
     
     task = asyncio.create_task(
-        _listener_task(connector, user_id, transaction_payload)
+        _listener_task(connector, user_id, transaction_payload, metadata, bot_instance)
     )
     _listener_tasks[user_id] = task
 
@@ -1509,7 +1729,11 @@ async def get_ton_usdt_rate() -> Decimal | None:
         logger.error(f"Error getting TON USDT Binance rate: {e}", exc_info=True)
         return None
 
-async def process_successful_payment(bot: Bot, metadata: dict):
+def get_ton_transaction_url(tx_hash: str) -> str:
+    """Создает ссылку на транзакцию в TON Explorer"""
+    return f"https://tonscan.org/tx/{tx_hash}"
+
+async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str = None):
     try:
         user_id = int(metadata['user_id'])
         months = int(metadata['months'])
@@ -1562,7 +1786,16 @@ async def process_successful_payment(bot: Bot, metadata: dict):
             return
 
         if action == "new":
-            key_id = add_new_key(user_id, host_name, result['client_uuid'], result['email'], result['expiry_timestamp_ms'])
+            key_id = add_new_key(
+                user_id, 
+                host_name, 
+                result['client_uuid'], 
+                result['email'], 
+                result['expiry_timestamp_ms'],
+                connection_string=result.get('connection_string'),
+                plan_name=metadata.get('plan_name'),
+                price=float(metadata.get('price', 0))
+            )
         elif action == "extend":
             update_key_info(key_id, result['client_uuid'], result['expiry_timestamp_ms'])
         
@@ -1607,17 +1840,13 @@ async def process_successful_payment(bot: Bot, metadata: dict):
             "customer_email": metadata.get('customer_email')
         })
 
-        log_transaction(
-            username=log_username,
-            transaction_id=None,
+        # Обновляем существующую транзакцию вместо создания новой
+        update_transaction_on_payment(
             payment_id=internal_payment_id,
-            user_id=user_id,
             status=log_status,
             amount_rub=log_amount_rub,
-            amount_currency=None,
-            currency_name=None,
-            payment_method=log_method,
-            metadata=log_metadata
+            tx_hash=tx_hash,
+            metadata=json.loads(log_metadata)
         )
         
         await processing_message.delete()
@@ -1635,10 +1864,16 @@ async def process_successful_payment(bot: Bot, metadata: dict):
             connection_string=connection_string
         )
         
+        # Добавляем информацию о транзакции, если есть
+        if tx_hash and payment_method == "TON Connect":
+            transaction_url = get_ton_transaction_url(tx_hash)
+            final_text += f"\n\n🔗 <a href='{transaction_url}'>Проверить транзакцию в TON Explorer</a>"
+        
         await bot.send_message(
             chat_id=user_id,
             text=final_text,
-            reply_markup=keyboards.create_key_info_keyboard(key_id)
+            reply_markup=keyboards.create_key_info_keyboard(key_id),
+            parse_mode="HTML"
         )
 
         await notify_admin_of_purchase(bot, metadata)
@@ -1646,3 +1881,13 @@ async def process_successful_payment(bot: Bot, metadata: dict):
     except Exception as e:
         logger.error(f"Error processing payment for user {user_id} on host {host_name}: {e}", exc_info=True)
         await processing_message.edit_text("❌ Ошибка при выдаче ключа.")
+        
+        # Возвращаем статус транзакции на pending при ошибке
+        try:
+            from shop_bot.data_manager.database import update_transaction_status
+            payment_id = metadata.get('payment_id')
+            if payment_id:
+                update_transaction_status(payment_id, 'pending')
+                logger.info(f"Transaction {payment_id} status reverted to pending due to error")
+        except Exception as revert_error:
+            logger.error(f"Failed to revert transaction status: {revert_error}")

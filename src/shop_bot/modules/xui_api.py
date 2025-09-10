@@ -63,20 +63,25 @@ def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days
                 client_index = i
                 break
         
+        # Используем UTC+3 для соответствия с ботом
+        from datetime import timezone, timedelta
+        local_tz = timezone(timedelta(hours=3))  # UTC+3 для России
+        local_now = datetime.now(local_tz)
+        
         if client_index != -1:
             existing_client = inbound_to_modify.settings.clients[client_index]
-            if existing_client.expiry_time > int(datetime.now().timestamp() * 1000):
-                current_expiry_dt = datetime.fromtimestamp(existing_client.expiry_time / 1000)
+            if existing_client.expiry_time > int(local_now.timestamp() * 1000):
+                current_expiry_dt = datetime.fromtimestamp(existing_client.expiry_time / 1000, tz=local_tz)
                 new_expiry_dt = current_expiry_dt + timedelta(days=days_to_add)
             else:
-                new_expiry_dt = datetime.now() + timedelta(days=days_to_add)
+                new_expiry_dt = local_now + timedelta(days=days_to_add)
         else:
-            new_expiry_dt = datetime.now() + timedelta(days=days_to_add)
+            new_expiry_dt = local_now + timedelta(days=days_to_add)
 
         new_expiry_ms = int(new_expiry_dt.timestamp() * 1000)
 
         if client_index != -1:
-            inbound_to_modify.settings.clients[client_index].reset = days_to_add
+            inbound_to_modify.settings.clients[client_index].expiry_time = new_expiry_ms
             inbound_to_modify.settings.clients[client_index].enable = True
             
             client_uuid = inbound_to_modify.settings.clients[client_index].id

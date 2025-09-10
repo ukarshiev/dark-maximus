@@ -26,83 +26,130 @@ block content %}
 	</div>
 </section>
 
-<div class="dashboard-container">
-	<div class="dashboard-column-left">
-		<section>
-			<h2>Аналитика за последние 30 дней</h2>
-			<div class="chart-container">
-				<h3>Новые пользователи</h3>
-				<canvas id="newUsersChart"></canvas>
-			</div>
-			<div class="chart-container">
-				<h3>Новые ключи</h3>
-				<canvas id="newKeysChart"></canvas>
-			</div>
-		</section>
+<!-- Аналитика на всю страницу -->
+<section class="analytics-section">
+	<h2>Аналитика за последние 30 дней</h2>
+	<div class="charts-grid">
+		<div class="chart-container">
+			<h3>Новые пользователи и ключи</h3>
+			<canvas id="combinedChart"></canvas>
+		</div>
 	</div>
-
-	<div class="dashboard-column-right">
-		<section>
-			<h2>Недавние транзакции</h2>
-			{% if transactions %}
-			<div style="overflow-x: auto">
-				<table class="transactions-table">
-					<thead>
-						<tr>
-							<th>Пользователь</th>
-							<th>Хост</th>
-							<th>План</th>
-							<th>Цена</th>
-							<th>Дата</th>
-						</tr>
-					</thead>
-					<tbody>
-						{% for tx in transactions %}
-						<tr>
-							<td>
-								{{ tx.username or 'N/A' }}<br /><small>({{tx.user_id}})</small>
-							</td>
-							<td>{{ tx.host_name }}</td>
-							<td>{{ tx.plan_name }}</td>
-							<td>{{ tx.amount_rub | round(2) }} RUB</td>
-							<td>{{ tx.created_date.split(' ')[0] }}</td>
-						</tr>
-						{% endfor %}
-					</tbody>
-				</table>
-			</div>
-
-			{% if total_pages > 1 %}
-			<nav class="pagination">
-				<a
-					href="{{ url_for('dashboard_page', page=current_page - 1) }}"
-					class="{{ 'disabled' if current_page == 1 else '' }}"
-					>«</a
-				>
-
-				{% for p in range(1, total_pages + 1) %}
-				<a
-					href="{{ url_for('dashboard_page', page=p) }}"
-					class="{{ 'active' if p == current_page else '' }}"
-					>{{ p }}</a
-				>
-				{% endfor %}
-
-				<a
-					href="{{ url_for('dashboard_page', page=current_page + 1) }}"
-					class="{{ 'disabled' if current_page == total_pages else '' }}"
-					>»</a
-				>
-			</nav>
-			{% endif %} {% else %}
-			<p>Пока нет транзакций для отображения.</p>
-			{% endif %}
-		</section>
-	</div>
-</div>
+</section>
 
 <script>
-	const CHART_DATA = {{ chart_data | tojson }};
+	// Инициализация объединенного графика
+	document.addEventListener('DOMContentLoaded', function() {
+		const combinedCtx = document.getElementById('combinedChart').getContext('2d');
+		new Chart(combinedCtx, {
+			type: 'line',
+			data: {
+				labels: {{ chart_data.dates | tojson }},
+				datasets: [{
+					label: 'Новые пользователи',
+					data: {{ chart_data.new_users | tojson }},
+					borderColor: '#4CAF50',
+					backgroundColor: 'rgba(76, 175, 80, 0.1)',
+					tension: 0.4,
+					pointRadius: 4,
+					pointHoverRadius: 6,
+					borderWidth: 2
+				}, {
+					label: 'Новые ключи',
+					data: {{ chart_data.new_keys | tojson }},
+					borderColor: '#2196F3',
+					backgroundColor: 'rgba(33, 150, 243, 0.1)',
+					tension: 0.4,
+					pointRadius: 4,
+					pointHoverRadius: 6,
+					borderWidth: 2
+				}]
+			},
+			options: {
+				responsive: true,
+				maintainAspectRatio: false,
+				layout: {
+					padding: {
+						top: 5,
+						right: 5,
+						bottom: 5,
+						left: 5
+					}
+				},
+				plugins: {
+					legend: {
+						display: true,
+						position: 'top',
+						labels: {
+							font: {
+								size: 12
+							},
+							usePointStyle: true,
+							padding: 15
+						}
+					}
+				},
+				scales: {
+					x: {
+						display: true,
+						title: {
+							display: true,
+							text: 'Дата',
+							font: {
+								size: 10
+							}
+						},
+						ticks: {
+							font: {
+								size: 9
+							},
+							maxRotation: 45,
+							padding: 3
+						},
+						grid: {
+							display: true,
+							drawBorder: true
+						}
+					},
+					y: {
+						display: true,
+						beginAtZero: true,
+						title: {
+							display: true,
+							text: 'Количество',
+							font: {
+								size: 10
+							}
+						},
+						ticks: {
+							font: {
+								size: 9
+							},
+							padding: 3,
+							stepSize: 1
+						},
+						grid: {
+							display: true,
+							drawBorder: true
+						}
+					}
+				},
+				interaction: {
+					intersect: false,
+					mode: 'index'
+				},
+				elements: {
+					point: {
+						radius: 4,
+						hoverRadius: 6
+					},
+					line: {
+						tension: 0.4
+					}
+				}
+			}
+		});
+	});
 </script>
 
 {% endblock %}

@@ -37,6 +37,10 @@ def main():
         bot_controller.set_loop(loop)
         flask_app.config['EVENT_LOOP'] = loop
         
+        # Отключаем логи Werkzeug
+        import logging
+        logging.getLogger('werkzeug').setLevel(logging.ERROR)
+        
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(sig, lambda sig=sig: asyncio.create_task(shutdown(sig, loop)))
         

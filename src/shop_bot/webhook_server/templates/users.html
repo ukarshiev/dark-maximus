@@ -1,10 +1,9 @@
 {% extends "base.html" %} {% block title %}Управление Пользователями{% endblock
 %} {% block content %}
 
-<h1>Управление Пользователями</h1>
+<h1>Пользователи</h1>
 
 <section class="settings-section">
-	<h2>Список пользователей</h2>
 	<div style="overflow-x: auto">
 		<table class="users-table">
 			<thead>
@@ -13,14 +12,23 @@
 					<th>Username</th>
 					<th>Статус</th>
 					<th>Активные ключи</th>
+					<th>Заработано</th>
 					<th class="actions-cell">Действия</th>
 				</tr>
 			</thead>
 			<tbody>
 				{% for user in users %}
 				<tr>
-					<td>{{ user.telegram_id }}</td>
-					<td>@{{ user.username or 'N/A' }}</td>
+					<td>
+						<a href="#" class="user-id-link" onclick="openUserModal({{ user.telegram_id }}, '{{ user.username or 'N/A' }}', {{ user.is_banned|lower }}, {{ user.user_keys|length if user.user_keys else 0 }})">
+							{{ user.telegram_id }}
+						</a>
+					</td>
+					<td>
+						@{{ user.username or 'N/A' }}
+						<button class="modal-action-btn" onclick="openTelegramProfileFromTable('{{ user.username or 'N/A' }}')" title="Перейти в Telegram">🔗</button>
+						<button class="modal-action-btn" onclick="copyUsernameFromTable('{{ user.username or 'N/A' }}')" title="Копировать username">📋</button>
+					</td>
 					<td>
 						{% if user.is_banned %}
 						<span class="status-badge status-banned">Забанен</span>
@@ -31,6 +39,9 @@
 					<td>
 						{% if user.user_keys %} {{ user.user_keys | length }} шт. {% else %}
 						0 {% endif %}
+					</td>
+					<td>
+						<span class="user-earned" data-user-id="{{ user.telegram_id }}">Загрузка...</span>
 					</td>
 					<td class="actions-cell">
 						{% if user.is_banned %}

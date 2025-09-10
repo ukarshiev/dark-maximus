@@ -48,6 +48,8 @@ def initialize_db():
                     currency_name TEXT,
                     payment_method TEXT,
                     metadata TEXT,
+                    transaction_hash TEXT,
+                    payment_link TEXT,
                     created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
@@ -156,7 +158,75 @@ def run_migration():
         else:
             logging.info(" -> The column 'referral_balance_all' already exists.")
         
+        # Добавляем колонки для ключей
+        if 'key_id' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN key_id INTEGER")
+            logging.info(" -> The column 'key_id' is successfully added.")
+        else:
+            logging.info(" -> The column 'key_id' already exists.")
+            
+        if 'connection_string' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN connection_string TEXT")
+            logging.info(" -> The column 'connection_string' is successfully added.")
+        else:
+            logging.info(" -> The column 'connection_string' already exists.")
+            
+        if 'host_name' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN host_name TEXT")
+            logging.info(" -> The column 'host_name' is successfully added.")
+        else:
+            logging.info(" -> The column 'host_name' already exists.")
+            
+        if 'plan_name' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN plan_name TEXT")
+            logging.info(" -> The column 'plan_name' is successfully added.")
+        else:
+            logging.info(" -> The column 'plan_name' already exists.")
+            
+        if 'price' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN price REAL")
+            logging.info(" -> The column 'price' is successfully added.")
+        else:
+            logging.info(" -> The column 'price' already exists.")
+            
+        if 'email' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN email TEXT")
+            logging.info(" -> The column 'email' is successfully added.")
+        else:
+            logging.info(" -> The column 'email' already exists.")
+            
+        if 'created_date' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN created_date TIMESTAMP")
+            logging.info(" -> The column 'created_date' is successfully added.")
+        else:
+            logging.info(" -> The column 'created_date' already exists.")
+        
         logging.info("The table 'users' has been successfully updated.")
+
+        logging.info("The migration of the table 'vpn_keys' ...")
+        
+        cursor.execute("PRAGMA table_info(vpn_keys)")
+        vpn_keys_columns = [row[1] for row in cursor.fetchall()]
+        
+        if 'connection_string' not in vpn_keys_columns:
+            cursor.execute("ALTER TABLE vpn_keys ADD COLUMN connection_string TEXT")
+            logging.info(" -> The column 'connection_string' is successfully added to vpn_keys table.")
+        else:
+            logging.info(" -> The column 'connection_string' already exists in vpn_keys table.")
+            
+        if 'plan_name' not in vpn_keys_columns:
+            cursor.execute("ALTER TABLE vpn_keys ADD COLUMN plan_name TEXT")
+            logging.info(" -> The column 'plan_name' is successfully added to vpn_keys table.")
+        else:
+            logging.info(" -> The column 'plan_name' already exists in vpn_keys table.")
+            
+        if 'price' not in vpn_keys_columns:
+            cursor.execute("ALTER TABLE vpn_keys ADD COLUMN price REAL")
+            logging.info(" -> The column 'price' is successfully added to vpn_keys table.")
+        else:
+            logging.info(" -> The column 'price' already exists in vpn_keys table.")
+        
+        logging.info("The table 'vpn_keys' has been successfully updated.")
 
         logging.info("The migration of the table 'Transactions' ...")
 
@@ -166,6 +236,20 @@ def run_migration():
         if table_exists:
             cursor.execute("PRAGMA table_info(transactions)")
             trans_columns = [row[1] for row in cursor.fetchall()]
+            
+            # Проверяем и добавляем transaction_hash если нужно
+            if 'transaction_hash' not in trans_columns:
+                cursor.execute("ALTER TABLE transactions ADD COLUMN transaction_hash TEXT")
+                logging.info(" -> The column 'transaction_hash' is successfully added to transactions table.")
+            else:
+                logging.info(" -> The column 'transaction_hash' already exists in transactions table.")
+            
+            # Проверяем и добавляем payment_link если нужно
+            if 'payment_link' not in trans_columns:
+                cursor.execute("ALTER TABLE transactions ADD COLUMN payment_link TEXT")
+                logging.info(" -> The column 'payment_link' is successfully added to transactions table.")
+            else:
+                logging.info(" -> The column 'payment_link' already exists in transactions table.")
             
             if 'payment_id' in trans_columns and 'status' in trans_columns and 'username' in trans_columns:
                 logging.info("The 'Transactions' table already has a new structure. Migration is not required.")
@@ -191,21 +275,30 @@ def run_migration():
         logging.error(f"An error occurred during migration: {e}")
 
 def create_new_transactions_table(cursor: sqlite3.Cursor):
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS transactions (
-            username TEXT,
-            transaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            payment_id TEXT UNIQUE NOT NULL,
-            user_id INTEGER NOT NULL,
-            status TEXT NOT NULL,
-            amount_rub REAL NOT NULL,
-            amount_currency REAL,
-            currency_name TEXT,
-            payment_method TEXT,
-            metadata TEXT,
-            created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS transactions (
+                    username TEXT,
+                    transaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    payment_id TEXT UNIQUE NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    status TEXT NOT NULL,
+                    amount_rub REAL NOT NULL,
+                    amount_currency REAL,
+                    currency_name TEXT,
+                    payment_method TEXT,
+                    metadata TEXT,
+                    transaction_hash TEXT,
+                    payment_link TEXT,
+                    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Добавляем поле transaction_hash если его нет
+            try:
+                cursor.execute("ALTER TABLE transactions ADD COLUMN transaction_hash TEXT")
+            except sqlite3.OperationalError:
+                # Поле уже существует
+                pass
 
 def create_host(name: str, url: str, user: str, passwd: str, inbound: int):
     try:
@@ -477,9 +570,13 @@ def create_pending_transaction(payment_id: str, user_id: int, amount_rub: float,
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
+            # Используем локальное время (UTC+3)
+            from datetime import timezone, timedelta
+            local_tz = timezone(timedelta(hours=3))  # UTC+3 для России
+            local_now = datetime.now(local_tz)
             cursor.execute(
-                "INSERT INTO transactions (payment_id, user_id, status, amount_rub, metadata) VALUES (?, ?, ?, ?, ?)",
-                (payment_id, user_id, 'pending', amount_rub, json.dumps(metadata))
+                "INSERT INTO transactions (payment_id, user_id, status, amount_rub, metadata, created_date) VALUES (?, ?, ?, ?, ?, ?)",
+                (payment_id, user_id, 'pending', amount_rub, json.dumps(metadata), local_now)
             )
             conn.commit()
             return cursor.lastrowid
@@ -487,23 +584,135 @@ def create_pending_transaction(payment_id: str, user_id: int, amount_rub: float,
         logging.error(f"Failed to create pending transaction: {e}")
         return 0
 
-def find_and_complete_ton_transaction(payment_id: str, amount_ton: float) -> dict | None:
+def create_pending_ton_transaction(payment_id: str, user_id: int, amount_rub: float, amount_ton: float, metadata: dict, payment_link: str = None) -> int:
+    """Создает pending транзакцию для TON платежей"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            # Используем локальное время (UTC+3)
+            from datetime import timezone, timedelta
+            local_tz = timezone(timedelta(hours=3))  # UTC+3 для России
+            local_now = datetime.now(local_tz)
+            cursor.execute(
+                "INSERT INTO transactions (payment_id, user_id, status, amount_rub, amount_currency, currency_name, payment_method, metadata, payment_link, created_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (payment_id, user_id, 'pending', amount_rub, amount_ton, 'TON', 'TON Connect', json.dumps(metadata), payment_link, local_now)
+            )
+            conn.commit()
+            return cursor.lastrowid
+    except sqlite3.Error as e:
+        logging.error(f"Failed to create pending TON transaction: {e}")
+        return 0
+
+def update_transaction_status(payment_id: str, status: str, tx_hash: str = None) -> bool:
+    """Обновляет статус транзакции и хеш"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            if tx_hash:
+                cursor.execute(
+                    "UPDATE transactions SET status = ?, transaction_hash = ? WHERE payment_id = ?",
+                    (status, tx_hash, payment_id)
+                )
+            else:
+                cursor.execute(
+                    "UPDATE transactions SET status = ? WHERE payment_id = ?",
+                    (status, payment_id)
+                )
+            conn.commit()
+            return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        logging.error(f"Failed to update transaction status: {e}")
+        return False
+
+def update_transaction_on_payment(payment_id: str, status: str, amount_rub: float, tx_hash: str = None, metadata: dict = None) -> bool:
+    """Обновляет транзакцию при успешной оплате"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            
+            # Обновляем основную информацию
+            if tx_hash and metadata:
+                cursor.execute("""
+                    UPDATE transactions 
+                    SET status = ?, amount_rub = ?, transaction_hash = ?, metadata = ?
+                    WHERE payment_id = ?
+                """, (status, amount_rub, tx_hash, json.dumps(metadata), payment_id))
+            elif tx_hash:
+                cursor.execute("""
+                    UPDATE transactions 
+                    SET status = ?, amount_rub = ?, transaction_hash = ?
+                    WHERE payment_id = ?
+                """, (status, amount_rub, tx_hash, payment_id))
+            else:
+                cursor.execute("""
+                    UPDATE transactions 
+                    SET status = ?, amount_rub = ?
+                    WHERE payment_id = ?
+                """, (status, amount_rub, payment_id))
+            
+            conn.commit()
+            return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        logging.error(f"Failed to update transaction on payment: {e}")
+        return False
+
+def find_ton_transaction_by_amount(amount_ton: float) -> dict | None:
+    """Ищет pending TON транзакцию по сумме"""
     try:
         with sqlite3.connect(DB_FILE) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
+            # Ищем pending транзакции с похожей суммой в TON (с погрешностью 0.01 TON)
+            cursor.execute("""
+                SELECT * FROM transactions 
+                WHERE status = 'pending' 
+                AND payment_method = 'TON Connect'
+                AND ABS(amount_currency - ?) < 0.01
+                ORDER BY created_date DESC 
+                LIMIT 1
+            """, (amount_ton,))
+            
+            transaction = cursor.fetchone()
+            if transaction:
+                # Только находим транзакцию, НЕ обновляем статус
+                logger.info(f"Found pending TON transaction by amount: {amount_ton} TON")
+                return json.loads(transaction['metadata'])
+            
+            return None
+    except sqlite3.Error as e:
+        logging.error(f"Failed to find TON transaction by amount {amount_ton}: {e}")
+        return None
+
+def find_and_complete_ton_transaction(payment_id: str, amount_ton: float, tx_hash: str = None) -> dict | None:
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            # Ищем транзакцию по payment_id
             cursor.execute("SELECT * FROM transactions WHERE payment_id = ? AND status = 'pending'", (payment_id,))
             transaction = cursor.fetchone()
+            
+            # Если не найдено, попробуем найти по сумме (fallback)
+            if not transaction:
+                cursor.execute("SELECT * FROM transactions WHERE status = 'pending' AND payment_method = 'TON Connect' AND ABS(amount_currency - ?) < 0.01", (amount_ton,))
+                transaction = cursor.fetchone()
+            
             if not transaction:
                 logger.warning(f"TON Webhook: Received payment for unknown or completed payment_id: {payment_id}")
                 return None
             
-            
-            cursor.execute(
-                "UPDATE transactions SET status = 'paid', amount_currency = ?, currency_name = 'TON', payment_method = 'TON' WHERE payment_id = ?",
-                (amount_ton, payment_id)
-            )
+            if tx_hash:
+                cursor.execute(
+                    "UPDATE transactions SET status = 'paid', amount_currency = ?, currency_name = 'TON', payment_method = 'TON Connect', transaction_hash = ? WHERE payment_id = ?",
+                    (amount_ton, tx_hash, transaction['payment_id'])
+                )
+            else:
+                cursor.execute(
+                    "UPDATE transactions SET status = 'paid', amount_currency = ?, currency_name = 'TON', payment_method = 'TON Connect' WHERE payment_id = ?",
+                    (amount_ton, transaction['payment_id'])
+                )
             conn.commit()
             
             return json.loads(transaction['metadata'])
@@ -515,11 +724,15 @@ def log_transaction(username: str, transaction_id: str | None, payment_id: str |
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
+            # Используем локальное время (UTC+3)
+            from datetime import timezone, timedelta
+            local_tz = timezone(timedelta(hours=3))  # UTC+3 для России
+            local_now = datetime.now(local_tz)
             cursor.execute(
                 """INSERT INTO transactions
                    (username, transaction_id, payment_id, user_id, status, amount_rub, amount_currency, currency_name, payment_method, metadata, created_date)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (username, transaction_id, payment_id, user_id, status, amount_rub, amount_currency, currency_name, payment_method, metadata, datetime.now())
+                (username, transaction_id, payment_id, user_id, status, amount_rub, amount_currency, currency_name, payment_method, metadata, local_now)
             )
             conn.commit()
     except sqlite3.Error as e:
@@ -537,11 +750,26 @@ def get_paginated_transactions(page: int = 1, per_page: int = 15) -> tuple[list[
             cursor.execute("SELECT COUNT(*) FROM transactions")
             total = cursor.fetchone()[0]
 
-            query = "SELECT * FROM transactions ORDER BY created_date DESC LIMIT ? OFFSET ?"
+            query = """
+                SELECT t.*, u.username, u.telegram_id 
+                FROM transactions t 
+                LEFT JOIN users u ON t.user_id = u.telegram_id 
+                ORDER BY t.created_date DESC 
+                LIMIT ? OFFSET ?
+            """
             cursor.execute(query, (per_page, offset))
             
             for row in cursor.fetchall():
                 transaction_dict = dict(row)
+                
+                # Преобразуем created_date в datetime объект
+                if transaction_dict.get('created_date'):
+                    try:
+                        from datetime import datetime
+                        if isinstance(transaction_dict['created_date'], str):
+                            transaction_dict['created_date'] = datetime.fromisoformat(transaction_dict['created_date'].replace('Z', '+00:00'))
+                    except (ValueError, TypeError):
+                        transaction_dict['created_date'] = None
                 
                 metadata_str = transaction_dict.get('metadata')
                 if metadata_str:
@@ -549,12 +777,15 @@ def get_paginated_transactions(page: int = 1, per_page: int = 15) -> tuple[list[
                         metadata = json.loads(metadata_str)
                         transaction_dict['host_name'] = metadata.get('host_name', 'N/A')
                         transaction_dict['plan_name'] = metadata.get('plan_name', 'N/A')
+                        transaction_dict['customer_email'] = metadata.get('customer_email', 'N/A')
                     except json.JSONDecodeError:
                         transaction_dict['host_name'] = 'Error'
                         transaction_dict['plan_name'] = 'Error'
+                        transaction_dict['customer_email'] = 'Error'
                 else:
                     transaction_dict['host_name'] = 'N/A'
                     transaction_dict['plan_name'] = 'N/A'
+                    transaction_dict['customer_email'] = 'N/A'
                 
                 transactions.append(transaction_dict)
             
@@ -573,14 +804,18 @@ def set_trial_used(telegram_id: int):
     except sqlite3.Error as e:
         logging.error(f"Failed to set trial used for user {telegram_id}: {e}")
 
-def add_new_key(user_id: int, host_name: str, xui_client_uuid: str, key_email: str, expiry_timestamp_ms: int):
+def add_new_key(user_id: int, host_name: str, xui_client_uuid: str, key_email: str, expiry_timestamp_ms: int, connection_string: str = None, plan_name: str = None, price: float = None):
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             expiry_date = datetime.fromtimestamp(expiry_timestamp_ms / 1000)
+            from datetime import timezone, timedelta
+            local_tz = timezone(timedelta(hours=3))
+            local_now = datetime.now(local_tz)
+            
             cursor.execute(
-                "INSERT INTO vpn_keys (user_id, host_name, xui_client_uuid, key_email, expiry_date) VALUES (?, ?, ?, ?, ?)",
-                (user_id, host_name, xui_client_uuid, key_email, expiry_date)
+                "INSERT INTO vpn_keys (user_id, host_name, xui_client_uuid, key_email, expiry_date, connection_string, plan_name, price, created_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (user_id, host_name, xui_client_uuid, key_email, expiry_date, connection_string, plan_name, price, local_now)
             )
             new_key_id = cursor.lastrowid
             conn.commit()
@@ -713,7 +948,30 @@ def get_daily_stats_for_charts(days: int = 30) -> dict:
                 stats['keys'][row[0]] = row[1]
     except sqlite3.Error as e:
         logging.error(f"Failed to get daily stats for charts: {e}")
-    return stats
+    
+    # Преобразуем в формат для графиков
+    from datetime import datetime, timedelta
+    
+    # Создаем список всех дат за последние N дней
+    dates = []
+    for i in range(days):
+        date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
+        dates.append(date)
+    dates.reverse()  # От старых к новым
+    
+    # Создаем массивы данных для графиков
+    new_users = []
+    new_keys = []
+    
+    for date in dates:
+        new_users.append(stats['users'].get(date, 0))
+        new_keys.append(stats['keys'].get(date, 0))
+    
+    return {
+        'dates': dates,
+        'new_users': new_users,
+        'new_keys': new_keys
+    }
 
 
 def get_recent_transactions(limit: int = 15) -> list[dict]:
@@ -820,3 +1078,54 @@ def delete_user_keys(user_id: int):
             conn.commit()
     except sqlite3.Error as e:
         logging.error(f"Failed to delete keys for user {user_id}: {e}")
+
+def get_paginated_keys(page: int = 1, per_page: int = 15) -> tuple[list[dict], int]:
+    """Получает ключи с пагинацией"""
+    offset = (page - 1) * per_page
+    keys = []
+    total = 0
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT COUNT(*) FROM vpn_keys")
+            total = cursor.fetchone()[0]
+
+            query = """
+                SELECT 
+                    vk.key_id,
+                    vk.user_id,
+                    u.username,
+                    u.email,
+                    vk.host_name,
+                    vk.plan_name,
+                    vk.price,
+                    vk.connection_string,
+                    vk.created_date
+                FROM vpn_keys vk
+                LEFT JOIN users u ON vk.user_id = u.telegram_id
+                ORDER BY vk.created_date DESC 
+                LIMIT ? OFFSET ?
+            """
+            cursor.execute(query, (per_page, offset))
+            
+            for row in cursor.fetchall():
+                key_dict = dict(row)
+                
+                # Преобразуем created_date в datetime объект
+                if key_dict.get('created_date'):
+                    try:
+                        from datetime import datetime
+                        if isinstance(key_dict['created_date'], str):
+                            key_dict['created_date'] = datetime.fromisoformat(key_dict['created_date'].replace('Z', '+00:00'))
+                    except (ValueError, TypeError):
+                        key_dict['created_date'] = None
+                
+                keys.append(key_dict)
+            
+            return keys, total
+            
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get paginated keys: {e}")
+        return [], 0
