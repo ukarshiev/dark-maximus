@@ -27,9 +27,9 @@ from shop_bot.data_manager.database import (
     get_total_keys_count, get_total_spent_sum, get_daily_stats_for_charts,
     get_recent_transactions, get_paginated_transactions, get_all_users, get_user_keys,
     ban_user, unban_user, delete_user_keys, get_setting, find_and_complete_ton_transaction, find_ton_transaction_by_amount,
-    get_paginated_keys
+    get_paginated_keys, get_plan_by_id, update_plan, get_host, update_host
 )
-# from shop_bot.ton_monitor import start_ton_monitoring  # Отключено
+from shop_bot.ton_monitor import start_ton_monitoring
 
 _bot_controller = None
 
@@ -38,9 +38,10 @@ ALL_SETTINGS_KEYS = [
     "support_user", "support_text", "channel_url", "telegram_bot_token",
     "telegram_bot_username", "admin_telegram_id", "yookassa_shop_id",
     "yookassa_secret_key", "sbp_enabled", "receipt_email", "cryptobot_token",
+    "stars_enabled", "stars_conversion_rate",
     "heleket_merchant_id", "heleket_api_key", "domain", "referral_percentage",
     "referral_discount", "ton_wallet_address", "tonapi_key", "force_subscription", "trial_enabled", "trial_duration_days", "enable_referrals", "minimum_withdrawal",
-    "support_group_id", "support_bot_token", "ton_monitoring_enabled"
+    "support_group_id", "support_bot_token", "ton_monitoring_enabled", "hidden_mode", "support_enabled"
 ]
 
 def create_webhook_app(bot_controller_instance):
@@ -73,6 +74,38 @@ def create_webhook_app(bot_controller_instance):
     @flask_app.context_processor
     def inject_current_year():
         return {'current_year': datetime.utcnow().year}
+
+    @flask_app.context_processor
+    def inject_common_defaults():
+        """Глобальные значения по умолчанию для всех шаблонов.
+        Если конкретный обработчик не передал данные, шаблон всё равно не упадёт."""
+        try:
+            data = get_common_template_data()
+            # Убедимся, что bot_status представим как dict (для dot-notation)
+            bot_status_val = data.get('bot_status')
+            if isinstance(bot_status_val, dict):
+                pass
+            else:
+                try:
+                    bot_status_val = {
+                        'shop_bot_running': getattr(bot_status_val, 'shop_bot_running', False),
+                        'support_bot_running': getattr(bot_status_val, 'support_bot_running', False)
+                    }
+                except Exception:
+                    bot_status_val = {'shop_bot_running': False, 'support_bot_running': False}
+            return {
+                'bot_status': bot_status_val,
+                'all_settings_ok': data.get('all_settings_ok', False),
+                'hidden_mode': data.get('hidden_mode', False),
+                'project_version': data.get('project_version', '')
+            }
+        except Exception:
+            return {
+                'bot_status': {'shop_bot_running': False, 'support_bot_running': False},
+                'all_settings_ok': False,
+                'hidden_mode': False,
+                'project_version': ''
+            }
 
     def login_required(f):
         @wraps(f)
@@ -111,7 +144,19 @@ def create_webhook_app(bot_controller_instance):
         settings = get_all_settings()
         required_for_start = ['telegram_bot_token', 'telegram_bot_username', 'admin_telegram_id']
         all_settings_ok = all(settings.get(key) for key in required_for_start)
-        return {"bot_status": bot_status, "all_settings_ok": all_settings_ok}
+        hidden_mode_enabled = (str(settings.get('hidden_mode')) in ['1', 'true', 'True'])
+        # Версию читаем из pyproject.toml
+        project_version = ""
+        try:
+            import tomllib
+            pyproject_path = PROJECT_ROOT / 'pyproject.toml'
+            if pyproject_path.exists():
+                with open(pyproject_path, 'rb') as f:
+                    data = tomllib.load(f)
+                    project_version = data.get('project', {}).get('version', '')
+        except Exception:
+            project_version = ""
+        return {"bot_status": bot_status, "all_settings_ok": all_settings_ok, "hidden_mode": hidden_mode_enabled, "project_version": project_version}
 
     @flask_app.route('/')
     @login_required
@@ -203,33 +248,108 @@ def create_webhook_app(bot_controller_instance):
         common_data = get_common_template_data()
         return render_template('users.html', users=users, **common_data)
 
-    @flask_app.route('/settings', methods=['GET', 'POST'])
+    @flask_app.route('/settings', methods=['GET'])
     @login_required
     def settings_page():
-        if request.method == 'POST':
-            if 'panel_password' in request.form and request.form.get('panel_password'):
-                update_setting('panel_password', request.form.get('panel_password'))
-
-            for checkbox_key in ['force_subscription', 'sbp_enabled', 'trial_enabled', 'enable_referrals']:
-                values = request.form.getlist(checkbox_key)
-                value = values[-1] if values else 'false'
-                update_setting(checkbox_key, 'true' if value == 'true' else 'false')
-
-            for key in ALL_SETTINGS_KEYS:
-                if key in ['panel_password', 'force_subscription', 'sbp_enabled', 'trial_enabled', 'enable_referrals']:
-                    continue
-                update_setting(key, request.form.get(key, ''))
-
-            flash('Настройки успешно сохранены!', 'success')
-            return redirect(url_for('settings_page'))
-
         current_settings = get_all_settings()
         hosts = get_all_hosts()
         for host in hosts:
             host['plans'] = get_plans_for_host(host['host_name'])
         
+        # Получаем активную вкладку из параметра URL
+        active_tab = request.args.get('tab', 'servers')
+        
         common_data = get_common_template_data()
-        return render_template('settings.html', settings=current_settings, hosts=hosts, **common_data)
+        return render_template('settings.html', settings=current_settings, hosts=hosts, active_tab=active_tab, **common_data)
+
+    @flask_app.route('/settings/panel', methods=['POST'])
+    @login_required
+    def save_panel_settings():
+        """Сохранение настроек панели - v2.1"""
+        panel_keys = ['panel_login']
+        
+        # Пароль отдельно, если указан
+        if 'panel_password' in request.form and request.form.get('panel_password'):
+            update_setting('panel_password', request.form.get('panel_password'))
+        
+        # Обновляем остальные настройки панели
+        for key in panel_keys:
+            update_setting(key, request.form.get(key, ''))
+        
+        flash('Настройки панели успешно сохранены!', 'success')
+        return redirect(url_for('settings_page', tab='panel'))
+
+    @flask_app.route('/settings/bot', methods=['POST'])
+    @login_required
+    def save_bot_settings():
+        """Сохранение настроек бота - v2.1"""
+        bot_keys = [
+            'telegram_bot_token', 'telegram_bot_username', 'admin_telegram_id',
+            'support_user', 'support_bot_token', 'support_group_id',
+            'about_text', 'support_text', 'terms_url', 'privacy_url', 'channel_url',
+            'trial_duration_days', 'minimum_withdrawal', 'referral_percentage', 'referral_discount', 'minimum_topup'
+        ]
+        
+        bot_checkboxes = ['force_subscription', 'trial_enabled', 'enable_referrals', 'support_enabled']
+        
+        # Обрабатываем чекбоксы
+        for checkbox_key in bot_checkboxes:
+            values = request.form.getlist(checkbox_key)
+            value = values[-1] if values else 'false'
+            update_setting(checkbox_key, 'true' if value == 'true' else 'false')
+        
+        # Обрабатываем остальные настройки
+        for key in bot_keys:
+            update_setting(key, request.form.get(key, ''))
+        
+        flash('Настройки бота успешно сохранены!', 'success')
+        return redirect(url_for('settings_page', tab='bot'))
+
+    @flask_app.route('/settings/payments', methods=['POST'])
+    @login_required
+    def save_payment_settings():
+        """Сохранение настроек платежных систем - v2.1"""
+        payment_keys = [
+            'receipt_email', 'yookassa_shop_id', 'yookassa_secret_key',
+            'cryptobot_token', 'heleket_merchant_id', 'heleket_api_key', 'domain',
+            'ton_wallet_address', 'tonapi_key', 'stars_conversion_rate'
+        ]
+        
+        payment_checkboxes = ['sbp_enabled', 'stars_enabled']
+        
+        # Обрабатываем чекбоксы
+        for checkbox_key in payment_checkboxes:
+            values = request.form.getlist(checkbox_key)
+            value = values[-1] if values else 'false'
+            update_setting(checkbox_key, 'true' if value == 'true' else 'false')
+        
+        # Обрабатываем остальные настройки
+        for key in payment_keys:
+            update_setting(key, request.form.get(key, ''))
+        
+        flash('Настройки платежных систем успешно сохранены!', 'success')
+        return redirect(url_for('settings_page', tab='payments'))
+
+    # Старый endpoint для совместимости (удалим позже)
+    @flask_app.route('/settings/legacy', methods=['POST'])
+    @login_required
+    def legacy_settings():
+        if 'panel_password' in request.form and request.form.get('panel_password'):
+            update_setting('panel_password', request.form.get('panel_password'))
+
+        for checkbox_key in ['force_subscription', 'sbp_enabled', 'trial_enabled', 'enable_referrals', 'stars_enabled']:
+            values = request.form.getlist(checkbox_key)
+            value = values[-1] if values else 'false'
+            update_setting(checkbox_key, 'true' if value == 'true' else 'false')
+
+        for key in ALL_SETTINGS_KEYS:
+            if key in ['panel_password', 'force_subscription', 'sbp_enabled', 'trial_enabled', 'enable_referrals', 'stars_enabled']:
+                continue
+            update_setting(key, request.form.get(key, ''))
+
+        flash('Настройки успешно сохранены!', 'success')
+        return redirect(url_for('settings_page'))
+
 
     @flask_app.route('/start-shop-bot', methods=['POST'])
     @login_required
@@ -258,6 +378,198 @@ def create_webhook_app(bot_controller_instance):
         result = _bot_controller.stop_support_bot()
         flash(result.get('message', 'An error occurred.'), 'success' if result.get('status') == 'success' else 'danger')
         return redirect(request.referrer or url_for('dashboard_page'))
+
+    @flask_app.route('/toggle-hidden-mode', methods=['POST'])
+    @login_required
+    def toggle_hidden_mode():
+        try:
+            from shop_bot.data_manager.database import get_setting, update_setting
+            current = str(get_setting('hidden_mode') or '0')
+            new_value = '0' if current in ['1', 'true', 'True'] else '1'
+            update_setting('hidden_mode', new_value)
+            return {'status': 'success', 'hidden_mode': new_value}, 200
+        except Exception as e:
+            logger.error(f"Failed to toggle hidden mode: {e}")
+            return {'status': 'error'}, 500
+
+    @flask_app.route('/versions', methods=['GET', 'POST'])
+    @login_required
+    def versions_page():
+        """Просмотр и редактирование CHANGELOG.md"""
+        def resolve_changelog_path():
+            try:
+                candidates = [
+                    PROJECT_ROOT / 'CHANGELOG.md',
+                    Path(__file__).resolve().parents[3] / 'CHANGELOG.md',
+                    Path.cwd() / 'CHANGELOG.md'
+                ]
+            except Exception:
+                candidates = [PROJECT_ROOT / 'CHANGELOG.md']
+            for p in candidates:
+                try:
+                    if p.exists() or p.parent.exists():
+                        return p
+                except Exception:
+                    continue
+            return candidates[0]
+
+        changelog_path = resolve_changelog_path()
+
+        if request.method == 'POST':
+            try:
+                new_content = request.form.get('changelog_content', '')
+                # Безопасно перезаписываем файл (создаём при отсутствии)
+                with open(changelog_path, 'w', encoding='utf-8') as f:
+                    f.write(new_content)
+                flash('CHANGELOG.md обновлён.', 'success')
+                return redirect(url_for('versions_page'))
+            except Exception as e:
+                logger.error(f"Failed to write CHANGELOG.md: {e}")
+                flash('Не удалось сохранить изменения.', 'danger')
+
+        # GET: читаем changelog (создаём, если отсутствует)
+        changelog_text = ''
+        try:
+            if not changelog_path.exists():
+                try:
+                    with open(changelog_path, 'w', encoding='utf-8') as f:
+                        f.write('# История изменений\n\n')
+                except Exception as e:
+                    logger.error(f"Failed to create CHANGELOG.md: {e}")
+            if changelog_path.exists():
+                with open(changelog_path, 'r', encoding='utf-8') as f:
+                    changelog_text = f.read()
+        except Exception as e:
+            logger.error(f"Failed to read CHANGELOG.md: {e}")
+            changelog_text = ''
+        # Общие данные для шаблонов (боты/режим/версия)
+        common_data = get_common_template_data()
+        return render_template('versions.html', changelog_text=changelog_text, **common_data)
+
+    @flask_app.route('/instructions', methods=['GET', 'POST'])
+    @login_required
+    def instructions_page():
+        """Просмотр и редактирование инструкций по платформам"""
+        from pathlib import Path as _Path
+
+        def resolve_base_dir():
+            try:
+                candidates = [
+                    PROJECT_ROOT / 'instructions',
+                    _Path(__file__).resolve().parents[3] / 'instructions',
+                    Path.cwd() / 'instructions'
+                ]
+            except Exception:
+                candidates = [PROJECT_ROOT / 'instructions']
+            for p in candidates:
+                try:
+                    p.mkdir(parents=True, exist_ok=True)
+                    return p
+                except Exception:
+                    continue
+            return candidates[0]
+
+        base_dir = resolve_base_dir()
+
+        def get_file_for(platform: str) -> _Path:
+            mapping = {
+                'android': 'android.md',
+                'ios': 'ios.md',
+                'windows': 'windows.md',
+                'macos': 'macos.md',
+                'linux': 'linux.md',
+            }
+            filename = mapping.get(platform, 'android.md')
+            return base_dir / filename
+
+        def default_content(platform: str) -> str:
+            if platform == 'android':
+                return (
+                    "<b>Подключение на Android</b>\n\n"
+                    "1. <b>Установите приложение V2RayTun:</b> Загрузите и установите приложение V2RayTun из Google Play Store.\n"
+                    "2. <b>Скопируйте свой ключ (vless://)</b> Перейдите в раздел «Моя подписка» в нашем боте и скопируйте свой ключ.\n"
+                    "3. <b>Импортируйте конфигурацию:</b>\n"
+                    "   • Откройте V2RayTun.\n"
+                    "   • Нажмите на значок + в правом нижнем углу.\n"
+                    "   • Выберите «Импортировать конфигурацию из буфера обмена».\n"
+                    "4. <b>Выберите сервер:</b> Выберите появившийся сервер в списке.\n"
+                    "5. <b>Подключитесь к VPN:</b> Нажмите на кнопку подключения.\n"
+                    "6. <b>Проверьте подключение:</b> Зайдите на https://whatismyipaddress.com/."
+                )
+            if platform in ['ios', 'macos']:
+                return (
+                    f"<b>Подключение на {'MacOS' if platform=='macos' else 'iOS (iPhone/iPad)'}</b>\n\n"
+                    "1. <b>Установите приложение V2RayTun:</b> Загрузите и установите приложение V2RayTun из App Store.\n"
+                    "2. <b>Скопируйте свой ключ (vless://):</b> Перейдите в раздел «Моя подписка» в нашем боте и скопируйте свой ключ.\n"
+                    "3. <b>Импортируйте конфигурацию:</b>\n"
+                    "   • Откройте V2RayTun.\n"
+                    "   • Нажмите на значок +.\n"
+                    "   • Выберите «Импортировать конфигурацию из буфера обмена».\n"
+                    "4. <b>Выберите сервер:</b> Выберите появившийся сервер в списке.\n"
+                    "5. <b>Подключитесь к VPN:</b> Включите главный переключатель.\n"
+                    "6. <b>Проверьте подключение:</b> Зайдите на https://whatismyipaddress.com/."
+                )
+            if platform == 'windows':
+                return (
+                    "<b>Подключение на Windows</b>\n\n"
+                    "1. <b>Установите приложение Nekoray</b> с GitHub (Releases).\n"
+                    "2. <b>Распакуйте архив</b> в удобное место и запустите Nekoray.exe.\n"
+                    "3. <b>Скопируйте ключ (vless://)</b> из раздела «Моя подписка».\n"
+                    "4. <b>Импорт:</b> Сервер → Импортировать из буфера обмена.\n"
+                    "5. Включите Tun Mode, выберите сервер и подключитесь.\n"
+                    "6. Проверьте IP на https://whatismyipaddress.com/."
+                )
+            if platform == 'linux':
+                return (
+                    "<b>Подключение на Linux</b>\n\n"
+                    "1. <b>Скачайте и распакуйте Nekoray</b> (Releases на GitHub).\n"
+                    "2. <b>Запуск:</b> ./nekoray в терминале или через GUI.\n"
+                    "3. <b>Скопируйте ключ (vless://)</b> из раздела «Моя подписка».\n"
+                    "4. <b>Импорт:</b> Сервер → Импортировать из буфера обмена.\n"
+                    "5. Включите Tun Mode, выберите сервер и подключитесь.\n"
+                    "6. Проверьте IP на https://whatismyipaddress.com/."
+                )
+            return ''
+
+        # Активная вкладка
+        active_tab = request.args.get('tab', 'android')
+
+        if request.method == 'POST':
+            try:
+                platform = request.form.get('platform', active_tab)
+                new_content = request.form.get('instructions_content', '')
+                file_path = get_file_for(platform)
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(new_content)
+                flash('Инструкции сохранены.', 'success')
+                return redirect(url_for('instructions_page', tab=platform))
+            except Exception as e:
+                logger.error(f"Failed to write instructions: {e}")
+                flash('Не удалось сохранить изменения.', 'danger')
+
+        # GET: читаем файл, создаём при отсутствии с дефолтным содержимым
+        try:
+            file_path = get_file_for(active_tab)
+            if not file_path.exists():
+                try:
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(default_content(active_tab))
+                except Exception as e:
+                    logger.error(f"Failed to create instruction file {file_path}: {e}")
+            instructions_text = ''
+            if file_path.exists():
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    instructions_text = f.read()
+        except Exception as e:
+            logger.error(f"Failed to read instruction file: {e}")
+            instructions_text = ''
+
+        return render_template(
+            'instructions.html',
+            active_tab=active_tab,
+            instructions_text=instructions_text,
+            **get_common_template_data()
+        )
 
     @flask_app.route('/users/ban/<int:user_id>', methods=['POST'])
     @login_required
@@ -304,33 +616,94 @@ def create_webhook_app(bot_controller_instance):
             inbound=int(request.form['host_inbound_id'])
         )
         flash(f"Хост '{request.form['host_name']}' успешно добавлен.", 'success')
-        return redirect(url_for('settings_page'))
+        return redirect(url_for('settings_page', tab='servers'))
+
+    @flask_app.route('/check-host', methods=['POST'])
+    @login_required
+    def check_host_route():
+        """Проверка соединения с 3x-ui: логин и получение списка inbounds."""
+        try:
+            host_name = request.form.get('host_name')
+            host = get_host(host_name)
+            if not host:
+                return {'status': 'error', 'message': 'Хост не найден'}, 404
+            from shop_bot.modules.xui_api import login_to_host
+            api, inbound = login_to_host(host['host_url'], host['host_username'], host['host_pass'], host['host_inbound_id'])
+            if not api:
+                return {'status': 'error', 'message': 'Не удалось войти в панель'}, 500
+            if not inbound:
+                return {'status': 'error', 'message': f"Инбаунд ID {host['host_inbound_id']} не найден"}, 400
+            return {'status': 'success', 'message': 'Соединение успешно. Инбаунд найден.'}
+        except Exception as e:
+            logger.error(f"Host check failed: {e}")
+            return {'status': 'error', 'message': 'Ошибка проверки'}, 500
+
+    @flask_app.route('/edit-host', methods=['POST'])
+    @login_required
+    def edit_host_route():
+        try:
+            old_name = request.form.get('old_host_name')
+            new_name = request.form.get('host_name')
+            url = request.form.get('host_url')
+            user = request.form.get('host_username')
+            passwd = request.form.get('host_pass')
+            inbound = int(request.form.get('host_inbound_id'))
+            ok = update_host(old_name, new_name, url, user, passwd, inbound)
+            if ok:
+                flash('Хост обновлён.', 'success')
+            else:
+                flash('Не удалось обновить хост.', 'danger')
+        except Exception as e:
+            logger.error(f"Edit host failed: {e}")
+            flash('Ошибка при обновлении хоста.', 'danger')
+        return redirect(url_for('settings_page', tab='servers'))
 
     @flask_app.route('/delete-host/<host_name>', methods=['POST'])
     @login_required
     def delete_host_route(host_name):
         delete_host(host_name)
         flash(f"Хост '{host_name}' и все его тарифы были удалены.", 'success')
-        return redirect(url_for('settings_page'))
+        return redirect(url_for('settings_page', tab='servers'))
 
     @flask_app.route('/add-plan', methods=['POST'])
     @login_required
     def add_plan_route():
+        days_val = int(request.form.get('days', 0) or 0)
+        traffic_val = float(request.form.get('traffic_gb', 0) or 0)
         create_plan(
             host_name=request.form['host_name'],
             plan_name=request.form['plan_name'],
-            months=int(request.form['months']),
-            price=float(request.form['price'])
+            months=int(request.form.get('months', 0) or 0),
+            price=float(request.form['price']),
+            days=days_val,
+            traffic_gb=traffic_val
         )
         flash(f"Новый тариф для хоста '{request.form['host_name']}' добавлен.", 'success')
-        return redirect(url_for('settings_page'))
+        return redirect(url_for('settings_page', tab='servers'))
 
     @flask_app.route('/delete-plan/<int:plan_id>', methods=['POST'])
     @login_required
     def delete_plan_route(plan_id):
         delete_plan(plan_id)
         flash("Тариф успешно удален.", 'success')
-        return redirect(url_for('settings_page'))
+        return redirect(url_for('settings_page', tab='servers'))
+
+    @flask_app.route('/edit-plan/<int:plan_id>', methods=['POST'])
+    @login_required
+    def edit_plan_route(plan_id):
+        from shop_bot.data_manager.database import get_plan_by_id, update_plan
+        plan = get_plan_by_id(plan_id)
+        if not plan:
+            flash("Тариф не найден.", 'error')
+            return redirect(url_for('settings_page', tab='servers'))
+        plan_name = request.form.get('plan_name', plan['plan_name'])
+        months = int(request.form.get('months', plan['months']) or 0)
+        days = int(request.form.get('days', plan.get('days', 0)) or 0)
+        price = float(request.form.get('price', plan['price']))
+        traffic_gb = float(request.form.get('traffic_gb', plan.get('traffic_gb', 0)) or 0)
+        update_plan(plan_id, plan_name, months, days, price, traffic_gb)
+        flash("Тариф обновлен.", 'success')
+        return redirect(url_for('settings_page', tab='servers'))
 
     @flask_app.route('/yookassa-webhook', methods=['POST'])
     def yookassa_webhook_handler():
@@ -698,9 +1071,84 @@ def create_webhook_app(bot_controller_instance):
     def refresh_keys_route():
         """Обновляет список ключей"""
         try:
-            # Здесь можно добавить логику синхронизации с XUI панелями
-            # Пока просто возвращаем успех
-            return {'status': 'success', 'message': 'Ключи обновлены'}
+            # Синхронизация дат начала/окончания с XUI панелями
+            updated = 0
+            with sqlite3.connect(DB_FILE) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM vpn_keys ORDER BY created_date DESC LIMIT 50")
+                keys = [dict(row) for row in cursor.fetchall()]
+            
+            from shop_bot.modules.xui_api import get_key_details_from_host
+            for key in keys:
+                try:
+                    details = asyncio.run(get_key_details_from_host(key))
+                    if details and (details.get('expiry_timestamp_ms') or details.get('status') or details.get('protocol') or details.get('created_at') or details.get('remaining_seconds') is not None or details.get('quota_remaining_bytes') is not None):
+                        with sqlite3.connect(DB_FILE) as conn:
+                            cursor = conn.cursor()
+                            if details.get('expiry_timestamp_ms'):
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET expiry_date = ? WHERE key_id = ?",
+                                    (datetime.fromtimestamp(details['expiry_timestamp_ms']/1000), key['key_id'])
+                                )
+                            if details.get('created_at'):
+                                try:
+                                    cursor.execute(
+                                        "UPDATE vpn_keys SET start_date = ? WHERE key_id = ?",
+                                        (datetime.fromtimestamp(details['created_at']/1000), key['key_id'])
+                                    )
+                                except Exception:
+                                    pass
+                            if details.get('status'):
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET status = ? WHERE key_id = ?",
+                                    (details['status'], key['key_id'])
+                                )
+                            if details.get('protocol'):
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET protocol = ? WHERE key_id = ?",
+                                    (details['protocol'], key['key_id'])
+                                )
+                            if details.get('remaining_seconds') is not None:
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET remaining_seconds = ? WHERE key_id = ?",
+                                    (details['remaining_seconds'], key['key_id'])
+                                )
+                            if details.get('quota_remaining_bytes') is not None:
+                                try:
+                                    cursor.execute(
+                                        "ALTER TABLE vpn_keys ADD COLUMN quota_remaining_bytes INTEGER"
+                                    )
+                                except Exception:
+                                    pass
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET quota_remaining_bytes = ? WHERE key_id = ?",
+                                    (details['quota_remaining_bytes'], key['key_id'])
+                                )
+                            # Кладём также квоту total и down (в байтах) для отображения
+                            if details.get('quota_total_gb') is not None:
+                                try:
+                                    cursor.execute("ALTER TABLE vpn_keys ADD COLUMN quota_total_gb REAL")
+                                except Exception:
+                                    pass
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET quota_total_gb = ? WHERE key_id = ?",
+                                    (details['quota_total_gb'], key['key_id'])
+                                )
+                            if details.get('traffic_down_bytes') is not None:
+                                try:
+                                    cursor.execute("ALTER TABLE vpn_keys ADD COLUMN traffic_down_bytes INTEGER")
+                                except Exception:
+                                    pass
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET traffic_down_bytes = ? WHERE key_id = ?",
+                                    (details['traffic_down_bytes'], key['key_id'])
+                                )
+                            conn.commit()
+                            updated += 1
+                except Exception:
+                    continue
+            return {'status': 'success', 'message': f'Ключи обновлены: {updated}'}
             
         except Exception as e:
             logger.error(f"Error refreshing keys: {e}")
@@ -836,7 +1284,7 @@ def create_webhook_app(bot_controller_instance):
             logger.error(f"Error getting user earned amount: {e}")
             return {'earned': 0}, 500
 
-    # Запускаем мониторинг сразу (отключено)
-    # start_ton_monitoring_task()
+    # Запускаем мониторинг сразу
+    start_ton_monitoring_task()
 
     return flask_app

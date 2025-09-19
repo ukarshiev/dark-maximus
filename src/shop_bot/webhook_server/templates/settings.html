@@ -3,14 +3,29 @@
 
 <h1>Настройки</h1>
 
+<!-- Навигация по подменю -->
+    <div class="settings-navigation">
+    	<button class="nav-button active" onclick="showTab('servers', this)">🖥️ Серверы</button>
+    	<button class="nav-button" onclick="showTab('panel', this)">⚙️ Панель</button>
+    	<button class="nav-button" onclick="showTab('bot', this)">🤖 Бот</button>
+    	<button class="nav-button" onclick="showTab('payments', this)">💳 Платежные системы</button>
+    </div>
+
 <div class="settings-container">
-	<div class="settings-column-left">
+	
+	<!-- Вкладка "Серверы" -->
+	<div id="servers-tab" class="settings-tab active">
 		<section class="settings-section">
 			<h2>Управление Хостами (Серверами)</h2>
 
-			<div class="host-card">
-				<h4>Добавить новый хост</h4>
-				<form action="{{ url_for('add_host_route') }}" method="post">
+            <div class="host-card">
+                <div class="host-header">
+                    <h4>Хосты</h4>
+                    <div class="host-actions">
+                        <button type="button" class="button button-primary button-small button-icon" title="Добавить хост" onclick="openHostModal()">➕</button>
+                    </div>
+                </div>
+                <form action="{{ url_for('add_host_route') }}" method="post" style="display:none" id="hiddenAddHostForm">
 					<div class="form-group">
 						<label for="host_name">Название хоста:</label>
 						<input
@@ -55,40 +70,48 @@
 						/>
 					</div>
 					<button type="submit" class="button button-primary">Добавить</button>
-				</form>
+                </form>
 			</div>
 
 			{% if hosts %} {% for host in hosts %}
 			<div class="host-card">
-				<div class="host-header">
-					<h3>{{ host.host_name }}</h3>
-					<form
-						action="{{ url_for('delete_host_route', host_name=host.host_name) }}"
-						method="post"
-						data-confirm="Вы уверены, что хотите удалить этот хост и все его тарифы?"
-					>
-						<button type="submit" class="button button-danger button-small">
-							Удалить
-						</button>
-					</form>
+                <div class="host-header">
+                    <h3>{{ host.host_name }}</h3>
+                    <div class="host-actions">
+                        <button class="button button-small button-icon" type="button" title="Редактировать хост" onclick="openHostModalData(this)" data-host-name="{{ host.host_name }}" data-host-url="{{ host.host_url }}" data-host-username="{{ host.host_username }}" data-host-inbound-id="{{ host.host_inbound_id }}">✏️</button>
+                        <button class="button button-small button-icon" type="button" title="Проверить соединение" onclick="checkHost(this.getAttribute('data-host-name'), this)" data-host-name="{{ host.host_name }}">🔌</button>
+                        <form action="{{ url_for('delete_host_route', host_name=host.host_name) }}" method="post" data-confirm="Вы уверены, что хотите удалить этот хост и все его тарифы?" style="display:inline-block">
+                            <button type="submit" class="button button-danger button-small button-icon" title="Удалить хост">🗑️</button>
+                        </form>
+                    </div>
 				</div>
-				<p><strong>URL:</strong> {{ host.host_url }}</p>
+				<p><strong>URL:</strong> <span data-field="host_url" data-original="{{ host.host_url }}">{{ hidden_mode and '***' or host.host_url }}</span></p>
 				<div class="plans-section">
-					<h4>Тарифы:</h4>
+                    <div class="host-header" style="margin-bottom:8px;">
+                        <h4>Тарифы</h4>
+                        <div class="host-actions">
+                            <button class="button button-primary button-small button-icon" type="button" title="Добавить тариф" onclick="openPlanModalData(this)" data-host-name="{{ host.host_name }}">➕</button>
+                        </div>
+                    </div>
 					{% if host.plans %}
 					<ul class="plan-list">
 						{% for plan in host.plans %}
 						<li>
 							<span>
 								{{ plan.plan_name }} - {{ plan.price|round(0) }} RUB
+								{% set months = plan.get('months', 0) %}
+								{% set days = plan.get('days', 0) %}
+								{% set traffic = plan.get('traffic_gb', 0) %}
+								{% if months and months|int > 0 %} · {{ months }} мес{% endif %}
+								{% if days and days|int > 0 %} · {{ days }} дн{% endif %}
+								 · Трафик: {{ traffic and (traffic|round(2) ~ ' ГБ') or '∞' }}
 							</span>
-							<form
-								action="{{ url_for('delete_plan_route', plan_id=plan.plan_id) }}"
-								method="post"
-							>
-								<button type="submit" class="button button-danger button-tiny">
-									×
-								</button>
+                            <div class="host-actions" style="margin-top:6px;">
+                                <button class="button button-small button-icon" type="button" title="Редактировать тариф" onclick="openPlanModalData(this)" data-plan-id="{{ plan.plan_id }}" data-plan-name="{{ plan.plan_name }}" data-plan-months="{{ plan.months }}" data-plan-days="{{ plan.get('days', 0) }}" data-plan-price="{{ plan.price }}" data-plan-traffic="{{ plan.get('traffic_gb', 0) }}" data-host-name="{{ host.host_name }}">✏️</button>
+                                <form action="{{ url_for('delete_plan_route', plan_id=plan.plan_id) }}" method="post" class="form-inline" style="display:inline-block;">
+                                    <button type="submit" class="button button-danger button-tiny button-icon" title="Удалить тариф">🗑️</button>
+                                </form>
+                            </div>
 							</form>
 						</li>
 						{% endfor %}
@@ -96,35 +119,7 @@
 					{% else %}
 					<p>Тарифы не добавлены.</p>
 					{% endif %}
-					<h5>Добавить новый тариф:</h5>
-					<form
-						action="{{ url_for('add_plan_route') }}"
-						method="post"
-						class="form-inline"
-					>
-						<input
-							type="hidden"
-							name="host_name"
-							value="{{ host.host_name }}"
-						/>
-						<input
-							type="text"
-							name="plan_name"
-							placeholder="Название"
-							required
-						/>
-						<input type="number" name="months" placeholder="Мес." required />
-						<input
-							type="number"
-							step="0.01"
-							name="price"
-							placeholder="Цена"
-							required
-						/>
-						<button type="submit" class="button button-primary button-small">
-							+
-						</button>
-					</form>
+                    <h5 style="display:none">Добавить новый тариф:</h5>
 				</div>
 			</div>
 			{% endfor %} {% else %}
@@ -133,8 +128,9 @@
 		</section>
 	</div>
 
-	<div class="settings-column-right">
-		<form action="{{ url_for('settings_page') }}" method="post">
+	<!-- Вкладка "Панель" -->
+	<div id="panel-tab" class="settings-tab">
+		<form action="{{ url_for('save_panel_settings') }}" method="post">
 			<section class="settings-section">
 				<h2>Настройки Панели</h2>
 				<div class="form-group">
@@ -155,7 +151,16 @@
 					<button type="button" class="toggle-password">👁️</button>
 				</div>
 			</section>
+			
+			<button type="submit" class="button button-primary">
+				Сохранить настройки панели
+			</button>
+		</form>
+	</div>
 
+	<!-- Вкладка "Бот" -->
+	<div id="bot-tab" class="settings-tab">
+		<form action="{{ url_for('save_bot_settings') }}" method="post">
 			<section class="settings-section">
 				<h2>Настройка Бота</h2>
 				<div class="form-group password-wrapper">
@@ -175,7 +180,7 @@
 						type="text"
 						id="telegram_bot_username"
 						name="telegram_bot_username"
-						value="{{ settings.telegram_bot_username or '' }}"
+						value="{{ hidden_mode and '' or (settings.telegram_bot_username or '') }}"
 						required
 					/>
 				</div>
@@ -185,13 +190,26 @@
 						type="text"
 						id="admin_telegram_id"
 						name="admin_telegram_id"
-						value="{{ settings.admin_telegram_id or '' }}"
+						value="{{ hidden_mode and '' or (settings.admin_telegram_id or '') }}"
 						required
 					/>
 				</div>
 			</section>
+		<section class="settings-section">
+			<h2>Платежи в боте</h2>
+			<div class="form-group">
+				<label for="minimum_topup">Минимальная сумма пополнения (RUB):</label>
+				<input type="number" step="1" id="minimum_topup" name="minimum_topup" value="{{ settings.minimum_topup or '50' }}" />
+				<small class="text-muted">Эта сумма используется в проверке "Ввести другую сумму".</small>
+			</div>
+		</section>
 			<section class="settings-section">
 				<h2>Настройки Поддержки и Бота-Саппорта</h2>
+                <div class="form-group form-group-checkbox">
+                    <input type="hidden" name="support_enabled" value="false" />
+                    <input type="checkbox" id="support_enabled" name="support_enabled" value="true" {% if settings.support_enabled == 'true' %}checked{% endif %}>
+                    <label for="support_enabled">Включить бота поддержки</label>
+                </div>
 				<div class="form-group">
 					<label for="support_user">URL поддержки или Бота-Саппорта:</label>
 					<input
@@ -267,6 +285,61 @@
 					/>
 				</div>
 			</section>
+
+			<section class="settings-section">
+				<h2>Настройки Контента</h2>
+				<div class="form-group">
+					<label for="about_text">Текст "О проекте":</label>
+					<textarea id="about_text" name="about_text" rows="3">{{
+							settings.about_text or ""
+						}}</textarea>
+				</div>
+				<div class="form-group">
+					<label for="support_text">Текст в разделе "Поддержка":</label>
+					<textarea id="support_text" name="support_text" rows="3">{{
+							settings.support_text or ""
+						}}</textarea>
+				</div>
+				<div class="form-group">
+					<label for="terms_url">URL "Условия использования":</label>
+					<input
+						type="url"
+						id="terms_url"
+						name="terms_url"
+						value="{{ settings.terms_url or '' }}"
+					/>
+				</div>
+				<div class="form-group">
+					<label for="privacy_url">URL "Политика конфиденциальности":</label>
+					<input
+						type="url"
+						id="privacy_url"
+						name="privacy_url"
+						value="{{ settings.privacy_url or '' }}"
+					/>
+				</div>
+				<div class="form-group">
+					<label for="channel_url"
+						>URL Telegram-канала (напр. https://t.me/nnstorenews):</label
+					>
+					<input
+						type="url"
+						id="channel_url"
+						name="channel_url"
+						value="{{ settings.channel_url or '' }}"
+					/>
+				</div>
+				<div class="form-group form-group-checkbox">
+					<input type="hidden" name="force_subscription" value="false" />
+					<input type="checkbox" id="force_subscription"
+					name="force_subscription" value="true" {% if
+					settings.force_subscription == 'true' %}checked{% endif %}>
+					<label for="force_subscription"
+						>Требовать обязательную подписку на канал</label
+					>
+				</div>
+			</section>
+
 			<section class="settings-section">
 				<h2>Настройки Пробного периода</h2>
 				<div class="form-group form-group-checkbox">
@@ -288,6 +361,16 @@
 					/>
 				</div>
 			</section>
+			
+			<button type="submit" class="button button-primary">
+				Сохранить настройки бота
+			</button>
+		</form>
+	</div>
+
+	<!-- Вкладка "Платежные системы" -->
+	<div id="payments-tab" class="settings-tab">
+		<form action="{{ url_for('save_payment_settings') }}" method="post">
 			<section class="settings-section">
 				<h2>Настройки Платежных Систем</h2>
 				<h2>Настройка YooKassa</h2>
@@ -386,71 +469,344 @@
 					/>
 					<button type="button" class="toggle-password">👁️</button>
 				</div>
-			</section>
-
-			<section class="settings-section">
-				<h2>Настройки Контента</h2>
-				<div class="form-group">
-					<label for="about_text">Текст "О проекте":</label>
-					<textarea id="about_text" name="about_text" rows="3">
-{{
-							settings.about_text or ""
-						}}</textarea
-					>
-				</div>
-				<div class="form-group">
-					<label for="support_text">Текст в разделе "Поддержка":</label>
-					<textarea id="support_text" name="support_text" rows="3">
-{{
-							settings.support_text or ""
-						}}</textarea
-					>
-				</div>
-				<div class="form-group">
-					<label for="terms_url">URL "Условия использования":</label>
-					<input
-						type="url"
-						id="terms_url"
-						name="terms_url"
-						value="{{ settings.terms_url or '' }}"
-					/>
-				</div>
-				<div class="form-group">
-					<label for="privacy_url">URL "Политика конфиденциальности":</label>
-					<input
-						type="url"
-						id="privacy_url"
-						name="privacy_url"
-						value="{{ settings.privacy_url or '' }}"
-					/>
-				</div>
-				<div class="form-group">
-					<label for="channel_url"
-						>URL Telegram-канала (напр. https://t.me/nnstorenews):</label
-					>
-					<input
-						type="url"
-						id="channel_url"
-						name="channel_url"
-						value="{{ settings.channel_url or '' }}"
-					/>
-				</div>
+				<h2>Настройка Telegram Stars</h2>
 				<div class="form-group form-group-checkbox">
-					<input type="hidden" name="force_subscription" value="false" />
-					<input type="checkbox" id="force_subscription"
-					name="force_subscription" value="true" {% if
-					settings.force_subscription == 'true' %}checked{% endif %}>
-					<label for="force_subscription"
-						>Требовать обязательную подписку на канал</label
-					>
+					<input type="hidden" name="stars_enabled" value="false" />
+					<input type="checkbox" id="stars_enabled" name="stars_enabled"
+					value="true" {% if settings.stars_enabled == 'true' %}checked{% endif %}>
+					<label for="stars_enabled">Включить оплату звездами Telegram</label>
+				</div>
+				<div class="form-group">
+					<label for="stars_conversion_rate">Курс конвертации (рублей за 1 звезду):</label>
+					<div style="display: flex; gap: 10px; align-items: center;">
+						<input
+							type="number"
+							step="0.01"
+							id="stars_conversion_rate"
+							name="stars_conversion_rate"
+							value="{{ settings.stars_conversion_rate or '1.79' }}"
+							placeholder="1.79"
+							style="flex: 1;"
+						/>
+						<button type="button" onclick="updateStarsRate()" class="button button-small" style="white-space: nowrap;">
+							🔄 Обновить
+						</button>
+					</div>
+					<small class="text-muted">
+						💡 <strong>Как рассчитать:</strong><br>
+						• Посмотрите курс в Telegram: 100 звезд = 179 рублей<br>
+						• Значит 1 звезда = 1.79 рублей<br>
+						• Этот курс используется для корректной статистики и отчетности<br>
+						• Кнопка "Обновить" установит примерный курс (1.79)
+					</small>
 				</div>
 			</section>
 
+			
 			<button type="submit" class="button button-primary">
-				Сохранить все настройки
+				Сохранить настройки платежных систем
 			</button>
 		</form>
 	</div>
+
 </div>
+
+<style>
+/* Стили для навигации */
+.settings-navigation {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #e0e0e0;
+    padding-bottom: 10px;
+}
+
+.nav-button {
+    padding: 12px 20px;
+    border: none;
+    background: #3a4147;
+    color: #ffffff;
+    cursor: pointer;
+    border-radius: 8px 8px 0 0;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    border-bottom: 3px solid transparent;
+}
+
+.nav-button:hover {
+    background: #4a5058;
+    transform: translateY(-2px);
+}
+
+.nav-button.active {
+    background: #007bff;
+    color: white;
+    border-bottom: 3px solid #0056b3;
+}
+
+/* Стили для вкладок */
+.settings-tab {
+    display: none;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.settings-tab.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Settings Dark Theme v2.2 - Added tab navigation & moved content settings */
+/* Адаптация контейнера настроек */
+.settings-container {
+    background: #2d3238;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 10px;
+    color: #ffffff;
+}
+
+.settings-section {
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    color: #ffffff;
+}
+
+/* Стили для кнопок в темной теме */
+.settings-container .button {
+    background: #007bff;
+    color: #ffffff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.3s ease;
+}
+
+.settings-container .button:hover {
+    background: #0056b3;
+}
+
+.settings-container .button-small {
+    padding: 8px 16px;
+    font-size: 14px;
+}
+
+.settings-container .button-primary {
+    background: #28a745;
+}
+
+.settings-container .button-primary:hover {
+    background: #1e7e34;
+}
+
+.settings-container .button-danger {
+    background: #dc3545;
+}
+
+.settings-container .button-danger:hover {
+    background: #c82333;
+}
+
+.host-header{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+}
+.host-actions{ display:flex; gap:8px; }
+.button-icon{ width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; padding:0; }
+
+/* Стили для полей ввода в темной теме */
+.settings-container input,
+.settings-container textarea,
+.settings-container select {
+    background: #3a4147;
+    color: #ffffff;
+    border: 1px solid #4a5058;
+    border-radius: 4px;
+    padding: 8px 12px;
+}
+
+.settings-container input:focus,
+.settings-container textarea:focus,
+.settings-container select:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+/* Стили для лейблов */
+.settings-container label {
+    color: #ffffff;
+    font-weight: 500;
+}
+
+/* Стили для подсказок */
+.settings-container .text-muted {
+    color: #bdc3c7 !important;
+}
+</style>
+
+<script>
+    function showTab(tabName, el) {
+    // Скрыть все вкладки
+    const tabs = document.querySelectorAll('.settings-tab');
+    tabs.forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Убрать активность со всех кнопок
+    const buttons = document.querySelectorAll('.nav-button');
+    buttons.forEach(button => {
+        button.classList.remove('active');
+    });
+    
+    // Показать выбранную вкладку
+    document.getElementById(tabName + '-tab').classList.add('active');
+    
+    // Активировать соответствующую кнопку
+        if (el) { el.classList.add('active'); }
+}
+
+function updateStarsRate() {
+    // Устанавливаем примерный курс на основе данных из Telegram
+    document.getElementById('stars_conversion_rate').value = '1.79';
+    
+    // Показываем уведомление
+    alert('Курс обновлен до 1.79 рублей за 1 звезду.\n\nЭто примерный курс на основе:\n100 звезд = 179 рублей\n\nДля точного курса проверьте актуальные цены в Telegram.');
+}
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    // Показываем переданную активную вкладку или серверы по умолчанию
+    showTab('{{ active_tab or "servers" }}');
+    // Проставим активность правильной кнопке
+    const currentBtn = Array.from(document.querySelectorAll('.nav-button'))
+        .find(btn => btn.getAttribute('onclick') && btn.getAttribute('onclick').includes("'{{ active_tab or "servers" }}'"));
+    if (currentBtn) { currentBtn.classList.add('active'); }
+});
+
+// Проверка соединения с хостом
+async function checkHost(hostName, btn){
+    try{
+        if(btn){ btn.disabled = true; btn.textContent = 'Проверка...'; }
+        const form = new FormData();
+        form.append('host_name', hostName);
+        const res = await fetch('/check-host', {method:'POST', body: form});
+        const data = await res.json();
+        alert((data.status==='success'?'✅ ':'❌ ') + (data.message || ''));
+    }catch(e){
+        alert('❌ Ошибка проверки');
+    }finally{
+        if(btn){ btn.disabled = false; btn.textContent = '🔌 Проверить'; }
+    }
+}
+
+// Модалка для хоста (создание/редактирование)
+function openHostModal(name='', url='', user='', pass='', inbound=''){
+    const html = `
+    <div class="modal-backdrop">
+      <div class="modal" style="display:block;">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>${name? 'Редактировать хост' : 'Добавить хост'}</h3>
+            <span class="close" onclick="closeModal()">&times;</span>
+          </div>
+          <div class="modal-body">
+            <form method="post" action="${name? '/edit-host' : '/add-host'}">
+              ${name? `<input type="hidden" name="old_host_name" value="${name}">` : ''}
+              <div class="form-group"><label>Название</label><input type="text" name="host_name" value="${name}" required></div>
+              <div class="form-group"><label>URL панели XUI</label><input type="url" name="host_url" value="${url}" placeholder="https://host:port/secret" required></div>
+              <div class="form-group"><label>Логин</label><input type="text" name="host_username" value="${user}" required></div>
+              <div class="form-group"><label>Пароль</label><input type="password" name="host_pass" value="${pass||''}" required></div>
+              <div class="form-group"><label>ID инбаунда</label><input type="number" name="host_inbound_id" value="${inbound}" required></div>
+              <div style="display:flex; gap:8px; justify-content:flex-end;">
+                <button type="button" class="button" onclick="closeModal()">Отмена</button>
+                <button type="submit" class="button button-primary">Сохранить</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    showModal(html);
+}
+
+// Обработчик для безопасного извлечения данных из data-* и открытия модалки хоста
+function openHostModalData(el){
+    if(!el) return;
+    const name = el.getAttribute('data-host-name') || '';
+    const url = el.getAttribute('data-host-url') || '';
+    const user = el.getAttribute('data-host-username') || '';
+    const inbound = el.getAttribute('data-host-inbound-id') || '';
+    openHostModal(name, url, user, '', inbound);
+}
+
+// Модалка для тарифа (создание/редактирование)
+function openPlanModal(planId, name, months, days, price, traffic, hostName){
+    const isEdit = !!planId;
+    const action = isEdit ? `/edit-plan/${planId}` : '/add-plan';
+    const hiddenHost = isEdit ? '' : `<input type="hidden" name="host_name" value="${hostName}">`;
+    const html = `
+    <div class="modal-backdrop">
+      <div class="modal" style="display:block;">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>${isEdit? 'Редактировать тариф' : 'Добавить тариф'}</h3>
+            <span class="close" onclick="closeModal()">&times;</span>
+          </div>
+          <div class="modal-body">
+            <form method="post" action="${action}">
+              ${hiddenHost}
+              <div class="form-group"><label>Название</label><input type="text" name="plan_name" value="${name||''}" placeholder="Напр. Базовый" required></div>
+              <div class="form-group"><label>Месяцы</label><input type="number" name="months" value="${months||''}" placeholder="0"></div>
+              <div class="form-group"><label>Дни</label><input type="number" name="days" value="${days||''}" placeholder="0"></div>
+              <div class="form-group"><label>Цена (RUB)</label><input type="number" step="0.01" name="price" value="${price||''}" placeholder="0" required></div>
+              <div class="form-group"><label>Трафик (ГБ)</label><input type="number" step="0.01" name="traffic_gb" value="${traffic||''}" placeholder="0 (безлимит)"></div>
+              <div style="display:flex; gap:8px; justify-content:flex-end;">
+                <button type="button" class="button" onclick="closeModal()">Отмена</button>
+                <button type="submit" class="button button-primary">Сохранить</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    showModal(html);
+}
+
+// Обработчик для безопасного открытия модалки тарифа (add/edit) через data-*
+function openPlanModalData(el){
+    if(!el) return;
+    const planId = el.getAttribute('data-plan-id');
+    const hostName = el.getAttribute('data-host-name') || '';
+    if (planId) {
+        const name = el.getAttribute('data-plan-name') || '';
+        const months = el.getAttribute('data-plan-months') || '';
+        const days = el.getAttribute('data-plan-days') || '';
+        const price = el.getAttribute('data-plan-price') || '';
+        const traffic = el.getAttribute('data-plan-traffic') || '';
+        openPlanModal(planId, name, months, days, price, traffic, hostName);
+    } else {
+        openPlanModal(null, '', '', '', '', '', hostName);
+    }
+}
+
+function showModal(html){
+    const wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    document.body.appendChild(wrap);
+    const modal = wrap.querySelector('.modal');
+    if (modal) modal.style.display = 'block';
+}
+function closeModal(){
+    const el = document.querySelector('.modal-backdrop');
+    if(el) el.remove();
+}
+</script>
 
 {% endblock %}

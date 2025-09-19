@@ -19,11 +19,11 @@ read_input_yn() {
     echo
 }
 
-REPO_URL="https://github.com/evansvl/vless-shopbot.git"
-PROJECT_DIR="vless-shopbot"
+REPO_URL="https://github.com/ukarshiev/dark-maximus.git"
+PROJECT_DIR="dark-maximus"
 NGINX_CONF_FILE="/etc/nginx/sites-available/${PROJECT_DIR}.conf"
 
-echo -e "${GREEN}--- Запуск скрипта установки/обновления VLESS Shop Bot ---${NC}"
+echo -e "${GREEN}--- Запуск скрипта установки/обновления dark-maximus ---${NC}"
 
 if [ -f "$NGINX_CONF_FILE" ]; then
     echo -e "\n${CYAN}Обнаружена существующая конфигурация. Скрипт запущен в режиме обновления.${NC}"

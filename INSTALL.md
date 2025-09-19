@@ -1,4 +1,4 @@
-# Установка VLESS Shop Bot Pro
+# Установка dark-maximus
 
 ## 🚀 Быстрая установка
 
@@ -11,7 +11,7 @@
 **2. Выполните команду:**
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/evansvl/vless-shopbot/main/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash
 ```
 
 **3. Следуйте инструкциям установщика:**
@@ -106,7 +106,7 @@ docker-compose up -d
 
 ### Обновить бота до последней версии:
 ```bash
-curl -sSL https://raw.githubusercontent.com/evansvl/vless-shopbot/main/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash
 ```
 
 ## 🔧 Ручная установка
@@ -123,8 +123,8 @@ curl -sSL https://raw.githubusercontent.com/evansvl/vless-shopbot/main/install.s
 
 1. **Клонируйте репозиторий:**
 ```bash
-git clone https://github.com/evansvl/vless-shopbot.git
-cd vless-shopbot
+git clone https://github.com/ukarshiev/dark-maximus.git
+cd dark-maximus
 ```
 
 2. **Установите зависимости:**
@@ -178,7 +178,7 @@ docker-compose up -d
 
 ### Автоматическое обновление
 ```bash
-curl -sSL https://raw.githubusercontent.com/evansvl/vless-shopbot/main/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash
 ```
 
 ### Ручное обновление

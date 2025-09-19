@@ -15,31 +15,58 @@ block content %}
 						<th>Пользователь</th>
 						<th>Хост</th>
 						<th>План</th>
+						<th>Способ оплаты</th>
 						<th>Цена</th>
+						<th>Звезды</th>
 						<th>Статус</th>
 						<th>Транзакция</th>
-						<th>Ссылка на оплату</th>
 						<th>Дата</th>
+                        <th>Тип операции</th>
+						<th>Ключ</th>
 					</tr>
 				</thead>
 				<tbody>
 					{% for tx in transactions %}
-					<tr>
+					<tr class="tx-row">
 						<td>{{ tx.transaction_id }}</td>
 						<td>
 							<div class="user-info">
-								<div><strong>ID:</strong> 
-									<a href="#" class="user-id-link" onclick="openUserModal({{ tx.user_id }}, '{{ tx.username or 'N/A' }}', false, 0)">
-										{{ tx.user_id }}
-									</a>
+								<div data-field="user_id" data-original="{{ tx.user_id }}">
+									<div class="cell-inline">
+										<div class="cell-left">
+											<strong>ID:</strong>
+											<span>{{ hidden_mode and '***' or tx.user_id }}</span>
+										</div>
+										<div class="cell-actions">
+											<button class="modal-action-btn" onclick="openUserModal({{ tx.user_id }}, '{{ tx.username or 'N/A' }}', false, 0)" title="Открыть карточку">🔍</button>
+										</div>
+									</div>
 								</div>
-								<div><strong>Username:</strong> {{ tx.username or 'N/A' }}</div>
-								<div><strong>Email:</strong> {{ tx.customer_email or 'N/A' }}</div>
+								<div data-field="tx_username" data-original="{{ tx.username or 'N/A' }}"><strong>Username:</strong> {{ hidden_mode and '***' or (tx.username or 'N/A') }}</div>
 							</div>
 						</td>
-						<td>{{ tx.host_name }}</td>
-						<td>{{ tx.plan_name or 'N/A' }}</td>
-						<td>{{ tx.amount_rub | round(2) }} RUB</td>
+                        <td>{{ tx.host_name }}</td>
+                        <td>
+                            {% if tx.metadata and tx.metadata.get('operation') == 'topup' %}
+                                -
+                            {% else %}
+                                {{ tx.plan_name or 'N/A' }}
+                            {% endif %}
+                        </td>
+						<td>{{ tx.payment_method or '-' }}</td>
+						<td data-field="price" data-original="{{ tx.amount_rub | round(2) }} RUB">{{ hidden_mode and '*** RUB' or (tx.amount_rub | round(2)) ~ ' RUB' }}</td>
+						<td>
+							{% if tx.payment_method == 'Stars' %}
+								{% set meta = tx.metadata %}
+								{% if meta %}
+									{% set stars = meta.get('stars_paid') or (tx.amount_currency) %}
+									{% set rate = meta.get('stars_rate') %}
+									{{ (stars | int) }}⭐️{% if rate %} - {{ rate }}{% endif %}
+								{% else %}
+									{{ (tx.amount_currency or 0) | int }}⭐️
+								{% endif %}
+							{% else %}-{% endif %}
+						</td>
 						<td>
 							{% if tx.status == 'paid' %}
 								<span class="status-badge status-paid">Оплачено</span>
@@ -50,28 +77,48 @@ block content %}
 							{% endif %}
 						</td>
 						<td>
-							{% if tx.transaction_hash %}
-								<a href="https://tonscan.org/tx/{{ tx.transaction_hash }}" target="_blank" class="transaction-link">
-									Посмотреть
-								</a>
-							{% else %}
-								-
-							{% endif %}
-						</td>
-						<td>
-							{% if tx.payment_link %}
-								<button class="copy-btn" onclick="copyPaymentLink('{{ tx.payment_link }}')" title="Копировать ссылку">
-									📋
-								</button>
-							{% else %}
-								-
-							{% endif %}
+							<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+								{% if tx.transaction_hash %}
+									{% if tx.payment_method == 'TON Connect' %}
+										<a href="https://tonscan.org/tx/{{ tx.transaction_hash }}" target="_blank" class="transaction-link">Посмотреть</a>
+									{% elif tx.payment_method == 'Stars' %}
+										<button class="copy-btn" onclick="copyPaymentLink('{{ tx.transaction_hash }}')" title="Копировать ID">📋</button>
+									{% else %}
+										<code>{{ tx.transaction_hash }}</code>
+									{% endif %}
+								{% else %}
+									<span>-</span>
+								{% endif %}
+
+								{% if tx.payment_link %}
+									<button class="copy-btn" onclick="copyPaymentLink('{{ tx.payment_link }}')" title="Копировать ссылку">📋</button>
+								{% endif %}
+							</div>
 						</td>
 						<td>
 							{% if tx.created_date %}
 								{{ tx.created_date.strftime('%Y-%m-%d %H:%M:%S') }}
 							{% else %}
 								N/A
+							{% endif %}
+						</td>
+                        <td>
+                            {% if tx.metadata %}
+                                {% if tx.metadata.get('operation') == 'topup' %}
+                                    Пополнение
+                                {% elif tx.metadata.get('action') %}
+                                    {% if tx.metadata.get('action') == 'new' %}новый{% else %}продление{% endif %}
+                                {% else %}-{% endif %}
+                            {% else %}-{% endif %}
+                        </td>
+						<td>
+							{% if tx.metadata and tx.metadata.get('connection_string') %}
+								<div class="key-cell">
+									<span class="key-text" title="{{ tx.metadata.get('connection_string') }}">{{ tx.metadata.get('connection_string')[:40] }}{% if tx.metadata.get('connection_string')|length > 40 %}...{% endif %}</span>
+									<button class="copy-btn" onclick="copyPaymentLink('{{ tx.metadata.get('connection_string') }}')" title="Копировать ключ">📋</button>
+								</div>
+							{% else %}
+								-
 							{% endif %}
 						</td>
 					</tr>

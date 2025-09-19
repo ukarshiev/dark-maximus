@@ -3,12 +3,53 @@ from datetime import datetime, timedelta
 import logging
 from urllib.parse import urlparse
 from typing import List, Dict
+import json
+import requests
 
 from py3xui import Api, Client, Inbound
 
 from shop_bot.data_manager.database import get_host, get_key_by_email
 
 logger = logging.getLogger(__name__)
+
+def _panel_update_client_quota(host_url: str, username: str, password: str, inbound_id: int, client_uuid: str, email: str, expiry_ms: int, traffic_bytes: int) -> None:
+    """Обновляет клиента через нативный эндпоинт панели, как делает UI (form: id + settings)."""
+    try:
+        base = host_url.rstrip('/')
+        session = requests.Session()
+        # Логин
+        session.post(f"{base}/login", json={"username": username, "password": password}, timeout=10, verify=False)
+        # Пейлоад клиента (минимально достаточный набор полей)
+        now_ms = int(datetime.utcnow().timestamp() * 1000)
+        client_payload = {
+            "id": client_uuid,
+            "flow": "xtls-rprx-vision",
+            "email": email,
+            "limitIp": 0,
+            "totalGB": int(traffic_bytes),  # как в UI: байты
+            "expiryTime": int(expiry_ms),
+            "enable": True,
+            "tgId": "",
+            "subId": "",
+            "comment": "",
+            "reset": None,
+            "created_at": now_ms,
+            "updated_at": now_ms,
+        }
+        form = {
+            "id": str(inbound_id),
+            "settings": json.dumps({"clients": [client_payload]}, ensure_ascii=False)
+        }
+        # Обновление
+        url = f"{base}/panel/inbound/updateClient/{client_uuid}"
+        headers = {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest"}
+        session.post(url, data=form, headers=headers, timeout=10, verify=False)
+    except Exception as e:
+        try:
+            from shop_bot.webhook_server.app import logger as app_logger
+            app_logger.error(f"Failed panel updateClient for {email}: {e}")
+        except Exception:
+            logger.error(f"Failed panel updateClient for {email}: {e}")
 
 def login_to_host(host_url: str, username: str, password: str, inbound_id: int) -> tuple[Api | None, Inbound | None]:
     try:
@@ -48,7 +89,7 @@ def get_connection_string(inbound: Inbound, user_uuid: str, host_url: str, remar
     )
     return connection_string
 
-def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days_to_add: int) -> tuple[str | None, int | None]:
+def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days_to_add: int, comment: str | None = None, traffic_gb: float | None = None) -> tuple[str | None, int | None]:
     try:
         inbound_to_modify = api.inbound.get_by_id(inbound_id)
         if not inbound_to_modify:
@@ -80,11 +121,46 @@ def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days
 
         new_expiry_ms = int(new_expiry_dt.timestamp() * 1000)
 
+        # Подготовим лимит трафика
+        traffic_bytes = None
+        if traffic_gb is not None:
+            try:
+                traffic_gb_val = float(traffic_gb)
+                traffic_bytes = int(traffic_gb_val * 1024 * 1024 * 1024)
+                if traffic_bytes < 0:
+                    traffic_bytes = 0
+            except Exception:
+                traffic_bytes = None
+                traffic_gb_val = None
+
         if client_index != -1:
-            inbound_to_modify.settings.clients[client_index].expiry_time = new_expiry_ms
-            inbound_to_modify.settings.clients[client_index].enable = True
-            
-            client_uuid = inbound_to_modify.settings.clients[client_index].id
+            c = inbound_to_modify.settings.clients[client_index]
+            c.expiry_time = new_expiry_ms
+            c.enable = True
+            try:
+                if comment is not None:
+                    c.comment = comment
+            except Exception:
+                pass
+            before_total = getattr(c, 'total', None)
+            before_totalGB = getattr(c, 'totalGB', None)
+            if traffic_bytes is not None:
+                try:
+                    setattr(c, 'total', int(traffic_bytes))
+                except Exception:
+                    pass
+                try:
+                    setattr(c, 'totalGB', int(traffic_bytes))  # bytes, как в панели
+                except Exception:
+                    pass
+            after_total = getattr(c, 'total', None)
+            after_totalGB = getattr(c, 'totalGB', None)
+            try:
+                from shop_bot.webhook_server.app import logger as app_logger
+                app_logger.info(f"XUI set traffic for {email}: before total={before_total}, totalGB={before_totalGB} -> after total={after_total}, totalGB={after_totalGB}")
+            except Exception:
+                pass
+            client_uuid = c.id
         else:
             client_uuid = str(uuid.uuid4())
             new_client = Client(
@@ -94,9 +170,63 @@ def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days
                 flow="xtls-rprx-vision",
                 expiry_time=new_expiry_ms
             )
+            try:
+                if comment is not None:
+                    setattr(new_client, 'comment', comment)
+            except Exception:
+                pass
+            if traffic_bytes is not None:
+                try:
+                    setattr(new_client, 'total', int(traffic_bytes))
+                except Exception:
+                    pass
+                try:
+                    setattr(new_client, 'totalGB', int(traffic_bytes))  # bytes
+                except Exception:
+                    pass
             inbound_to_modify.settings.clients.append(new_client)
 
         api.inbound.update(inbound_id, inbound_to_modify)
+
+        # Дополнительно client.update
+        try:
+            updated_client = Client(
+                id=client_uuid,
+                email=email,
+                enable=True,
+                flow="xtls-rprx-vision",
+                expiry_time=new_expiry_ms
+            )
+            if traffic_bytes is not None:
+                try:
+                    setattr(updated_client, 'total', int(traffic_bytes))
+                except Exception:
+                    pass
+                try:
+                    setattr(updated_client, 'totalGB', int(traffic_bytes))
+                except Exception:
+                    pass
+            api.client.update(inbound_id, updated_client)
+            try:
+                from shop_bot.webhook_server.app import logger as app_logger
+                app_logger.info(f"XUI client.update pushed for {email}: total(bytes)={traffic_bytes}")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        # Верификация
+        try:
+            updated_inbound = api.inbound.get_by_id(inbound_id)
+            for cli in (updated_inbound.settings.clients or []):
+                if getattr(cli, 'email', None) == email:
+                    ut = getattr(cli, 'total', None)
+                    utGB = getattr(cli, 'totalGB', None)
+                    from shop_bot.webhook_server.app import logger as app_logger
+                    app_logger.info(f"XUI verify traffic for {email}: total={ut}, totalGB={utGB}")
+                    break
+        except Exception:
+            pass
 
         return client_uuid, new_expiry_ms
 
@@ -104,7 +234,7 @@ def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days
         logger.error(f"Error in update_or_create_client_on_panel: {e}", exc_info=True)
         return None, None
 
-async def create_or_update_key_on_host(host_name: str, email: str, days_to_add: int) -> Dict | None:
+async def create_or_update_key_on_host(host_name: str, email: str, days_to_add: int, comment: str | None = None, traffic_gb: float | None = None) -> Dict | None:
     host_data = get_host(host_name)
     if not host_data:
         logger.error(f"Workflow failed: Host '{host_name}' not found in the database.")
@@ -120,7 +250,7 @@ async def create_or_update_key_on_host(host_name: str, email: str, days_to_add: 
         logger.error(f"Workflow failed: Could not log in or find inbound on host '{host_name}'.")
         return None
         
-    client_uuid, new_expiry_ms = update_or_create_client_on_panel(api, inbound.id, email, days_to_add)
+    client_uuid, new_expiry_ms = update_or_create_client_on_panel(api, inbound.id, email, days_to_add, comment, traffic_gb)
     if not client_uuid:
         logger.error(f"Workflow failed: Could not create/update client '{email}' on host '{host_name}'.")
         return None
@@ -128,6 +258,13 @@ async def create_or_update_key_on_host(host_name: str, email: str, days_to_add: 
     connection_string = get_connection_string(inbound, client_uuid, host_data['host_url'], remark=host_name)
     
     logger.info(f"Successfully processed key for '{email}' on host '{host_name}'.")
+    # Если задан лимит — продублируем точно как UI
+    try:
+        if traffic_gb is not None:
+            traffic_bytes = int(float(traffic_gb) * 1024 * 1024 * 1024)
+            _panel_update_client_quota(host_data['host_url'], host_data['host_username'], host_data['host_pass'], host_data['host_inbound_id'], client_uuid, email, new_expiry_ms, traffic_bytes)
+    except Exception:
+        pass
     
     return {
         "client_uuid": client_uuid,
@@ -157,7 +294,133 @@ async def get_key_details_from_host(key_data: dict) -> dict | None:
     if not api or not inbound: return None
 
     connection_string = get_connection_string(inbound, key_data['xui_client_uuid'], host_db_data['host_url'], remark=host_name)
-    return {"connection_string": connection_string}
+    # Получаем свежий expiry_time клиента из панели
+    try:
+        target_inbound = api.inbound.get_by_id(host_db_data['host_inbound_id'])
+        # На некоторых сборках get_by_id не возвращает clientStats.
+        # В таком случае подменим inbound объектом из списка, где clientStats присутствует.
+        try:
+            has_stats = getattr(target_inbound, 'clientStats', None) is not None or getattr(target_inbound, 'client_stats', None) is not None
+            if not has_stats:
+                inbounds_list = api.inbound.get_list()
+                for ib in inbounds_list:
+                    if getattr(ib, 'id', None) == host_db_data['host_inbound_id']:
+                        target_inbound = ib
+                        break
+        except Exception:
+            pass
+        exp_ms = None
+        status = None
+        protocol = None
+        created_at = None
+        remaining_seconds = None
+        quota_remaining_bytes = None
+        quota_total_gb = None
+        traffic_down_bytes = None
+        if target_inbound and target_inbound.settings and target_inbound.settings.clients:
+            protocol = getattr(target_inbound, 'protocol', None)
+            # Собираем карту статистики по email из clientStats, если доступно
+            stats_map = {}
+            try:
+                client_stats = getattr(target_inbound, 'clientStats', None)
+                if client_stats is None:
+                    client_stats = getattr(target_inbound, 'client_stats', None)
+                if client_stats:
+                    for s in client_stats:
+                        s_email = str(getattr(s, 'email', '') or '')
+                        if not s_email:
+                            continue
+                        try:
+                            s_total = int(getattr(s, 'total', 0) or 0)
+                            s_up = int(getattr(s, 'up', 0) or 0)
+                            s_down = int(getattr(s, 'down', 0) or 0)
+                        except Exception:
+                            s_total, s_up, s_down = 0, 0, 0
+                        stats_map[s_email] = (s_total, s_up, s_down)
+            except Exception:
+                pass
+
+            for c in target_inbound.settings.clients:
+                cid = str(getattr(c, 'id', '') or '')
+                cemail = str(getattr(c, 'email', '') or '')
+                if cid == str(key_data.get('xui_client_uuid')) or (key_data.get('key_email') and cemail == str(key_data.get('key_email'))):
+                    exp_ms = getattr(c, 'expiry_time', None)
+                    # created_at / usage start
+                    created_at = getattr(c, 'created_at', None) or getattr(c, 'enableDate', None)
+                    # traffic quota remaining: сначала пробуем clientStats, затем fallback на settings.clients
+                    try:
+                        total_limit_bytes = None
+                        up_bytes = 0
+                        down_bytes = 0
+
+                        if cemail in stats_map:
+                            s_total, s_up, s_down = stats_map[cemail]
+                            total_limit_bytes = s_total
+                            up_bytes = s_up
+                            down_bytes = s_down
+                            traffic_down_bytes = down_bytes
+                            quota_total_gb = round(total_limit_bytes / (1024*1024*1024), 2) if total_limit_bytes else None
+                            try:
+                                from shop_bot.webhook_server.app import logger as app_logger  # lazy import
+                            except Exception:
+                                app_logger = None
+                            if app_logger:
+                                app_logger.info(f"XUI traffic debug (clientStats) for {key_data.get('key_email')}: total={total_limit_bytes}, up={up_bytes}, down={down_bytes}")
+                        else:
+                            # traffic fields across x-ui forks
+                            if hasattr(c, 'total') and getattr(c, 'total') not in [None, '', 'null']:
+                                total_limit_bytes = int(getattr(c, 'total'))
+                                quota_total_gb = round(total_limit_bytes / (1024*1024*1024), 2)
+                            elif hasattr(c, 'totalGB') and getattr(c, 'totalGB') not in [None, '', 'null']:
+                                quota_total_gb = float(getattr(c, 'totalGB'))
+                                total_limit_bytes = int(quota_total_gb * 1024 * 1024 * 1024)
+                            elif hasattr(c, 'total_gb') and getattr(c, 'total_gb') not in [None, '', 'null']:
+                                quota_total_gb = float(getattr(c, 'total_gb'))
+                                total_limit_bytes = int(quota_total_gb * 1024 * 1024 * 1024)
+
+                            def _to_int(val):
+                                try:
+                                    if val in [None, '', 'null']:
+                                        return 0
+                                    return int(float(val))
+                                except Exception:
+                                    return 0
+                            up_bytes = _to_int(getattr(c, 'up', getattr(c, 'upload', 0)))
+                            down_bytes = _to_int(getattr(c, 'down', getattr(c, 'download', 0)))
+                            traffic_down_bytes = down_bytes
+
+                            try:
+                                from shop_bot.webhook_server.app import logger as app_logger  # lazy import
+                            except Exception:
+                                app_logger = None
+                            if app_logger:
+                                app_logger.info(f"XUI traffic debug (clients) for {key_data.get('key_email')}: total={total_limit_bytes}, up={up_bytes}, down={down_bytes}")
+
+                        if total_limit_bytes is None or total_limit_bytes == 0 or total_limit_bytes == -1:
+                            quota_remaining_bytes = None  # бесконечно/не задано
+                        else:
+                            quota_remaining_bytes = max(0, int(total_limit_bytes) - (up_bytes + down_bytes))
+                    except Exception:
+                        quota_remaining_bytes = None
+                    # вычисление статуса
+                    from datetime import timezone, datetime
+                    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+                    is_trial = int(key_data.get('is_trial') or 0) == 1
+                    active = exp_ms is not None and exp_ms > now_ms
+                    if exp_ms is not None:
+                        remaining_seconds = max(0, int((exp_ms - now_ms) / 1000))
+                    if is_trial and active:
+                        status = 'trial-active'
+                    elif is_trial and not active:
+                        status = 'trial-ended'
+                    elif not is_trial and active:
+                        status = 'pay-active'
+                    else:
+                        status = 'pay-ended'
+                    break
+        return {"connection_string": connection_string, "expiry_timestamp_ms": exp_ms, "status": status, "protocol": protocol, "created_at": created_at, "remaining_seconds": remaining_seconds, "quota_remaining_bytes": quota_remaining_bytes, "quota_total_gb": quota_total_gb, "traffic_down_bytes": traffic_down_bytes}
+    except Exception:
+        return {"connection_string": connection_string}
 
 async def delete_client_on_host(host_name: str, client_email: str) -> bool:
     host_data = get_host(host_name)

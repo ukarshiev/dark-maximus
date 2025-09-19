@@ -59,7 +59,7 @@ A: Да, можно изменить CSS файлы в папке `static/css/` 
 ## 🔧 Технические вопросы
 
 ### Q: Как обновить бота до новой версии?
-A: Выполните команду: `curl -sSL https://raw.githubusercontent.com/evansvl/vless-shopbot/main/install.sh | sudo bash`
+A: Выполните команду: `curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash`
 
 ### Q: Как посмотреть логи бота?
 A: Используйте команду: `docker-compose logs -f`

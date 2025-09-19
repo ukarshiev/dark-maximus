@@ -14,9 +14,9 @@ from hmac import compare_digest
 from functools import wraps
 from yookassa import Payment
 from io import BytesIO
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from aiosend import CryptoPay, TESTNET
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP, ROUND_CEILING
 from typing import Dict
 
 from pytonconnect import TonConnect
@@ -38,7 +38,7 @@ from shop_bot.data_manager.database import (
     register_user_if_not_exists, get_next_key_number, get_key_by_id,
     update_key_info, set_trial_used, set_terms_agreed, get_setting, get_all_hosts,
     get_plans_for_host, get_plan_by_id, log_transaction, get_referral_count,
-    add_to_referral_balance, create_pending_transaction, create_pending_ton_transaction, get_all_users,
+    add_to_referral_balance, create_pending_transaction, create_pending_ton_transaction, create_pending_stars_transaction, get_all_users,
     set_referral_balance, set_referral_balance_all, update_transaction_on_payment
 )
 
@@ -46,6 +46,8 @@ from shop_bot.config import (
     get_profile_text, get_vpn_active_text, VPN_INACTIVE_TEXT, VPN_NO_DATA_TEXT,
     get_key_info_text, CHOOSE_PAYMENT_METHOD_MESSAGE, get_purchase_success_text
 )
+
+from pathlib import Path
 
 TELEGRAM_BOT_USERNAME = None
 PAYMENT_METHODS = None
@@ -67,6 +69,10 @@ class PaymentProcess(StatesGroup):
     waiting_for_email = State()
     waiting_for_payment_method = State()
 
+class TopupProcess(StatesGroup):
+    waiting_for_custom_amount = State()
+    waiting_for_payment_method = State()
+
 class Broadcast(StatesGroup):
     waiting_for_message = State()
     waiting_for_button_option = State()
@@ -80,6 +86,103 @@ class WithdrawStates(StatesGroup):
 def is_valid_email(email: str) -> bool:
     pattern = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
     return re.match(pattern, email) is not None
+
+# -------------------- Instructions loader (shared with web panel) --------------------
+def _resolve_instructions_dir() -> Path:
+    candidates = [
+        Path("/app/project") / "instructions",
+        Path(__file__).resolve().parents[3] / "instructions",
+        Path.cwd() / "instructions",
+    ]
+    for p in candidates:
+        try:
+            if p.exists():
+                return p
+        except Exception:
+            continue
+    return candidates[0]
+
+def _get_instruction_file(platform: str) -> Path:
+    mapping = {
+        'android': 'android.md',
+        'ios': 'ios.md',
+        'windows': 'windows.md',
+        'macos': 'macos.md',
+        'linux': 'linux.md',
+    }
+    return _resolve_instructions_dir() / mapping.get(platform, 'android.md')
+
+def _default_instruction_text(platform: str) -> str:
+    if platform == 'android':
+        return (
+            "<b>Подключение на Android</b>\n\n"
+            "1. <b>Установите приложение V2RayTun:</b> Загрузите и установите приложение V2RayTun из Google Play Store.\n"
+            "2. <b>Скопируйте свой ключ (vless://)</b> Перейдите в раздел «Моя подписка» в нашем боте и скопируйте свой ключ.\n"
+            "3. <b>Импортируйте конфигурацию:</b>\n"
+            "   • Откройте V2RayTun.\n"
+            "   • Нажмите на значок + в правом нижнем углу.\n"
+            "   • Выберите «Импортировать конфигурацию из буфера обмена» (или аналогичный пункт).\n"
+            "4. <b>Выберите сервер:</b> Выберите появившийся сервер в списке.\n"
+            "5. <b>Подключитесь к VPN:</b> Нажмите на кнопку подключения (значок «V» или воспроизведения). Возможно, потребуется разрешение на создание VPN-подключения.\n"
+            "6. <b>Проверьте подключение:</b> После подключения проверьте свой IP-адрес, например, на https://whatismyipaddress.com/. Он должен отличаться от вашего реального IP."
+        )
+    if platform in ['ios', 'macos']:
+        return (
+            f"<b>Подключение на {'MacOS' if platform=='macos' else 'iOS (iPhone/iPad)'}</b>\n\n"
+            "1. <b>Установите приложение V2RayTun:</b> Загрузите и установите приложение V2RayTun из App Store.\n"
+            "2. <b>Скопируйте свой ключ (vless://):</b> Перейдите в раздел «Моя подписка» в нашем боте и скопируйте свой ключ.\n"
+            "3. <b>Импортируйте конфигурацию:</b>\n"
+            "   • Откройте V2RayTun.\n"
+            "   • Нажмите на значок +.\n"
+            "   • Выберите «Импортировать конфигурацию из буфера обмена» (или аналогичный пункт).\n"
+            "4. <b>Выберите сервер:</b> Выберите появившийся сервер в списке.\n"
+            "5. <b>Подключитесь к VPN:</b> Включите главный переключатель в V2RayTun. Возможно, потребуется разрешить создание VPN-подключения.\n"
+            "6. <b>Проверьте подключение:</b> После подключения проверьте свой IP-адрес, например, на https://whatismyipaddress.com/. Он должен отличаться от вашего реального IP."
+        )
+    if platform == 'windows':
+        return (
+            "<b>Подключение на Windows</b>\n\n"
+            "1. <b>Установите приложение Nekoray:</b> Загрузите Nekoray с https://github.com/MatsuriDayo/Nekoray/releases. Выберите подходящую версию (например, Nekoray-x64.exe).\n"
+            "2. <b>Распакуйте архив:</b> Распакуйте скачанный архив в удобное место.\n"
+            "3. <b>Запустите Nekoray.exe:</b> Откройте исполняемый файл.\n"
+            "4. <b>Скопируйте свой ключ (vless://)</b> Перейдите в раздел «Моя подписка» в нашем боте и скопируйте свой ключ.\n"
+            "5. <b>Импортируйте конфигурацию:</b>\n"
+            "   • В Nekoray нажмите «Сервер» (Server).\n"
+            "   • Выберите «Импортировать из буфера обмена».\n"
+            "   • Nekoray автоматически импортирует конфигурацию.\n"
+            "6. <b>Обновите серверы (если нужно):</b> Если серверы не появились, нажмите «Серверы» → «Обновить все серверы».\n"
+            "7. Сверху включите пункт 'Режим TUN' ('Tun Mode')\n"
+            "8. <b>Выберите сервер:</b> В главном окне выберите появившийся сервер.\n"
+            "9. <b>Подключитесь к VPN:</b> Нажмите «Подключить» (Connect).\n"
+            "10. <b>Проверьте подключение:</b> Откройте браузер и проверьте IP на https://whatismyipaddress.com/. Он должен отличаться от вашего реального IP."
+        )
+    if platform == 'linux':
+        return (
+            "<b>Подключение на Linux</b>\n\n"
+            "1. <b>Скачайте и распакуйте Nekoray:</b> Перейдите на https://github.com/MatsuriDayo/Nekoray/releases и скачайте архив для Linux. Распакуйте его в удобную папку.\n"
+            "2. <b>Запустите Nekoray:</b> Откройте терминал, перейдите в папку с Nekoray и выполните <code>./nekoray</code> (или используйте графический запуск, если доступен).\n"
+            "3. <b>Скопируйте свой ключ (vless://)</b> Перейдите в раздел «Моя подписка» в нашем боте и скопируйте свой ключ.\n"
+            "4. <b>Импортируйте конфигурацию:</b>\n"
+            "   • В Nekoray нажмите «Сервер» (Server).\n"
+            "   • Выберите «Импортировать из буфера обмена».\n"
+            "   • Nekoray автоматически импортирует конфигурацию.\n"
+            "5. <b>Обновите серверы (если нужно):</b> Если серверы не появились, нажмите «Серверы» → «Обновить все серверы».\n"
+            "6. Сверху включите пункт 'Режим TUN' ('Tun Mode')\n"
+            "7. <b>Выберите сервер:</b> В главном окне выберите появившийся сервер.\n"
+            "8. <b>Подключитесь к VPN:</b> Нажмите «Подключить» (Connect).\n"
+            "9. <b>Проверьте подключение:</b> Откройте браузер и проверьте IP на https://whatismyipaddress.com/. Он должен отличаться от вашего реального IP."
+        )
+    return ''
+
+def _load_instruction_text(platform: str) -> str:
+    try:
+        file_path = _get_instruction_file(platform)
+        if file_path.exists():
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return f.read()
+    except Exception:
+        pass
+    return _default_instruction_text(platform)
 
 async def show_main_menu(message: types.Message, edit_message: bool = False):
     user_id = message.chat.id
@@ -141,7 +244,7 @@ def get_user_router() -> Router:
         if user_data and user_data.get('agreed_to_terms'):
             await message.answer(
                 f"👋 Снова здравствуйте, {html.bold(message.from_user.full_name)}!",
-                reply_markup=keyboards.main_reply_keyboard
+                reply_markup=keyboards.get_main_reply_keyboard()
             )
             await show_main_menu(message)
             return
@@ -152,6 +255,10 @@ def get_user_router() -> Router:
 
         if not channel_url or not terms_url or not privacy_url:
             set_terms_agreed(user_id)
+            await message.answer(
+                f"👋 Снова здравствуйте, {html.bold(message.from_user.full_name)}!",
+                reply_markup=keyboards.get_main_reply_keyboard()
+            )
             await show_main_menu(message)
             return
 
@@ -161,6 +268,10 @@ def get_user_router() -> Router:
 
         if not show_welcome_screen:
             set_terms_agreed(user_id)
+            await message.answer(
+                f"👋 Снова здравствуйте, {html.bold(message.from_user.full_name)}!",
+                reply_markup=keyboards.get_main_reply_keyboard()
+            )
             await show_main_menu(message)
             return
 
@@ -226,13 +337,255 @@ def get_user_router() -> Router:
     @user_router.message(F.text == "🏠 Главное меню")
     @registration_required
     async def main_menu_handler(message: types.Message):
+        # Обновляем/навешиваем актуальную Reply Keyboard на чат
+        try:
+            await message.answer("🏠 Главное меню", reply_markup=keyboards.get_main_reply_keyboard())
+        except Exception:
+            pass
         await show_main_menu(message)
 
     @user_router.callback_query(F.data == "back_to_main_menu")
     @registration_required
     async def back_to_main_menu_handler(callback: types.CallbackQuery):
         await callback.answer()
+        # Гарантируем, что у пользователя установлена актуальная Reply Keyboard
+        try:
+            await callback.message.answer("🏠 Главное меню", reply_markup=keyboards.get_main_reply_keyboard())
+        except Exception:
+            pass
         await show_main_menu(callback.message, edit_message=True)
+
+    @user_router.message(F.text == "Купить VPN")
+    @registration_required
+    async def buy_vpn_message_handler(message: types.Message):
+        hosts = get_all_hosts()
+        if not hosts:
+            await message.answer("❌ В данный момент нет доступных серверов для покупки.")
+            return
+        # Скрываем сервера без настроенных тарифов
+        try:
+            hosts_with_plans = [h for h in hosts if get_plans_for_host(h['host_name'])]
+        except Exception:
+            hosts_with_plans = hosts
+        if not hosts_with_plans:
+            await message.answer("❌ В данный момент нет доступных серверов для покупки.")
+            return
+        await message.answer(
+            "Выберите сервер, на котором хотите приобрести ключ:",
+            reply_markup=keyboards.create_host_selection_keyboard(hosts_with_plans, action="new")
+        )
+
+    @user_router.callback_query(F.data == "buy_vpn_root")
+    @registration_required
+    async def buy_vpn_root_handler(callback: types.CallbackQuery):
+        await callback.answer()
+        hosts = get_all_hosts()
+        if not hosts:
+            await callback.message.edit_text("❌ В данный момент нет доступных серверов для покупки.")
+            return
+        # Скрываем сервера без настроенных тарифов
+        try:
+            hosts_with_plans = [h for h in hosts if get_plans_for_host(h['host_name'])]
+        except Exception:
+            hosts_with_plans = hosts
+        if not hosts_with_plans:
+            await callback.message.edit_text("❌ В данный момент нет доступных серверов для покупки.")
+            return
+        await callback.message.edit_text(
+            "Выберите сервер, на котором хотите приобрести ключ:",
+            reply_markup=keyboards.create_host_selection_keyboard(hosts_with_plans, action="new")
+        )
+
+    @user_router.message(F.text == "Помощь и поддержка")
+    @registration_required
+    async def help_center_message_handler(message: types.Message):
+        await message.answer("Помощь и поддержка:", reply_markup=keyboards.create_help_center_keyboard())
+
+    @user_router.callback_query(F.data == "help_center")
+    @registration_required
+    async def help_center_callback_handler(callback: types.CallbackQuery):
+        await callback.answer()
+        await callback.message.edit_text("Помощь и поддержка:", reply_markup=keyboards.create_help_center_keyboard())
+
+    @user_router.message(F.text == "Пополнить баланс")
+    @registration_required
+    async def topup_message_handler(message: types.Message, state: FSMContext):
+        await state.clear()
+        await message.answer(
+            "Выберите сумму пополнения:",
+            reply_markup=keyboards.create_topup_amounts_keyboard()
+        )
+
+    @user_router.callback_query(F.data == "topup_root")
+    @registration_required
+    async def topup_root_handler(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        await state.clear()
+        await callback.message.edit_text(
+            "Выберите сумму пополнения:",
+            reply_markup=keyboards.create_topup_amounts_keyboard()
+        )
+
+    @user_router.callback_query(F.data.in_(
+        {"topup_amount_179","topup_amount_300","topup_amount_500"}
+    ))
+    @registration_required
+    async def topup_select_preset_handler(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        mapping = {
+            "topup_amount_179": 179,
+            "topup_amount_300": 300,
+            "topup_amount_500": 500
+        }
+        amount = mapping.get(callback.data, 0)
+        await state.update_data(topup_amount=amount)
+        await callback.message.edit_text(
+            f"Сумма пополнения: {amount} RUB\n\nВыберите способ оплаты:",
+            reply_markup=keyboards.create_topup_payment_methods_keyboard()
+        )
+        await state.set_state(TopupProcess.waiting_for_payment_method)
+
+    @user_router.callback_query(F.data == "topup_amount_custom")
+    @registration_required
+    async def topup_custom_amount_prompt(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        await callback.message.edit_text(
+            "Введите сумму пополнения в рублях (целое число, минимум 50):"
+        )
+        await state.set_state(TopupProcess.waiting_for_custom_amount)
+
+    @user_router.message(TopupProcess.waiting_for_custom_amount)
+    async def topup_custom_amount_receive(message: types.Message, state: FSMContext):
+        try:
+            amount = int(message.text.strip())
+            try:
+                min_topup = int(get_setting("minimum_topup") or 50)
+            except Exception:
+                min_topup = 50
+            if amount < min_topup:
+                await message.answer(f"Минимальная сумма пополнения {min_topup} RUB. Введите другую сумму:")
+                return
+        except Exception:
+            await message.answer("Введите корректное целое число в рублях:")
+            return
+        await state.update_data(topup_amount=amount)
+        await message.answer(
+            f"Сумма пополнения: {amount} RUB\n\nВыберите способ оплаты:",
+            reply_markup=keyboards.create_topup_payment_methods_keyboard()
+        )
+        await state.set_state(TopupProcess.waiting_for_payment_method)
+
+    @user_router.callback_query(TopupProcess.waiting_for_payment_method, F.data == "topup_back_to_amounts")
+    @registration_required
+    async def topup_back_to_amounts(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        await state.clear()
+        await callback.message.edit_text(
+            "Выберите сумму пополнения:",
+            reply_markup=keyboards.create_topup_amounts_keyboard()
+        )
+    @user_router.message(F.text == "👤 Мой профиль")
+    @registration_required
+    async def profile_handler_message(message: types.Message):
+        user_id = message.from_user.id
+        user_db_data = get_user(user_id)
+        user_keys = get_user_keys(user_id)
+        if not user_db_data:
+            await message.answer("Не удалось получить данные профиля.")
+            return
+        username = html.bold(user_db_data.get('username', 'Пользователь'))
+        total_spent, total_months = user_db_data.get('total_spent', 0), user_db_data.get('total_months', 0)
+        now = datetime.now()
+        active_keys = [key for key in user_keys if datetime.fromisoformat(key['expiry_date']) > now]
+        if active_keys:
+            latest_key = max(active_keys, key=lambda k: datetime.fromisoformat(k['expiry_date']))
+            latest_expiry_date = datetime.fromisoformat(latest_key['expiry_date'])
+            time_left = latest_expiry_date - now
+            vpn_status_text = get_vpn_active_text(time_left.days, time_left.seconds // 3600)
+        elif user_keys: vpn_status_text = VPN_INACTIVE_TEXT
+        else: vpn_status_text = VPN_NO_DATA_TEXT
+        final_text = get_profile_text(username, total_spent, total_months, vpn_status_text)
+        await message.answer(final_text, reply_markup=keyboards.create_profile_menu_keyboard())
+
+    @user_router.message(F.text == "🔑 Мои ключи")
+    @registration_required
+    async def manage_keys_message(message: types.Message):
+        user_id = message.from_user.id
+        user_keys = get_user_keys(user_id)
+        await message.answer(
+            "Ваши ключи:" if user_keys else "У вас пока нет ключей.",
+            reply_markup=keyboards.create_keys_management_keyboard(user_keys)
+        )
+
+    @user_router.message(F.text == "🤝 Реферальная программа")
+    @registration_required
+    async def referral_program_message(message: types.Message):
+        user_id = message.from_user.id
+        user_data = get_user(user_id)
+        bot_username = (await message.bot.get_me()).username
+        referral_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
+        referral_count = get_referral_count(user_id)
+        balance = user_data.get('referral_balance', 0)
+        text = (
+            "🤝 <b>Реферальная программа</b>\n\n"
+            "Приглашайте друзей и получайте вознаграждение с <b>каждой</b> их покупки!\n\n"
+            f"<b>Ваша реферальная ссылка:</b>\n<code>{referral_link}</code>\n\n"
+            f"<b>Приглашено пользователей:</b> {referral_count}\n"
+            f"<b>Ваш баланс:</b> {balance:.2f} RUB"
+        )
+        builder = InlineKeyboardBuilder()
+        if balance >= 100:
+            builder.button(text="💸 Оставить заявку на вывод", callback_data="withdraw_request")
+        builder.button(text="⬅️ Назад", callback_data="back_to_main_menu")
+        await message.answer(text, reply_markup=builder.as_markup())
+
+    @user_router.message(F.text == "❓ Как использовать")
+    @registration_required
+    async def howto_message(message: types.Message):
+        await message.answer(
+            "Выберите вашу платформу для инструкции по подключению VLESS:",
+            reply_markup=keyboards.create_howto_vless_keyboard(),
+            disable_web_page_preview=True
+        )
+
+    @user_router.message(F.text == "🆘 Поддержка")
+    @registration_required
+    async def support_message(message: types.Message):
+        from shop_bot.data_manager.database import get_setting
+        if get_setting("support_enabled") != "true":
+            await message.answer(
+                "Раздел поддержки недоступен.",
+                reply_markup=keyboards.create_back_to_menu_keyboard()
+            )
+            return
+        support_user = get_setting("support_user")
+        support_text = get_setting("support_text")
+        if support_user == None and support_text == None:
+            await message.answer(
+                "Информация о поддержке не установлена. Установите её в админ-панели.",
+                reply_markup=keyboards.create_back_to_menu_keyboard()
+            )
+        elif support_text == None:
+            await message.answer(
+                "Для связи с поддержкой используйте кнопку ниже.",
+                reply_markup=keyboards.create_support_keyboard(support_user)
+            )
+        else:
+            await message.answer(
+                support_text + "\n\n",
+                reply_markup=keyboards.create_support_keyboard(support_user)
+            )
+
+    @user_router.message(F.text == "ℹ️ О проекте")
+    @registration_required
+    async def about_message(message: types.Message):
+        about_text = get_setting("about_text")
+        terms_url = get_setting("terms_url")
+        privacy_url = get_setting("privacy_url")
+        channel_url = get_setting("channel_url")
+        final_text = about_text if about_text else "Информация о проекте не добавлена."
+        keyboard = keyboards.create_about_keyboard(channel_url, terms_url, privacy_url)
+        await message.answer(final_text, reply_markup=keyboard, disable_web_page_preview=True)
 
     @user_router.callback_query(F.data == "show_profile")
     @registration_required
@@ -256,7 +609,7 @@ def get_user_router() -> Router:
         elif user_keys: vpn_status_text = VPN_INACTIVE_TEXT
         else: vpn_status_text = VPN_NO_DATA_TEXT
         final_text = get_profile_text(username, total_spent, total_months, vpn_status_text)
-        await callback.message.edit_text(final_text, reply_markup=keyboards.create_back_to_menu_keyboard())
+        await callback.message.edit_text(final_text, reply_markup=keyboards.create_profile_menu_keyboard())
 
     @user_router.callback_query(F.data == "start_broadcast")
     @registration_required
@@ -538,7 +891,13 @@ def get_user_router() -> Router:
     @registration_required
     async def about_handler(callback: types.CallbackQuery):
         await callback.answer()
-
+        from shop_bot.data_manager.database import get_setting
+        if get_setting("support_enabled") != "true":
+            await callback.message.edit_text(
+                "Раздел поддержки недоступен.",
+                reply_markup=keyboards.create_back_to_menu_keyboard()
+            )
+            return
         support_user = get_setting("support_user")
         support_text = get_setting("support_text")
 
@@ -582,6 +941,14 @@ def get_user_router() -> Router:
         if not hosts:
             await callback.message.edit_text("❌ В данный момент нет доступных серверов для создания пробного ключа.")
             return
+        # Скрываем сервера без тарифов (для единообразия выбора серверов)
+        try:
+            hosts = [h for h in hosts if get_plans_for_host(h['host_name'])]
+        except Exception:
+            pass
+        if not hosts:
+            await callback.message.edit_text("❌ В данный момент нет доступных серверов для создания пробного ключа.")
+            return
             
         if len(hosts) == 1:
             await callback.answer()
@@ -607,8 +974,9 @@ def get_user_router() -> Router:
         try:
             result = await xui_api.create_or_update_key_on_host(
                 host_name=host_name,
-                email=f"user{user_id}-key{get_next_key_number(user_id)}-trial@telegram.bot",
-                days_to_add=int(get_setting("trial_duration_days"))
+                email=f"{user_id}",
+                days_to_add=int(get_setting("trial_duration_days")),
+                comment=f"user{user_id}-key{get_next_key_number(user_id)}-trial@telegram.bot"
             )
             if not result:
                 await message.edit_text("❌ Не удалось создать пробный ключ. Ошибка на сервере.")
@@ -621,8 +989,24 @@ def get_user_router() -> Router:
                 host_name=host_name,
                 xui_client_uuid=result['client_uuid'],
                 key_email=result['email'],
-                expiry_timestamp_ms=result['expiry_timestamp_ms']
+                expiry_timestamp_ms=result['expiry_timestamp_ms'],
+                connection_string=result.get('connection_string'),
+                protocol='vless',
+                is_trial=1
             )
+            # Дополнительно сразу сохраним remaining_seconds и expiry_date
+            try:
+                from datetime import datetime, timezone
+                from shop_bot.data_manager.database import update_key_remaining_seconds
+            except Exception:
+                update_key_remaining_seconds = None
+            try:
+                if update_key_remaining_seconds:
+                    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+                    remaining = max(0, int((result['expiry_timestamp_ms'] - now_ms) / 1000))
+                    update_key_remaining_seconds(new_key_id, remaining, datetime.fromtimestamp(result['expiry_timestamp_ms']/1000))
+            except Exception:
+                pass
             
             await message.delete()
             new_expiry_date = datetime.fromtimestamp(result['expiry_timestamp_ms'] / 1000)
@@ -709,7 +1093,7 @@ def get_user_router() -> Router:
         await callback.answer()
 
         await callback.message.edit_text(
-            "Выберите вашу платформу для инструкции по подключению VLESS:",
+            "Выберите вашу опреационную систему для получения инструкции по подключению и настройки:",
             reply_markup=keyboards.create_howto_vless_keyboard(),
             disable_web_page_preview=True
         )
@@ -718,84 +1102,56 @@ def get_user_router() -> Router:
     @registration_required
     async def howto_android_handler(callback: types.CallbackQuery):
         await callback.answer()
+        text = _load_instruction_text('android')
         await callback.message.edit_text(
-            "<b>Подключение на Android</b>\n\n"
-            "1. <b>Установите приложение V2RayTun:</b> Загрузите и установите приложение V2RayTun из Google Play Store.\n"
-            "2. <b>Скопируйте свой ключ (vless://)</b> Перейдите в раздел «Моя подписка» в нашем боте и скопируйте свой ключ.\n"
-            "3. <b>Импортируйте конфигурацию:</b>\n"
-            "   • Откройте V2RayTun.\n"
-            "   • Нажмите на значок + в правом нижнем углу.\n"
-            "   • Выберите «Импортировать конфигурацию из буфера обмена» (или аналогичный пункт).\n"
-            "4. <b>Выберите сервер:</b> Выберите появившийся сервер в списке.\n"
-            "5. <b>Подключитесь к VPN:</b> Нажмите на кнопку подключения (значок «V» или воспроизведения). Возможно, потребуется разрешение на создание VPN-подключения.\n"
-            "6. <b>Проверьте подключение:</b> После подключения проверьте свой IP-адрес, например, на https://whatismyipaddress.com/. Он должен отличаться от вашего реального IP.",
-        reply_markup=keyboards.create_howto_vless_keyboard(),
-        disable_web_page_preview=True
-    )
+            text,
+            reply_markup=keyboards.create_howto_vless_keyboard(),
+            disable_web_page_preview=True
+        )
 
     @user_router.callback_query(F.data == "howto_ios")
     @registration_required
     async def howto_ios_handler(callback: types.CallbackQuery):
         await callback.answer()
+        text = _load_instruction_text('ios')
         await callback.message.edit_text(
-            "<b>Подключение на iOS (iPhone/iPad)</b>\n\n"
-            "1. <b>Установите приложение V2RayTun:</b> Загрузите и установите приложение V2RayTun из App Store.\n"
-            "2. <b>Скопируйте свой ключ (vless://):</b> Перейдите в раздел «Моя подписка» в нашем боте и скопируйте свой ключ.\n"
-            "3. <b>Импортируйте конфигурацию:</b>\n"
-            "   • Откройте V2RayTun.\n"
-            "   • Нажмите на значок +.\n"
-            "   • Выберите «Импортировать конфигурацию из буфера обмена» (или аналогичный пункт).\n"
-            "4. <b>Выберите сервер:</b> Выберите появившийся сервер в списке.\n"
-            "5. <b>Подключитесь к VPN:</b> Включите главный переключатель в V2RayTun. Возможно, потребуется разрешить создание VPN-подключения.\n"
-            "6. <b>Проверьте подключение:</b> После подключения проверьте свой IP-адрес, например, на https://whatismyipaddress.com/. Он должен отличаться от вашего реального IP.",
-        reply_markup=keyboards.create_howto_vless_keyboard(),
-        disable_web_page_preview=True
-    )
+            text,
+            reply_markup=keyboards.create_howto_vless_keyboard(),
+            disable_web_page_preview=True
+        )
+
+    @user_router.callback_query(F.data == "howto_macos")
+    @registration_required
+    async def howto_macos_handler(callback: types.CallbackQuery):
+        await callback.answer()
+        text = _load_instruction_text('macos')
+        await callback.message.edit_text(
+            text,
+            reply_markup=keyboards.create_howto_vless_keyboard(),
+            disable_web_page_preview=True
+        )
 
     @user_router.callback_query(F.data == "howto_windows")
     @registration_required
     async def howto_windows_handler(callback: types.CallbackQuery):
         await callback.answer()
+        text = _load_instruction_text('windows')
         await callback.message.edit_text(
-            "<b>Подключение на Windows</b>\n\n"
-            "1. <b>Установите приложение Nekoray:</b> Загрузите Nekoray с https://github.com/MatsuriDayo/Nekoray/releases. Выберите подходящую версию (например, Nekoray-x64.exe).\n"
-            "2. <b>Распакуйте архив:</b> Распакуйте скачанный архив в удобное место.\n"
-            "3. <b>Запустите Nekoray.exe:</b> Откройте исполняемый файл.\n"
-            "4. <b>Скопируйте свой ключ (vless://)</b> Перейдите в раздел «Моя подписка» в нашем боте и скопируйте свой ключ.\n"
-            "5. <b>Импортируйте конфигурацию:</b>\n"
-            "   • В Nekoray нажмите «Сервер» (Server).\n"
-            "   • Выберите «Импортировать из буфера обмена».\n"
-            "   • Nekoray автоматически импортирует конфигурацию.\n"
-            "6. <b>Обновите серверы (если нужно):</b> Если серверы не появились, нажмите «Серверы» → «Обновить все серверы».\n"
-            "7. Сверху включите пункт 'Режим TUN' ('Tun Mode')\n"
-            "8. <b>Выберите сервер:</b> В главном окне выберите появившийся сервер.\n"
-            "9. <b>Подключитесь к VPN:</b> Нажмите «Подключить» (Connect).\n"
-            "10. <b>Проверьте подключение:</b> Откройте браузер и проверьте IP на https://whatismyipaddress.com/. Он должен отличаться от вашего реального IP.",
-        reply_markup=keyboards.create_howto_vless_keyboard(),
-        disable_web_page_preview=True
-    )
+            text,
+            reply_markup=keyboards.create_howto_vless_keyboard(),
+            disable_web_page_preview=True
+        )
 
     @user_router.callback_query(F.data == "howto_linux")
     @registration_required
     async def howto_linux_handler(callback: types.CallbackQuery):
         await callback.answer()
+        text = _load_instruction_text('linux')
         await callback.message.edit_text(
-            "<b>Подключение на Linux</b>\n\n"
-            "1. <b>Скачайте и распакуйте Nekoray:</b> Перейдите на https://github.com/MatsuriDayo/Nekoray/releases и скачайте архив для Linux. Распакуйте его в удобную папку.\n"
-            "2. <b>Запустите Nekoray:</b> Откройте терминал, перейдите в папку с Nekoray и выполните <code>./nekoray</code> (или используйте графический запуск, если доступен).\n"
-            "3. <b>Скопируйте свой ключ (vless://)</b> Перейдите в раздел «Моя подписка» в нашем боте и скопируйте свой ключ.\n"
-            "4. <b>Импортируйте конфигурацию:</b>\n"
-            "   • В Nekoray нажмите «Сервер» (Server).\n"
-            "   • Выберите «Импортировать из буфера обмена».\n"
-            "   • Nekoray автоматически импортирует конфигурацию.\n"
-            "5. <b>Обновите серверы (если нужно):</b> Если серверы не появились, нажмите «Серверы» → «Обновить все серверы».\n"
-            "6. Сверху включите пункт 'Режим TUN' ('Tun Mode')\n"
-            "7. <b>Выберите сервер:</b> В главном окне выберите появившийся сервер.\n"
-            "8. <b>Подключитесь к VPN:</b> Нажмите «Подключить» (Connect).\n"
-            "9. <b>Проверьте подключение:</b> Откройте браузер и проверьте IP на https://whatismyipaddress.com/. Он должен отличаться от вашего реального IP.",
-        reply_markup=keyboards.create_howto_vless_keyboard(),
-        disable_web_page_preview=True
-    )
+            text,
+            reply_markup=keyboards.create_howto_vless_keyboard(),
+            disable_web_page_preview=True
+        )
 
     @user_router.callback_query(F.data == "buy_new_key")
     @registration_required
@@ -805,10 +1161,18 @@ def get_user_router() -> Router:
         if not hosts:
             await callback.message.edit_text("❌ В данный момент нет доступных серверов для покупки.")
             return
+        # Скрываем сервера без настроенных тарифов
+        try:
+            hosts_with_plans = [h for h in hosts if get_plans_for_host(h['host_name'])]
+        except Exception:
+            hosts_with_plans = hosts
+        if not hosts_with_plans:
+            await callback.message.edit_text("❌ В данный момент нет доступных серверов для покупки.")
+            return
         
         await callback.message.edit_text(
             "Выберите сервер, на котором хотите приобрести ключ:",
-            reply_markup=keyboards.create_host_selection_keyboard(hosts, action="new")
+            reply_markup=keyboards.create_host_selection_keyboard(hosts_with_plans, action="new")
         )
 
     @user_router.callback_query(F.data.startswith("select_host_new_"))
@@ -938,6 +1302,137 @@ def get_user_router() -> Router:
         await state.set_state(PaymentProcess.waiting_for_payment_method)
         logger.info(f"User {callback.from_user.id}: State set to waiting_for_payment_method")
 
+    # ====== Topup flow payments via Stars and TON Connect ======
+    @user_router.callback_query(TopupProcess.waiting_for_payment_method, F.data == "topup_pay_stars")
+    async def topup_pay_stars(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer("Создаю счет на пополнение через Stars...")
+        data = await state.get_data()
+        user_id = callback.from_user.id
+        amount_rub = Decimal(str(data.get('topup_amount', 0)))
+        if amount_rub <= 0:
+            await callback.message.edit_text("❌ Некорректная сумма пополнения.")
+            await state.clear()
+            return
+        conversion_rate = Decimal(str(get_setting("stars_conversion_rate") or "1.79"))
+        if conversion_rate <= 0:
+            conversion_rate = Decimal("1.0")
+        price_stars = int((amount_rub / conversion_rate).quantize(Decimal("1"), rounding=ROUND_CEILING))
+        if price_stars < 1:
+            price_stars = 1
+
+        try:
+            invoice = types.LabeledPrice(label=f"Пополнение баланса", amount=price_stars)
+
+            payment_metadata = {
+                'user_id': user_id,
+                'price': float(amount_rub),
+                'operation': 'topup',
+                'payment_method': 'Stars',
+                'stars_rate': float(conversion_rate),
+                'chat_id': callback.message.chat.id,
+                'message_id': callback.message.message_id
+            }
+            payment_id = str(uuid.uuid4())
+            payment_metadata['payment_id'] = payment_id
+
+            # Сохраняем pending транзакцию
+            create_pending_stars_transaction(
+                payment_id=payment_id,
+                user_id=user_id,
+                amount_rub=float(amount_rub),
+                amount_stars=price_stars,
+                metadata=payment_metadata
+            )
+
+            await callback.message.answer_invoice(
+                title=f"Пополнение баланса",
+                description=f"Пополнение кошелька в боте",
+                payload=payment_id,
+                provider_token="",
+                currency="XTR",
+                prices=[invoice]
+            )
+            await state.clear()
+        except Exception as e:
+            logger.error(f"Failed to create Stars topup invoice: {e}", exc_info=True)
+            await callback.message.answer("❌ Не удалось создать счет для пополнения звездами. Попробуйте позже.")
+            await state.clear()
+
+    @user_router.callback_query(TopupProcess.waiting_for_payment_method, F.data == "topup_pay_tonconnect")
+    async def topup_pay_tonconnect(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer("Готовлю оплату через TON Connect...")
+        data = await state.get_data()
+        user_id = callback.from_user.id
+        amount_rub = Decimal(str(data.get('topup_amount', 0)))
+        if amount_rub <= 0:
+            await callback.message.edit_text("❌ Некорректная сумма пополнения.")
+            await state.clear()
+            return
+
+        usdt_rub_rate = await get_usdt_rub_rate()
+        ton_usdt_rate = await get_ton_usdt_rate()
+        if not usdt_rub_rate or not ton_usdt_rate:
+            await callback.message.edit_text("❌ Не удалось получить курс TON. Попробуйте позже.")
+            await state.clear()
+            return
+
+        price_ton = (amount_rub / usdt_rub_rate / ton_usdt_rate).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+        amount_nanoton = int(price_ton * 1_000_000_000)
+
+        payment_id = str(uuid.uuid4())
+        metadata = {
+            'user_id': user_id,
+            'price': float(amount_rub),
+            'operation': 'topup',
+            'payment_method': 'TON Connect',
+            'payment_id': payment_id
+        }
+
+        # Сохраняем pending транзакцию с TON суммой
+        create_pending_ton_transaction(payment_id, user_id, float(amount_rub), float(price_ton), metadata, payment_link=None)
+
+        wallet_address = get_setting("ton_wallet_address")
+        if not wallet_address:
+            await callback.message.edit_text("❌ TON кошелек не настроен. Обратитесь к администратору.")
+            await state.clear()
+            return
+
+        transaction_payload = {
+            'valid_until': int(datetime.now().timestamp()) + 600,
+            'messages': [{
+                'address': wallet_address,
+                'amount': amount_nanoton
+            }]
+        }
+
+        try:
+            bot_instance = getattr(callback, 'bot', None)
+            if bot_instance is None and hasattr(callback, 'message'):
+                bot_instance = getattr(callback.message, 'bot', None)
+            if bot_instance is None:
+                from aiogram import Bot
+                bot_instance = Bot.get_current()
+            connect_url = await _start_ton_connect_process(user_id, transaction_payload, metadata, bot_instance)
+            qr_img = qrcode.make(connect_url)
+            bio = BytesIO()
+            qr_img.save(bio, "PNG")
+            qr_file = BufferedInputFile(bio.getvalue(), "ton_qr.png")
+            await callback.message.delete()
+            await callback.message.answer_photo(
+                photo=qr_file,
+                caption=(
+                    f"💎 Оплата пополнения через TON Connect\n\n"
+                    f"Сумма к оплате: `{price_ton}` TON\n\n"
+                    f"Нажмите 'Открыть кошелек' или отсканируйте QR-код."
+                ),
+                parse_mode="Markdown",
+                reply_markup=keyboards.create_ton_connect_keyboard(connect_url)
+            )
+            await state.clear()
+        except Exception as e:
+            logger.error(f"Failed to generate TON Connect link for topup: {e}", exc_info=True)
+            await callback.message.answer("❌ Не удалось создать ссылку для TON Connect. Попробуйте позже.")
+            await state.clear()
     async def show_payment_options(message: types.Message, state: FSMContext):
         data = await state.get_data()
         user_data = get_user(message.chat.id)
@@ -1000,9 +1495,14 @@ def get_user_router() -> Router:
         plan = get_plan_by_id(plan_id)
 
         if not plan:
-            await callback.message.answer("Произошла ошибка при выборе тарифа.")
+            await callback.message.edit_text("❌ Ошибка: Тариф не найден.")
             await state.clear()
             return
+
+        # days/traffic для оплаты
+        plan_days = int(plan.get('days') or 0)
+        plan_traffic_gb = float(plan.get('traffic_gb') or 0)
+        await state.update_data(plan_days=plan_days, plan_traffic_gb=plan_traffic_gb)
 
         base_price = Decimal(str(plan['price']))
         price_rub = base_price
@@ -1046,7 +1546,9 @@ def get_user_router() -> Router:
                 email = ""
                 if action == "new":
                     key_number = get_next_key_number(user_id)
-                    email = f"user{user_id}-key{key_number}@{host_name.replace(' ', '').lower()}.bot"
+                    # Email теперь только ID пользователя
+                    email = f"{user_id}"
+                    comment = f"user{user_id}-key{key_number}@{host_name.replace(' ', '').lower()}.bot"
                 elif action == "extend":
                     key_data = get_key_by_id(key_id)
                     if not key_data or key_data['user_id'] != user_id:
@@ -1054,12 +1556,14 @@ def get_user_router() -> Router:
                         await state.clear()
                         return
                     email = key_data['key_email']
+                    comment = key_data.get('connection_string') or ''
                 
                 days_to_add = months * 30
                 result = await xui_api.create_or_update_key_on_host(
                     host_name=host_name,
                     email=email,
-                    days_to_add=days_to_add
+                    days_to_add=days_to_add,
+                    comment=comment
                 )
 
                 if not result:
@@ -1467,10 +1971,16 @@ def get_user_router() -> Router:
         logger.info(f"TON Connect Debug - Transaction payload: {transaction_payload}")
 
         try:
-            # Получаем экземпляр бота для обработки платежа
-            from shop_bot.bot_controller import BotController
-            bot_controller = BotController()
-            bot_instance = bot_controller.get_bot_instance()
+            # Получаем текущий экземпляр бота
+            bot_instance = getattr(callback, 'bot', None)
+            if bot_instance is None and hasattr(callback, 'message'):
+                bot_instance = getattr(callback.message, 'bot', None)
+            if bot_instance is None:
+                try:
+                    from aiogram import Bot
+                    bot_instance = Bot.get_current()
+                except Exception:
+                    bot_instance = None
             
             connect_url = await _start_ton_connect_process(user_id, transaction_payload, metadata, bot_instance)
             
@@ -1499,6 +2009,177 @@ def get_user_router() -> Router:
             await callback.message.answer("❌ Не удалось создать ссылку для TON Connect. Попробуйте позже.")
             await state.clear()
 
+    @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "pay_stars")
+    async def create_stars_invoice_handler(callback: types.CallbackQuery, state: FSMContext):
+        logger.info(f"User {callback.from_user.id}: Entered create_stars_invoice_handler.")
+        data = await state.get_data()
+        user_id = callback.from_user.id
+        plan = get_plan_by_id(data.get('plan_id'))
+        
+        if not plan:
+            await callback.message.edit_text("❌ Оплата через Stars временно недоступна.")
+            await state.clear()
+            return
+
+        await callback.answer("Создаю счет для оплаты звездами...")
+            
+        price_rub = Decimal(str(data.get('final_price', plan['price'])))
+        
+        # Получаем курс конвертации (RUB за 1 звезду)
+        conversion_rate = Decimal(str(get_setting("stars_conversion_rate") or "1.79"))
+        # Рассчитываем, сколько звезд должен заплатить пользователь: ceil(RUB / (RUB/Star))
+        if conversion_rate <= 0:
+            conversion_rate = Decimal("1.0")
+        price_stars = int((price_rub / conversion_rate).quantize(Decimal("1"), rounding=ROUND_CEILING))
+        if price_rub > 0 and price_stars < 1:
+            price_stars = 1
+        
+        # Проверяем, если цена 0 рублей - обрабатываем бесплатно
+        if price_rub == 0:
+            await callback.message.edit_text("🎉 Бесплатный тариф! Обрабатываю ваш запрос...")
+            
+            # Получаем данные из state
+            action = data.get('action')
+            key_id = data.get('key_id')
+            host_name = data.get('host_name')
+            
+            # Создаем ключ бесплатно
+            try:
+                email = ""
+                if action == "new":
+                    key_number = get_next_key_number(user_id)
+                    email = f"user{user_id}-key{key_number}@{host_name.replace(' ', '').lower()}.bot"
+                elif action == "extend":
+                    key_data = get_key_by_id(key_id)
+                    if not key_data or key_data['user_id'] != user_id:
+                        await callback.message.edit_text("❌ Ошибка: ключ для продления не найден.")
+                        await state.clear()
+                        return
+                    email = key_data['key_email']
+                
+                months = plan['months']
+                days_to_add = months * 30
+                result = await xui_api.create_or_update_key_on_host(
+                    host_name=host_name,
+                    email=email,
+                    days_to_add=days_to_add
+                )
+
+                if not result:
+                    await callback.message.edit_text("❌ Не удалось создать/обновить ключ в панели.")
+                    await state.clear()
+                    return
+
+                if action == "new":
+                    key_id = add_new_key(user_id, host_name, result['client_uuid'], result['email'], result['expiry_timestamp_ms'])
+                elif action == "extend":
+                    update_key_info(key_id, result['client_uuid'], result['expiry_timestamp_ms'])
+                
+                # Обновляем статистику
+                update_user_stats(user_id, 0, months)
+                
+                # Логируем транзакцию
+                user_info = get_user(user_id)
+                log_transaction(
+                    user_id=user_id,
+                    amount_rub=0,
+                    months=months,
+                    action=action,
+                    key_id=key_id,
+                    host_name=host_name,
+                    plan_id=plan['plan_id'],
+                    customer_email=data.get('customer_email'),
+                    payment_method='Stars (Free)'
+                )
+                
+                await callback.message.edit_text(
+                    "✅ Бесплатный ключ успешно создан!",
+                    reply_markup=keyboards.create_key_info_keyboard(key_id)
+                )
+                
+                await state.clear()
+                return
+                
+            except Exception as e:
+                logger.error(f"Error processing free plan for user {user_id}: {e}", exc_info=True)
+                await callback.message.edit_text("❌ Ошибка при выдаче бесплатного ключа.")
+                await state.clear()
+                return
+
+        try:
+            # Создаем инвойс для оплаты звездами
+            invoice = types.LabeledPrice(
+                label=f"Подписка {plan['plan_name']} ({plan['months']} мес.)",
+                amount=price_stars
+            )
+            
+            # Создаем метаданные для платежа (сохраняем в БД)
+            payment_metadata = {
+                'user_id': user_id,
+                'months': plan['months'],
+                'price': float(price_rub),
+                'action': data.get('action'),
+                'key_id': data.get('key_id'),
+                'host_name': data.get('host_name'),
+                'plan_id': plan['plan_id'],
+                'plan_name': plan['plan_name'],
+                'customer_email': data.get('customer_email'),
+                'payment_method': 'Stars',
+                'stars_rate': float(conversion_rate),
+                'chat_id': callback.message.chat.id,
+                'message_id': callback.message.message_id
+            }
+            
+            # Создаем payload для идентификации платежа
+            payment_id = str(uuid.uuid4())
+            payment_metadata['payment_id'] = payment_id
+            payload = payment_id  # Stars требуют компактный payload; метаданные читаем из БД
+            
+            # Реальная стоимость в рублях по оплаченным звездам (может быть >= исходной цены из-за округления)
+            real_amount_rub = float(Decimal(price_stars) * conversion_rate)
+            
+            # Создаем pending транзакцию
+            create_pending_stars_transaction(
+                payment_id=payment_id,
+                user_id=user_id,
+                amount_rub=real_amount_rub,  # Реальная стоимость в рублях
+                amount_stars=price_stars,
+                metadata=payment_metadata
+            )
+            
+            await callback.message.answer_invoice(
+                title=f"Подписка {plan['plan_name']}",
+                description=f"VPN подписка на {plan['months']} месяцев",
+                payload=payload,
+                provider_token="",  # Для Stars не нужен provider_token
+                currency="XTR",  # XTR - валюта Telegram Stars
+                prices=[invoice],
+                start_parameter=payment_id,
+                photo_url=None,
+                photo_size=None,
+                photo_width=None,
+                photo_height=None,
+                need_name=False,
+                need_phone_number=False,
+                need_email=False,
+                need_shipping_address=False,
+                send_phone_number_to_provider=False,
+                send_email_to_provider=False,
+                is_flexible=False,
+                disable_notification=False,
+                protect_content=False,
+                reply_to_message_id=None,
+                allow_sending_without_reply=False,
+                reply_markup=None
+            )
+            
+            await state.clear()
+
+        except Exception as e:
+            logger.error(f"Failed to create Stars invoice for user {user_id}: {e}", exc_info=True)
+            await callback.message.answer("❌ Не удалось создать счет для оплаты звездами. Попробуйте позже.")
+            await state.clear()
+
         @user_router.message(F.text)
         @registration_required
         async def unknown_message_handler(message: types.Message):
@@ -1506,10 +2187,149 @@ def get_user_router() -> Router:
                 await message.answer("Такой команды не существует. Попробуйте /start.")
             else:
                 await message.answer("Я не понимаю эту команду. Пожалуйста, используйте кнопки меню.")
+
+    @user_router.pre_checkout_query()
+    async def pre_checkout_handler(pre_checkout_query: types.PreCheckoutQuery):
+        """Обработчик pre-checkout для Telegram Stars"""
+        logger.info(f"Pre-checkout query received: {pre_checkout_query.id}")
+        
+        try:
+            # Проверяем, что это Stars платеж
+            if pre_checkout_query.currency != "XTR":
+                await pre_checkout_query.answer(ok=False, error_message="Неподдерживаемая валюта")
+                return
+            
+            # Проверяем payload
+            if not pre_checkout_query.invoice_payload:
+                await pre_checkout_query.answer(ok=False, error_message="Отсутствуют данные платежа")
+                return
+            
+            # Получаем метаданные из БД по payment_id (payload)
+            try:
+                from shop_bot.data_manager.database import get_transaction_by_payment_id
+                payment_id = pre_checkout_query.invoice_payload
+                tx = get_transaction_by_payment_id(payment_id)
+                if not tx:
+                    await pre_checkout_query.answer(ok=False, error_message="Транзакция не найдена")
+                    return
+                metadata = tx.get('metadata') or {}
+                user_id = int(metadata.get('user_id'))
+                # Ожидаемая сумма звезд: ceil(RUB / (RUB/Star))
+                price_rub = Decimal(str(metadata.get('price', 0)))
+                conversion_rate = Decimal(str(get_setting("stars_conversion_rate") or "1.79"))
+                if conversion_rate <= 0:
+                    conversion_rate = Decimal("1.0")
+                expected_stars = int((price_rub / conversion_rate).quantize(Decimal("1"), rounding=ROUND_CEILING))
+                
+                # Проверяем, что пользователь существует
+                user_data = get_user(user_id)
+                if not user_data:
+                    await pre_checkout_query.answer(ok=False, error_message="Пользователь не найден")
+                    return
+                
+                if pre_checkout_query.total_amount != expected_stars:
+                    await pre_checkout_query.answer(ok=False, error_message="Неверная сумма платежа")
+                    return
+                
+                # Подтверждаем платеж
+                await pre_checkout_query.answer(ok=True)
+                logger.info(f"Pre-checkout approved for user {user_id}, amount: {expected_stars} stars")
+                
+            except (json.JSONDecodeError, ValueError, TypeError) as e:
+                logger.error(f"Error parsing pre-checkout payload: {e}")
+                await pre_checkout_query.answer(ok=False, error_message="Ошибка в данных платежа")
+                
+        except Exception as e:
+            logger.error(f"Error in pre-checkout handler: {e}", exc_info=True)
+            await pre_checkout_query.answer(ok=False, error_message="Внутренняя ошибка сервера")
+
+    @user_router.message(F.content_type == types.ContentType.SUCCESSFUL_PAYMENT)
+    async def successful_payment_handler(message: types.Message):
+        """Обработчик успешного платежа через Telegram Stars"""
+        logger.info(f"Successful payment received from user {message.from_user.id}")
+        
+        try:
+            payment = message.successful_payment
+            
+            # Проверяем, что это Stars платеж
+            if payment.currency != "XTR":
+                logger.warning(f"Received non-Stars payment: {payment.currency}")
+                return
+            
+            # Получаем метаданные из БД по payment_id (payload)
+            try:
+                from shop_bot.data_manager.database import get_transaction_by_payment_id, update_transaction_on_payment
+                payment_id = payment.invoice_payload
+                tx = get_transaction_by_payment_id(payment_id)
+                if not tx:
+                    logger.error(f"Stars: transaction not found by payment_id: {payment_id}")
+                    return
+                metadata = tx.get('metadata') or {}
+                user_id = int(metadata.get('user_id'))
+                operation = metadata.get('operation')
+                months = int(metadata.get('months')) if metadata.get('months') else 0
+                price = float(metadata.get('price', 0))
+                action = metadata.get('action')
+                key_id = int(metadata.get('key_id')) if metadata.get('key_id') else 0
+                host_name = metadata.get('host_name')
+                plan_id = int(metadata.get('plan_id')) if metadata.get('plan_id') else 0
+                customer_email = metadata.get('customer_email')
+                # Гарантируем наличие plan_name для таблицы
+                if not metadata.get('plan_name'):
+                    try:
+                        plan_obj = get_plan_by_id(plan_id)
+                        metadata['plan_name'] = plan_obj.get('plan_name', 'N/A') if plan_obj else 'N/A'
+                    except Exception:
+                        metadata['plan_name'] = 'N/A'
+                
+                logger.info(f"Processing Stars payment: user_id={user_id}, amount={payment.total_amount} stars, price={price} RUB, op={operation}")
+                
+                # Фиксируем оплату в транзакции и обрабатываем (пересчитываем RUB по текущему курсу)
+                try:
+                    # Берём курс из metadata на момент покупки, fallback на текущее значение
+                    conversion_rate = Decimal(str(metadata.get('stars_rate') or get_setting("stars_conversion_rate") or "1.79"))
+                    amount_rub_paid = float(Decimal(payment.total_amount) * conversion_rate)
+                    # Сохраняем telegram_charge_id как transaction_hash для отображения в таблице
+                    stars_tx_id = payment.telegram_payment_charge_id
+                    # Дописываем, что было оплачено столько-то звёзд
+                    metadata['stars_paid'] = int(payment.total_amount)
+                    # Для Stars connection_string появится после создания/продления ключа в process_successful_payment,
+                    # поэтому здесь просто обновляем сумму/ид и сохраним metadata без connection_string (будет добавлен позже)
+                    update_transaction_on_payment(payment_id, 'paid', amount_rub_paid, tx_hash=stars_tx_id, metadata=metadata)
+                except Exception as _:
+                    pass
+                if operation == 'topup':
+                    # Пополнение баланса
+                    from shop_bot.data_manager.database import add_to_user_balance
+                    add_to_user_balance(user_id, price)
+                    await message.answer(
+                        f"✅ Баланс пополнен на {price:.2f} RUB",
+                        reply_markup=keyboards.create_back_to_menu_keyboard()
+                    )
+                else:
+                    await process_successful_payment(message.bot, metadata)
+                
+                # Сообщение об успехе отправляем только после фактической выдачи ключа в process_successful_payment
+                
+            except (json.JSONDecodeError, ValueError, TypeError) as e:
+                logger.error(f"Error parsing successful payment payload: {e}")
+                await message.answer("❌ Ошибка при обработке платежа. Обратитесь в поддержку.")
+                
+        except Exception as e:
+            logger.error(f"Error in successful payment handler: {e}", exc_info=True)
+            await message.answer("❌ Произошла ошибка при обработке платежа. Обратитесь в поддержку.")
+
     return user_router
 
 _user_connectors: Dict[int, TonConnect] = {}
 _listener_tasks: Dict[int, asyncio.Task] = {}
+
+# Глобально подавим избыточные INFO/WARNING из pytonconnect, чтобы скрыть SSE ошибки в логах
+try:
+    import logging as _logging
+    _logging.getLogger("pytonconnect").setLevel(_logging.ERROR)
+except Exception:
+    pass
 
 async def _get_ton_connect_instance(user_id: int) -> TonConnect:
     if user_id not in _user_connectors:
@@ -1533,7 +2353,12 @@ async def _listener_task(connector: TonConnect, user_id: int, transaction_payloa
         logger.info(f"TON Connect: Wallet connected for user {user_id}. Address: {connector.account.address}")
         
         logger.info(f"TON Connect: Sending transaction request to user {user_id} with payload: {transaction_payload}")
-        result = await connector.send_transaction(transaction_payload)
+        # Отлавливаем сетевые/SSE ошибки pytonconnect, чтобы не рушить процесс
+        try:
+            result = await connector.send_transaction(transaction_payload)
+        except Exception as sse_err:
+            logger.error(f"TON Connect: send_transaction failed for user {user_id}: {sse_err}", exc_info=True)
+            return
         
         logger.info(f"TON Connect: Transaction request sent successfully for user {user_id}.")
         
@@ -1541,13 +2366,40 @@ async def _listener_task(connector: TonConnect, user_id: int, transaction_payloa
         if result and result.get('boc'):
             logger.info(f"TON Connect: Transaction completed successfully for user {user_id}")
             logger.info(f"TON Connect: Transaction result: {result}")
-            logger.info(f"TON Connect: Payment will be processed by webhook")
+            
+            # Обрабатываем платеж напрямую, так как TON Connect не отправляет webhook
+            logger.info(f"TON Connect: Processing payment directly for user {user_id}")
+            logger.info(f"TON Connect: payment_metadata available: {payment_metadata is not None}")
+            logger.info(f"TON Connect: bot_instance available: {bot_instance is not None}")
+            
+            if payment_metadata and bot_instance:
+                try:
+                    # Извлекаем hash транзакции из result если доступен
+                    tx_hash = result.get('boc')  # BOC содержит данные транзакции
+                    
+                    # Вызываем обработку успешного платежа (для Stars будем выводить идентификатор как transaction_hash)
+                    await process_successful_payment(bot_instance, payment_metadata, tx_hash)
+                    logger.info(f"TON Connect: Payment processed successfully for user {user_id}")
+                except Exception as payment_error:
+                    logger.error(f"TON Connect: Failed to process payment for user {user_id}: {payment_error}", exc_info=True)
+            else:
+                logger.error(f"TON Connect: Missing payment_metadata ({payment_metadata is not None}) or bot_instance ({bot_instance is not None}) for user {user_id}")
+                if payment_metadata:
+                    logger.info(f"TON Connect: metadata content: {payment_metadata}")
+                else:
+                    logger.error(f"TON Connect: payment_metadata is None!")
 
     except UserRejectsError:
         logger.warning(f"TON Connect: User {user_id} rejected the transaction.")
     except Exception as e:
         logger.error(f"TON Connect: An error occurred in the listener task for user {user_id}: {e}", exc_info=True)
     finally:
+        # Корректное отключение коннектора, чтобы закрыть SSE и сокеты и не ловить TransferEncodingError
+        try:
+            if connector and getattr(connector, 'connected', False):
+                await connector.disconnect()
+        except Exception:
+            pass
         if user_id in _user_connectors:
             del _user_connectors[user_id]
         if user_id in _listener_tasks:
@@ -1572,7 +2424,7 @@ async def process_successful_onboarding(callback: types.CallbackQuery, state: FS
     set_terms_agreed(callback.from_user.id)
     await state.clear()
     await callback.message.delete()
-    await callback.message.answer("Приятного использования!", reply_markup=keyboards.main_reply_keyboard)
+    await callback.message.answer("Приятного использования!", reply_markup=keyboards.get_main_reply_keyboard())
     await show_main_menu(callback.message)
 
 async def is_url_reachable(url: str) -> bool:
@@ -1612,18 +2464,18 @@ async def notify_admin_of_purchase(bot: Bot, metadata: dict):
         plan_name = plan_info.get('plan_name', f'{months} мес.') if plan_info else f'{months} мес.'
 
         message_text = (
-            "🎉 **Новая покупка!** 🎉\n\n"
-            f"👤 **Пользователь:** @{username} (ID: `{user_id}`)\n"
-            f"🌍 **Сервер:** {host_name}\n"
-            f"📄 **Тариф:** {plan_name}\n"
-            f"💰 **Сумма:** {price:.2f} RUB\n"
-            f"💳 **Способ оплаты:** {payment_method}"
+            "🎉 Новая покупка! 🎉\n\n"
+            f"👤 Пользователь: <b>@{username}</b> (ID: <code>{user_id}</code>)\n"
+            f"🌍 Сервер: <b>{host_name}</b>\n"
+            f"📄 Тариф: <b>{plan_name}</b>\n"
+            f"💰 Сумма: <b>{price:.2f} RUB</b>\n"
+            f"💳 Способ оплаты: <b>{payment_method}</b>"
         )
 
         await bot.send_message(
             chat_id=ADMIN_ID,
             text=message_text,
-            parse_mode='Markdown'
+            parse_mode='HTML'
         )
         logger.info(f"Admin notification sent for a new purchase by user {user_id}.")
 
@@ -1710,6 +2562,17 @@ async def get_usdt_rub_rate() -> Decimal | None:
         logger.error(f"Error getting USDT RUB Binance rate: {e}", exc_info=True)
         return None
     
+async def get_telegram_stars_rate() -> Decimal | None:
+    """Получает курс Telegram Stars (примерный)"""
+    try:
+        # К сожалению, у Telegram нет публичного API для получения курса Stars
+        # Возвращаем примерный курс на основе данных из скриншота
+        # 100 звезд = 179 рублей, значит 1 звезда = 1.79 рублей
+        return Decimal("1.79")
+    except Exception as e:
+        logger.error(f"Error getting Telegram Stars rate: {e}")
+        return None
+
 async def get_ton_usdt_rate() -> Decimal | None:
     url = "https://api.binance.com/api/v3/ticker/price"
     params = {"symbol": "TONUSDT"}
@@ -1735,13 +2598,38 @@ def get_ton_transaction_url(tx_hash: str) -> str:
 
 async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str = None):
     try:
-        user_id = int(metadata['user_id'])
-        months = int(metadata['months'])
-        price = float(metadata['price'])
-        action = metadata['action']
-        key_id = int(metadata['key_id'])
-        host_name = metadata['host_name']
-        plan_id = int(metadata['plan_id'])
+        # Импортируем здесь, чтобы функция была видима при любом пути выполнения
+        from shop_bot.data_manager.database import update_transaction_on_payment
+        def _to_int(val, default=0):
+            try:
+                if val is None:
+                    return default
+                s = str(val).strip()
+                if s == '' or s.lower() == 'none':
+                    return default
+                return int(s)
+            except Exception:
+                return default
+
+        def _to_float(val, default=0.0):
+            try:
+                if val is None:
+                    return default
+                s = str(val).strip()
+                if s == '' or s.lower() == 'none':
+                    return default
+                return float(s)
+            except Exception:
+                return default
+
+        user_id = _to_int(metadata.get('user_id'))
+        operation = metadata.get('operation')
+        months = _to_int(metadata.get('months'))
+        price = _to_float(metadata.get('price'))
+        action = metadata.get('action')
+        key_id = _to_int(metadata.get('key_id'))
+        host_name = metadata.get('host_name')
+        plan_id = _to_int(metadata.get('plan_id'))
         customer_email = metadata.get('customer_email')
         payment_method = metadata.get('payment_method')
 
@@ -1750,6 +2638,19 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str = No
         
     except (ValueError, TypeError) as e:
         logger.error(f"FATAL: Could not parse metadata. Error: {e}. Metadata: {metadata}")
+        return
+
+    # Пополнение баланса: отдельная ветка
+    if operation == 'topup':
+        try:
+            from shop_bot.data_manager.database import add_to_user_balance
+            payment_id = metadata.get('payment_id')
+            if payment_id:
+                update_transaction_on_payment(payment_id, 'paid', price, tx_hash=tx_hash, metadata=metadata)
+            add_to_user_balance(user_id, price)
+            await bot.send_message(user_id, f"✅ Баланс пополнен на {price:.2f} RUB", reply_markup=keyboards.create_back_to_menu_keyboard())
+        except Exception as e:
+            logger.error(f"Failed to process topup for user {user_id}: {e}", exc_info=True)
         return
 
     if chat_id_to_delete and message_id_to_delete:
@@ -1774,11 +2675,16 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str = No
                 return
             email = key_data['key_email']
         
-        days_to_add = months * 30
+        # Учитываем дополнительные дни и трафик
+        plan = get_plan_by_id(plan_id)
+        extra_days = int(plan.get('days') or 0) if plan else 0
+        traffic_gb = float(plan.get('traffic_gb') or 0) if plan else 0.0
+        days_to_add = months * 30 + extra_days
         result = await xui_api.create_or_update_key_on_host(
             host_name=host_name,
             email=email,
-            days_to_add=days_to_add
+            days_to_add=days_to_add,
+            traffic_gb=traffic_gb if traffic_gb > 0 else None
         )
 
         if not result:
@@ -1826,28 +2732,34 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str = No
         
         user_info = get_user(user_id)
 
-        internal_payment_id = str(uuid.uuid4())
-        
         log_username = user_info.get('username', 'N/A') if user_info else 'N/A'
         log_status = 'paid'
         log_amount_rub = float(price)
         log_method = metadata.get('payment_method', 'Unknown')
-        
-        log_metadata = json.dumps({
-            "plan_id": metadata.get('plan_id'),
-            "plan_name": get_plan_by_id(metadata.get('plan_id')).get('plan_name', 'Unknown') if get_plan_by_id(metadata.get('plan_id')) else 'Unknown',
-            "host_name": metadata.get('host_name'),
-            "customer_email": metadata.get('customer_email')
-        })
 
-        # Обновляем существующую транзакцию вместо создания новой
-        update_transaction_on_payment(
-            payment_id=internal_payment_id,
-            status=log_status,
-            amount_rub=log_amount_rub,
-            tx_hash=tx_hash,
-            metadata=json.loads(log_metadata)
-        )
+        # Обновляем существующую транзакцию по исходному payment_id из metadata
+        existing_payment_id = metadata.get('payment_id')
+        if existing_payment_id:
+            # Обогащаем metadata необходимыми полями (включая connection_string и key_id)
+            enriched_metadata = dict(metadata)
+            try:
+                plan_obj = get_plan_by_id(metadata.get('plan_id'))
+                plan_name_safe = plan_obj.get('plan_name', 'Unknown') if plan_obj else 'Unknown'
+            except Exception:
+                plan_name_safe = 'Unknown'
+            enriched_metadata.update({
+                "plan_name": plan_name_safe,
+                "key_id": key_id,
+                "connection_string": result.get('connection_string')
+            })
+
+            update_transaction_on_payment(
+                payment_id=existing_payment_id,
+                status=log_status,
+                amount_rub=log_amount_rub,
+                tx_hash=tx_hash,
+                metadata=enriched_metadata
+            )
         
         await processing_message.delete()
         
@@ -1875,6 +2787,26 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str = No
             reply_markup=keyboards.create_key_info_keyboard(key_id),
             parse_mode="HTML"
         )
+
+        # Сразу подтянем детали из панели и сохраним квоту, чтобы колонка "Общ / Исп / Ост" обновилась мгновенно
+        try:
+            from shop_bot.modules.xui_api import get_key_details_from_host
+            from shop_bot.data_manager.database import update_key_quota
+            details_payload = {
+                'host_name': host_name,
+                'xui_client_uuid': result.get('client_uuid'),
+                'key_email': result.get('email')
+            }
+            details = await get_key_details_from_host(details_payload)
+            if details:
+                update_key_quota(
+                    key_id,
+                    details.get('quota_total_gb'),
+                    details.get('traffic_down_bytes'),
+                    details.get('quota_remaining_bytes')
+                )
+        except Exception:
+            pass
 
         await notify_admin_of_purchase(bot, metadata)
         

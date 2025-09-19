@@ -1,14 +1,13 @@
 [project]
-name = "vless-shopbot-pro"
-version = "2.0.0"
+name = "dark-maximus"
+version = "2.9.4"
 description = "Продвинутый Telegram-бот для автоматической продажи VLESS VPN с улучшенным веб-интерфейсом и аналитикой"
 authors = [
-    {name = "Karshie Umid", email = "umid.t.karshiev@gmail.com"},
-    {name = "evansvl", email = "evansvl@example.com"}
+    {name = "Karshie Umid", email = "umid.t.karshiev@gmail.com"}
 ]
 readme = "README.md"
 license = {text = "MIT"}
-keywords = ["telegram", "bot", "vpn", "vless", "shop", "automation", "3x-ui"]
+keywords = ["telegram", "bot", "vpn", "vless", "shop", "automation", "3x-ui", "dark-maximus"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",

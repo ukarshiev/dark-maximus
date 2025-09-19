@@ -9,30 +9,93 @@ from shop_bot.data_manager.database import get_setting
 
 logger = logging.getLogger(__name__)
 
-main_reply_keyboard = ReplyKeyboardMarkup(
-    keyboard=[[KeyboardButton(text="🏠 Главное меню")]],
-    resize_keyboard=True
-)
+def get_main_reply_keyboard() -> ReplyKeyboardMarkup:
+    """Возвращает актуальную Reply-клавиатуру без пункта "Главное меню".
+    Пункт "Реферальная программа" отображается только при включенной настройке.
+    """
+    rows = []
+    # Первая строка: Купить VPN
+    rows.append([KeyboardButton(text="Купить VPN")])
+
+    # Вторая строка: Профиль и Пополнить баланс
+    rows.append([KeyboardButton(text="👤 Мой профиль"), KeyboardButton(text="Пополнить баланс")])
+
+    # Третья строка: Помощь и поддержка + О проекте
+    rows.append([KeyboardButton(text="Помощь и поддержка"), KeyboardButton(text="ℹ️ О проекте")])
+
+    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
 def create_main_menu_keyboard(user_keys: list, trial_available: bool, is_admin: bool) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    
-    if trial_available and get_setting("trial_enabled") == "true":
+
+    trial_enabled = trial_available and get_setting("trial_enabled") == "true"
+    referrals_enabled = get_setting("enable_referrals") == "true"
+
+    if trial_enabled:
         builder.button(text="🎁 Попробовать бесплатно", callback_data="get_trial")
 
+    # Новое главное меню
+    builder.button(text="Купить VPN", callback_data="buy_vpn_root")
     builder.button(text="👤 Мой профиль", callback_data="show_profile")
-    builder.button(text=f"🔑 Мои ключи ({len(user_keys)})", callback_data="manage_keys")
-    builder.button(text="🤝 Реферальная программа", callback_data="show_referral_program")
-    builder.button(text="🆘 Поддержка", callback_data="show_help")
+    builder.button(text="Пополнить баланс", callback_data="topup_root")
+    builder.button(text="Помощь и поддержка", callback_data="help_center")
     builder.button(text="ℹ️ О проекте", callback_data="show_about")
-    builder.button(text="❓ Как использовать", callback_data="howto_vless")
+
     if is_admin:
         builder.button(text="📢 Рассылка", callback_data="start_broadcast")
 
-    layout = [1 if trial_available and get_setting("trial_enabled") == "true" else 0, 2, 1, 2, 1, 1 if is_admin else 0]
-    actual_layout = [size for size in layout if size > 0]
-    builder.adjust(*actual_layout)
-    
+    # Формируем раскладку строк динамически
+    layout: list[int] = []
+    if trial_enabled:
+        layout.append(1)
+    # Строки: Купить VPN; Профиль+Пополнить; Помощь+О проекте
+    layout.extend([1, 2, 2])
+    if is_admin:
+        layout.append(1)
+
+    builder.adjust(*layout)
+
+    return builder.as_markup()
+
+def create_profile_menu_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🔑 Мои ключи", callback_data="manage_keys")
+    if get_setting("enable_referrals") == "true":
+        builder.button(text="🤝 Реферальная программа", callback_data="show_referral_program")
+    builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
+    builder.adjust(1)
+    return builder.as_markup()
+
+def create_help_center_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    try:
+        support_enabled = get_setting("support_enabled") == "true"
+    except Exception:
+        support_enabled = False
+    if support_enabled:
+        builder.button(text="🆘 Поддержка", callback_data="show_help")
+    builder.button(text="❓ Как использовать", callback_data="howto_vless")
+    builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
+    builder.adjust(1)
+    return builder.as_markup()
+
+def create_topup_amounts_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="179 рублей", callback_data="topup_amount_179")
+    builder.button(text="300 рублей", callback_data="topup_amount_300")
+    builder.button(text="500 рублей", callback_data="topup_amount_500")
+    builder.button(text="Ввести другую сумму", callback_data="topup_amount_custom")
+    builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
+    builder.adjust(1)
+    return builder.as_markup()
+
+def create_topup_payment_methods_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    # Оплата через Stars и TON Connect
+    builder.button(text="⭐ Telegram Stars", callback_data="topup_pay_stars")
+    builder.button(text="🪙 TON Connect", callback_data="topup_pay_tonconnect")
+    builder.button(text="⬅️ Назад", callback_data="topup_back_to_amounts")
+    builder.adjust(1)
     return builder.as_markup()
 
 def create_broadcast_options_keyboard() -> InlineKeyboardMarkup:
@@ -87,7 +150,18 @@ def create_plans_keyboard(plans: list[dict], action: str, host_name: str, key_id
     builder = InlineKeyboardBuilder()
     for plan in plans:
         callback_data = f"buy_{host_name}_{plan['plan_id']}_{action}_{key_id}"
-        builder.button(text=f"{plan['plan_name']} - {plan['price']:.0f} RUB", callback_data=callback_data)
+        months = int(plan.get('months') or 0)
+        days = int(plan.get('days') or 0)
+        traffic = plan.get('traffic_gb') or 0
+        suffix_parts = []
+        if months > 0:
+            suffix_parts.append(f"{months} мес")
+        if days > 0:
+            suffix_parts.append(f"{days} дн")
+        traffic_str = "∞" if not traffic or float(traffic) == 0 else f"{float(traffic):.0f} ГБ"
+        suffix = (" · "+"; ".join(suffix_parts)) if suffix_parts else ""
+        text = f"{plan['plan_name']} - {plan['price']:.0f} RUB{suffix} · Трафик: {traffic_str}"
+        builder.button(text=text, callback_data=callback_data)
     back_callback = "manage_keys" if action == "extend" else "buy_new_key"
     builder.button(text="⬅️ Назад", callback_data=back_callback)
     builder.adjust(1) 
@@ -116,6 +190,13 @@ def create_payment_method_keyboard(payment_methods: dict, action: str, key_id: i
         callback_data_ton = "pay_tonconnect"
         logger.info(f"Creating TON button with callback_data: '{callback_data_ton}'")
         builder.button(text="🪙 TON Connect", callback_data=callback_data_ton)
+    # Показываем Stars, если включено либо в переданном списке, либо в актуальных настройках
+    try:
+        stars_enabled_setting = get_setting("stars_enabled") == "true"
+    except Exception:
+        stars_enabled_setting = False
+    if (payment_methods and payment_methods.get("stars")) or stars_enabled_setting:
+        builder.button(text="⭐ Telegram Stars", callback_data="pay_stars")
 
     builder.button(text="⬅️ Назад", callback_data="back_to_email_prompt")
     builder.adjust(1)
@@ -159,9 +240,10 @@ def create_howto_vless_keyboard() -> InlineKeyboardMarkup:
     builder.button(text="📱 Android", callback_data="howto_android")
     builder.button(text="📱 iOS", callback_data="howto_ios")
     builder.button(text="💻 Windows", callback_data="howto_windows")
+    builder.button(text="🖥 MacOS", callback_data="howto_macos")
     builder.button(text="🐧 Linux", callback_data="howto_linux")
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
-    builder.adjust(2, 2, 1)
+    builder.adjust(2, 3, 1)
     return builder.as_markup()
 
 def create_howto_vless_keyboard_key(key_id: int) -> InlineKeyboardMarkup:
@@ -169,9 +251,10 @@ def create_howto_vless_keyboard_key(key_id: int) -> InlineKeyboardMarkup:
     builder.button(text="📱 Android", callback_data="howto_android")
     builder.button(text="📱 iOS", callback_data="howto_ios")
     builder.button(text="💻 Windows", callback_data="howto_windows")
+    builder.button(text="🖥 MacOS", callback_data="howto_macos")
     builder.button(text="🐧 Linux", callback_data="howto_linux")
     builder.button(text="⬅️ Назад к ключу", callback_data=f"show_key_{key_id}")
-    builder.adjust(2, 2, 1)
+    builder.adjust(2, 3, 1)
     return builder.as_markup()
 
 def create_back_to_menu_keyboard() -> InlineKeyboardMarkup:

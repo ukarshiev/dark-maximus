@@ -51,8 +51,26 @@ def main():
         flask_thread.start()
         
         logger.info("Flask server started in a background thread on http://0.0.0.0:1488")
+        
+        # Автозапуск ботов при старте приложения (без захода на панель)
+        try:
+            required = ['telegram_bot_token', 'telegram_bot_username', 'admin_telegram_id']
+            if all(database.get_setting(k) for k in required):
+                start_res = bot_controller.start_shop_bot()
+                logger.info(f"Autostart ShopBot: {start_res.get('message')}")
+            else:
+                logger.warning("Autostart ShopBot skipped: Telegram settings are incomplete.")
+
+            support_enabled = (database.get_setting("support_enabled") == "true")
+            if support_enabled and database.get_setting("support_bot_token") and database.get_setting("support_group_id"):
+                start_sup = bot_controller.start_support_bot()
+                logger.info(f"Autostart SupportBot: {start_sup.get('message')}")
+            else:
+                logger.info("Autostart SupportBot skipped or disabled.")
+        except Exception as e:
+            logger.error(f"Autostart error: {e}", exc_info=True)
             
-        logger.info("Application is running. Bot can be started from the web panel.")
+        logger.info("Application is running. Bots are managed automatically and via web panel.")
         
         asyncio.create_task(periodic_subscription_check(bot_controller))
 

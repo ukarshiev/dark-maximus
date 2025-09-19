@@ -1,7 +1,7 @@
-{% extends "base.html" %} {% block title %}Главная страница{% endblock %} {%
+{% extends "base.html" %} {% block title %}dark-maximus.com{% endblock %} {%
 block content %}
 
-<h1>Главная страница</h1>
+<h1>dark-maximus.com</h1>
 
 <section class="stats-section">
 	<div class="stats-grid">
@@ -14,7 +14,7 @@ block content %}
 			<p class="stat-number">{{ stats.total_keys }}</p>
 		</div>
 		<div class="stat-card">
-			<h3>Всего потрачено</h3>
+			<h3>Всего заработано</h3>
 			<p class="stat-number">
 				{{ stats.total_spent | round(2) }} <small>RUB</small>
 			</p>
@@ -60,6 +60,15 @@ block content %}
 					borderColor: '#2196F3',
 					backgroundColor: 'rgba(33, 150, 243, 0.1)',
 					tension: 0.4,
+					pointRadius: 4,
+					pointHoverRadius: 6,
+					borderWidth: 2
+				}, {
+					label: 'Заработано (RUB)',
+					data: {{ chart_data.earned_sum | tojson }},
+					borderColor: '#FF9800',
+					backgroundColor: 'rgba(255, 152, 0, 0.1)',
+					yAxisID: 'y1',
 					pointRadius: 4,
 					pointHoverRadius: 6,
 					borderWidth: 2
@@ -131,6 +140,16 @@ block content %}
 						grid: {
 							display: true,
 							drawBorder: true
+						}
+					},
+					y1: {
+						display: true,
+						position: 'right',
+						beginAtZero: true,
+						title: {
+							display: true,
+							text: 'RUB',
+							font: { size: 10 }
 						}
 					}
 				},

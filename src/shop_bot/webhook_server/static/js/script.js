@@ -273,7 +273,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	// Управление чекбоксами ботов
 	function initializeBotToggles() {
-		const botCheckboxes = document.querySelectorAll('.bot-checkbox');
+		// Обрабатываем только реальные бот-переключатели (Shop/Support), исключая "Режим"
+		const botCheckboxes = document.querySelectorAll('.bot-checkbox[data-bot]');
 		
 		botCheckboxes.forEach(checkbox => {
 			checkbox.addEventListener('change', function() {
@@ -281,7 +282,7 @@ document.addEventListener('DOMContentLoaded', function () {
 				const statusText = this.closest('.bot-label-row').querySelector('.bot-status-text');
 				const isChecked = this.checked;
 				
-				// Обновляем текст статуса
+				// Обновляем текст статуса только для ботов (Shop/Support)
 				if (isChecked) {
 					statusText.textContent = 'Запущен';
 					statusText.className = 'bot-status-text status-running';
@@ -336,6 +337,8 @@ document.addEventListener('DOMContentLoaded', function () {
 	initializeSidebar()
 	initializeBotToggles()
 	initializeUserModal()
+	initializeHiddenModeToggle()
+	
 	
 	// Загружаем заработанную сумму для всех пользователей на странице пользователей
 	loadAllUsersEarned()
@@ -354,12 +357,166 @@ function initializeUserModal() {
 	}
 }
 
+// Скрытый режим
+function initializeHiddenModeToggle() {
+    const toggle = document.getElementById('hiddenModeToggle');
+    const statusText = document.getElementById('hiddenModeStatus');
+    if (!toggle || !statusText) return;
+
+    window.__HIDDEN_MODE__ = !!toggle.checked;
+    // Явно синхронизируем визуальное состояние
+    toggle.checked = window.__HIDDEN_MODE__;
+    applyHiddenMode();
+
+    toggle.addEventListener('change', function() {
+        const isOn = !!this.checked;
+        window.__HIDDEN_MODE__ = isOn;
+        // Форсируем визуальное положение переключателя
+        toggle.checked = isOn;
+        statusText.textContent = isOn ? 'Включен' : 'Отключен';
+        statusText.className = 'bot-status-text ' + (isOn ? 'status-running' : 'status-stopped');
+        applyHiddenMode();
+        // сохраняем на сервере и синхронизируем по ответу (0/1)
+        fetch('/toggle-hidden-mode', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            const serverOn = (String(data.hidden_mode) === '1');
+            window.__HIDDEN_MODE__ = serverOn;
+            toggle.checked = serverOn;
+            statusText.textContent = serverOn ? 'Включен' : 'Отключен';
+            statusText.className = 'bot-status-text ' + (serverOn ? 'status-running' : 'status-stopped');
+            applyHiddenMode();
+        })
+        .catch(() => {});
+        // Доп. гарантия после любого возможного перерендера
+        setTimeout(() => { toggle.checked = window.__HIDDEN_MODE__; }, 50);
+    });
+}
+
+function maskValue(value, type='text') {
+    if (value === null || value === undefined) return '***';
+    if (type === 'money') return '***';
+    const str = String(value);
+    if (str.length <= 2) return '**';
+    return str[0] + '***' + str.slice(-1);
+}
+
+function applyHiddenMode() {
+    const hidden = !!window.__HIDDEN_MODE__;
+    // Users table masking
+    document.querySelectorAll('.user-row').forEach(row => {
+        const idCell = row.querySelector('[data-field="telegram_id"]');
+        const usernameCell = row.querySelector('[data-field="username"]');
+        const earnedCell = row.querySelector('[data-field="earned"]');
+        if (idCell) {
+            const original = idCell.getAttribute('data-original');
+            if (!idCell.hasAttribute('data-original')) idCell.setAttribute('data-original', original || idCell.textContent.trim());
+            const span = idCell.querySelector('span');
+            if (span) span.textContent = hidden ? maskValue(original) : (original || '');
+        }
+        if (usernameCell) {
+            const original = usernameCell.getAttribute('data-original') || usernameCell.textContent.trim();
+            usernameCell.setAttribute('data-original', original);
+            const nameSpan = usernameCell.querySelector('.username-text');
+            if (nameSpan) nameSpan.textContent = hidden ? '@' + maskValue(original.replace(/^@/, '')) : original;
+        }
+        if (earnedCell) {
+            const original = earnedCell.getAttribute('data-original') || earnedCell.textContent.trim();
+            earnedCell.setAttribute('data-original', original);
+            earnedCell.textContent = hidden ? '*** RUB' : original;
+        }
+    });
+
+    // Transactions table masking
+    document.querySelectorAll('.tx-row').forEach(row => {
+        const idCell = row.querySelector('[data-field="user_id"]');
+        const usernameCell = row.querySelector('[data-field="tx_username"]');
+        const emailCell = row.querySelector('[data-field="tx_email"]');
+        const priceCell = row.querySelector('[data-field="price"]');
+        if (idCell) {
+            const original = idCell.getAttribute('data-original') || idCell.textContent.trim();
+            idCell.setAttribute('data-original', original);
+            const span = idCell.querySelector('span');
+            if (span) span.textContent = hidden ? maskValue(original) : original;
+        }
+        if (usernameCell) {
+            const original = usernameCell.getAttribute('data-original') || usernameCell.textContent.trim();
+            usernameCell.setAttribute('data-original', original);
+            usernameCell.textContent = hidden ? maskValue(original) : original;
+        }
+        if (emailCell) {
+            const original = emailCell.getAttribute('data-original') || emailCell.textContent.trim();
+            emailCell.setAttribute('data-original', original);
+            emailCell.textContent = hidden ? '***@***' : original;
+        }
+        if (priceCell) {
+            const original = priceCell.getAttribute('data-original') || priceCell.textContent.trim();
+            priceCell.setAttribute('data-original', original);
+            priceCell.textContent = hidden ? '*** RUB' : original;
+        }
+    });
+
+    // Keys table masking (user id, username)
+    document.querySelectorAll('.key-row').forEach(row => {
+        const idCell = row.querySelector('[data-field="key_user_id"]');
+        const usernameCell = row.querySelector('[data-field="key_username"]');
+        if (idCell) {
+            const original = idCell.getAttribute('data-original') || idCell.textContent.trim();
+            idCell.setAttribute('data-original', original);
+            const span = idCell.querySelector('span');
+            if (span) span.textContent = hidden ? maskValue(original) : original;
+        }
+        if (usernameCell) {
+            const original = usernameCell.getAttribute('data-original') || usernameCell.textContent.trim();
+            usernameCell.setAttribute('data-original', original);
+            const nameSpan = usernameCell.querySelector('.username-text');
+            if (nameSpan) nameSpan.textContent = hidden ? (original.startsWith('@') ? '@***' : '***') : original;
+        }
+    });
+
+    // Settings: mask host URLs in Servers tab
+    document.querySelectorAll('[data-field="host_url"]').forEach(el => {
+        const original = el.getAttribute('data-original') || el.textContent.trim();
+        el.setAttribute('data-original', original);
+        el.textContent = hidden ? '***' : original;
+    });
+
+    // Modal fields masking
+    const modalUserIdEl = document.getElementById('modalUserId');
+    if (modalUserIdEl) {
+        const orig = modalUserIdEl.getAttribute('data-original') || modalUserIdEl.textContent.trim();
+        modalUserIdEl.setAttribute('data-original', orig);
+        modalUserIdEl.textContent = hidden ? maskValue(orig) : orig;
+    }
+    const modalUsernameEl = document.getElementById('modalUsername');
+    if (modalUsernameEl) {
+        const orig = modalUsernameEl.getAttribute('data-original') || modalUsernameEl.textContent.trim();
+        modalUsernameEl.setAttribute('data-original', orig);
+        modalUsernameEl.textContent = hidden ? (orig.startsWith('@') ? '@***' : '***') : orig;
+    }
+    const modalEarnedEl = document.getElementById('modalEarned');
+    if (modalEarnedEl) {
+        const orig = modalEarnedEl.getAttribute('data-original') || modalEarnedEl.textContent.trim();
+        modalEarnedEl.setAttribute('data-original', orig);
+        modalEarnedEl.textContent = hidden ? '*** RUB' : orig;
+    }
+}
+
 function openUserModal(userId, username, isBanned, keysCount) {
 	currentUserId = userId
 	
 	// Заполняем данные основной информации
-	document.getElementById('modalUserId').textContent = userId
-	document.getElementById('modalUsername').textContent = username === 'N/A' ? 'N/A' : '@' + username
+	const modalUserIdEl = document.getElementById('modalUserId')
+	if (modalUserIdEl) {
+		modalUserIdEl.setAttribute('data-original', String(userId))
+		modalUserIdEl.textContent = String(userId)
+	}
+	const modalUsernameEl = document.getElementById('modalUsername')
+	const usernameText = username === 'N/A' ? 'N/A' : '@' + username
+	if (modalUsernameEl) {
+		modalUsernameEl.setAttribute('data-original', usernameText)
+		modalUsernameEl.textContent = usernameText
+	}
 	document.getElementById('modalStatus').innerHTML = isBanned ? 
 		'<span class="status-badge status-banned">Забанен</span>' : 
 		'<span class="status-badge status-active">Активен</span>'
@@ -385,6 +542,10 @@ function openUserModal(userId, username, isBanned, keysCount) {
 	loadUserKeys(userId)
 	loadUserEarned(userId)
 	
+	// Применяем скрытый режим к шапке модалки после заполнения
+	if (window.__HIDDEN_MODE__) {
+		applyHiddenMode()
+	}
 	// Показываем модальное окно
 	document.getElementById('userModal').style.display = 'block'
 }
@@ -463,7 +624,7 @@ async function loadUserPayments(userId) {
 					<td>${payment.transaction_id}</td>
 					<td>${payment.host_name || 'N/A'}</td>
 					<td>${payment.plan_name || 'N/A'}</td>
-					<td>${payment.amount_rub ? payment.amount_rub.toFixed(2) + ' RUB' : 'N/A'}</td>
+					<td data-field="price">${payment.amount_rub ? payment.amount_rub.toFixed(2) + ' RUB' : 'N/A'}</td>
 					<td>
 						<span class="status-badge ${payment.status === 'paid' ? 'status-active' : 'status-pending'}">
 							${payment.status === 'paid' ? 'Оплачено' : 'Ожидает'}
@@ -473,6 +634,7 @@ async function loadUserPayments(userId) {
 				`
 				tbody.appendChild(row)
 			})
+			applyHiddenMode()
 		} else {
 			tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #999;">Нет платежей</td></tr>'
 		}
@@ -588,13 +750,20 @@ async function loadUserEarned(userId) {
 		
 		const earnedElement = document.getElementById('modalEarned')
 		if (earnedElement) {
-			earnedElement.textContent = data.earned ? data.earned.toFixed(2) + ' RUB' : '0.00 RUB'
+			const value = (data.earned ? data.earned.toFixed(2) : '0.00') + ' RUB'
+			earnedElement.setAttribute('data-original', value)
+			if (window.__HIDDEN_MODE__) {
+				earnedElement.textContent = '*** RUB'
+			} else {
+				earnedElement.textContent = value
+			}
 		}
 	} catch (error) {
 		console.error('Ошибка загрузки заработанной суммы:', error)
 		const earnedElement = document.getElementById('modalEarned')
 		if (earnedElement) {
-			earnedElement.textContent = 'Ошибка'
+			earnedElement.setAttribute('data-original', 'Ошибка')
+			earnedElement.textContent = window.__HIDDEN_MODE__ ? '*** RUB' : 'Ошибка'
 		}
 	}
 }

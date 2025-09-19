@@ -6,7 +6,7 @@
 		<title>{% block title %}Панель управления Ботом{% endblock %}</title>
 		<link
 			rel="stylesheet"
-			href="{{ url_for('static', filename='css/style.css') }}"
+			href="{{ url_for('static', filename='css/style.css', v=project_version or '1') }}"
 		/>
 		<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 	</head>
@@ -51,6 +51,13 @@
 						<span class="nav-text">Ключи</span>
 					</a>
 					<a
+						href="{{ url_for('instructions_page') }}"
+						class="nav-link {% if request.endpoint == 'instructions_page' %}active{% endif %}"
+					>
+						<span class="nav-icon">📙</span>
+						<span class="nav-text">Инструкции</span>
+					</a>
+					<a
 						href="{{ url_for('settings_page') }}"
 						class="nav-link {% if request.endpoint == 'settings_page' %}active{% endif %}"
 					>
@@ -64,15 +71,31 @@
 					<div class="bot-control">
 						<div class="bot-status">
 							<div class="bot-label-row">
-								<span class="bot-label">Shop:</span>
+								<span class="bot-label">Режим:</span>
 								<label class="bot-toggle">
 									<input type="checkbox" 
-										   class="bot-checkbox" 
-										   data-bot="shop"
-										   {% if bot_status.shop_bot_running %}checked{% endif %}
-										   {% if not all_settings_ok %}disabled{% endif %}>
+										   class="bot-checkbox"
+										   id="hiddenModeToggle"
+										   {% if hidden_mode %}checked{% endif %}>
 									<span class="toggle-slider"></span>
 								</label>
+								<span id="hiddenModeStatus" class="bot-status-text {% if hidden_mode %}status-running{% else %}status-stopped{% endif %}">
+									{% if hidden_mode %}Включен{% else %}Отключен{% endif %}
+								</span>
+							</div>
+						</div>
+					</div>
+					<div class="bot-control">
+						<div class="bot-status">
+							<div class="bot-label-row">
+								<span class="bot-label">Shop:</span>
+                                <label class="bot-toggle">
+                                    <input type="checkbox" 
+                                           class="bot-checkbox" 
+                                           data-bot="shop"
+                                           {% if bot_status.shop_bot_running %}checked{% endif %}>
+                                    <span class="toggle-slider"></span>
+                                </label>
 								<span class="bot-status-text {% if bot_status.shop_bot_running %}status-running{% else %}status-stopped{% endif %}">
 									{% if bot_status.shop_bot_running %}Запущен{% else %}Остановлен{% endif %}
 								</span>
@@ -102,9 +125,9 @@
 					<form action="{{ url_for('logout_page') }}" method="post" class="logout-form">
 						<button type="submit" class="button button-logout">Выйти</button>
 					</form>
-					<div class="version-info">
-						<span class="version-text">Версия: 2.5.0</span>
-					</div>
+					<a href="{{ url_for('versions_page') }}" class="version-info" style="text-decoration: none;">
+						<div class="version-text">Версия: {{ project_version or 'N/A' }}</div>
+					</a>
 				</div>
 				</div>
 			</aside>

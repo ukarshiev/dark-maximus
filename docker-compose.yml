@@ -1,7 +1,9 @@
+name: dark-maximus
 services:
   bot:
     build: .
     restart: unless-stopped
+    container_name: dark-maximus-bot
     ports:
       - '1488:1488'
     volumes:

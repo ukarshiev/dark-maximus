@@ -1,5 +1,5 @@
 <div align="center" markdown>
-    <h1>VLESS Shop Bot Pro | Продвинутый Telegram-бот для продажи VPN</h1>
+    <h1>dark-maximus | Продвинутый Telegram-бот для продажи VPN</h1>
 <p align="center">
     <a href="#%EF%B8%8F-%D1%83%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BA%D0%B0-%D0%BF%D0%BE%D0%B4-%D0%BA%D0%BB%D1%8E%D1%87">Установка и обновление</a> •
     <a href="#-новые-возможности">Новые возможности</a> •
@@ -7,18 +7,18 @@
     <a href="#-поддержать-разработку">Поддержать проект</a>
 </p>
 
-![GitHub License](https://img.shields.io/github/license/evansvl/vless-shopbot)
-![GitHub Release](https://img.shields.io/github/v/release/evansvl/vless-shopbot)
-![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/evansvl/vless-shopbot)
-![GitHub Stars](https://img.shields.io/github/stars/evansvl/vless-shopbot?style=flat)
+![GitHub License](https://img.shields.io/github/license/ukarshiev/dark-maximus)
+![GitHub Release](https://img.shields.io/github/v/release/ukarshiev/dark-maximus)
+![GitHub Issues or Pull Requests](https://img.shields.io/github/issues/ukarshiev/dark-maximus)
+![GitHub Stars](https://img.shields.io/github/stars/ukarshiev/dark-maximus?style=flat)
 
 **🚀 Полностью переработанная и улучшенная версия с множеством новых возможностей!**
 
 </div>
 
-**VLESS Shop Bot Pro** — это полностью переработанное и значительно улучшенное решение для автоматизированной продажи VLESS-конфигураций через Telegram. Бот глубоко интегрирован с панелью управления **3x-ui** и предоставляет мощную веб-панель для полного контроля над вашим бизнесом.
+**dark-maximus** — это полностью переработанное и значительно улучшенное решение для автоматизированной продажи VLESS-конфигураций через Telegram. Бот глубоко интегрирован с панелью управления **3x-ui** и предоставляет мощную веб-панель для полного контроля над вашим бизнесом.
 
-## [Следите за обновлениями бота в Телеграм канале!](https://t.me/vless_shopbot)
+## [Следите за обновлениями бота в Телеграм канале!](https://t.me/dark_maximus)
 
 ## 🆕 Новые возможности
 
@@ -99,7 +99,7 @@
 **2. Выполните команду:**
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/evansvl/vless-shopbot/main/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash
 ```
 
 **Если вы обновляли бота, то иснтрукции ниже не появятся!**
@@ -177,7 +177,7 @@ _(Замените your-domain.com на ваш домен. Если при ус�
 
 ## 💡 Управление ботом
 
-Все управление ботом происходит через Docker Compose в папке vless-shopbot на вашем сервере.
+Все управление ботом происходит через Docker Compose в папке dark-maximus на вашем сервере.
 
 **Посмотреть логи в реальном времени:**
 
@@ -200,7 +200,7 @@ docker-compose up -d
 **Обновить бота до последней версии:**
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/evansvl/vless-shopbot/main/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash
 ```
 
 ## 🙌 Баги и предложения
@@ -218,10 +218,6 @@ curl -sSL https://raw.githubusercontent.com/evansvl/vless-shopbot/main/install.s
 **TON:** `UQAtdMEig3Wl_D3FNx4RU3RhxnoJI3IizGxrrNj3O8Q-fDpK`
 
 **USDT (TRC20):** `TBW9TFUh93U1G5eTT1VTsZw51L669khCiz`
-
-## 🙏 Благодарности
-
-Особая благодарность оригинальному автору проекта [evansvl](https://github.com/evansvl) за создание базовой версии бота. Наша команда значительно расширила функциональность и улучшила пользовательский опыт.
 
 ## 📝 История изменений
 

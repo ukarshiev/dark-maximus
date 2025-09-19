@@ -1,0 +1,16 @@
+{% extends "base.html" %} {% block title %}Версии{% endblock %} {% block content %}
+
+<h1>Версии</h1>
+
+<section class="settings-section">
+	<h2>CHANGELOG.md</h2>
+	<form method="post">
+		<textarea name="changelog_content" class="textarea-changelog" spellcheck="false" autocomplete="off" autocapitalize="off" style="background:#1a1a1a;color:#e9ecef;border:1px solid #333;min-height:calc(100vh - 220px);width:100%;box-sizing:border-box;font-family:monospace;">{{ changelog_text }}</textarea>
+		<div style="margin-top: 12px; display: flex; gap: 8px;">
+			<button type="submit" class="button button-start">Сохранить</button>
+			<a class="button" href="{{ url_for('versions_page') }}">Отмена</a>
+		</div>
+	</form>
+</section>
+
+{% endblock %}

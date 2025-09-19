@@ -17,28 +17,97 @@
 						<th>Хост</th>
 						<th>План</th>
 						<th>Стоимость</th>
+						<th>Тип</th>
+						<th>Триал</th>
+						<th>Начало</th>
+						<th>Окончание</th>
+						<th>Осталось</th>
+						<th>Общ|Исп|Ост</th>
+						<th>Статус</th>
 						<th>Ключ</th>
-						<th>Дата</th>
+						<th>3x-ui</th>
 					</tr>
 				</thead>
 				<tbody>
 					{% for key in keys %}
-					<tr>
+					<tr class="key-row">
 						<td>{{ key.key_id }}</td>
 						<td>
 							<div class="user-info">
-								<div><strong>ID:</strong> 
-									<a href="#" class="user-id-link" onclick="openUserModal({{ key.user_id }}, '{{ key.username or 'N/A' }}', false, 1)">
-										{{ key.user_id }}
-									</a>
+								<div data-field="key_user_id" data-original="{{ key.user_id }}">
+									<div class="cell-inline">
+										<div class="cell-left">
+											<strong>ID:</strong>
+											<span>{{ hidden_mode and '***' or key.user_id }}</span>
+										</div>
+										<div class="cell-actions">
+											<button class="modal-action-btn" onclick="openUserModal({{ key.user_id }}, '{{ key.username or 'N/A' }}', false, 1)" title="Открыть карточку">🔍</button>
+										</div>
+									</div>
 								</div>
-								<div><strong>Username:</strong> {{ key.username or 'N/A' }}</div>
-								<div><strong>Email:</strong> {{ key.email or 'N/A' }}</div>
+								<div data-field="key_username" data-original="{{ key.username or 'N/A' }}"><strong>Username:</strong> {{ hidden_mode and '***' or (key.username or 'N/A') }}</div>
 							</div>
 						</td>
 						<td>{{ key.host_name }}</td>
 						<td>{{ key.plan_name or 'N/A' }}</td>
 						<td>{{ key.price or 'N/A' }} RUB</td>
+						<td>{{ key.protocol or 'vless' }}</td>
+						<td>{{ key.is_trial or 0 }}</td>
+						<td>
+							{% if key.created_date %}
+								{{ key.created_date.strftime('%Y-%m-%d') }}<br/>{{ key.created_date.strftime('%H:%M:%S') }}
+							{% else %}
+								N/A
+							{% endif %}
+						</td>
+						<td>
+							{% if key.expiry_date %}
+								{% if key.expiry_date.strftime is defined %}
+									{{ key.expiry_date.strftime('%Y-%m-%d') }}<br/>{{ key.expiry_date.strftime('%H:%M:%S') }}
+								{% else %}
+									{{ key.expiry_date }}
+								{% endif %}
+							{% else %}
+								N/A
+							{% endif %}
+						</td>
+						<td>
+							{% if key.remaining_seconds is not none %}
+								{% set days = (key.remaining_seconds // 86400) %}
+								{% set hours = ((key.remaining_seconds % 86400) // 3600) %}
+								{% set cls = '' %}
+								{% if key.remaining_seconds == 0 %}
+									{% set cls = 'rem-red' %}
+								{% elif key.remaining_seconds <= (1*86400 + 24*3600) %}
+									{% set cls = 'rem-orange' %}
+								{% elif key.remaining_seconds <= (3*86400 + 24*3600) %}
+									{% set cls = 'rem-yellow' %}
+								{% else %}
+									{% set cls = 'rem-green' %}
+								{% endif %}
+								<span class="{{ cls }}">{{ days }} д {{ hours }} ч</span>
+							{% else %}
+								N/A
+							{% endif %}
+						</td>
+						<td>
+							{% set quota = key.quota_total_gb %}
+							{% set down_mb = (key.traffic_down_bytes or 0) / (1024*1024) %}
+							{% set down_str = (down_mb >= 1024) and ((down_mb/1024)|round(2) ~ ' GB') or (down_mb|round(2) ~ ' MB') %}
+							{% set unlimited_case = (quota is none) and ((key.traffic_down_bytes or 0) == 0) and (key.quota_remaining_bytes is none) %}
+							{% if unlimited_case %}
+								∞
+							{% else %}
+								{% if key.quota_remaining_bytes is not none %}
+									{% set rem_mb = key.quota_remaining_bytes / (1024*1024) %}
+									{% set rem_str = (rem_mb >= 1024) and ((rem_mb/1024)|round(2) ~ ' GB') or (rem_mb|round(2) ~ ' MB') %}
+								{% else %}
+									{% set rem_str = '∞' %}
+								{% endif %}
+								{{ (quota is not none) and ((quota|round(2)) ~ ' GB') or '∞' }}<br/>{{ down_str }}<br/>{{ rem_str }}
+							{% endif %}
+						</td>
+						<td>{{ key.status or 'N/A' }}</td>
 						<td>
 							{% if key.connection_string %}
 								<div class="key-cell">
@@ -52,10 +121,13 @@
 							{% endif %}
 						</td>
 						<td>
-							{% if key.created_date %}
-								{{ key.created_date.strftime('%Y-%m-%d %H:%M:%S') }}
+							{% if key.key_email %}
+								<div class="key-cell">
+									<span class="key-text" title="{{ key.key_email }}">{{ key.key_email }}</span>
+									<button class="copy-btn" onclick="copyKey('{{ key.key_email }}')" title="Копировать email">📋</button>
+								</div>
 							{% else %}
-								N/A
+								-
 							{% endif %}
 						</td>
 					</tr>

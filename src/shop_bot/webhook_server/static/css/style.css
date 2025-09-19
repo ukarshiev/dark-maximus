@@ -122,6 +122,28 @@ h4 {
 	box-shadow: 0 0 0 3px rgba(77, 171, 247, 0.25);
 }
 
+/* Тёмная textarea для страницы версий */
+.textarea-changelog {
+	width: 100%;
+	box-sizing: border-box;
+	font-family: monospace;
+	background: #1a1a1a;
+	color: #e9ecef;
+	border: 1px solid #333;
+	border-radius: 6px;
+	padding: 12px;
+	resize: vertical;
+	min-height: calc(100vh - 220px);
+	line-height: 1.4;
+	font-size: 14px;
+}
+
+.textarea-changelog:focus {
+	outline: none;
+	border-color: var(--primary-color);
+	box-shadow: 0 0 0 3px rgba(77, 171, 247, 0.25);
+}
+
 .form-group-checkbox {
 	display: flex;
 	align-items: center;
@@ -548,6 +570,10 @@ body.login-page {
 	color: var(--light-color);
 }
 
+/* Ширины столбцов в таблице Платежи */
+
+/* Ширина для колонки Ключ в платежах задается через max-width у .key-cell */
+
 .transactions-table thead {
 	background-color: #343a40;
 }
@@ -710,6 +736,20 @@ body.login-page {
 	text-align: left;
 	vertical-align: middle;
 	color: var(--light-color);
+}
+
+/* Выравнивание текста слева, кнопок справа внутри ячеек пользователей */
+.cell-inline {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+}
+
+.cell-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
 }
 
 .users-table thead {
@@ -1801,6 +1841,8 @@ body.login-page {
 	color: var(--light-color);
 }
 
+/* Колонка Ключ без фиксированной ширины; ограничение задаётся содержимым (.key-cell) */
+
 .keys-table thead {
 	background-color: #343a40;
 }
@@ -2130,7 +2172,7 @@ body.login-page {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	max-width: 300px;
+	max-width: 150px;
 }
 
 .key-text {
@@ -2180,4 +2222,22 @@ body.login-page {
 
 .transactions-table tbody tr:last-child td {
 	border-bottom: none;
+}
+
+/* Осталось: подсветка статусов */
+.rem-red {
+	color: #ff5252;
+	font-weight: 600;
+}
+.rem-orange {
+	color: #ff9800;
+	font-weight: 600;
+}
+.rem-yellow {
+	color: #ffc107;
+	font-weight: 600;
+}
+.rem-green {
+	color: #4caf50;
+	font-weight: 600;
 }

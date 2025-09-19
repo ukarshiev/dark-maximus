@@ -124,6 +124,9 @@ async def sync_keys_with_panels():
         logger.info("Scheduler: No hosts configured in the database. Sync skipped.")
         return
 
+    orphan_summary: list[tuple[str, int]] = []
+    auto_delete = (database.get_setting("auto_delete_orphans") == "true")
+
     for host in all_hosts:
         host_name = host['host_name']
         logger.info(f"Scheduler: Processing host: '{host_name}'")
@@ -178,12 +181,29 @@ async def sync_keys_with_panels():
                     total_affected_records += 1
 
             if clients_on_server:
-                for orphan_email in clients_on_server.keys():
-                    logger.warning(f"Scheduler: Found orphan client '{orphan_email}' on host '{host_name}' that is not tracked by the bot.")
+                count_orphans = len(clients_on_server)
+                orphan_summary.append((host_name, count_orphans))
+                # Логируем кратко список до 5 шт. для наглядности
+                sample = list(clients_on_server.keys())[:5]
+                logger.warning(f"Scheduler: Found {count_orphans} orphan clients on host '{host_name}'. Sample: {sample}")
+                # Опциональное автоудаление осиротевших клиентов с панели
+                if auto_delete:
+                    deleted = 0
+                    for orphan_email in list(clients_on_server.keys()):
+                        try:
+                            await xui_api.delete_client_on_host(host_name, orphan_email)
+                            deleted += 1
+                        except Exception as de:
+                            logger.error(f"Scheduler: Failed to auto-delete orphan '{orphan_email}' on '{host_name}': {de}")
+                    total_affected_records += deleted
+                    logger.info(f"Scheduler: Auto-deleted {deleted} orphan clients on host '{host_name}'.")
 
         except Exception as e:
             logger.error(f"Scheduler: An unexpected error occurred while processing host '{host_name}': {e}", exc_info=True)
             
+    if orphan_summary:
+        summary_str = ", ".join([f"{hn}:{cnt}" for hn, cnt in orphan_summary])
+        logger.warning(f"Scheduler: Orphan summary -> {summary_str}")
     logger.info(f"Scheduler: Sync with XUI panels finished. Total records affected: {total_affected_records}.")
 
 async def periodic_subscription_check(bot_controller: BotController):

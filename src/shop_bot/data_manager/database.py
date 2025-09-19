@@ -22,7 +22,8 @@ def initialize_db():
                     is_banned BOOLEAN DEFAULT 0,
                     referred_by INTEGER,
                     referral_balance REAL DEFAULT 0,
-                    referral_balance_all REAL DEFAULT 0
+                    referral_balance_all REAL DEFAULT 0,
+                    balance REAL DEFAULT 0
                 )
             ''')
             cursor.execute('''
@@ -33,7 +34,9 @@ def initialize_db():
                     xui_client_uuid TEXT NOT NULL,
                     key_email TEXT NOT NULL UNIQUE,
                     expiry_date TIMESTAMP,
-                    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    protocol TEXT DEFAULT 'vless',
+                    is_trial INTEGER DEFAULT 0
                 )
             ''')
             cursor.execute('''
@@ -115,6 +118,10 @@ def initialize_db():
                 "domain": None,
                 "ton_wallet_address": None,
                 "tonapi_key": None,
+                "auto_delete_orphans": "false",
+                "hidden_mode": "0",
+                "support_enabled": "true",
+                "minimum_topup": "50",
             }
             run_migration()
             for key, value in default_settings.items():
@@ -157,6 +164,12 @@ def run_migration():
             logging.info(" -> The column 'referral_balance_all' is successfully added.")
         else:
             logging.info(" -> The column 'referral_balance_all' already exists.")
+
+        if 'balance' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN balance REAL DEFAULT 0")
+            logging.info(" -> The column 'balance' is successfully added.")
+        else:
+            logging.info(" -> The column 'balance' already exists.")
         
         # Добавляем колонки для ключей
         if 'key_id' not in columns:
@@ -225,6 +238,36 @@ def run_migration():
             logging.info(" -> The column 'price' is successfully added to vpn_keys table.")
         else:
             logging.info(" -> The column 'price' already exists in vpn_keys table.")
+
+        if 'protocol' not in vpn_keys_columns:
+            cursor.execute("ALTER TABLE vpn_keys ADD COLUMN protocol TEXT DEFAULT 'vless'")
+            logging.info(" -> The column 'protocol' is successfully added to vpn_keys table.")
+        else:
+            logging.info(" -> The column 'protocol' already exists in vpn_keys table.")
+
+        if 'is_trial' not in vpn_keys_columns:
+            cursor.execute("ALTER TABLE vpn_keys ADD COLUMN is_trial INTEGER DEFAULT 0")
+            logging.info(" -> The column 'is_trial' is successfully added to vpn_keys table.")
+        else:
+            logging.info(" -> The column 'is_trial' already exists in vpn_keys table.")
+
+        if 'status' not in vpn_keys_columns:
+            cursor.execute("ALTER TABLE vpn_keys ADD COLUMN status TEXT")
+            logging.info(" -> The column 'status' is successfully added to vpn_keys table.")
+        else:
+            logging.info(" -> The column 'status' already exists in vpn_keys table.")
+
+        if 'remaining_seconds' not in vpn_keys_columns:
+            cursor.execute("ALTER TABLE vpn_keys ADD COLUMN remaining_seconds INTEGER")
+            logging.info(" -> The column 'remaining_seconds' is successfully added to vpn_keys table.")
+        else:
+            logging.info(" -> The column 'remaining_seconds' already exists in vpn_keys table.")
+
+        if 'start_date' not in vpn_keys_columns:
+            cursor.execute("ALTER TABLE vpn_keys ADD COLUMN start_date TIMESTAMP")
+            logging.info(" -> The column 'start_date' is successfully added to vpn_keys table.")
+        else:
+            logging.info(" -> The column 'start_date' already exists in vpn_keys table.")
         
         logging.info("The table 'vpn_keys' has been successfully updated.")
 
@@ -265,6 +308,21 @@ def run_migration():
             logging.info("TRANSACTIONS table was not found. I create a new one ...")
             create_new_transactions_table(cursor)
             logging.info("The new table 'Transactions' has been successfully created.")
+
+        logging.info("The migration of the table 'plans' ...")
+        cursor.execute("PRAGMA table_info(plans)")
+        plans_columns = [row[1] for row in cursor.fetchall()]
+        if 'days' not in plans_columns:
+            cursor.execute("ALTER TABLE plans ADD COLUMN days INTEGER DEFAULT 0")
+            logging.info(" -> The column 'days' is successfully added to plans table.")
+        else:
+            logging.info(" -> The column 'days' already exists in plans table.")
+        if 'traffic_gb' not in plans_columns:
+            cursor.execute("ALTER TABLE plans ADD COLUMN traffic_gb REAL DEFAULT 0")
+            logging.info(" -> The column 'traffic_gb' is successfully added to plans table.")
+        else:
+            logging.info(" -> The column 'traffic_gb' already exists in plans table.")
+        logging.info("The table 'plans' has been successfully updated.")
 
         conn.commit()
         conn.close()
@@ -323,6 +381,26 @@ def delete_host(host_name: str):
             logging.info(f"Successfully deleted host '{host_name}' and its plans.")
     except sqlite3.Error as e:
         logging.error(f"Error deleting host '{host_name}': {e}")
+
+def update_host(old_host_name: str, new_host_name: str, url: str, user: str, passwd: str, inbound: int) -> bool:
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE xui_hosts SET host_name = ?, host_url = ?, host_username = ?, host_pass = ?, host_inbound_id = ? WHERE host_name = ?",
+                (new_host_name, url, user, passwd, inbound, old_host_name)
+            )
+            if old_host_name != new_host_name:
+                cursor.execute(
+                    "UPDATE plans SET host_name = ? WHERE host_name = ?",
+                    (new_host_name, old_host_name)
+                )
+            conn.commit()
+            logging.info(f"Successfully updated host '{old_host_name}' -> '{new_host_name}'.")
+            return True
+    except sqlite3.Error as e:
+        logging.error(f"Error updating host '{old_host_name}': {e}")
+        return False
 
 def get_host(host_name: str) -> dict | None:
     try:
@@ -394,13 +472,13 @@ def update_setting(key: str, value: str):
     except sqlite3.Error as e:
         logging.error(f"Failed to update setting '{key}': {e}")
 
-def create_plan(host_name: str, plan_name: str, months: int, price: float):
+def create_plan(host_name: str, plan_name: str, months: int, price: float, days: int = 0, traffic_gb: float = 0.0):
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO plans (host_name, plan_name, months, price) VALUES (?, ?, ?, ?)",
-                (host_name, plan_name, months, price)
+                "INSERT INTO plans (host_name, plan_name, months, price, days, traffic_gb) VALUES (?, ?, ?, ?, ?, ?)",
+                (host_name, plan_name, months, price, days, traffic_gb)
             )
             conn.commit()
             logging.info(f"Created new plan '{plan_name}' for host '{host_name}'.")
@@ -412,7 +490,7 @@ def get_plans_for_host(host_name: str) -> list[dict]:
         with sqlite3.connect(DB_FILE) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM plans WHERE host_name = ? ORDER BY months", (host_name,))
+            cursor.execute("SELECT * FROM plans WHERE host_name = ? ORDER BY months, days", (host_name,))
             plans = cursor.fetchall()
             return [dict(plan) for plan in plans]
     except sqlite3.Error as e:
@@ -440,6 +518,21 @@ def delete_plan(plan_id: int):
             logging.info(f"Deleted plan with id {plan_id}.")
     except sqlite3.Error as e:
         logging.error(f"Failed to delete plan with id {plan_id}: {e}")
+
+def update_plan(plan_id: int, plan_name: str, months: int, days: int, price: float, traffic_gb: float) -> bool:
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE plans SET plan_name = ?, months = ?, days = ?, price = ?, traffic_gb = ? WHERE plan_id = ?",
+                (plan_name, months, days, price, traffic_gb, plan_id)
+            )
+            conn.commit()
+            logging.info(f"Updated plan id={plan_id}.")
+            return True
+    except sqlite3.Error as e:
+        logging.error(f"Failed to update plan id {plan_id}: {e}")
+        return False
 
 def register_user_if_not_exists(telegram_id: int, username: str, referrer_id):
     try:
@@ -516,6 +609,30 @@ def get_user(telegram_id: int):
     except sqlite3.Error as e:
         logging.error(f"Failed to get user {telegram_id}: {e}")
         return None
+
+def get_user_balance(user_id: int) -> float:
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT balance FROM users WHERE telegram_id = ?", (user_id,))
+            row = cursor.fetchone()
+            return float(row[0]) if row and row[0] is not None else 0.0
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get balance for user {user_id}: {e}")
+        return 0.0
+
+def add_to_user_balance(user_id: int, amount: float) -> bool:
+    try:
+        if amount == 0:
+            return True
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET balance = COALESCE(balance, 0) + ? WHERE telegram_id = ?", (amount, user_id))
+            conn.commit()
+            return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        logging.error(f"Failed to add {amount} to balance for user {user_id}: {e}")
+        return False
 
 def set_terms_agreed(telegram_id: int):
     try:
@@ -603,6 +720,25 @@ def create_pending_ton_transaction(payment_id: str, user_id: int, amount_rub: fl
         logging.error(f"Failed to create pending TON transaction: {e}")
         return 0
 
+def create_pending_stars_transaction(payment_id: str, user_id: int, amount_rub: float, amount_stars: int, metadata: dict) -> int:
+    """Создает pending транзакцию для Stars платежей"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            # Используем локальное время (UTC+3)
+            from datetime import timezone, timedelta
+            local_tz = timezone(timedelta(hours=3))  # UTC+3 для России
+            local_now = datetime.now(local_tz)
+            cursor.execute(
+                "INSERT INTO transactions (payment_id, user_id, status, amount_rub, amount_currency, currency_name, payment_method, metadata, created_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (payment_id, user_id, 'pending', amount_rub, amount_stars, 'XTR', 'Stars', json.dumps(metadata), local_now)
+            )
+            conn.commit()
+            return cursor.lastrowid
+    except sqlite3.Error as e:
+        logging.error(f"Failed to create pending Stars transaction: {e}")
+        return 0
+
 def update_transaction_status(payment_id: str, status: str, tx_hash: str = None) -> bool:
     """Обновляет статус транзакции и хеш"""
     try:
@@ -643,6 +779,12 @@ def update_transaction_on_payment(payment_id: str, status: str, amount_rub: floa
                     SET status = ?, amount_rub = ?, transaction_hash = ?
                     WHERE payment_id = ?
                 """, (status, amount_rub, tx_hash, payment_id))
+            elif metadata:
+                cursor.execute("""
+                    UPDATE transactions 
+                    SET status = ?, amount_rub = ?, metadata = ?
+                    WHERE payment_id = ?
+                """, (status, amount_rub, json.dumps(metadata), payment_id))
             else:
                 cursor.execute("""
                     UPDATE transactions 
@@ -655,6 +797,26 @@ def update_transaction_on_payment(payment_id: str, status: str, amount_rub: floa
     except sqlite3.Error as e:
         logging.error(f"Failed to update transaction on payment: {e}")
         return False
+
+def get_transaction_by_payment_id(payment_id: str) -> dict | None:
+    """Возвращает транзакцию по payment_id как dict со всеми полями. metadata парсится в dict."""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM transactions WHERE payment_id = ? LIMIT 1", (payment_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            result = {key: row[key] for key in row.keys()}
+            try:
+                result['metadata'] = json.loads(result.get('metadata') or '{}')
+            except Exception:
+                result['metadata'] = {}
+            return result
+    except sqlite3.Error as e:
+        logging.error(f"Failed to fetch transaction by payment_id {payment_id}: {e}")
+        return None
 
 def find_ton_transaction_by_amount(amount_ton: float) -> dict | None:
     """Ищет pending TON транзакцию по сумме"""
@@ -751,7 +913,10 @@ def get_paginated_transactions(page: int = 1, per_page: int = 15) -> tuple[list[
             total = cursor.fetchone()[0]
 
             query = """
-                SELECT t.*, u.username, u.telegram_id 
+                SELECT 
+                    t.*, 
+                    u.username AS joined_username,
+                    u.telegram_id AS joined_user_id
                 FROM transactions t 
                 LEFT JOIN users u ON t.user_id = u.telegram_id 
                 ORDER BY t.created_date DESC 
@@ -775,17 +940,20 @@ def get_paginated_transactions(page: int = 1, per_page: int = 15) -> tuple[list[
                 if metadata_str:
                     try:
                         metadata = json.loads(metadata_str)
+                        transaction_dict['metadata'] = metadata
                         transaction_dict['host_name'] = metadata.get('host_name', 'N/A')
                         transaction_dict['plan_name'] = metadata.get('plan_name', 'N/A')
-                        transaction_dict['customer_email'] = metadata.get('customer_email', 'N/A')
                     except json.JSONDecodeError:
                         transaction_dict['host_name'] = 'Error'
                         transaction_dict['plan_name'] = 'Error'
-                        transaction_dict['customer_email'] = 'Error'
+                        pass
                 else:
                     transaction_dict['host_name'] = 'N/A'
                     transaction_dict['plan_name'] = 'N/A'
-                    transaction_dict['customer_email'] = 'N/A'
+                
+                # Username привносим из таблицы users (joined_username), если есть
+                if transaction_dict.get('joined_username'):
+                    transaction_dict['username'] = transaction_dict.get('joined_username')
                 
                 transactions.append(transaction_dict)
             
@@ -804,7 +972,7 @@ def set_trial_used(telegram_id: int):
     except sqlite3.Error as e:
         logging.error(f"Failed to set trial used for user {telegram_id}: {e}")
 
-def add_new_key(user_id: int, host_name: str, xui_client_uuid: str, key_email: str, expiry_timestamp_ms: int, connection_string: str = None, plan_name: str = None, price: float = None):
+def add_new_key(user_id: int, host_name: str, xui_client_uuid: str, key_email: str, expiry_timestamp_ms: int, connection_string: str = None, plan_name: str = None, price: float = None, protocol: str = 'vless', is_trial: int = 0):
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
@@ -812,14 +980,38 @@ def add_new_key(user_id: int, host_name: str, xui_client_uuid: str, key_email: s
             from datetime import timezone, timedelta
             local_tz = timezone(timedelta(hours=3))
             local_now = datetime.now(local_tz)
-            
-            cursor.execute(
-                "INSERT INTO vpn_keys (user_id, host_name, xui_client_uuid, key_email, expiry_date, connection_string, plan_name, price, created_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (user_id, host_name, xui_client_uuid, key_email, expiry_date, connection_string, plan_name, price, local_now)
-            )
-            new_key_id = cursor.lastrowid
-            conn.commit()
-            return new_key_id
+            # Сразу посчитаем remaining_seconds
+            from datetime import timezone as _tz
+            now_ms = int(datetime.now(_tz.utc).timestamp() * 1000)
+            remaining_seconds = max(0, int((expiry_timestamp_ms - now_ms) / 1000))
+            try:
+                cursor.execute(
+                    "INSERT INTO vpn_keys (user_id, host_name, xui_client_uuid, key_email, expiry_date, connection_string, plan_name, price, created_date, protocol, is_trial, remaining_seconds) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (user_id, host_name, xui_client_uuid, key_email, expiry_date, connection_string, plan_name, price, local_now, protocol, is_trial, remaining_seconds)
+                )
+                new_key_id = cursor.lastrowid
+                conn.commit()
+                return new_key_id
+            except sqlite3.IntegrityError:
+                # Ключ с таким email уже есть — считаем это продлением и обновляем данные
+                cursor.execute("SELECT key_id FROM vpn_keys WHERE key_email = ? LIMIT 1", (key_email,))
+                row = cursor.fetchone()
+                if row:
+                    key_id = row[0]
+                    cursor.execute(
+                        "UPDATE vpn_keys SET xui_client_uuid = ?, expiry_date = ?, remaining_seconds = ?, plan_name = COALESCE(?, plan_name), price = COALESCE(?, price), protocol = ?, is_trial = ? WHERE key_id = ?",
+                        (xui_client_uuid, expiry_date, remaining_seconds, plan_name, price, protocol, is_trial, key_id)
+                    )
+                    # connection_string обновляем, если пришёл
+                    if connection_string:
+                        cursor.execute(
+                            "UPDATE vpn_keys SET connection_string = ? WHERE key_id = ?",
+                            (connection_string, key_id)
+                        )
+                    conn.commit()
+                    return key_id
+                else:
+                    raise
     except sqlite3.Error as e:
         logging.error(f"Failed to add new key for user {user_id}: {e}")
         return None
@@ -874,7 +1066,11 @@ def update_key_info(key_id: int, new_xui_uuid: str, new_expiry_ms: int):
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             expiry_date = datetime.fromtimestamp(new_expiry_ms / 1000)
-            cursor.execute("UPDATE vpn_keys SET xui_client_uuid = ?, expiry_date = ? WHERE key_id = ?", (new_xui_uuid, expiry_date, key_id))
+            # Пересчёт remaining_seconds
+            from datetime import timezone as _tz
+            now_ms = int(datetime.now(_tz.utc).timestamp() * 1000)
+            remaining_seconds = max(0, int((new_expiry_ms - now_ms) / 1000))
+            cursor.execute("UPDATE vpn_keys SET xui_client_uuid = ?, expiry_date = ?, remaining_seconds = ? WHERE key_id = ?", (new_xui_uuid, expiry_date, remaining_seconds, key_id))
             conn.commit()
     except sqlite3.Error as e:
         logging.error(f"Failed to update key {key_id}: {e}")
@@ -921,7 +1117,7 @@ def update_key_status_from_server(key_email: str, xui_client_data):
         logging.error(f"Failed to update key status for {key_email}: {e}")
 
 def get_daily_stats_for_charts(days: int = 30) -> dict:
-    stats = {'users': {}, 'keys': {}}
+    stats = {'users': {}, 'keys': {}, 'earned': {}}
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
@@ -935,7 +1131,7 @@ def get_daily_stats_for_charts(days: int = 30) -> dict:
             cursor.execute(query_users, (f'-{days} days',))
             for row in cursor.fetchall():
                 stats['users'][row[0]] = row[1]
-            
+
             query_keys = """
                 SELECT date(created_date) as day, COUNT(*)
                 FROM vpn_keys
@@ -946,31 +1142,46 @@ def get_daily_stats_for_charts(days: int = 30) -> dict:
             cursor.execute(query_keys, (f'-{days} days',))
             for row in cursor.fetchall():
                 stats['keys'][row[0]] = row[1]
+
+            # Заработано в RUB по дням (только оплаченные)
+            query_earned = """
+                SELECT date(created_date) as day, COALESCE(SUM(amount_rub), 0)
+                FROM transactions
+                WHERE created_date >= date('now', ?) AND status = 'paid'
+                GROUP BY day
+                ORDER BY day;
+            """
+            cursor.execute(query_earned, (f'-{days} days',))
+            for row in cursor.fetchall():
+                stats['earned'][row[0]] = row[1] or 0
     except sqlite3.Error as e:
         logging.error(f"Failed to get daily stats for charts: {e}")
-    
+
     # Преобразуем в формат для графиков
     from datetime import datetime, timedelta
-    
+
     # Создаем список всех дат за последние N дней
     dates = []
     for i in range(days):
         date = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
         dates.append(date)
     dates.reverse()  # От старых к новым
-    
+
     # Создаем массивы данных для графиков
     new_users = []
     new_keys = []
-    
+    earned_sum = []
+
     for date in dates:
         new_users.append(stats['users'].get(date, 0))
         new_keys.append(stats['keys'].get(date, 0))
-    
+        earned_sum.append(round(stats['earned'].get(date, 0) or 0, 2))
+
     return {
         'dates': dates,
         'new_users': new_users,
-        'new_keys': new_keys
+        'new_keys': new_keys,
+        'earned_sum': earned_sum
     }
 
 
@@ -1092,17 +1303,28 @@ def get_paginated_keys(page: int = 1, per_page: int = 15) -> tuple[list[dict], i
             cursor.execute("SELECT COUNT(*) FROM vpn_keys")
             total = cursor.fetchone()[0]
 
+            # Ensure quota column exists
+            try:
+                cursor.execute("ALTER TABLE vpn_keys ADD COLUMN quota_remaining_bytes INTEGER")
+            except Exception:
+                pass
+
             query = """
                 SELECT 
                     vk.key_id,
                     vk.user_id,
                     u.username,
-                    u.email,
+                    vk.key_email,
                     vk.host_name,
                     vk.plan_name,
                     vk.price,
                     vk.connection_string,
-                    vk.created_date
+                    vk.created_date,
+                    vk.expiry_date,
+                    vk.remaining_seconds,
+                    vk.quota_remaining_bytes,
+                    vk.quota_total_gb,
+                    vk.traffic_down_bytes
                 FROM vpn_keys vk
                 LEFT JOIN users u ON vk.user_id = u.telegram_id
                 ORDER BY vk.created_date DESC 
@@ -1121,6 +1343,16 @@ def get_paginated_keys(page: int = 1, per_page: int = 15) -> tuple[list[dict], i
                             key_dict['created_date'] = datetime.fromisoformat(key_dict['created_date'].replace('Z', '+00:00'))
                     except (ValueError, TypeError):
                         key_dict['created_date'] = None
+
+                # Преобразуем expiry_date в datetime объект (если строка)
+                if key_dict.get('expiry_date'):
+                    try:
+                        from datetime import datetime
+                        if isinstance(key_dict['expiry_date'], str):
+                            key_dict['expiry_date'] = datetime.fromisoformat(key_dict['expiry_date'].replace('Z', '+00:00'))
+                    except (ValueError, TypeError):
+                        # оставляем строку как есть, чтобы не падал шаблон
+                        pass
                 
                 keys.append(key_dict)
             
@@ -1129,3 +1361,45 @@ def get_paginated_keys(page: int = 1, per_page: int = 15) -> tuple[list[dict], i
     except sqlite3.Error as e:
         logging.error(f"Failed to get paginated keys: {e}")
         return [], 0
+
+def update_key_remaining_seconds(key_id: int, remaining_seconds: int, expiry_dt: datetime | None = None) -> None:
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            if expiry_dt is not None:
+                cursor.execute(
+                    "UPDATE vpn_keys SET remaining_seconds = ?, expiry_date = ? WHERE key_id = ?",
+                    (remaining_seconds, expiry_dt, key_id)
+                )
+            else:
+                cursor.execute(
+                    "UPDATE vpn_keys SET remaining_seconds = ? WHERE key_id = ?",
+                    (remaining_seconds, key_id)
+                )
+            conn.commit()
+    except sqlite3.Error as e:
+        logging.error(f"Failed to update remaining_seconds for key_id={key_id}: {e}")
+
+def update_key_quota(key_id: int, quota_total_gb: float | None, traffic_down_bytes: int | None, quota_remaining_bytes: int | None) -> None:
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("ALTER TABLE vpn_keys ADD COLUMN quota_total_gb REAL")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE vpn_keys ADD COLUMN traffic_down_bytes INTEGER")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE vpn_keys ADD COLUMN quota_remaining_bytes INTEGER")
+            except Exception:
+                pass
+            cursor.execute(
+                "UPDATE vpn_keys SET quota_total_gb = ?, traffic_down_bytes = ?, quota_remaining_bytes = ? WHERE key_id = ?",
+                (quota_total_gb, traffic_down_bytes, quota_remaining_bytes, key_id)
+            )
+            conn.commit()
+    except sqlite3.Error as e:
+        logging.error(f"Failed to update quota for key_id={key_id}: {e}")
