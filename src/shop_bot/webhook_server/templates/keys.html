@@ -22,7 +22,7 @@
 						<th>Начало</th>
 						<th>Окончание</th>
 						<th>Осталось</th>
-						<th>Общ|Исп|Ост</th>
+						<th title="Общее&#10;Использовано&#10;Остаток">Трафик</th>
 						<th>Статус</th>
 						<th>Ключ</th>
 						<th>3x-ui</th>
@@ -41,7 +41,7 @@
 											<span>{{ hidden_mode and '***' or key.user_id }}</span>
 										</div>
 										<div class="cell-actions">
-											<button class="modal-action-btn" onclick="openUserModal({{ key.user_id }}, '{{ key.username or 'N/A' }}', false, 1)" title="Открыть карточку">🔍</button>
+											<button class="modal-action-btn" onclick="openUserModal({{ key.user_id }}, {{ (key.username or 'N/A')|tojson }}, false, 1)" title="Открыть карточку пользователя">🔍</button>
 										</div>
 									</div>
 								</div>
@@ -112,7 +112,7 @@
 							{% if key.connection_string %}
 								<div class="key-cell">
 									<span class="key-text" title="{{ key.connection_string }}">{{ key.connection_string[:50] }}{% if key.connection_string|length > 50 %}...{% endif %}</span>
-									<button class="copy-btn" onclick="copyKey('{{ key.connection_string }}')" title="Копировать ключ">
+									<button class="copy-btn" onclick="copyKey({{ key.connection_string|tojson }})" title="Копировать ключ подключения">
 										📋
 									</button>
 								</div>
@@ -124,7 +124,7 @@
 							{% if key.key_email %}
 								<div class="key-cell">
 									<span class="key-text" title="{{ key.key_email }}">{{ key.key_email }}</span>
-									<button class="copy-btn" onclick="copyKey('{{ key.key_email }}')" title="Копировать email">📋</button>
+									<button class="copy-btn" onclick="copyKey({{ key.key_email|tojson }})" title="Копировать email ключа">📋</button>
 								</div>
 							{% else %}
 								-
@@ -140,7 +140,7 @@
 		<div class="pagination-panel">
 			<div class="pagination-controls">
 				<!-- Кнопка обновления -->
-				<button class="button button-primary button-small-refresh" onclick="refreshKeys()" id="refreshBtn">
+				<button class="button button-primary button-small-refresh" onclick="refreshKeys()" id="refreshBtn" title="Обновить данные ключей">
 					<span id="refreshIcon">🔄</span>
 					<span id="refreshText">Обновить</span>
 				</button>
@@ -168,7 +168,7 @@
 				
 				<!-- Переключатель количества записей -->
 				<div class="per-page-selector">
-					<select id="perPageSelect" onchange="changePerPage(this.value)">
+					<select id="perPageSelect" onchange="changePerPage(this.value)" title="Количество записей на странице">
 						<option value="5" {% if per_page == 5 %}selected{% endif %}>5</option>
 						<option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
 						<option value="15" {% if per_page == 15 %}selected{% endif %}>15</option>

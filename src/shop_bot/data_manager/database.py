@@ -63,6 +63,19 @@ def initialize_db():
                 )
             ''')
             cursor.execute('''
+                CREATE TABLE IF NOT EXISTS notifications (
+                    notification_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    username TEXT,
+                    type TEXT,
+                    title TEXT,
+                    message TEXT,
+                    status TEXT,
+                    meta TEXT,
+                    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            cursor.execute('''
                 CREATE TABLE IF NOT EXISTS support_threads (
                     user_id INTEGER PRIMARY KEY,
                     thread_id INTEGER NOT NULL
@@ -74,7 +87,8 @@ def initialize_db():
                     host_url TEXT NOT NULL,
                     host_username TEXT NOT NULL,
                     host_pass TEXT NOT NULL,
-                    host_inbound_id INTEGER NOT NULL
+                    host_inbound_id INTEGER NOT NULL,
+                    host_code TEXT
                 )
             ''')
             cursor.execute('''
@@ -317,12 +331,66 @@ def run_migration():
             logging.info(" -> The column 'days' is successfully added to plans table.")
         else:
             logging.info(" -> The column 'days' already exists in plans table.")
+        # New: support hours in plan duration
+        if 'hours' not in plans_columns:
+            cursor.execute("ALTER TABLE plans ADD COLUMN hours INTEGER DEFAULT 0")
+            logging.info(" -> The column 'hours' is successfully added to plans table.")
+        else:
+            logging.info(" -> The column 'hours' already exists in plans table.")
         if 'traffic_gb' not in plans_columns:
             cursor.execute("ALTER TABLE plans ADD COLUMN traffic_gb REAL DEFAULT 0")
             logging.info(" -> The column 'traffic_gb' is successfully added to plans table.")
         else:
             logging.info(" -> The column 'traffic_gb' already exists in plans table.")
         logging.info("The table 'plans' has been successfully updated.")
+
+        # Ensure xui_hosts.host_code exists and is populated
+        try:
+            cursor.execute("PRAGMA table_info(xui_hosts)")
+            hosts_columns = [row[1] for row in cursor.fetchall()]
+            if 'host_code' not in hosts_columns:
+                cursor.execute("ALTER TABLE xui_hosts ADD COLUMN host_code TEXT")
+            # Backfill empty codes with slugified host_name (lowercase, no spaces)
+            cursor.execute("UPDATE xui_hosts SET host_code = LOWER(REPLACE(host_name, ' ', '')) WHERE COALESCE(host_code, '') = ''")
+        except Exception:
+            pass
+
+        # Notifications table
+        logging.info("The migration of the table 'notifications' ...")
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='notifications'")
+        notif_exists = cursor.fetchone()
+        if not notif_exists:
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS notifications (
+                    notification_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    username TEXT,
+                    type TEXT,
+                    title TEXT,
+                    message TEXT,
+                    status TEXT,
+                    meta TEXT,
+                    key_id INTEGER,
+                    marker_hours INTEGER,
+                    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            logging.info("The table 'notifications' has been successfully created.")
+        else:
+            logging.info("The table 'notifications' already exists. Migration is not required.")
+            # Ensure new columns exist
+            cursor.execute("PRAGMA table_info(notifications)")
+            notif_columns = [row[1] for row in cursor.fetchall()]
+            if 'key_id' not in notif_columns:
+                try:
+                    cursor.execute("ALTER TABLE notifications ADD COLUMN key_id INTEGER")
+                except Exception:
+                    pass
+            if 'marker_hours' not in notif_columns:
+                try:
+                    cursor.execute("ALTER TABLE notifications ADD COLUMN marker_hours INTEGER")
+                except Exception:
+                    pass
 
         conn.commit()
         conn.close()
@@ -362,9 +430,11 @@ def create_host(name: str, url: str, user: str, passwd: str, inbound: int):
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
+            # host_code по умолчанию – slug от host_name
+            default_code = (name or '').replace(' ', '').lower()
             cursor.execute(
-                "INSERT INTO xui_hosts (host_name, host_url, host_username, host_pass, host_inbound_id) VALUES (?, ?, ?, ?, ?)",
-                (name, url, user, passwd, inbound)
+                "INSERT INTO xui_hosts (host_name, host_url, host_username, host_pass, host_inbound_id, host_code) VALUES (?, ?, ?, ?, ?, ?)",
+                (name, url, user, passwd, inbound, default_code)
             )
             conn.commit()
             logging.info(f"Successfully created a new host: {name}")
@@ -382,17 +452,24 @@ def delete_host(host_name: str):
     except sqlite3.Error as e:
         logging.error(f"Error deleting host '{host_name}': {e}")
 
-def update_host(old_host_name: str, new_host_name: str, url: str, user: str, passwd: str, inbound: int) -> bool:
+def update_host(old_host_name: str, new_host_name: str, url: str, user: str, passwd: str, inbound: int, host_code: str | None = None) -> bool:
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
+            if not host_code or host_code.strip() == '':
+                host_code = (new_host_name or '').replace(' ', '').lower()
             cursor.execute(
-                "UPDATE xui_hosts SET host_name = ?, host_url = ?, host_username = ?, host_pass = ?, host_inbound_id = ? WHERE host_name = ?",
-                (new_host_name, url, user, passwd, inbound, old_host_name)
+                "UPDATE xui_hosts SET host_name = ?, host_url = ?, host_username = ?, host_pass = ?, host_inbound_id = ?, host_code = ? WHERE host_name = ?",
+                (new_host_name, url, user, passwd, inbound, host_code, old_host_name)
             )
             if old_host_name != new_host_name:
+                # Обновляем связанные сущности, ссылающиеся на имя хоста строкой
                 cursor.execute(
                     "UPDATE plans SET host_name = ? WHERE host_name = ?",
+                    (new_host_name, old_host_name)
+                )
+                cursor.execute(
+                    "UPDATE vpn_keys SET host_name = ? WHERE host_name = ?",
                     (new_host_name, old_host_name)
                 )
             conn.commit()
@@ -472,13 +549,18 @@ def update_setting(key: str, value: str):
     except sqlite3.Error as e:
         logging.error(f"Failed to update setting '{key}': {e}")
 
-def create_plan(host_name: str, plan_name: str, months: int, price: float, days: int = 0, traffic_gb: float = 0.0):
+def create_plan(host_name: str, plan_name: str, months: int, price: float, days: int = 0, traffic_gb: float = 0.0, hours: int = 0):
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
+            # Ensure 'hours' column exists
+            try:
+                cursor.execute("ALTER TABLE plans ADD COLUMN hours INTEGER DEFAULT 0")
+            except Exception:
+                pass
             cursor.execute(
-                "INSERT INTO plans (host_name, plan_name, months, price, days, traffic_gb) VALUES (?, ?, ?, ?, ?, ?)",
-                (host_name, plan_name, months, price, days, traffic_gb)
+                "INSERT INTO plans (host_name, plan_name, months, price, days, traffic_gb, hours) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (host_name, plan_name, months, price, days, traffic_gb, hours)
             )
             conn.commit()
             logging.info(f"Created new plan '{plan_name}' for host '{host_name}'.")
@@ -490,7 +572,12 @@ def get_plans_for_host(host_name: str) -> list[dict]:
         with sqlite3.connect(DB_FILE) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM plans WHERE host_name = ? ORDER BY months, days", (host_name,))
+            # Ensure hours column exists
+            try:
+                cursor.execute("ALTER TABLE plans ADD COLUMN hours INTEGER DEFAULT 0")
+            except Exception:
+                pass
+            cursor.execute("SELECT * FROM plans WHERE host_name = ? ORDER BY months, days, hours", (host_name,))
             plans = cursor.fetchall()
             return [dict(plan) for plan in plans]
     except sqlite3.Error as e:
@@ -519,13 +606,18 @@ def delete_plan(plan_id: int):
     except sqlite3.Error as e:
         logging.error(f"Failed to delete plan with id {plan_id}: {e}")
 
-def update_plan(plan_id: int, plan_name: str, months: int, days: int, price: float, traffic_gb: float) -> bool:
+def update_plan(plan_id: int, plan_name: str, months: int, days: int, price: float, traffic_gb: float, hours: int = 0) -> bool:
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
+            # Ensure 'hours' column exists
+            try:
+                cursor.execute("ALTER TABLE plans ADD COLUMN hours INTEGER DEFAULT 0")
+            except Exception:
+                pass
             cursor.execute(
-                "UPDATE plans SET plan_name = ?, months = ?, days = ?, price = ?, traffic_gb = ? WHERE plan_id = ?",
-                (plan_name, months, days, price, traffic_gb, plan_id)
+                "UPDATE plans SET plan_name = ?, months = ?, days = ?, hours = ?, price = ?, traffic_gb = ? WHERE plan_id = ?",
+                (plan_name, months, days, hours, price, traffic_gb, plan_id)
             )
             conn.commit()
             logging.info(f"Updated plan id={plan_id}.")
@@ -682,6 +774,16 @@ def get_total_spent_sum() -> float:
     except sqlite3.Error as e:
         logging.error(f"Failed to get total spent sum: {e}")
         return 0.0
+
+def get_total_notifications_count() -> int:
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM notifications")
+            return cursor.fetchone()[0] or 0
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get total notifications count: {e}")
+        return 0
 
 def create_pending_transaction(payment_id: str, user_id: int, amount_rub: float, metadata: dict) -> int:
     try:
@@ -1117,7 +1219,7 @@ def update_key_status_from_server(key_email: str, xui_client_data):
         logging.error(f"Failed to update key status for {key_email}: {e}")
 
 def get_daily_stats_for_charts(days: int = 30) -> dict:
-    stats = {'users': {}, 'keys': {}, 'earned': {}}
+    stats = {'users': {}, 'keys': {}, 'earned': {}, 'notifications': {}}
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
@@ -1154,6 +1256,18 @@ def get_daily_stats_for_charts(days: int = 30) -> dict:
             cursor.execute(query_earned, (f'-{days} days',))
             for row in cursor.fetchall():
                 stats['earned'][row[0]] = row[1] or 0
+
+            # Новые уведомления по дням
+            query_notifications = """
+                SELECT date(created_date) as day, COUNT(*)
+                FROM notifications
+                WHERE created_date >= date('now', ?)
+                GROUP BY day
+                ORDER BY day;
+            """
+            cursor.execute(query_notifications, (f'-{days} days',))
+            for row in cursor.fetchall():
+                stats['notifications'][row[0]] = row[1]
     except sqlite3.Error as e:
         logging.error(f"Failed to get daily stats for charts: {e}")
 
@@ -1171,17 +1285,20 @@ def get_daily_stats_for_charts(days: int = 30) -> dict:
     new_users = []
     new_keys = []
     earned_sum = []
+    new_notifications = []
 
     for date in dates:
         new_users.append(stats['users'].get(date, 0))
         new_keys.append(stats['keys'].get(date, 0))
         earned_sum.append(round(stats['earned'].get(date, 0) or 0, 2))
+        new_notifications.append(stats['notifications'].get(date, 0))
 
     return {
         'dates': dates,
         'new_users': new_users,
         'new_keys': new_keys,
-        'earned_sum': earned_sum
+        'earned_sum': earned_sum,
+        'new_notifications': new_notifications
     }
 
 
@@ -1208,6 +1325,70 @@ def get_recent_transactions(limit: int = 15) -> list[dict]:
     except sqlite3.Error as e:
         logging.error(f"Failed to get recent transactions: {e}")
     return transactions
+
+def log_notification(user_id: int, username: str | None, notif_type: str, title: str, message: str, status: str = 'sent', meta: dict | None = None, key_id: int | None = None, marker_hours: int | None = None) -> int:
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            from datetime import timezone, timedelta
+            local_tz = timezone(timedelta(hours=3))
+            local_now = datetime.now(local_tz)
+            cursor.execute(
+                """
+                INSERT INTO notifications (user_id, username, type, title, message, status, meta, key_id, marker_hours, created_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (user_id, username, notif_type, title, message, status, json.dumps(meta or {}), key_id, marker_hours, local_now)
+            )
+            conn.commit()
+            return cursor.lastrowid
+    except sqlite3.Error as e:
+        logging.error(f"Failed to log notification for user {user_id}: {e}")
+        return 0
+
+def get_paginated_notifications(page: int = 1, per_page: int = 15) -> tuple[list[dict], int]:
+    offset = (page - 1) * per_page
+    notifications: list[dict] = []
+    total = 0
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM notifications")
+            total = cursor.fetchone()[0] or 0
+            cursor.execute(
+                """
+                SELECT n.*, u.username AS joined_username
+                FROM notifications n
+                LEFT JOIN users u ON n.user_id = u.telegram_id
+                ORDER BY n.created_date DESC
+                LIMIT ? OFFSET ?
+                """,
+                (per_page, offset)
+            )
+            for row in cursor.fetchall():
+                item = dict(row)
+                # Try parse meta
+                meta_str = item.get('meta')
+                if meta_str:
+                    try:
+                        item['meta'] = json.loads(meta_str)
+                    except Exception:
+                        item['meta'] = {}
+                # Prefer joined username
+                if item.get('joined_username'):
+                    item['username'] = item['joined_username']
+                # Normalize created_date
+                try:
+                    if isinstance(item.get('created_date'), str):
+                        from datetime import datetime
+                        item['created_date'] = datetime.fromisoformat(item['created_date'].replace('Z', '+00:00'))
+                except Exception:
+                    pass
+                notifications.append(item)
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get paginated notifications: {e}")
+    return notifications, total
 
 def add_support_thread(user_id: int, thread_id: int):
     try:
@@ -1257,7 +1438,15 @@ def get_all_users() -> list[dict]:
         with sqlite3.connect(DB_FILE) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM users ORDER BY registration_date DESC")
+            # Получаем пользователей с подсчетом уведомлений
+            cursor.execute("""
+                SELECT u.*, 
+                       COALESCE(COUNT(n.notification_id), 0) as notifications_count
+                FROM users u
+                LEFT JOIN notifications n ON u.telegram_id = n.user_id
+                GROUP BY u.telegram_id
+                ORDER BY u.registration_date DESC
+            """)
             return [dict(row) for row in cursor.fetchall()]
     except sqlite3.Error as e:
         logging.error(f"Failed to get all users: {e}")

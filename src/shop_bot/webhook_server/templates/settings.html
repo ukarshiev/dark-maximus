@@ -16,113 +16,145 @@
 	<!-- Вкладка "Серверы" -->
 	<div id="servers-tab" class="settings-tab active">
 		<section class="settings-section">
-			<h2>Управление Хостами (Серверами)</h2>
-
-            <div class="host-card">
-                <div class="host-header">
-                    <h4>Хосты</h4>
-                    <div class="host-actions">
-                        <button type="button" class="button button-primary button-small button-icon" title="Добавить хост" onclick="openHostModal()">➕</button>
-                    </div>
-                </div>
-                <form action="{{ url_for('add_host_route') }}" method="post" style="display:none" id="hiddenAddHostForm">
-					<div class="form-group">
-						<label for="host_name">Название хоста:</label>
-						<input
-							type="text"
-							id="host_name"
-							name="host_name"
-							required
-							maxlength="26"
-						/>
-					</div>
-					<div class="form-group">
-						<label for="host_url">URL панели XUI:</label>
-						<input
-							type="url"
-							id="host_url"
-							name="host_url"
-							placeholder="http://123.45.67.89:54321"
-							required
-						/>
-					</div>
-					<div class="form-group">
-						<label for="host_username">Логин XUI:</label>
-						<input
-							type="text"
-							id="host_username"
-							name="host_username"
-							required
-						/>
-					</div>
-					<div class="form-group password-wrapper">
-						<label for="host_pass">Пароль XUI:</label>
-						<input type="password" id="host_pass" name="host_pass" required />
-						<button type="button" class="toggle-password">👁️</button>
-					</div>
-					<div class="form-group">
-						<label for="host_inbound_id">ID входящего подключения:</label>
-						<input
-							type="number"
-							id="host_inbound_id"
-							name="host_inbound_id"
-							required
-						/>
-					</div>
-					<button type="submit" class="button button-primary">Добавить</button>
-                </form>
+			<div class="host-header section-top">
+				<h2>Управление серверами</h2>
+				<div class="host-actions">
+					<button type="button" class="button button-primary" title="Добавить хост" onclick="openHostModal()">➕ Добавить сервер</button>
+				</div>
 			</div>
+			<form action="{{ url_for('add_host_route') }}" method="post" style="display:none" id="hiddenAddHostForm">
+				<div class="form-group">
+					<label for="host_name">Название хоста:</label>
+					<input
+						type="text"
+						id="host_name"
+						name="host_name"
+						required
+						maxlength="26"
+					/>
+				</div>
+				<div class="form-group">
+					<label for="host_url">URL панели XUI:</label>
+					<input
+						type="url"
+						id="host_url"
+						name="host_url"
+						placeholder="http://123.45.67.89:54321"
+						required
+					/>
+				</div>
+				<div class="form-group">
+					<label for="host_username">Логин XUI:</label>
+					<input
+						type="text"
+						id="host_username"
+						name="host_username"
+						required
+					/>
+				</div>
+				<div class="form-group password-wrapper">
+					<label for="host_pass">Пароль XUI:</label>
+					<input type="password" id="host_pass" name="host_pass" required />
+					<button type="button" class="toggle-password">👁️</button>
+				</div>
+                <div class="form-group">
+					<label for="host_inbound_id">ID входящего подключения:</label>
+					<input
+						type="number"
+						id="host_inbound_id"
+						name="host_inbound_id"
+						required
+					/>
+				</div>
+                <div class="form-group">
+                    <label for="host_code">Код 3x-ui (стабильный, для email):</label>
+                    <input type="text" id="host_code" name="host_code" placeholder="например: amsterdam" />
+                    <small class="text-muted">Используется в адресе email ключа вместо названия. Можно менять название хоста без последствий.</small>
+                </div>
+				<button type="submit" class="button button-primary">Добавить</button>
+			</form>
 
-			{% if hosts %} {% for host in hosts %}
+			{% if hosts %}
+			<div class="servers-grid">
+			{% for host in hosts %}
 			<div class="host-card">
                 <div class="host-header">
                     <h3>{{ host.host_name }}</h3>
-                    <div class="host-actions">
-                        <button class="button button-small button-icon" type="button" title="Редактировать хост" onclick="openHostModalData(this)" data-host-name="{{ host.host_name }}" data-host-url="{{ host.host_url }}" data-host-username="{{ host.host_username }}" data-host-inbound-id="{{ host.host_inbound_id }}">✏️</button>
-                        <button class="button button-small button-icon" type="button" title="Проверить соединение" onclick="checkHost(this.getAttribute('data-host-name'), this)" data-host-name="{{ host.host_name }}">🔌</button>
-                        <form action="{{ url_for('delete_host_route', host_name=host.host_name) }}" method="post" data-confirm="Вы уверены, что хотите удалить этот хост и все его тарифы?" style="display:inline-block">
-                            <button type="submit" class="button button-danger button-small button-icon" title="Удалить хост">🗑️</button>
-                        </form>
-                    </div>
+					<div class="host-actions">
+						<button class="button button-small create-plan-btn" type="button" title="Создать тариф" onclick="openPlanModalData(this)" data-host-name="{{ host.host_name }}">➕ Создать тариф</button>
+						<div class="kebab-wrapper">
+							<button class="button button-small button-icon kebab-btn" type="button" title="Действия">⋮</button>
+							<div class="kebab-menu">
+								<button type="button" class="kebab-item" onclick="checkHost('{{ host.host_name }}')">🔌 Проверить соединение</button>
+                                <button type="button" class="kebab-item" onclick="openHostModalData(this)" data-host-name="{{ host.host_name }}" data-host-url="{{ host.host_url }}" data-host-username="{{ host.host_username }}" data-host-inbound-id="{{ host.host_inbound_id }}" data-host-code="{{ host.host_code or (host.host_name|replace(' ', '')|lower) }}">✏️ Редактировать</button>
+								<button type="button" class="kebab-item danger" onclick="deleteHost('{{ host.host_name }}')">🗑️ Удалить</button>
+							</div>
+						</div>
+					</div>
 				</div>
-				<p><strong>URL:</strong> <span data-field="host_url" data-original="{{ host.host_url }}">{{ hidden_mode and '***' or host.host_url }}</span></p>
 				<div class="plans-section">
-                    <div class="host-header" style="margin-bottom:8px;">
-                        <h4>Тарифы</h4>
-                        <div class="host-actions">
-                            <button class="button button-primary button-small button-icon" type="button" title="Добавить тариф" onclick="openPlanModalData(this)" data-host-name="{{ host.host_name }}">➕</button>
-                        </div>
+                    {% if host.plans %}
+                    <div class="plans-table-wrap">
+                        <table class="plans-table" data-host-name="{{ host.host_name }}">
+                            <thead>
+                                <tr>
+                                    <th>Название</th>
+                                    <th>Срок</th>
+                                    <th>Цена</th>
+                                    <th>Трафик</th>
+                                    <th style="width:70px; text-align:right;">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for plan in host.plans %}
+                                {% set months = plan.get('months', 0) %}
+                                {% set days = plan.get('days', 0) %}
+                                {% set hours = plan.get('hours', 0) %}
+                                {% set traffic = plan.get('traffic_gb', 0) %}
+                                <tr class="plan-row"
+                                    data-plan-id="{{ plan.plan_id }}"
+                                    data-plan-name="{{ plan.plan_name }}"
+                                    data-plan-months="{{ months }}"
+                                    data-plan-days="{{ days }}"
+                                    data-plan-price="{{ plan.price }}"
+                                    data-plan-hours="{{ hours }}"
+                                    data-plan-traffic="{{ traffic }}"
+                                    data-host-name="{{ host.host_name }}"
+                                >
+                                    <td>{{ plan.plan_name }}</td>
+                                    <td>
+                                        {% if months and months|int > 0 %}{{ months }} мес{% endif %}
+                                        {% if days and days|int > 0 %}{% if months and months|int > 0 %} · {% endif %}{{ days }} дн{% endif %}
+                                        {% if hours and hours|int > 0 %}{% if (months and months|int > 0) or (days and days|int > 0) %} · {% endif %}{{ hours }} ч{% endif %}
+                                        {% if (not months or months|int == 0) and (not days or days|int == 0) and (not hours or hours|int == 0) %}—{% endif %}
+                                    </td>
+                                    <td>{{ plan.price|round(0) }} RUB</td>
+                                    <td>{{ traffic and (traffic|round(2) ~ ' ГБ') or '∞' }}</td>
+								<td style="text-align:right; position:relative;">
+									<div class="kebab-wrapper">
+										<button class="button button-small button-icon kebab-btn" type="button" title="Действия">⋮</button>
+										<div class="kebab-menu">
+                                            <button type="button" class="kebab-item"
+                                                onclick="openPlanModalData(this)"
+                                                data-plan-id="{{ plan.plan_id }}" data-plan-name="{{ plan.plan_name }}" data-plan-months="{{ months }}" data-plan-days="{{ days }}" data-plan-hours="{{ hours }}" data-plan-price="{{ plan.price }}" data-plan-traffic="{{ traffic }}" data-host-name="{{ host.host_name }}">✏️ Редактировать</button>
+											<button type="button" class="kebab-item danger" onclick="deletePlan('{{ plan.plan_id }}')">🗑️ Удалить</button>
+										</div>
+									</div>
+								</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
-					{% if host.plans %}
-					<ul class="plan-list">
-						{% for plan in host.plans %}
-						<li>
-							<span>
-								{{ plan.plan_name }} - {{ plan.price|round(0) }} RUB
-								{% set months = plan.get('months', 0) %}
-								{% set days = plan.get('days', 0) %}
-								{% set traffic = plan.get('traffic_gb', 0) %}
-								{% if months and months|int > 0 %} · {{ months }} мес{% endif %}
-								{% if days and days|int > 0 %} · {{ days }} дн{% endif %}
-								 · Трафик: {{ traffic and (traffic|round(2) ~ ' ГБ') or '∞' }}
-							</span>
-                            <div class="host-actions" style="margin-top:6px;">
-                                <button class="button button-small button-icon" type="button" title="Редактировать тариф" onclick="openPlanModalData(this)" data-plan-id="{{ plan.plan_id }}" data-plan-name="{{ plan.plan_name }}" data-plan-months="{{ plan.months }}" data-plan-days="{{ plan.get('days', 0) }}" data-plan-price="{{ plan.price }}" data-plan-traffic="{{ plan.get('traffic_gb', 0) }}" data-host-name="{{ host.host_name }}">✏️</button>
-                                <form action="{{ url_for('delete_plan_route', plan_id=plan.plan_id) }}" method="post" class="form-inline" style="display:inline-block;">
-                                    <button type="submit" class="button button-danger button-tiny button-icon" title="Удалить тариф">🗑️</button>
-                                </form>
-                            </div>
-							</form>
-						</li>
-						{% endfor %}
-					</ul>
-					{% else %}
-					<p>Тарифы не добавлены.</p>
-					{% endif %}
+                    {% else %}
+                    <p>Тарифы не добавлены.</p>
+                    {% endif %}
                     <h5 style="display:none">Добавить новый тариф:</h5>
 				</div>
 			</div>
-			{% endfor %} {% else %}
+			{% endfor %}
+			</div>
+			{% else %}
 			<p>Хосты еще не добавлены.</p>
 			{% endif %}
 		</section>
@@ -517,14 +549,14 @@
     display: flex;
     gap: 10px;
     margin-bottom: 20px;
-    border-bottom: 2px solid #e0e0e0;
+    border-bottom: 2px solid var(--border-color);
     padding-bottom: 10px;
 }
 
 .nav-button {
     padding: 12px 20px;
     border: none;
-    background: #3a4147;
+    background: var(--bg-surface);
     color: #ffffff;
     cursor: pointer;
     border-radius: 8px 8px 0 0;
@@ -534,14 +566,14 @@
 }
 
 .nav-button:hover {
-    background: #4a5058;
+    background: var(--bg-hover);
     transform: translateY(-2px);
 }
 
 .nav-button.active {
-    background: #007bff;
+    background: var(--primary-color);
     color: white;
-    border-bottom: 3px solid #0056b3;
+    border-bottom: 3px solid var(--primary-hover);
 }
 
 /* Стили для вкладок */
@@ -562,11 +594,19 @@
 /* Settings Dark Theme v2.2 - Added tab navigation & moved content settings */
 /* Адаптация контейнера настроек */
 .settings-container {
-    background: #2d3238;
     border-radius: 8px;
     padding: 20px;
     margin-top: 10px;
     color: #ffffff;
+}
+
+/* Центрирование содержимого секции Серверы и расширение ширины для 2 колонок */
+#servers-tab > section.settings-section {
+    width: clamp(600px, 90vw, 1500px);
+    min-width: 600px;
+    max-width: 1500px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .settings-section {
@@ -577,9 +617,24 @@
     color: #ffffff;
 }
 
+/* Сетка серверов: две колонки по 700px, центрирование одиночного элемента */
+.servers-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+}
+
+.servers-grid .host-card {
+    flex: 0 1 700px;
+    width: 700px;
+    max-width: 100%;
+    margin: 0;
+}
+
 /* Стили для кнопок в темной теме */
 .settings-container .button {
-    background: #007bff;
+    background: var(--primary-color);
     color: #ffffff;
     border: none;
     padding: 10px 20px;
@@ -590,7 +645,7 @@
 }
 
 .settings-container .button:hover {
-    background: #0056b3;
+    background: var(--primary-hover);
 }
 
 .settings-container .button-small {
@@ -617,8 +672,41 @@
 .host-header{
     display:flex; align-items:center; justify-content:space-between; gap:10px;
 }
-.host-actions{ display:flex; gap:8px; }
+.host-actions{ display:flex; gap:8px; padding:10px;}
 .button-icon{ width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; padding:0; }
+
+/* Серые кнопки (Отмена) */
+/* Отмена: используем глобальные стили .button.button-secondary */
+
+/* Таблица тарифов */
+.plans-table-wrap { overflow-x: visible; }
+@media (max-width: 900px) { .plans-table-wrap { overflow-x: auto; } }
+.plans-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.plans-table th, .plans-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #3a4147;
+    text-align: left;
+}
+.plans-table thead th { background: #32383f; position: sticky; top: 0; }
+.plans-table tbody tr:hover { background: #363c43; cursor: pointer; }
+
+/* Футер модалки с тремя кнопками */
+.modal-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 8px;
+}
+.modal-actions .button { flex: 1; }
+
+@media (max-width: 600px) {
+    .modal-actions { flex-direction: column; }
+    .modal-actions .button { width: 100%; }
+}
 
 /* Стили для полей ввода в темной теме */
 .settings-container input,
@@ -635,8 +723,8 @@
 .settings-container textarea:focus,
 .settings-container select:focus {
     outline: none;
-    border-color: #007bff;
-    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 135, 113, 0.25);
 }
 
 /* Стили для лейблов */
@@ -649,9 +737,37 @@
 .settings-container .text-muted {
     color: #bdc3c7 !important;
 }
+
+/* ---- Custom overrides for servers tab controls ---- */
+/* Kebab buttons only in main host header (not in plans table) */
+.servers-grid .host-card > .host-header .kebab-btn{
+    background: #282b30 !important;
+}
+
+/* "Создать тариф" button styles */
+.servers-grid .host-card > .host-header .create-plan-btn{
+    background: #282b30 !important;
+}
+.servers-grid .host-card > .host-header .create-plan-btn:hover{
+    background: #7f7f7f !important;
+}
 </style>
 
 <script>
+// ===== Kebab menu styles injected here to keep self-contained =====
+const kebabStyle = document.createElement('style');
+kebabStyle.textContent = `
+.kebab-wrapper{ position:relative; }
+.kebab-btn{ min-width:36px; }
+.kebab-menu{ position:absolute; top:110%; background:#151f31; border:1px solid #444; border-radius:6px; box-shadow:0 8px 18px rgba(0,0,0,0.35); display:none; min-width:200px; z-index:1000; padding:6px; }
+.kebab-menu.open{ display:block; }
+.kebab-item{ width:100%; text-align:left; background:#3a4147; color:#fff; border:none; padding:8px 10px; border-radius:4px; cursor:pointer; margin:4px 0; font-size:14px; }
+.kebab-item:hover{ background:#4a5058; }
+.kebab-item.danger{ background:#7a2e34; }
+.kebab-item.danger:hover{ background:#943b42; }
+`;
+document.head.appendChild(kebabStyle);
+
     function showTab(tabName, el) {
     // Скрыть все вкладки
     const tabs = document.querySelectorAll('.settings-tab');
@@ -682,12 +798,47 @@ function updateStarsRate() {
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
+    const currentActiveTab = '{{ active_tab or "servers" }}';
     // Показываем переданную активную вкладку или серверы по умолчанию
-    showTab('{{ active_tab or "servers" }}');
+    showTab(currentActiveTab);
     // Проставим активность правильной кнопке
     const currentBtn = Array.from(document.querySelectorAll('.nav-button'))
-        .find(btn => btn.getAttribute('onclick') && btn.getAttribute('onclick').includes("'{{ active_tab or "servers" }}'"));
+        .find(btn => (btn.getAttribute('onclick') || '').includes("'" + currentActiveTab + "'"));
     if (currentBtn) { currentBtn.classList.add('active'); }
+
+    // Kebab toggling
+    document.body.addEventListener('click', function(e){
+        const btn = e.target.closest('.kebab-btn');
+        const anyMenu = document.querySelectorAll('.kebab-menu.open');
+        if (!btn){
+            // click outside: close all
+            anyMenu.forEach(m=>m.classList.remove('open'));
+            return;
+        }
+        const wrap = btn.closest('.kebab-wrapper');
+        if (!wrap) return;
+        const menu = wrap.querySelector('.kebab-menu');
+        if (!menu) return;
+        // close others
+        anyMenu.forEach(m=>{ if(m!==menu) m.classList.remove('open'); });
+        // toggle current
+        menu.classList.toggle('open');
+    });
+
+    // Делегирование dblclick по строкам тарифов
+    document.body.addEventListener('dblclick', function(e){
+        const tr = e.target.closest('tr.plan-row');
+        if (!tr) return;
+        const planId = tr.getAttribute('data-plan-id');
+        const name = tr.getAttribute('data-plan-name') || '';
+        const months = tr.getAttribute('data-plan-months') || '';
+        const days = tr.getAttribute('data-plan-days') || '';
+        const price = tr.getAttribute('data-plan-price') || '';
+        const traffic = tr.getAttribute('data-plan-traffic') || '';
+        const hours = tr.getAttribute('data-plan-hours') || '';
+        const hostName = tr.getAttribute('data-host-name') || '';
+        openPlanModal(planId, name, months, days, price, traffic, hostName, hours);
+    });
 });
 
 // Проверка соединения с хостом
@@ -707,7 +858,7 @@ async function checkHost(hostName, btn){
 }
 
 // Модалка для хоста (создание/редактирование)
-function openHostModal(name='', url='', user='', pass='', inbound=''){
+function openHostModal(name='', url='', user='', pass='', inbound='', code=''){
     const html = `
     <div class="modal-backdrop">
       <div class="modal" style="display:block;">
@@ -724,8 +875,10 @@ function openHostModal(name='', url='', user='', pass='', inbound=''){
               <div class="form-group"><label>Логин</label><input type="text" name="host_username" value="${user}" required></div>
               <div class="form-group"><label>Пароль</label><input type="password" name="host_pass" value="${pass||''}" required></div>
               <div class="form-group"><label>ID инбаунда</label><input type="number" name="host_inbound_id" value="${inbound}" required></div>
-              <div style="display:flex; gap:8px; justify-content:flex-end;">
-                <button type="button" class="button" onclick="closeModal()">Отмена</button>
+              <div class="form-group"><label>Код 3x‑ui (стабильный)</label><input type="text" name="host_code" value="${code|| (name||'').replace(/\s+/g,'').toLowerCase()}" placeholder="amsterdam"></div>
+              <div class="modal-actions">
+                <span></span>
+                <button type="button" class="button button-secondary" onclick="closeModal()" title="Отменить и закрыть">Отмена</button>
                 <button type="submit" class="button button-primary">Сохранить</button>
               </div>
             </form>
@@ -743,11 +896,12 @@ function openHostModalData(el){
     const url = el.getAttribute('data-host-url') || '';
     const user = el.getAttribute('data-host-username') || '';
     const inbound = el.getAttribute('data-host-inbound-id') || '';
-    openHostModal(name, url, user, '', inbound);
+    const code = el.getAttribute('data-host-code') || '';
+    openHostModal(name, url, user, '', inbound, code);
 }
 
 // Модалка для тарифа (создание/редактирование)
-function openPlanModal(planId, name, months, days, price, traffic, hostName){
+function openPlanModal(planId, name, months, days, price, traffic, hostName, hours){
     const isEdit = !!planId;
     const action = isEdit ? `/edit-plan/${planId}` : '/add-plan';
     const hiddenHost = isEdit ? '' : `<input type="hidden" name="host_name" value="${hostName}">`;
@@ -762,13 +916,15 @@ function openPlanModal(planId, name, months, days, price, traffic, hostName){
           <div class="modal-body">
             <form method="post" action="${action}">
               ${hiddenHost}
-              <div class="form-group"><label>Название</label><input type="text" name="plan_name" value="${name||''}" placeholder="Напр. Базовый" required></div>
-              <div class="form-group"><label>Месяцы</label><input type="number" name="months" value="${months||''}" placeholder="0"></div>
-              <div class="form-group"><label>Дни</label><input type="number" name="days" value="${days||''}" placeholder="0"></div>
-              <div class="form-group"><label>Цена (RUB)</label><input type="number" step="0.01" name="price" value="${price||''}" placeholder="0" required></div>
-              <div class="form-group"><label>Трафик (ГБ)</label><input type="number" step="0.01" name="traffic_gb" value="${traffic||''}" placeholder="0 (безлимит)"></div>
-              <div style="display:flex; gap:8px; justify-content:flex-end;">
-                <button type="button" class="button" onclick="closeModal()">Отмена</button>
+              <div class="form-group"><label>Название</label><input type="text" name="plan_name" value="${name||''}" placeholder="Напр. Базовый" required title="Введите название тарифа"></div>
+              <div class="form-group"><label>Месяцы</label><input type="number" name="months" value="${months||''}" placeholder="0" title="Укажите количество месяцев"></div>
+              <div class="form-group"><label>Дни</label><input type="number" name="days" value="${days||''}" placeholder="0" title="Укажите количество дней"></div>
+              <div class="form-group"><label>Часы</label><input type="number" name="hours" value="${hours||''}" placeholder="0" min="0" max="24" title="Укажите количество часов (0–24)"></div>
+              <div class="form-group"><label>Цена (RUB)</label><input type="number" step="0.01" name="price" value="${price||''}" placeholder="0" required title="Введите цену тарифа, в рублях"></div>
+              <div class="form-group"><label>Трафик (ГБ)</label><input type="number" step="0.01" name="traffic_gb" value="${traffic||''}" placeholder="0 (безлимит)" title="Введите лимит трафика в ГБ или 0 для безлимита"></div>
+              <div class="modal-actions">
+                <span></span>
+                <button type="button" class="button button-secondary" onclick="closeModal()" title="Отменить и закрыть">Отмена</button>
                 <button type="submit" class="button button-primary">Сохранить</button>
               </div>
             </form>
@@ -777,6 +933,27 @@ function openPlanModal(planId, name, months, days, price, traffic, hostName){
       </div>
     </div>`;
     showModal(html);
+}
+
+// Delete helpers
+function deleteHost(hostName){
+    if (!hostName) return;
+    if (!confirm('Удалить хост и все его тарифы?')) return;
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `/delete-host/${hostName}`;
+    document.body.appendChild(form);
+    form.submit();
+}
+
+function deletePlan(planId){
+    if (!planId) return;
+    if (!confirm('Удалить тариф?')) return;
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `/delete-plan/${planId}`;
+    document.body.appendChild(form);
+    form.submit();
 }
 
 // Обработчик для безопасного открытия модалки тарифа (add/edit) через data-*
@@ -790,9 +967,10 @@ function openPlanModalData(el){
         const days = el.getAttribute('data-plan-days') || '';
         const price = el.getAttribute('data-plan-price') || '';
         const traffic = el.getAttribute('data-plan-traffic') || '';
-        openPlanModal(planId, name, months, days, price, traffic, hostName);
+        const hours = el.getAttribute('data-plan-hours') || '';
+        openPlanModal(planId, name, months, days, price, traffic, hostName, hours);
     } else {
-        openPlanModal(null, '', '', '', '', '', hostName);
+        openPlanModal(null, '', '', '', '', '', hostName, '');
     }
 }
 

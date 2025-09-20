@@ -1,4 +1,14 @@
 document.addEventListener('DOMContentLoaded', function () {
+    // Закрытие flash-уведомлений по клику на крестик
+    document.body.addEventListener('click', function (event) {
+        const target = event.target;
+        if (target && target.classList && target.classList.contains('flash-close')) {
+            const flash = target.closest('.flash');
+            if (flash) {
+                flash.parentNode && flash.parentNode.removeChild(flash);
+            }
+        }
+    });
 	function initializePasswordToggles() {
 		const togglePasswordButtons = document.querySelectorAll('.toggle-password')
 		togglePasswordButtons.forEach(button => {
@@ -110,10 +120,10 @@ document.addEventListener('DOMContentLoaded', function () {
 		}
 
 		const usersCtx = usersChartCanvas.getContext('2d')
-		const usersChartData = prepareChartData(
+        const usersChartData = prepareChartData(
 			CHART_DATA.users,
 			'Новых пользователей в день',
-			'#007bff'
+            '#008771'
 		)
 		const usersChart = new Chart(usersCtx, {
 			type: 'line',
@@ -338,10 +348,13 @@ document.addEventListener('DOMContentLoaded', function () {
 	initializeBotToggles()
 	initializeUserModal()
 	initializeHiddenModeToggle()
+	initializeCreateNotificationModal()
+	initializeUsersTableInteractions()
 	
 	
 	// Загружаем заработанную сумму для всех пользователей на странице пользователей
 	loadAllUsersEarned()
+	loadAllUsersBalances()
 })
 
 // Функции для модального окна пользователя
@@ -355,6 +368,154 @@ function initializeUserModal() {
 			closeUserModal()
 		}
 	}
+}
+
+// Создание уведомления: модалка и логика
+let notifSearchTimeout = null
+function initializeCreateNotificationModal() {
+    // Закрытие по клику вне окна
+    window.addEventListener('click', function (event) {
+        const modal = document.getElementById('createNotificationModal')
+        if (!modal) return
+        if (event.target === modal) {
+            closeCreateNotificationModal()
+        }
+    })
+}
+
+// Инициализация действий таблицы пользователей: даблклик и кебаб-меню
+function initializeUsersTableInteractions() {
+    // Открытие карточки по дабл-клику по строке
+    document.querySelectorAll('.users-table .user-row').forEach(row => {
+        row.addEventListener('dblclick', () => {
+            const userId = parseInt(row.getAttribute('data-user-id'))
+            const username = row.getAttribute('data-username') || 'N/A'
+            const isBanned = (row.getAttribute('data-is-banned') === 'true')
+            const keysCount = parseInt(row.getAttribute('data-keys-count') || '0')
+            if (!isNaN(userId)) {
+                openUserModal(userId, username, isBanned, isNaN(keysCount) ? 0 : keysCount)
+            }
+        })
+    })
+
+    // Кебаб-меню: открытие/закрытие
+    document.querySelectorAll('.kebab-menu .kebab-toggle').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation()
+            const menu = btn.closest('.kebab-menu')
+            const isOpen = menu.classList.contains('open')
+            document.querySelectorAll('.kebab-menu.open').forEach(m => m.classList.remove('open'))
+            if (!isOpen) menu.classList.add('open')
+        })
+    })
+
+    // Предотвращаем даблклик на кебаб-меню от открытия карточки
+    document.querySelectorAll('.kebab-menu').forEach(m => {
+        m.addEventListener('dblclick', (e) => {
+            e.stopPropagation()
+        })
+        m.addEventListener('click', (e) => {
+            e.stopPropagation()
+        })
+    })
+
+    // Клик вне — закрыть любые открытые меню (только в рамках страницы пользователей)
+    const usersTable = document.querySelector('.users-table')
+    if (usersTable) {
+        document.addEventListener('click', () => {
+            usersTable.querySelectorAll('.kebab-menu.open').forEach(m => m.classList.remove('open'))
+        })
+    }
+}
+
+function openCreateNotificationModal() {
+    const modal = document.getElementById('createNotificationModal')
+    if (modal) {
+        // Сброс полей
+        const input = document.getElementById('notifUserSearch')
+        const selectedId = document.getElementById('notifSelectedUserId')
+        const label = document.getElementById('notifSelectedUserLabel')
+        const sugg = document.getElementById('notifUserSuggestions')
+        if (input) input.value = ''
+        if (selectedId) selectedId.value = ''
+        if (label) label.textContent = ''
+        if (sugg) sugg.innerHTML = ''
+        modal.style.display = 'block'
+    }
+}
+
+function closeCreateNotificationModal() {
+    const modal = document.getElementById('createNotificationModal')
+    if (modal) modal.style.display = 'none'
+}
+
+function debouncedSearchUsers(query) {
+    clearTimeout(notifSearchTimeout)
+    notifSearchTimeout = setTimeout(() => searchUsers(query), 300)
+}
+
+async function searchUsers(query) {
+    const sugg = document.getElementById('notifUserSuggestions')
+    const label = document.getElementById('notifSelectedUserLabel')
+    const selectedId = document.getElementById('notifSelectedUserId')
+    if (!sugg) return
+    sugg.innerHTML = ''
+    if (!query || query.trim().length < 1) return
+    try {
+        const resp = await fetch(`/api/search-users?q=${encodeURIComponent(query)}`)
+        const data = await resp.json()
+        const users = data.users || []
+        if (users.length === 0) {
+            sugg.innerHTML = '<div style="color:#999; padding:6px;">Не найдено</div>'
+            return
+        }
+        users.slice(0, 10).forEach(u => {
+            const div = document.createElement('div')
+            div.style.padding = '6px 8px'
+            div.style.cursor = 'pointer'
+            div.style.border = '1px solid #444'
+            div.style.borderRadius = '4px'
+            div.style.marginBottom = '6px'
+            div.textContent = `${u.telegram_id} · @${u.username || 'N/A'}`
+            div.onclick = () => {
+                if (selectedId) selectedId.value = String(u.telegram_id)
+                if (label) label.textContent = `Выбрано: ${u.telegram_id} · @${u.username || 'N/A'}`
+                sugg.innerHTML = ''
+            }
+            sugg.appendChild(div)
+        })
+    } catch (e) {
+        sugg.innerHTML = '<div style="color:#dc3545; padding:6px;">Ошибка поиска</div>'
+    }
+}
+
+async function submitCreateNotification() {
+    const userIdEl = document.getElementById('notifSelectedUserId')
+    const typeEl = document.getElementById('notifTypeSelect')
+    const userId = userIdEl && userIdEl.value ? parseInt(userIdEl.value) : null
+    const marker = typeEl ? parseInt(typeEl.value) : null
+    if (!userId || !marker) {
+        alert('Выберите пользователя и тип уведомления')
+        return
+    }
+    try {
+        const resp = await fetch('/create-notification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: userId, marker_hours: marker })
+        })
+        const data = await resp.json()
+        if (resp.ok) {
+            alert(data.message || 'Уведомление отправлено')
+            closeCreateNotificationModal()
+            // Перезагрузим страницу, чтобы увидеть новую запись
+            window.location.reload()
+        } else {
+            alert(data.message || 'Ошибка отправки')
+        }
+    } catch (e) {
+        alert('Ошибка создания уведомления')
+    }
 }
 
 // Скрытый режим
@@ -500,6 +661,12 @@ function applyHiddenMode() {
         modalEarnedEl.setAttribute('data-original', orig);
         modalEarnedEl.textContent = hidden ? '*** RUB' : orig;
     }
+    const modalBalanceEl = document.getElementById('modalBalance');
+    if (modalBalanceEl) {
+        const orig = modalBalanceEl.getAttribute('data-original') || modalBalanceEl.textContent.trim();
+        modalBalanceEl.setAttribute('data-original', orig);
+        modalBalanceEl.textContent = hidden ? '*** RUB' : orig;
+    }
 }
 
 function openUserModal(userId, username, isBanned, keysCount) {
@@ -540,7 +707,9 @@ function openUserModal(userId, username, isBanned, keysCount) {
 	// Загружаем данные для вкладок
 	loadUserPayments(userId)
 	loadUserKeys(userId)
+	loadUserNotifications(userId)
 	loadUserEarned(userId)
+	loadUserBalance(userId)
 	
 	// Применяем скрытый режим к шапке модалки после заполнения
 	if (window.__HIDDEN_MODE__) {
@@ -560,7 +729,8 @@ function banUser() {
 		// Создаем форму и отправляем POST запрос
 		const form = document.createElement('form')
 		form.method = 'POST'
-		form.action = `/ban-user/${currentUserId}`
+        // Совместить с существующим Flask-роутом /users/ban/<int:user_id>
+        form.action = `/users/ban/${currentUserId}`
 		
 		document.body.appendChild(form)
 		form.submit()
@@ -572,7 +742,8 @@ function unbanUser() {
 		// Создаем форму и отправляем POST запрос
 		const form = document.createElement('form')
 		form.method = 'POST'
-		form.action = `/unban-user/${currentUserId}`
+        // Совместить с существующим Flask-роутом /users/unban/<int:user_id>
+        form.action = `/users/unban/${currentUserId}`
 		
 		document.body.appendChild(form)
 		form.submit()
@@ -584,11 +755,22 @@ function revokeKeys() {
 		// Создаем форму и отправляем POST запрос
 		const form = document.createElement('form')
 		form.method = 'POST'
-		form.action = `/revoke-keys/${currentUserId}`
+        // Совместить с существующим Flask-роутом /users/revoke/<int:user_id>
+        form.action = `/users/revoke/${currentUserId}`
 		
 		document.body.appendChild(form)
 		form.submit()
 	}
+}
+
+async function resendNotification(notificationId) {
+    try {
+        const resp = await fetch(`/resend-notification/${notificationId}`, { method: 'POST' })
+        const data = await resp.json()
+        alert(data.message || 'Готово')
+    } catch (e) {
+        alert('Ошибка повторной отправки')
+    }
 }
 
 // Функции для работы с вкладками
@@ -682,6 +864,36 @@ async function loadUserKeys(userId) {
 	}
 }
 
+async function loadUserNotifications(userId) {
+    try {
+        const response = await fetch(`/api/user-notifications/${userId}`)
+        const data = await response.json()
+        const tbody = document.getElementById('modalNotificationsTable')
+        tbody.innerHTML = ''
+        if (data.notifications && data.notifications.length > 0) {
+            data.notifications.forEach(n => {
+                const row = document.createElement('tr')
+                row.innerHTML = `
+                    <td>${n.notification_id}</td>
+                    <td>${n.type || '-'}</td>
+                    <td>${n.title || '-'}</td>
+                    <td>
+                        ${n.status === 'resent' ? '<span class="status-badge status-active">Повтор</span>' : (n.status === 'sent' ? '<span class="status-badge status-active">Отправлено</span>' : '<span class="status-badge">' + (n.status || '-') + '</span>')}
+                    </td>
+                    <td>${n.created_date || ''}</td>
+                `
+                tbody.appendChild(row)
+            })
+            applyHiddenMode()
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #999;">Нет уведомлений</td></tr>'
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки уведомлений:', error)
+        document.getElementById('modalNotificationsTable').innerHTML = '<tr><td colspan="5" style="text-align: center; color: #dc3545;">Ошибка загрузки</td></tr>'
+    }
+}
+
 function copyUsername() {
 	const usernameElement = document.getElementById('modalUsername')
 	if (usernameElement) {
@@ -768,6 +980,30 @@ async function loadUserEarned(userId) {
 	}
 }
 
+async function loadUserBalance(userId) {
+    try {
+        const response = await fetch(`/api/user-balance/${userId}`);
+        const data = await response.json();
+        const balanceElement = document.getElementById('modalBalance');
+        if (balanceElement) {
+            const value = (data.balance ? data.balance.toFixed(2) : '0.00') + ' RUB';
+            balanceElement.setAttribute('data-original', value);
+            if (window.__HIDDEN_MODE__) {
+                balanceElement.textContent = '*** RUB';
+            } else {
+                balanceElement.textContent = value;
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки баланса:', error);
+        const balanceElement = document.getElementById('modalBalance');
+        if (balanceElement) {
+            balanceElement.setAttribute('data-original', 'Ошибка');
+            balanceElement.textContent = window.__HIDDEN_MODE__ ? '*** RUB' : 'Ошибка';
+        }
+    }
+}
+
 // Загружаем заработанную сумму для всех пользователей на странице пользователей
 async function loadAllUsersEarned() {
     const earnedElements = document.querySelectorAll('.user-earned');
@@ -785,6 +1021,25 @@ async function loadAllUsersEarned() {
             }
         } catch (error) {
             console.error('Ошибка загрузки заработанной суммы для пользователя', userId, ':', error);
+            element.textContent = 'Ошибка';
+        }
+    }
+}
+
+async function loadAllUsersBalances() {
+    const balanceElements = document.querySelectorAll('.user-balance');
+    for (const element of balanceElements) {
+        const userId = element.getAttribute('data-user-id');
+        try {
+            const response = await fetch(`/api/user-balance/${userId}`);
+            const data = await response.json();
+            if (data.balance !== undefined) {
+                element.textContent = data.balance.toFixed(2) + ' RUB';
+            } else {
+                element.textContent = '0.00 RUB';
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки баланса для пользователя', userId, ':', error);
             element.textContent = 'Ошибка';
         }
     }

@@ -23,6 +23,10 @@ block content %}
 			<h3>Активных хостов</h3>
 			<p class="stat-number">{{ stats.host_count }}</p>
 		</div>
+		<div class="stat-card">
+			<h3>Всего уведомлений</h3>
+			<p class="stat-number">{{ stats.total_notifications }}</p>
+		</div>
 	</div>
 </section>
 
@@ -69,6 +73,15 @@ block content %}
 					borderColor: '#FF9800',
 					backgroundColor: 'rgba(255, 152, 0, 0.1)',
 					yAxisID: 'y1',
+					pointRadius: 4,
+					pointHoverRadius: 6,
+					borderWidth: 2
+				}, {
+					label: 'Новые уведомления',
+					data: {{ chart_data.new_notifications | tojson }},
+					borderColor: '#9C27B0',
+					backgroundColor: 'rgba(156, 39, 176, 0.1)',
+					tension: 0.4,
 					pointRadius: 4,
 					pointHoverRadius: 6,
 					borderWidth: 2

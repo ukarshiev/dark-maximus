@@ -51,6 +51,13 @@
 						<span class="nav-text">Ключи</span>
 					</a>
 					<a
+						href="{{ url_for('notifications_page') }}"
+						class="nav-link {% if request.endpoint == 'notifications_page' %}active{% endif %}"
+					>
+						<span class="nav-icon">🔔</span>
+						<span class="nav-text">Уведомления</span>
+					</a>
+					<a
 						href="{{ url_for('instructions_page') }}"
 						class="nav-link {% if request.endpoint == 'instructions_page' %}active{% endif %}"
 					>
@@ -121,13 +128,16 @@
 						</div>
 					</div>
 
-				<div class="user-session-controls">
-					<form action="{{ url_for('logout_page') }}" method="post" class="logout-form">
-						<button type="submit" class="button button-logout">Выйти</button>
-					</form>
+				<div class="version-block">
 					<a href="{{ url_for('versions_page') }}" class="version-info" style="text-decoration: none;">
 						<div class="version-text">Версия: {{ project_version or 'N/A' }}</div>
 					</a>
+				</div>
+
+				<div class="user-session-controls">
+					<form action="{{ url_for('logout_page') }}" method="post" class="logout-form">
+						<button type="submit" class="button button-logout" title="Выйти из панели">Выйти</button>
+					</form>
 				</div>
 				</div>
 			</aside>
@@ -136,7 +146,10 @@
 			<main class="main-content">
 				{% with messages = get_flashed_messages(with_categories=true) %} {% if
 				messages %} {% for category, message in messages %}
-				<div class="flash flash-{{ category }}">{{ message }}</div>
+				<div class="flash flash-{{ category }}">
+					<span class="flash-message">{{ message }}</span>
+					<button class="flash-close" aria-label="Закрыть уведомление" title="Закрыть уведомление">&times;</button>
+				</div>
 				{% endfor %} {% endif %} {% endwith %}
 
 				{% block content %}{% endblock %}
@@ -170,6 +183,10 @@
 									<span class="modal-info-label">Активные ключи:</span>
 									<span id="modalKeys"></span>
 								</div>
+						<div class="modal-info-row">
+							<span class="modal-info-label">Баланс:</span>
+							<span id="modalBalance"></span>
+						</div>
 								<div class="modal-info-row">
 									<span class="modal-info-label">Заработано:</span>
 									<span id="modalEarned"></span>
@@ -177,14 +194,15 @@
 							</div>
 						</div>
 					</div>
-					<span class="close" onclick="closeUserModal()">&times;</span>
+                    <span class="close" onclick="closeUserModal()" title="Закрыть окно">&times;</span>
 				</div>
 				<div class="modal-body">
 					<!-- Вкладки -->
-					<div class="modal-tabs">
-						<button class="tab-button active" onclick="switchTab('payments')">Платежи</button>
-						<button class="tab-button" onclick="switchTab('keys')">Ключи</button>
-					</div>
+                    <div class="modal-tabs">
+                        <button class="tab-button active" onclick="switchTab('payments')" title="Открыть вкладку Платежи">Платежи</button>
+                        <button class="tab-button" onclick="switchTab('keys')" title="Открыть вкладку Ключи">Ключи</button>
+                        <button class="tab-button" onclick="switchTab('notifications')" title="Открыть вкладку Уведомления">Уведомления</button>
+                    </div>
 
 					<!-- Вкладка: Платежи -->
 					<div id="tab-payments" class="tab-content active">
@@ -208,7 +226,7 @@
 					</div>
 
 					<!-- Вкладка: Ключи -->
-					<div id="tab-keys" class="tab-content">
+                    <div id="tab-keys" class="tab-content">
 						<div class="modal-table-container">
 							<table class="modal-table">
 								<thead>
@@ -224,21 +242,41 @@
 								<tbody id="modalKeysTable">
 									<!-- Данные загружаются через JavaScript -->
 								</tbody>
-							</table>
-						</div>
-					</div>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Вкладка: Уведомления -->
+                    <div id="tab-notifications" class="tab-content">
+                        <div class="modal-table-container">
+                            <table class="modal-table">
+                                <thead>
+                                    <tr>
+                                        <th title="Уникальный идентификатор уведомления">ID</th>
+                                        <th title="Тип отправленного уведомления">Тип</th>
+                                        <th title="Заголовок уведомления">Заголовок</th>
+                                        <th title="Статус доставки уведомления">Статус</th>
+                                        <th title="Дата и время отправки">Дата</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="modalNotificationsTable">
+                                    <!-- Данные загружаются через JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
 				</div>
-				<div class="modal-footer">
-					<button id="banButton" class="button button-danger" onclick="banUser()" style="display: none;">
-						Бан
-					</button>
-					<button id="unbanButton" class="button button-start" onclick="unbanUser()" style="display: none;">
-						Отозвать бан
-					</button>
-					<button id="revokeButton" class="button button-danger" onclick="revokeKeys()">
-						Отозвать ключи
-					</button>
-				</div>
+                <div class="modal-footer">
+                    <button id="banButton" class="button button-danger" onclick="banUser()" style="display: none;" title="Бан пользователя">
+                        Бан
+                    </button>
+                    <button id="unbanButton" class="button button-start" onclick="unbanUser()" style="display: none;" title="Отозвать бан у пользователя">
+                        Отозвать бан
+                    </button>
+                    <button id="revokeButton" class="button button-danger" onclick="revokeKeys()" title="Отозвать все ключи пользователя">
+                        Отозвать ключи
+                    </button>
+                </div>
 			</div>
 		</div>
 

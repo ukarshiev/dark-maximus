@@ -1,11 +1,13 @@
 CHOOSE_PLAN_MESSAGE = "Выберите подходящий тариф:"
 CHOOSE_PAYMENT_METHOD_MESSAGE = "Выберите удобный способ оплаты:"
+HOWTO_CHOOSE_OS_MESSAGE = "Выберите операционную систему устройства для получения инструкции по настройке:"
 VPN_INACTIVE_TEXT = "❌ <b>Статус VPN:</b> Неактивен (срок истек)"
 VPN_NO_DATA_TEXT = "ℹ️ <b>Статус VPN:</b> У вас пока нет активных ключей."
 
-def get_profile_text(username, total_spent, total_months, vpn_status_text):
+def get_profile_text(username, balance, total_spent, total_months, vpn_status_text):
     return (
-        f"👤 <b>Профиль:</b> {username}\n\n"
+        f"👤 <b>Профиль:</b> {username}\n"
+        f"💰 <b>Баланс:</b> {balance:.2f} RUB\n\n"
         f"💰 <b>Потрачено всего:</b> {total_spent:.0f} RUB\n"
         f"📅 <b>Приобретено месяцев:</b> {total_months}\n\n"
         f"{vpn_status_text}"

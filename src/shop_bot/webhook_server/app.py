@@ -24,7 +24,7 @@ from shop_bot.bot import handlers
 from shop_bot.data_manager.database import (
     get_all_settings, update_setting, get_all_hosts, get_plans_for_host,
     create_host, delete_host, create_plan, delete_plan, get_user_count,
-    get_total_keys_count, get_total_spent_sum, get_daily_stats_for_charts,
+    get_total_keys_count, get_total_spent_sum, get_total_notifications_count, get_daily_stats_for_charts,
     get_recent_transactions, get_paginated_transactions, get_all_users, get_user_keys,
     ban_user, unban_user, delete_user_keys, get_setting, find_and_complete_ton_transaction, find_ton_transaction_by_amount,
     get_paginated_keys, get_plan_by_id, update_plan, get_host, update_host
@@ -170,7 +170,8 @@ def create_webhook_app(bot_controller_instance):
             "user_count": get_user_count(),
             "total_keys": get_total_keys_count(),
             "total_spent": get_total_spent_sum(),
-            "host_count": len(get_all_hosts())
+            "host_count": len(get_all_hosts()),
+            "total_notifications": get_total_notifications_count()
         }
         
         page = request.args.get('page', 1, type=int)
@@ -213,6 +214,30 @@ def create_webhook_app(bot_controller_instance):
             per_page=per_page,
             **common_data
         )
+
+    @flask_app.route('/notifications')
+    @login_required
+    def notifications_page():
+        """Страница уведомлений"""
+        from shop_bot.data_manager.database import get_paginated_notifications
+        
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 15, type=int)
+        
+        # Ограничиваем возможные значения per_page
+        if per_page not in [5, 10, 15, 25, 50]:
+            per_page = 15
+            
+        notifications, total = get_paginated_notifications(page, per_page)
+        total_pages = ceil(total / per_page) if per_page > 0 else 1
+        
+        common_data = get_common_template_data()
+        return render_template('notifications.html', 
+                             notifications=notifications, 
+                             current_page=page, 
+                             total_pages=total_pages, 
+                             per_page=per_page,
+                             **common_data)
 
     @flask_app.route('/keys')
     @login_required
@@ -1259,6 +1284,23 @@ def create_webhook_app(bot_controller_instance):
             logger.error(f"Error getting user keys: {e}")
             return {'keys': []}, 500
 
+    @flask_app.route('/api/user-balance/<int:user_id>')
+    @login_required
+    def api_user_balance(user_id):
+        """API для получения баланса пользователя"""
+        try:
+            with sqlite3.connect(DB_FILE) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("SELECT balance FROM users WHERE telegram_id = ?", (user_id,))
+                result = cursor.fetchone()
+                balance = float(result['balance']) if result and result['balance'] is not None else 0.0
+                
+                return {'balance': balance}
+        except Exception as e:
+            logger.error(f"Error getting user balance: {e}")
+            return {'balance': 0.0}, 500
+
     @flask_app.route('/api/user-earned/<int:user_id>')
     @login_required
     def api_user_earned(user_id):
@@ -1283,6 +1325,46 @@ def create_webhook_app(bot_controller_instance):
         except Exception as e:
             logger.error(f"Error getting user earned amount: {e}")
             return {'earned': 0}, 500
+
+    @flask_app.route('/api/user-notifications/<int:user_id>')
+    @login_required
+    def api_user_notifications(user_id):
+        """API для получения уведомлений пользователя"""
+        try:
+            with sqlite3.connect(DB_FILE) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                query = """
+                    SELECT 
+                        notification_id,
+                        type,
+                        title,
+                        message,
+                        status,
+                        created_date
+                    FROM notifications
+                    WHERE user_id = ?
+                    ORDER BY created_date DESC
+                """
+                cursor.execute(query, (user_id,))
+                
+                notifications = []
+                for row in cursor.fetchall():
+                    notification = dict(row)
+                    # Преобразуем created_date в строку для JSON
+                    if notification['created_date']:
+                        if isinstance(notification['created_date'], str):
+                            notification['created_date'] = notification['created_date']
+                        else:
+                            notification['created_date'] = notification['created_date'].isoformat()
+                    notifications.append(notification)
+                
+                return {'notifications': notifications}
+                
+        except Exception as e:
+            logger.error(f"Error getting user notifications: {e}")
+            return {'notifications': []}, 500
 
     # Запускаем мониторинг сразу
     start_ton_monitoring_task()

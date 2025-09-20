@@ -15,13 +15,13 @@ def get_main_reply_keyboard() -> ReplyKeyboardMarkup:
     """
     rows = []
     # Первая строка: Купить VPN
-    rows.append([KeyboardButton(text="Купить VPN")])
+    rows.append([KeyboardButton(text="🛒 Купить VPN")])
 
     # Вторая строка: Профиль и Пополнить баланс
-    rows.append([KeyboardButton(text="👤 Мой профиль"), KeyboardButton(text="Пополнить баланс")])
+    rows.append([KeyboardButton(text="👤 Мой профиль"), KeyboardButton(text="💰Пополнить баланс")])
 
     # Третья строка: Помощь и поддержка + О проекте
-    rows.append([KeyboardButton(text="Помощь и поддержка"), KeyboardButton(text="ℹ️ О проекте")])
+    rows.append([KeyboardButton(text="⁉️ Помощь и поддержка"), KeyboardButton(text="ℹ️ О проекте")])
 
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
@@ -35,10 +35,10 @@ def create_main_menu_keyboard(user_keys: list, trial_available: bool, is_admin: 
         builder.button(text="🎁 Попробовать бесплатно", callback_data="get_trial")
 
     # Новое главное меню
-    builder.button(text="Купить VPN", callback_data="buy_vpn_root")
+    builder.button(text="🛒 Купить VPN", callback_data="buy_vpn_root")
     builder.button(text="👤 Мой профиль", callback_data="show_profile")
-    builder.button(text="Пополнить баланс", callback_data="topup_root")
-    builder.button(text="Помощь и поддержка", callback_data="help_center")
+    builder.button(text="💰Пополнить баланс", callback_data="topup_root")
+    builder.button(text="⁉️ Помощь и поддержка", callback_data="help_center")
     builder.button(text="ℹ️ О проекте", callback_data="show_about")
 
     if is_admin:
@@ -57,9 +57,22 @@ def create_main_menu_keyboard(user_keys: list, trial_available: bool, is_admin: 
 
     return builder.as_markup()
 
-def create_profile_menu_keyboard() -> InlineKeyboardMarkup:
+def create_buy_root_keyboard(user_keys: list) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="🔑 Мои ключи", callback_data="manage_keys")
+    # Кнопка купить новый ключ
+    builder.button(text="➕ Купить новый ключ", callback_data="buy_new_key")
+    # Условная кнопка продления при наличии хотя бы одного ключа
+    if user_keys:
+        builder.button(text=f"✅🔄 Продлить текущий [{len(user_keys)}]", callback_data="manage_keys")
+    builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
+    builder.adjust(1)
+    return builder.as_markup()
+
+def create_profile_menu_keyboard(total_keys_count: int | None = None) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    keys_suffix = f" [{total_keys_count}] шт." if isinstance(total_keys_count, int) and total_keys_count >= 0 else ""
+    builder.button(text=f"🔑 Мои ключи{keys_suffix}", callback_data="manage_keys")
+    builder.button(text="💳 Пополнить баланс", callback_data="topup_root")
     if get_setting("enable_referrals") == "true":
         builder.button(text="🤝 Реферальная программа", callback_data="show_referral_program")
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
@@ -74,7 +87,7 @@ def create_help_center_keyboard() -> InlineKeyboardMarkup:
         support_enabled = False
     if support_enabled:
         builder.button(text="🆘 Поддержка", callback_data="show_help")
-    builder.button(text="❓ Как использовать", callback_data="howto_vless")
+    builder.button(text="❓ Инструкция как пользоваться", callback_data="howto_vless")
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
     builder.adjust(1)
     return builder.as_markup()
@@ -92,8 +105,8 @@ def create_topup_amounts_keyboard() -> InlineKeyboardMarkup:
 def create_topup_payment_methods_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     # Оплата через Stars и TON Connect
-    builder.button(text="⭐ Telegram Stars", callback_data="topup_pay_stars")
-    builder.button(text="🪙 TON Connect", callback_data="topup_pay_tonconnect")
+    builder.button(text="⭐ Telegram Звезды (Stars)", callback_data="topup_pay_stars")
+    builder.button(text="🪙 TonCoin (криптовалюта)", callback_data="topup_pay_tonconnect")
     builder.button(text="⬅️ Назад", callback_data="topup_back_to_amounts")
     builder.adjust(1)
     return builder.as_markup()
@@ -137,8 +150,11 @@ def create_support_keyboard(support_user: str) -> InlineKeyboardMarkup:
     builder.adjust(1)
     return builder.as_markup()
 
-def create_host_selection_keyboard(hosts: list, action: str) -> InlineKeyboardMarkup:
+def create_host_selection_keyboard(hosts: list, action: str, total_keys_count: int | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+    # Кнопка продления — только если есть ключи
+    if total_keys_count:
+        builder.button(text=f"✅🔄 Продлить текущий [{total_keys_count}]", callback_data="manage_keys")
     for host in hosts:
         callback_data = f"select_host_{action}_{host['host_name']}"
         builder.button(text=host['host_name'], callback_data=callback_data)
@@ -174,8 +190,11 @@ def create_skip_email_keyboard() -> InlineKeyboardMarkup:
     builder.adjust(1)
     return builder.as_markup()
 
-def create_payment_method_keyboard(payment_methods: dict, action: str, key_id: int) -> InlineKeyboardMarkup:
+def create_payment_method_keyboard(payment_methods: dict, action: str, key_id: int, user_balance: float | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+    # Предлагаем оплату с внутреннего баланса первой кнопкой
+    balance_suffix = f" {user_balance:.2f} RUB" if isinstance(user_balance, (int, float)) else ""
+    builder.button(text=f"💰 С баланса{balance_suffix}", callback_data="pay_balance")
 
     if payment_methods and payment_methods.get("yookassa"):
         if get_setting("sbp_enabled"):
@@ -189,14 +208,14 @@ def create_payment_method_keyboard(payment_methods: dict, action: str, key_id: i
     if payment_methods and payment_methods.get("tonconnect"):
         callback_data_ton = "pay_tonconnect"
         logger.info(f"Creating TON button with callback_data: '{callback_data_ton}'")
-        builder.button(text="🪙 TON Connect", callback_data=callback_data_ton)
+        builder.button(text="🪙 TonCoin (криптовалюта)", callback_data=callback_data_ton)
     # Показываем Stars, если включено либо в переданном списке, либо в актуальных настройках
     try:
         stars_enabled_setting = get_setting("stars_enabled") == "true"
     except Exception:
         stars_enabled_setting = False
     if (payment_methods and payment_methods.get("stars")) or stars_enabled_setting:
-        builder.button(text="⭐ Telegram Stars", callback_data="pay_stars")
+        builder.button(text="⭐ Telegram Звезды (Stars)", callback_data="pay_stars")
 
     builder.button(text="⬅️ Назад", callback_data="back_to_email_prompt")
     builder.adjust(1)
@@ -228,9 +247,9 @@ def create_keys_management_keyboard(keys: list) -> InlineKeyboardMarkup:
 
 def create_key_info_keyboard(key_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="➕ Продлить этот ключ", callback_data=f"extend_key_{key_id}")
+    builder.button(text="🔄 Продлить этот ключ", callback_data=f"extend_key_{key_id}")
     builder.button(text="📱 Показать QR-код", callback_data=f"show_qr_{key_id}")
-    builder.button(text="📖 Инструкция", callback_data=f"howto_vless_{key_id}")
+    builder.button(text="❓ Инструкция как пользоваться", callback_data=f"howto_vless_{key_id}")
     builder.button(text="⬅️ Назад к списку ключей", callback_data="manage_keys")
     builder.adjust(1)
     return builder.as_markup()

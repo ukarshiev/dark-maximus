@@ -44,7 +44,7 @@ from shop_bot.data_manager.database import (
 
 from shop_bot.config import (
     get_profile_text, get_vpn_active_text, VPN_INACTIVE_TEXT, VPN_NO_DATA_TEXT,
-    get_key_info_text, CHOOSE_PAYMENT_METHOD_MESSAGE, get_purchase_success_text
+    get_key_info_text, CHOOSE_PAYMENT_METHOD_MESSAGE, HOWTO_CHOOSE_OS_MESSAGE, get_purchase_success_text
 )
 
 from pathlib import Path
@@ -355,7 +355,7 @@ def get_user_router() -> Router:
             pass
         await show_main_menu(callback.message, edit_message=True)
 
-    @user_router.message(F.text == "Купить VPN")
+    @user_router.message(F.text == "🛒 Купить VPN")
     @registration_required
     async def buy_vpn_message_handler(message: types.Message):
         hosts = get_all_hosts()
@@ -370,9 +370,11 @@ def get_user_router() -> Router:
         if not hosts_with_plans:
             await message.answer("❌ В данный момент нет доступных серверов для покупки.")
             return
+        user_id = message.from_user.id
+        user_keys = get_user_keys(user_id)
         await message.answer(
             "Выберите сервер, на котором хотите приобрести ключ:",
-            reply_markup=keyboards.create_host_selection_keyboard(hosts_with_plans, action="new")
+            reply_markup=keyboards.create_host_selection_keyboard(hosts_with_plans, action="new", total_keys_count=len(user_keys) if user_keys else 0)
         )
 
     @user_router.callback_query(F.data == "buy_vpn_root")
@@ -391,23 +393,25 @@ def get_user_router() -> Router:
         if not hosts_with_plans:
             await callback.message.edit_text("❌ В данный момент нет доступных серверов для покупки.")
             return
+        user_id = callback.from_user.id
+        user_keys = get_user_keys(user_id)
         await callback.message.edit_text(
             "Выберите сервер, на котором хотите приобрести ключ:",
-            reply_markup=keyboards.create_host_selection_keyboard(hosts_with_plans, action="new")
+            reply_markup=keyboards.create_host_selection_keyboard(hosts_with_plans, action="new", total_keys_count=len(user_keys) if user_keys else 0)
         )
 
-    @user_router.message(F.text == "Помощь и поддержка")
+    @user_router.message(F.text == "⁉️ Помощь и поддержка")
     @registration_required
     async def help_center_message_handler(message: types.Message):
-        await message.answer("Помощь и поддержка:", reply_markup=keyboards.create_help_center_keyboard())
+        await message.answer("⁉️ Помощь и поддержка:", reply_markup=keyboards.create_help_center_keyboard())
 
     @user_router.callback_query(F.data == "help_center")
     @registration_required
     async def help_center_callback_handler(callback: types.CallbackQuery):
         await callback.answer()
-        await callback.message.edit_text("Помощь и поддержка:", reply_markup=keyboards.create_help_center_keyboard())
+        await callback.message.edit_text("⁉️ Помощь и поддержка:", reply_markup=keyboards.create_help_center_keyboard())
 
-    @user_router.message(F.text == "Пополнить баланс")
+    @user_router.message(F.text == "💰Пополнить баланс")
     @registration_required
     async def topup_message_handler(message: types.Message, state: FSMContext):
         await state.clear()
@@ -450,7 +454,7 @@ def get_user_router() -> Router:
     async def topup_custom_amount_prompt(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         await callback.message.edit_text(
-            "Введите сумму пополнения в рублях (целое число, минимум 50):"
+            "Введите сумму пополнения в рублях (целое число)"
         )
         await state.set_state(TopupProcess.waiting_for_custom_amount)
 
@@ -495,6 +499,8 @@ def get_user_router() -> Router:
             return
         username = html.bold(user_db_data.get('username', 'Пользователь'))
         total_spent, total_months = user_db_data.get('total_spent', 0), user_db_data.get('total_months', 0)
+        from shop_bot.data_manager.database import get_user_balance
+        balance = get_user_balance(user_id)
         now = datetime.now()
         active_keys = [key for key in user_keys if datetime.fromisoformat(key['expiry_date']) > now]
         if active_keys:
@@ -504,8 +510,8 @@ def get_user_router() -> Router:
             vpn_status_text = get_vpn_active_text(time_left.days, time_left.seconds // 3600)
         elif user_keys: vpn_status_text = VPN_INACTIVE_TEXT
         else: vpn_status_text = VPN_NO_DATA_TEXT
-        final_text = get_profile_text(username, total_spent, total_months, vpn_status_text)
-        await message.answer(final_text, reply_markup=keyboards.create_profile_menu_keyboard())
+        final_text = get_profile_text(username, balance, total_spent, total_months, vpn_status_text)
+        await message.answer(final_text, reply_markup=keyboards.create_profile_menu_keyboard(total_keys_count=len(user_keys or [])))
 
     @user_router.message(F.text == "🔑 Мои ключи")
     @registration_required
@@ -539,7 +545,7 @@ def get_user_router() -> Router:
         builder.button(text="⬅️ Назад", callback_data="back_to_main_menu")
         await message.answer(text, reply_markup=builder.as_markup())
 
-    @user_router.message(F.text == "❓ Как использовать")
+    @user_router.message(F.text == "❓ Инструкция как пользоваться")
     @registration_required
     async def howto_message(message: types.Message):
         await message.answer(
@@ -599,6 +605,8 @@ def get_user_router() -> Router:
             return
         username = html.bold(user_db_data.get('username', 'Пользователь'))
         total_spent, total_months = user_db_data.get('total_spent', 0), user_db_data.get('total_months', 0)
+        from shop_bot.data_manager.database import get_user_balance
+        balance = get_user_balance(user_id)
         now = datetime.now()
         active_keys = [key for key in user_keys if datetime.fromisoformat(key['expiry_date']) > now]
         if active_keys:
@@ -608,8 +616,8 @@ def get_user_router() -> Router:
             vpn_status_text = get_vpn_active_text(time_left.days, time_left.seconds // 3600)
         elif user_keys: vpn_status_text = VPN_INACTIVE_TEXT
         else: vpn_status_text = VPN_NO_DATA_TEXT
-        final_text = get_profile_text(username, total_spent, total_months, vpn_status_text)
-        await callback.message.edit_text(final_text, reply_markup=keyboards.create_profile_menu_keyboard())
+        final_text = get_profile_text(username, balance, total_spent, total_months, vpn_status_text)
+        await callback.message.edit_text(final_text, reply_markup=keyboards.create_profile_menu_keyboard(total_keys_count=len(user_keys or [])))
 
     @user_router.callback_query(F.data == "start_broadcast")
     @registration_required
@@ -1082,7 +1090,7 @@ def get_user_router() -> Router:
         key_id = int(callback.data.split("_")[2])
 
         await callback.message.edit_text(
-            "Выберите вашу платформу для инструкции по подключению VLESS:",
+            HOWTO_CHOOSE_OS_MESSAGE,
             reply_markup=keyboards.create_howto_vless_keyboard_key(key_id),
             disable_web_page_preview=True
         )
@@ -1093,7 +1101,7 @@ def get_user_router() -> Router:
         await callback.answer()
 
         await callback.message.edit_text(
-            "Выберите вашу опреационную систему для получения инструкции по подключению и настройки:",
+            HOWTO_CHOOSE_OS_MESSAGE,
             reply_markup=keyboards.create_howto_vless_keyboard(),
             disable_web_page_preview=True
         )
@@ -1272,12 +1280,15 @@ def get_user_router() -> Router:
             await message.answer(f"✅ Email принят: {message.text}")
 
             data = await state.get_data()
+            from shop_bot.data_manager.database import get_user_balance
+            user_balance = get_user_balance(message.chat.id)
             await message.answer(
                 CHOOSE_PAYMENT_METHOD_MESSAGE,
                 reply_markup=keyboards.create_payment_method_keyboard(
                     payment_methods=PAYMENT_METHODS,
                     action=data.get('action'),
-                    key_id=data.get('key_id')
+                    key_id=data.get('key_id'),
+                    user_balance=float(user_balance or 0)
                 )
             )
             await state.set_state(PaymentProcess.waiting_for_payment_method)
@@ -1291,12 +1302,15 @@ def get_user_router() -> Router:
         await state.update_data(customer_email=None)
 
         data = await state.get_data()
+        from shop_bot.data_manager.database import get_user_balance
+        user_balance = get_user_balance(callback.from_user.id)
         await callback.message.edit_text(
             CHOOSE_PAYMENT_METHOD_MESSAGE,
             reply_markup=keyboards.create_payment_method_keyboard(
                 payment_methods=PAYMENT_METHODS,
                 action=data.get('action'),
-                key_id=data.get('key_id')
+                key_id=data.get('key_id'),
+                user_balance=float(user_balance or 0)
             )
         )
         await state.set_state(PaymentProcess.waiting_for_payment_method)
@@ -1464,12 +1478,15 @@ def get_user_router() -> Router:
 
         await state.update_data(final_price=float(final_price))
 
+        from shop_bot.data_manager.database import get_user_balance
+        user_balance = get_user_balance(message.chat.id)
         await message.edit_text(
             message_text,
             reply_markup=keyboards.create_payment_method_keyboard(
                 payment_methods=PAYMENT_METHODS,
                 action=data.get('action'),
-                key_id=data.get('key_id')
+                key_id=data.get('key_id'),
+                user_balance=float(user_balance or 0)
             )
         )
         await state.set_state(PaymentProcess.waiting_for_payment_method)
@@ -1558,7 +1575,14 @@ def get_user_router() -> Router:
                     email = key_data['key_email']
                     comment = key_data.get('connection_string') or ''
                 
-                days_to_add = months * 30
+                # Учитываем месяцы, дни и ЧАСЫ тарифа
+                extra_days = int(plan.get('days') or 0) if plan else 0
+                extra_hours = int(plan.get('hours') or 0) if plan else 0
+                if extra_hours < 0:
+                    extra_hours = 0
+                if extra_hours > 24:
+                    extra_hours = 24
+                days_to_add = months * 30 + extra_days + (extra_hours / 24)
                 result = await xui_api.create_or_update_key_on_host(
                     host_name=host_name,
                     email=email,
@@ -1572,7 +1596,16 @@ def get_user_router() -> Router:
                     return
 
                 if action == "new":
-                    key_id = add_new_key(user_id, host_name, result['client_uuid'], result['email'], result['expiry_timestamp_ms'])
+                    key_id = add_new_key(
+                        user_id,
+                        host_name,
+                        result['client_uuid'],
+                        result['email'],
+                        result['expiry_timestamp_ms'],
+                        connection_string=result.get('connection_string'),
+                        plan_name=plan['plan_name'],
+                        price=0.0
+                    )
                 elif action == "extend":
                     update_key_info(key_id, result['client_uuid'], result['expiry_timestamp_ms'])
                 
@@ -1858,7 +1891,14 @@ def get_user_router() -> Router:
                 email = ""
                 if action == "new":
                     key_number = get_next_key_number(user_id)
-                    email = f"user{user_id}-key{key_number}@{host_name.replace(' ', '').lower()}.bot"
+                    # Строим email на основе стабильного host_code (если есть)
+                    try:
+                        from shop_bot.data_manager.database import get_host
+                        host_rec = get_host(host_name)
+                        host_code = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec else host_name.replace(' ', '').lower()
+                    except Exception:
+                        host_code = host_name.replace(' ', '').lower()
+                    email = f"user{user_id}-key{key_number}@{host_code}.bot"
                 elif action == "extend":
                     key_data = get_key_by_id(key_id)
                     if not key_data or key_data['user_id'] != user_id:
@@ -1867,7 +1907,15 @@ def get_user_router() -> Router:
                         return
                     email = key_data['key_email']
                 
-                days_to_add = months * 30
+                months = plan['months']
+                plan_id = plan['plan_id']
+                extra_days = int(plan.get('days') or 0)
+                extra_hours = int(plan.get('hours') or 0)
+                if extra_hours < 0:
+                    extra_hours = 0
+                if extra_hours > 24:
+                    extra_hours = 24
+                days_to_add = months * 30 + extra_days + (extra_hours / 24)
                 result = await xui_api.create_or_update_key_on_host(
                     host_name=host_name,
                     email=email,
@@ -1880,7 +1928,16 @@ def get_user_router() -> Router:
                     return
 
                 if action == "new":
-                    key_id = add_new_key(user_id, host_name, result['client_uuid'], result['email'], result['expiry_timestamp_ms'])
+                    key_id = add_new_key(
+                        user_id,
+                        host_name,
+                        result['client_uuid'],
+                        result['email'],
+                        result['expiry_timestamp_ms'],
+                        connection_string=result.get('connection_string'),
+                        plan_name=plan['plan_name'],
+                        price=0.0
+                    )
                 elif action == "extend":
                     update_key_info(key_id, result['client_uuid'], result['expiry_timestamp_ms'])
                 
@@ -2012,173 +2069,174 @@ def get_user_router() -> Router:
     @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "pay_stars")
     async def create_stars_invoice_handler(callback: types.CallbackQuery, state: FSMContext):
         logger.info(f"User {callback.from_user.id}: Entered create_stars_invoice_handler.")
-        data = await state.get_data()
-        user_id = callback.from_user.id
-        plan = get_plan_by_id(data.get('plan_id'))
-        
-        if not plan:
-            await callback.message.edit_text("❌ Оплата через Stars временно недоступна.")
-            await state.clear()
-            return
-
-        await callback.answer("Создаю счет для оплаты звездами...")
-            
-        price_rub = Decimal(str(data.get('final_price', plan['price'])))
-        
-        # Получаем курс конвертации (RUB за 1 звезду)
-        conversion_rate = Decimal(str(get_setting("stars_conversion_rate") or "1.79"))
-        # Рассчитываем, сколько звезд должен заплатить пользователь: ceil(RUB / (RUB/Star))
-        if conversion_rate <= 0:
-            conversion_rate = Decimal("1.0")
-        price_stars = int((price_rub / conversion_rate).quantize(Decimal("1"), rounding=ROUND_CEILING))
-        if price_rub > 0 and price_stars < 1:
-            price_stars = 1
-        
-        # Проверяем, если цена 0 рублей - обрабатываем бесплатно
-        if price_rub == 0:
-            await callback.message.edit_text("🎉 Бесплатный тариф! Обрабатываю ваш запрос...")
-            
-            # Получаем данные из state
-            action = data.get('action')
-            key_id = data.get('key_id')
-            host_name = data.get('host_name')
-            
-            # Создаем ключ бесплатно
-            try:
-                email = ""
-                if action == "new":
-                    key_number = get_next_key_number(user_id)
-                    email = f"user{user_id}-key{key_number}@{host_name.replace(' ', '').lower()}.bot"
-                elif action == "extend":
-                    key_data = get_key_by_id(key_id)
-                    if not key_data or key_data['user_id'] != user_id:
-                        await callback.message.edit_text("❌ Ошибка: ключ для продления не найден.")
-                        await state.clear()
-                        return
-                    email = key_data['key_email']
-                
-                months = plan['months']
-                days_to_add = months * 30
-                result = await xui_api.create_or_update_key_on_host(
-                    host_name=host_name,
-                    email=email,
-                    days_to_add=days_to_add
-                )
-
-                if not result:
-                    await callback.message.edit_text("❌ Не удалось создать/обновить ключ в панели.")
-                    await state.clear()
-                    return
-
-                if action == "new":
-                    key_id = add_new_key(user_id, host_name, result['client_uuid'], result['email'], result['expiry_timestamp_ms'])
-                elif action == "extend":
-                    update_key_info(key_id, result['client_uuid'], result['expiry_timestamp_ms'])
-                
-                # Обновляем статистику
-                update_user_stats(user_id, 0, months)
-                
-                # Логируем транзакцию
-                user_info = get_user(user_id)
-                log_transaction(
-                    user_id=user_id,
-                    amount_rub=0,
-                    months=months,
-                    action=action,
-                    key_id=key_id,
-                    host_name=host_name,
-                    plan_id=plan['plan_id'],
-                    customer_email=data.get('customer_email'),
-                    payment_method='Stars (Free)'
-                )
-                
-                await callback.message.edit_text(
-                    "✅ Бесплатный ключ успешно создан!",
-                    reply_markup=keyboards.create_key_info_keyboard(key_id)
-                )
-                
-                await state.clear()
-                return
-                
-            except Exception as e:
-                logger.error(f"Error processing free plan for user {user_id}: {e}", exc_info=True)
-                await callback.message.edit_text("❌ Ошибка при выдаче бесплатного ключа.")
-                await state.clear()
-                return
-
         try:
-            # Создаем инвойс для оплаты звездами
-            invoice = types.LabeledPrice(
-                label=f"Подписка {plan['plan_name']} ({plan['months']} мес.)",
-                amount=price_stars
-            )
-            
-            # Создаем метаданные для платежа (сохраняем в БД)
-            payment_metadata = {
-                'user_id': user_id,
-                'months': plan['months'],
-                'price': float(price_rub),
-                'action': data.get('action'),
-                'key_id': data.get('key_id'),
-                'host_name': data.get('host_name'),
-                'plan_id': plan['plan_id'],
-                'plan_name': plan['plan_name'],
-                'customer_email': data.get('customer_email'),
-                'payment_method': 'Stars',
-                'stars_rate': float(conversion_rate),
-                'chat_id': callback.message.chat.id,
-                'message_id': callback.message.message_id
-            }
-            
-            # Создаем payload для идентификации платежа
+            await callback.answer("Создаю счет через Stars...")
+            data = await state.get_data()
+
+            user_id = callback.from_user.id
+            plan_id = data.get('plan_id')
+            action = data.get('action')
+            key_id = int(data.get('key_id') or 0)
+            host_name = data.get('host_name')
+            customer_email = data.get('customer_email')
+
+            plan = get_plan_by_id(plan_id)
+            if not plan:
+                await callback.message.edit_text("❌ Ошибка: Тариф не найден.")
+                await state.clear()
+                return
+
+            months = int(data.get('months') or 0) or int((plan or {}).get('months') or 0)
+            price_rub = float(data.get('final_price') or (plan or {}).get('price') or 0)
+
+            # Бесплатный тариф — обрабатываем без счета
+            if price_rub == 0:
+                await callback.message.edit_text("🎉 Бесплатный тариф! Обрабатываю ваш запрос...")
+                metadata = {
+                    "user_id": user_id,
+                    "months": months,
+                    "price": 0.0,
+                    "action": action,
+                    "key_id": key_id,
+                    "host_name": host_name,
+                    "plan_id": plan_id,
+                    "plan_name": plan.get('plan_name'),
+                    "customer_email": customer_email,
+                    "payment_method": "Stars",
+                    "payment_id": str(uuid.uuid4())
+                }
+                await process_successful_payment(callback.bot, metadata)
+                await state.clear()
+                return
+
+            # Рассчитываем сумму в звездах
+            conversion_rate = Decimal(str(get_setting("stars_conversion_rate") or "1.79"))
+            if conversion_rate <= 0:
+                conversion_rate = Decimal("1.0")
+            amount_stars = int((Decimal(str(price_rub)) / conversion_rate).quantize(Decimal("1"), rounding=ROUND_CEILING))
+            if amount_stars < 1:
+                amount_stars = 1
+
+            invoice_price = types.LabeledPrice(label=f"{plan.get('plan_name', 'Тариф')}", amount=amount_stars)
+
             payment_id = str(uuid.uuid4())
-            payment_metadata['payment_id'] = payment_id
-            payload = payment_id  # Stars требуют компактный payload; метаданные читаем из БД
-            
-            # Реальная стоимость в рублях по оплаченным звездам (может быть >= исходной цены из-за округления)
-            real_amount_rub = float(Decimal(price_stars) * conversion_rate)
-            
-            # Создаем pending транзакцию
+            payment_metadata = {
+                "user_id": user_id,
+                "months": months,
+                "price": float(price_rub),
+                "action": action,
+                "key_id": key_id,
+                "host_name": host_name,
+                "plan_id": int(plan_id),
+                "plan_name": plan.get('plan_name'),
+                "customer_email": customer_email,
+                "payment_method": "Stars",
+                "stars_rate": float(conversion_rate),
+                "chat_id": callback.message.chat.id,
+                "message_id": callback.message.message_id,
+                "operation": "buy",
+                "payment_id": payment_id
+            }
+
+            # Сохраняем pending транзакцию для последующей валидации pre_checkout/success
             create_pending_stars_transaction(
                 payment_id=payment_id,
                 user_id=user_id,
-                amount_rub=real_amount_rub,  # Реальная стоимость в рублях
-                amount_stars=price_stars,
+                amount_rub=float(price_rub),
+                amount_stars=amount_stars,
                 metadata=payment_metadata
             )
-            
+
             await callback.message.answer_invoice(
-                title=f"Подписка {plan['plan_name']}",
-                description=f"VPN подписка на {plan['months']} месяцев",
-                payload=payload,
-                provider_token="",  # Для Stars не нужен provider_token
-                currency="XTR",  # XTR - валюта Telegram Stars
-                prices=[invoice],
-                start_parameter=payment_id,
-                photo_url=None,
-                photo_size=None,
-                photo_width=None,
-                photo_height=None,
-                need_name=False,
-                need_phone_number=False,
-                need_email=False,
-                need_shipping_address=False,
-                send_phone_number_to_provider=False,
-                send_email_to_provider=False,
-                is_flexible=False,
-                disable_notification=False,
-                protect_content=False,
-                reply_to_message_id=None,
-                allow_sending_without_reply=False,
-                reply_markup=None
+                title=f"Покупка тарифа: {plan.get('plan_name', 'Тариф')}",
+                description=f"Оплата тарифа через Telegram Stars",
+                payload=payment_id,
+                provider_token="STARS",
+                currency="XTR",
+                prices=[invoice_price]
             )
-            
+            await state.clear()
+        except Exception as e:
+            logger.error(f"Failed to create Stars purchase invoice: {e}", exc_info=True)
+            try:
+                await callback.message.answer("❌ Не удалось создать счет через Stars. Попробуйте позже или выберите другой способ оплаты.")
+            except Exception:
+                pass
             await state.clear()
 
-        except Exception as e:
-            logger.error(f"Failed to create Stars invoice for user {user_id}: {e}", exc_info=True)
-            await callback.message.answer("❌ Не удалось создать счет для оплаты звездами. Попробуйте позже.")
+    @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "pay_balance")
+    async def pay_with_internal_balance(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer("Проверяю баланс и оформляю покупку...")
+        try:
+            data = await state.get_data()
+            user_id = callback.from_user.id
+            action = data.get('action')
+            key_id = data.get('key_id')
+            host_name = data.get('host_name')
+            plan_id = data.get('plan_id')
+            months = int(data.get('months') or 0) or int((get_plan_by_id(plan_id) or {}).get('months') or 0)
+            # Цена к списанию: учитываем возможную скидку, если была рассчитана
+            price = float(data.get('final_price') or (get_plan_by_id(plan_id) or {}).get('price') or 0)
+
+            from shop_bot.data_manager.database import get_user_balance, add_to_user_balance
+            current_balance = get_user_balance(user_id)
+            if current_balance < price:
+                await callback.message.answer(
+                    f"❌ Недостаточно средств на балансе. Доступно: {current_balance:.2f} RUB, требуется: {price:.2f} RUB.",
+                    reply_markup=keyboards.create_back_to_menu_keyboard()
+                )
+                return
+
+            # Списываем средства
+            add_to_user_balance(user_id, -price)
+
+            # Формируем metadata и запускаем общий процесс выдачи
+            metadata = {
+                "user_id": user_id,
+                "months": months,
+                "price": price,
+                "action": action,
+                "key_id": key_id,
+                "host_name": host_name,
+                "plan_id": plan_id,
+                "customer_email": data.get('customer_email'),
+                "payment_method": "Из баланса",
+                "payment_id": str(uuid.uuid4())
+            }
+
+            # Логируем транзакцию в БД
+            try:
+                user_info = get_user(user_id)
+                log_username = user_info.get('username', 'N/A') if user_info else 'N/A'
+                log_transaction(
+                    username=log_username,
+                    transaction_id=None,
+                    payment_id=metadata['payment_id'],
+                    user_id=user_id,
+                    status='paid',
+                    amount_rub=price,
+                    amount_currency=None,
+                    currency_name=None,
+                    payment_method='Balance',
+                    metadata=json.dumps(metadata)
+                )
+            except Exception as _:
+                pass
+
+            # Сообщаем пользователю о списании с баланса
+            try:
+                await callback.message.answer(f"✅ С баланса списано {price:.2f} RUB")
+            except Exception:
+                pass
+
+            await process_successful_payment(callback.bot, metadata)
             await state.clear()
+        except Exception as e:
+            logger.error(f"Balance payment failed: {e}", exc_info=True)
+            await callback.message.answer("❌ Не удалось выполнить оплату с баланса. Попробуйте другой способ оплаты.")
+            await state.clear()
+        # После успешной оплаты с баланса не предлагаем альтернативные методы
+        return
 
         @user_router.message(F.text)
         @registration_required
@@ -2353,12 +2411,48 @@ async def _listener_task(connector: TonConnect, user_id: int, transaction_payloa
         logger.info(f"TON Connect: Wallet connected for user {user_id}. Address: {connector.account.address}")
         
         logger.info(f"TON Connect: Sending transaction request to user {user_id} with payload: {transaction_payload}")
-        # Отлавливаем сетевые/SSE ошибки pytonconnect, чтобы не рушить процесс
-        try:
-            result = await connector.send_transaction(transaction_payload)
-        except Exception as sse_err:
-            logger.error(f"TON Connect: send_transaction failed for user {user_id}: {sse_err}", exc_info=True)
-            return
+        # Отлавливаем сетевые/SSE ошибки pytonconnect и выполняем безопасный ретрай один раз
+        result = None
+        for attempt_index in range(2):
+            try:
+                result = await connector.send_transaction(transaction_payload)
+                break
+            except Exception as sse_err:
+                # Известная проблема: разрыв SSE (TransferEncodingError/ClientPayloadError)
+                from aiohttp.client_exceptions import ClientPayloadError
+                try:
+                    from aiohttp.http_exceptions import TransferEncodingError as _TransferEncodingError
+                except Exception:
+                    _TransferEncodingError = tuple()
+
+                is_transport_err = isinstance(sse_err, ClientPayloadError) or isinstance(sse_err, _TransferEncodingError) or (
+                    "TransferEncodingError" in str(sse_err) or "Response payload is not completed" in str(sse_err)
+                )
+
+                if is_transport_err and attempt_index == 0:
+                    logger.warning(
+                        f"TON Connect: transient bridge/SSE error on attempt {attempt_index+1} for user {user_id}: {sse_err}. Retrying once..."
+                    )
+                    await asyncio.sleep(1.0)
+                    continue
+                # Вторая неудача или не-транспортная ошибка — логируем и уведомляем пользователя (если можем)
+                logger.error(
+                    f"TON Connect: send_transaction failed for user {user_id} on attempt {attempt_index+1}: {sse_err}",
+                    exc_info=True
+                )
+                if bot_instance is not None:
+                    try:
+                        await bot_instance.send_message(
+                            chat_id=user_id,
+                            text=(
+                                "❌ Не удалось отправить запрос в кошелёк через TON Connect.\n"
+                                "Похоже, соединение с мостом временно прервалось.\n\n"
+                                "Попробуйте: 1) открыть кошелёк ещё раз; 2) перезапустить приложение кошелька; 3) повторить оплату."
+                            )
+                        )
+                    except Exception:
+                        pass
+                return
         
         logger.info(f"TON Connect: Transaction request sent successfully for user {user_id}.")
         
@@ -2397,6 +2491,11 @@ async def _listener_task(connector: TonConnect, user_id: int, transaction_payloa
         # Корректное отключение коннектора, чтобы закрыть SSE и сокеты и не ловить TransferEncodingError
         try:
             if connector and getattr(connector, 'connected', False):
+                # Даём кошельку время корректно завершить сессию, чтобы не показывалась «Техническая ошибка»
+                try:
+                    await asyncio.sleep(1.5)
+                except Exception:
+                    pass
                 await connector.disconnect()
         except Exception:
             pass
@@ -2667,7 +2766,20 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str = No
         email = ""
         if action == "new":
             key_number = get_next_key_number(user_id)
-            email = f"user{user_id}-key{key_number}@{host_name.replace(' ', '').lower()}.bot"
+            try:
+                from shop_bot.data_manager.database import get_host
+                host_rec = get_host(host_name)
+                host_code = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec else host_name.replace(' ', '').lower()
+            except Exception:
+                host_code = host_name.replace(' ', '').lower()
+            email = f"user{user_id}-key{key_number}@{host_code}.bot"
+            try:
+                from shop_bot.data_manager.database import get_host
+                host_rec = get_host(host_name)
+                host_code = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec else host_name.replace(' ', '').lower()
+            except Exception:
+                host_code = host_name.replace(' ', '').lower()
+            email = f"user{user_id}-key{key_number}@{host_code}.bot"
         elif action == "extend":
             key_data = get_key_by_id(key_id)
             if not key_data or key_data['user_id'] != user_id:
@@ -2678,8 +2790,13 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str = No
         # Учитываем дополнительные дни и трафик
         plan = get_plan_by_id(plan_id)
         extra_days = int(plan.get('days') or 0) if plan else 0
+        extra_hours = int(plan.get('hours') or 0) if plan else 0
+        if extra_hours < 0:
+            extra_hours = 0
+        if extra_hours > 24:
+            extra_hours = 24
         traffic_gb = float(plan.get('traffic_gb') or 0) if plan else 0.0
-        days_to_add = months * 30 + extra_days
+        days_to_add = months * 30 + extra_days + (extra_hours / 24)
         result = await xui_api.create_or_update_key_on_host(
             host_name=host_name,
             email=email,
@@ -2699,7 +2816,7 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str = No
                 result['email'], 
                 result['expiry_timestamp_ms'],
                 connection_string=result.get('connection_string'),
-                plan_name=metadata.get('plan_name'),
+                plan_name=(metadata.get('plan_name') or (plan.get('plan_name') if plan else None)),
                 price=float(metadata.get('price', 0))
             )
         elif action == "extend":

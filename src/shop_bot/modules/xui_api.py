@@ -21,12 +21,17 @@ def _panel_update_client_quota(host_url: str, username: str, password: str, inbo
         session.post(f"{base}/login", json={"username": username, "password": password}, timeout=10, verify=False)
         # Пейлоад клиента (минимально достаточный набор полей)
         now_ms = int(datetime.utcnow().timestamp() * 1000)
+        # В UI разных форков поле ограничения может называться по-разному:
+        # total (bytes) или totalGB (гигабайты). Мы передаём оба: bytes и GB.
         client_payload = {
             "id": client_uuid,
             "flow": "xtls-rprx-vision",
             "email": email,
             "limitIp": 0,
-            "totalGB": int(traffic_bytes),  # как в UI: байты
+            # Байтный лимит (универсально поддерживается как total)
+            "total": int(traffic_bytes),
+            # Дублируем в гигабайтах для некоторых сборок x-ui, ожидающих GB
+            "totalGB": round(int(traffic_bytes) / (1024 * 1024 * 1024), 2),
             "expiryTime": int(expiry_ms),
             "enable": True,
             "tgId": "",
@@ -146,11 +151,12 @@ def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days
             before_totalGB = getattr(c, 'totalGB', None)
             if traffic_bytes is not None:
                 try:
-                    setattr(c, 'total', int(traffic_bytes))
+                    setattr(c, 'total', int(traffic_bytes))  # bytes
                 except Exception:
                     pass
                 try:
-                    setattr(c, 'totalGB', int(traffic_bytes))  # bytes, как в панели
+                    # Для совместимости: некоторые форки трактуют totalGB как гигабайты
+                    setattr(c, 'totalGB', round(int(traffic_bytes) / (1024 * 1024 * 1024), 2))
                 except Exception:
                     pass
             after_total = getattr(c, 'total', None)
@@ -177,11 +183,11 @@ def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days
                 pass
             if traffic_bytes is not None:
                 try:
-                    setattr(new_client, 'total', int(traffic_bytes))
+                    setattr(new_client, 'total', int(traffic_bytes))  # bytes
                 except Exception:
                     pass
                 try:
-                    setattr(new_client, 'totalGB', int(traffic_bytes))  # bytes
+                    setattr(new_client, 'totalGB', round(int(traffic_bytes) / (1024 * 1024 * 1024), 2))
                 except Exception:
                     pass
             inbound_to_modify.settings.clients.append(new_client)
@@ -199,11 +205,11 @@ def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days
             )
             if traffic_bytes is not None:
                 try:
-                    setattr(updated_client, 'total', int(traffic_bytes))
+                    setattr(updated_client, 'total', int(traffic_bytes))  # bytes
                 except Exception:
                     pass
                 try:
-                    setattr(updated_client, 'totalGB', int(traffic_bytes))
+                    setattr(updated_client, 'totalGB', round(int(traffic_bytes) / (1024 * 1024 * 1024), 2))
                 except Exception:
                     pass
             api.client.update(inbound_id, updated_client)

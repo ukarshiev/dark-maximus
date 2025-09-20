@@ -3,39 +3,53 @@
 
 <h1>Пользователи</h1>
 
-<section class="settings-section">
-	<div style="overflow-x: auto">
+<section class="settings-section settings-section--fluid">
+	<div class="table-scroll-x">
 		<table class="users-table">
 			<thead>
 				<tr>
+					<th class="actions-cell">Меню</th>
 					<th>Telegram ID</th>
 					<th>Username</th>
 					<th>Статус</th>
-					<th>Активные ключи</th>
+					<th>Ключи</th>
+					<th title="Количество уведомлений, отправленных пользователю">Уведомления</th>
+					<th>Баланс</th>
 					<th>Заработано</th>
-					<th class="actions-cell">Действия</th>
 				</tr>
 			</thead>
 			<tbody>
 				{% for user in users %}
-				<tr class="user-row">
+				<tr class="user-row" data-user-id="{{ user.telegram_id }}" data-username="{{ user.username or 'N/A' }}" data-is-banned="{{ 'true' if user.is_banned else 'false' }}" data-keys-count="{{ user.user_keys|length if user.user_keys else 0 }}">
+					<td class="actions-cell">
+						<div class="kebab-menu">
+							<button type="button" class="kebab-toggle kebab-btn" aria-haspopup="true" aria-expanded="false" title="Действия">⋮</button>
+							<div class="kebab-dropdown">
+								{% if user.is_banned %}
+								<form action="{{ url_for('unban_user_route', user_id=user.telegram_id) }}" method="post">
+									<button type="submit" class="kebab-item">🟢🔓 Разбанить</button>
+								</form>
+								{% else %}
+								<form action="{{ url_for('ban_user_route', user_id=user.telegram_id) }}" method="post" data-confirm="Вы уверены, что хотите забанить этого пользователя? Он не сможет пользоваться ботом.">
+									<button type="submit" class="kebab-item">🔴🔓 Забанить</button>
+								</form>
+								{% endif %}
+								<form action="{{ url_for('revoke_keys_route', user_id=user.telegram_id) }}" method="post" data-confirm="ВНИМАНИЕ! Это действие удалит ВСЕ ключи пользователя с серверов. Вы уверены?">
+									<button type="submit" class="kebab-item kebab-item-danger" {% if not user.user_keys %}disabled title="Нет ключей"{% endif %}>⛔🗝️ Отозвать ключи</button>
+								</form>
+							</div>
+						</div>
+					</td>
 					<td data-field="telegram_id" data-original="{{ user.telegram_id }}">
 						<div class="cell-inline">
 							<span>{{ hidden_mode and '***' or user.telegram_id }}</span>
-							<div class="cell-actions">
-								<button class="modal-action-btn" onclick="openUserModal({{ user.telegram_id }}, '{{ user.username or 'N/A' }}', {{ user.is_banned|lower }}, {{ user.user_keys|length if user.user_keys else 0 }})" title="Открыть карточку">🔍</button>
-							</div>
 						</div>
 					</td>
-					<td data-field="username" data-original="@{{ user.username or 'N/A' }}">
-						<div class="cell-inline">
-							<span class="username-text">{{ hidden_mode and '@***' or ('@' ~ (user.username or 'N/A')) }}</span>
-							<div class="cell-actions">
-								<button class="modal-action-btn" onclick="openTelegramProfileFromTable('{{ user.username or 'N/A' }}')" title="Перейти в Telegram">🔗</button>
-								<button class="modal-action-btn" onclick="copyUsernameFromTable('{{ user.username or 'N/A' }}')" title="Копировать username">📋</button>
-							</div>
-						</div>
-					</td>
+                    <td data-field="username" data-original="@{{ user.username or 'N/A' }}">
+                        <div class="cell-inline">
+                            <span class="username-text">{{ hidden_mode and '@***' or ('@' ~ (user.username or 'N/A')) }}</span>
+                        </div>
+                    </td>
 					<td>
 						{% if user.is_banned %}
 						<span class="status-badge status-banned">Забанен</span>
@@ -47,39 +61,14 @@
 						{% if user.user_keys %} {{ user.user_keys | length }} шт. {% else %}
 						0 {% endif %}
 					</td>
-					<td data-field="earned" class="user-earned" data-user-id="{{ user.telegram_id }}">{{ hidden_mode and '*** RUB' or 'Загрузка...' }}</td>
-					<td class="actions-cell">
-						{% if user.is_banned %}
-						<form
-							action="{{ url_for('unban_user_route', user_id=user.telegram_id) }}"
-							method="post"
-						>
-							<button type="submit" class="button button-start button-small">
-								Разбанить
-							</button>
-						</form>
-						{% else %}
-						<form
-							action="{{ url_for('ban_user_route', user_id=user.telegram_id) }}"
-							method="post"
-							data-confirm="Вы уверены, что хотите забанить этого пользователя? Он не сможет пользоваться ботом."
-						>
-							<button type="submit" class="button button-warning button-small">
-								Бан
-							</button>
-						</form>
-						{% endif %} {% if user.user_keys %}
-						<form
-							action="{{ url_for('revoke_keys_route', user_id=user.telegram_id) }}"
-							method="post"
-							data-confirm="ВНИМАНИЕ! Это действие удалит ВСЕ ключи пользователя с серверов. Вы уверены?"
-						>
-							<button type="submit" class="button button-danger button-small">
-								Отозвать
-							</button>
-						</form>
-						{% endif %}
+                    <td>
+                        {{ user.notifications_count or 0 }}
+                    </td>
+					<td class="user-balance" data-user-id="{{ user.telegram_id }}">
+						{{ hidden_mode and '*** RUB' or ('%0.2f RUB'|format((user.balance or 0))) }}
 					</td>
+					<td data-field="earned" class="user-earned" data-user-id="{{ user.telegram_id }}">{{ hidden_mode and '*** RUB' or 'Загрузка...' }}</td>
+					
 				</tr>
 				{% endfor %}
 			</tbody>

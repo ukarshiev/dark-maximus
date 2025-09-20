@@ -2,6 +2,9 @@ import asyncio
 import logging
 
 from datetime import datetime, timedelta
+from decimal import Decimal
+import uuid
+import json
 
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram import Bot
@@ -38,20 +41,66 @@ async def send_subscription_notification(bot: Bot, user_id: int, key_id: int, ti
     try:
         time_text = format_time_left(time_left_hours)
         expiry_str = expiry_date.strftime('%d.%m.%Y в %H:%M')
-        
+
+        # Получаем номер ключа для пользователя и имя сервера
+        try:
+            from shop_bot.data_manager.database import get_user_keys, get_key_by_id
+            key_data = get_key_by_id(key_id) or {}
+            host_name = key_data.get('host_name', 'Неизвестный сервер')
+            # Определяем порядковый номер ключа среди ключей пользователя
+            user_keys = get_user_keys(user_id) or []
+            key_number = next((i + 1 for i, k in enumerate(user_keys) if k.get('key_id') == key_id), 0)
+        except Exception:
+            host_name = 'Неизвестный сервер'
+            key_number = 0
+
+        key_descriptor = f"#{key_number} ({host_name})" if key_number > 0 else f"({host_name})"
+
+        # Баланс пользователя
+        try:
+            from shop_bot.data_manager.database import get_user_balance
+            balance_val = float(get_user_balance(user_id) or 0.0)
+        except Exception:
+            balance_val = 0.0
+        balance_str = f"{balance_val:.2f} RUB"
+
         message = (
             f"⚠️ **Внимание!** ⚠️\n\n"
-            f"Срок действия вашей подписки истекает через **{time_text}**.\n"
-            f"Дата окончания: **{expiry_str}**\n\n"
-            f"Продлите подписку, чтобы не остаться без доступа к VPN!"
+            f"Срок действия вашего ключа {key_descriptor} истекает через **{time_text}**.\n"
+            f"📅 Дата окончания: **{expiry_str}**\n"
+            f"💰 Ваш баланс : **{balance_str}**\n\n"
+            f"Пополните счет, чтобы произошло автоматическое списание с баланса или продлите подписку прямо сейчас, чтобы не остаться без доступа к VPN!"
         )
-        
+
         builder = InlineKeyboardBuilder()
-        builder.button(text="🔑 Мои ключи", callback_data="manage_keys")
-        builder.button(text="➕ Продлить ключ", callback_data=f"extend_key_{key_id}")
+        builder.button(text="🔄 Продлить ключ", callback_data=f"extend_key_{key_id}")
+        builder.button(text="💰 Пополнить баланс", callback_data="topup_root")
         builder.adjust(2)
-        
+
         await bot.send_message(chat_id=user_id, text=message, reply_markup=builder.as_markup(), parse_mode='Markdown')
+        # Логируем уведомление в БД
+        try:
+            from shop_bot.data_manager.database import log_notification, get_user
+            user = get_user(user_id)
+            log_notification(
+                user_id=user_id,
+                username=(user or {}).get('username'),
+                notif_type='subscription_expiry',
+                title=f'Окончание подписки (через {time_text})',
+                message=message,
+                status='sent',
+                meta={
+                    'key_id': key_id,
+                    'expiry_at': expiry_str,
+                    'time_left_hours': time_left_hours,
+                    'key_number': key_number,
+                    'host_name': host_name
+                },
+                key_id=key_id,
+                marker_hours=time_left_hours
+            )
+        except Exception as le:
+            logger.warning(f"Failed to log notification for user {user_id}: {le}")
         logger.info(f"Sent subscription notification to user {user_id} for key {key_id} ({time_left_hours} hours left).")
         
     except Exception as e:
@@ -84,6 +133,101 @@ def _cleanup_notified_users(all_db_keys: list[dict]):
     if cleaned_users > 0 or cleaned_keys > 0:
         logger.info(f"Scheduler: Cleanup complete. Removed {cleaned_users} user entries and {cleaned_keys} key entries from the cache.")
 
+def _marker_logged(user_id: int, key_id: int, marker_hours: int, notif_type: str = 'subscription_expiry') -> bool:
+    try:
+        from shop_bot.data_manager.database import DB_FILE
+        import sqlite3
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT 1 FROM notifications WHERE user_id = ? AND key_id = ? AND marker_hours = ? AND type = ? LIMIT 1",
+                (user_id, key_id, marker_hours, notif_type)
+            )
+            return cursor.fetchone() is not None
+    except Exception:
+        return False
+
+async def send_autorenew_balance_notice(bot: Bot, user_id: int, key_id: int, time_left_hours: int, expiry_date: datetime, balance_val: float):
+    try:
+        time_text = format_time_left(time_left_hours)
+        expiry_str = expiry_date.strftime('%d.%m.%Y в %H:%M')
+
+        # Получаем номер ключа и имя сервера
+        try:
+            from shop_bot.data_manager.database import get_user_keys, get_key_by_id
+            key_data = get_key_by_id(key_id) or {}
+            host_name = key_data.get('host_name', 'Неизвестный сервер')
+            user_keys = get_user_keys(user_id) or []
+            key_number = next((i + 1 for i, k in enumerate(user_keys) if k.get('key_id') == key_id), 0)
+        except Exception:
+            host_name = 'Неизвестный сервер'
+            key_number = 0
+
+        balance_str = f"{float(balance_val or 0):.2f} RUB"
+
+        # Определяем сумму тарифа для продления
+        try:
+            _, price_to_renew, _, _ = _get_plan_info_for_key(key_data)
+        except Exception:
+            price_to_renew = float(key_data.get('price') or 0.0)
+        price_str = f"{float(price_to_renew or 0):.2f} RUB"
+
+        message = (
+            "⚠️ Внимание! ⚠️\n\n"
+            f"Срок действия ключа #{key_number} ({host_name}) истекает через {time_text}.\n"
+            f"📅 Окончание: {expiry_str}\n"
+            f"💰 Баланс: {balance_str}\n\n"
+            f"🔄 Услуга продлится автоматически, сумма {price_str} будет списана с баланса.\n\n"
+            "Спасибо, что остаётесь с нами!"
+        )
+
+        await bot.send_message(chat_id=user_id, text=message)
+
+        # Логируем уведомление в БД
+        try:
+            from shop_bot.data_manager.database import log_notification, get_user
+            user = get_user(user_id)
+            log_notification(
+                user_id=user_id,
+                username=(user or {}).get('username'),
+                notif_type='subscription_autorenew_notice',
+                title=f'Автопродление (через {time_text})',
+                message=message,
+                status='sent',
+                meta={
+                    'key_id': key_id,
+                    'expiry_at': expiry_str,
+                    'time_left_hours': time_left_hours,
+                    'key_number': key_number,
+                    'host_name': host_name,
+                    'balance': balance_str,
+                    'price': price_str
+                },
+                key_id=key_id,
+                marker_hours=time_left_hours
+            )
+        except Exception as le:
+            logger.warning(f"Failed to log autorenew notice for user {user_id}: {le}")
+        logger.info(f"Sent autorenew balance notice to user {user_id} for key {key_id} ({time_left_hours} hours left).")
+    except Exception as e:
+        logger.error(f"Error sending autorenew notice to user {user_id}: {e}")
+
+def _get_plan_info_for_key(key: dict) -> tuple[dict | None, float, int, int | None]:
+    """Возвращает (plan_dict, price, months, plan_id) для ключа."""
+    try:
+        from shop_bot.data_manager.database import get_plans_for_host
+        host_name = key.get('host_name')
+        plan_name = key.get('plan_name')
+        price_fallback = float(key.get('price') or 0.0)
+        plans = get_plans_for_host(host_name) if host_name else []
+        matched = next((p for p in plans if (p.get('plan_name') == plan_name)), None)
+        if matched:
+            return matched, float(matched.get('price') or 0.0), int(matched.get('months') or 0), int(matched.get('plan_id'))
+        return None, price_fallback, 0, None
+    except Exception as e:
+        logger.warning(f"Failed to resolve plan for key {key.get('key_id')}: {e}")
+        return None, float(key.get('price') or 0.0), 0, None
+
 async def check_expiring_subscriptions(bot: Bot):
     logger.info("Scheduler: Checking for expiring subscriptions...")
     current_time = datetime.now()
@@ -103,17 +247,103 @@ async def check_expiring_subscriptions(bot: Bot):
             user_id = key['user_id']
             key_id = key['key_id']
 
-            for hours_mark in NOTIFY_BEFORE_HOURS:
-                if hours_mark - 1 < total_hours_left <= hours_mark:
-                    notified_users.setdefault(user_id, {}).setdefault(key_id, set())
-                    
-                    if hours_mark not in notified_users[user_id][key_id]:
-                        await send_subscription_notification(bot, user_id, key_id, hours_mark, expiry_date)
-                        notified_users[user_id][key_id].add(hours_mark)
-                    break 
-                    
+            # Цена и длительность для продления, баланс пользователя
+            plan_info, price_to_renew, months_to_renew, plan_id = _get_plan_info_for_key(key)
+            from shop_bot.data_manager.database import get_user_balance
+            user_balance = float(get_user_balance(user_id) or 0.0)
+
+            # Catch-up: решаем, что отправлять на каждом маркере
+            for hours_mark in sorted(NOTIFY_BEFORE_HOURS, reverse=True):
+                if total_hours_left <= hours_mark:
+                    balance_covers = price_to_renew > 0 and user_balance >= price_to_renew
+                    if balance_covers:
+                        # Подавляем стандартные уведомления. На 24ч — отправляем новый тип, один раз.
+                        if hours_mark == 24 and not _marker_logged(user_id, key_id, hours_mark, 'subscription_autorenew_notice'):
+                            await send_autorenew_balance_notice(bot, user_id, key_id, hours_mark, expiry_date, user_balance)
+                            notified_users.setdefault(user_id, {}).setdefault(key_id, set()).add(hours_mark)
+                            break
+                        # 72/48/1 — ничего не отправляем
+                        continue
+                    else:
+                        # Обычные уведомления
+                        if not _marker_logged(user_id, key_id, hours_mark, 'subscription_expiry'):
+                            await send_subscription_notification(bot, user_id, key_id, hours_mark, expiry_date)
+                            notified_users.setdefault(user_id, {}).setdefault(key_id, set()).add(hours_mark)
+                            break
+
         except Exception as e:
             logger.error(f"Error processing expiry for key {key.get('key_id')}: {e}")
+
+async def perform_auto_renewals(bot: Bot):
+    """Автопродление по истечении срока при достаточном балансе."""
+    try:
+        all_keys = database.get_all_keys()
+        now = datetime.now()
+        for key in all_keys:
+            try:
+                expiry_date = datetime.fromisoformat(key['expiry_date'])
+            except Exception:
+                continue
+
+            # Продлеваем только если уже истёк
+            if expiry_date > now:
+                continue
+
+            user_id = key['user_id']
+            key_id = key['key_id']
+            host_name = key.get('host_name')
+            plan_info, price_to_renew, months_to_renew, plan_id = _get_plan_info_for_key(key)
+
+            # Требуем валидный план и цену
+            if not plan_info or not months_to_renew or not plan_id or price_to_renew <= 0:
+                continue
+
+            from shop_bot.data_manager.database import get_user_balance, add_to_user_balance, log_transaction, get_user
+            current_balance = float(get_user_balance(user_id) or 0.0)
+            if current_balance < price_to_renew:
+                continue
+
+            # Метаданные платежа
+            payment_id = str(uuid.uuid4())
+            metadata = {
+                'user_id': user_id,
+                'months': int(months_to_renew),
+                'price': float(price_to_renew),
+                'action': 'extend',
+                'key_id': key_id,
+                'host_name': host_name,
+                'plan_id': int(plan_id),
+                'customer_email': None,
+                'payment_method': 'Auto-Renewal',
+                'payment_id': payment_id
+            }
+
+            try:
+                # Списание и логирование
+                add_to_user_balance(user_id, -float(price_to_renew))
+                user = get_user(user_id) or {}
+                username = user.get('username', 'N/A')
+                log_transaction(
+                    username=username,
+                    transaction_id=None,
+                    payment_id=payment_id,
+                    user_id=user_id,
+                    status='paid',
+                    amount_rub=float(price_to_renew),
+                    amount_currency=None,
+                    currency_name=None,
+                    payment_method='Auto-Renewal',
+                    metadata=json.dumps(metadata)
+                )
+
+                # Обработка, как при обычной оплате
+                from shop_bot.bot.handlers import process_successful_payment
+                await process_successful_payment(bot, metadata)
+                logger.info(f"Auto-renewal completed for user {user_id}, key {key_id} on host '{host_name}'.")
+            except Exception as e:
+                logger.error(f"Auto-renewal failed for user {user_id}, key {key_id}: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"perform_auto_renewals: fatal error: {e}")
 
 async def sync_keys_with_panels():
     logger.info("Scheduler: Starting sync with XUI panels...")
@@ -214,10 +444,11 @@ async def periodic_subscription_check(bot_controller: BotController):
         try:
             await sync_keys_with_panels()
 
-            if bot_controller.get_status().get("is_running"):
+            if bot_controller.get_status().get("shop_bot_running"):
                 bot = bot_controller.get_bot_instance()
                 if bot:
                     await check_expiring_subscriptions(bot)
+                    await perform_auto_renewals(bot)
                 else:
                     logger.warning("Scheduler: Bot is marked as running, but instance is not available.")
             else:

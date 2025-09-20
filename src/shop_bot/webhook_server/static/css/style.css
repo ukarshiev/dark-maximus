@@ -1,12 +1,33 @@
 :root {
-	--primary-color: #4dabf7;
-	--success-color: #51cf66;
-	--danger-color: #ff6b6b;
+   --success-color: #53b663;
+	--danger-color: #cf9494;
 	--warning-color: #ff6b6b;
 	--light-color: #e9ecef;
 	--dark-color: #212529;
 	--border-color: #495057;
-	--body-bg: #212529;
+	/* Additional variables for secondary button */
+	--dark-color-text-primary: #e9ecef;
+	--color-primary-100: #1f6f60;
+
+	/* Unified palette */
+	--primary-color: #008771;
+	--primary-hover: #006e5e;
+	--primary-active: #005a4b;
+    --bg-page: #0a1222;
+	--bg-surface: #151f31;
+	--bg-elevated: #151f31;
+	--bg-header: #343a40;
+	--bg-hover: #2a2f35;
+	--muted: #6c757d;
+	--muted-hover: #5a6268;
+	--success-hover: #37b24d;
+	--danger-strong: #7a2e34;
+	--danger-strong-hover: #943b42;
+	--overlay-dim: rgba(0, 0, 0, 0.5);
+
+	/* Back-compat */
+	--body-bg: var(--bg-page);
+	--container-max: 1000px;
 }
 
 * {
@@ -31,12 +52,12 @@ body {
 }
 
 .container {
-	max-width: 80%;
-	margin: 0 auto;
-	background: #2d3238;
-	padding: 30px;
-	border-radius: 8px;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    max-width: 80%;
+    margin: 0 auto;
+    background: var(--bg-surface);
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 h1 {
@@ -80,6 +101,31 @@ h4 {
 
 .settings-section {
 	margin-bottom: 40px;
+	/* не шире 1000px, но занимает всю доступную ширину до этого порога */
+	width: min(100%, var(--container-max));
+	/* горизонтально по центру */
+	margin-inline: auto;
+	/* чтобы контент не лип к краям на мобильных */
+	padding-inline: 16px;
+	box-sizing: border-box;
+}
+
+/* Полная ширина для таблицы пользователей */
+.settings-section--fluid {
+    width: 100% !important;
+    margin-inline: 0 !important;
+    padding-inline: 0;
+}
+
+/* Явное центрирование секции вкладки «Серверы» */
+#servers-tab > section.settings-section {
+	/* Жёстко центрируем и задаём диапазон ширины */
+	width: clamp(600px, 800px, 1000px);
+	min-width: 600px;
+	max-width: 1000px;
+	margin-left: auto;
+	margin-right: auto;
+	padding-inline: 16px;
 }
 
 .form-group {
@@ -105,7 +151,7 @@ h4 {
 	border-radius: 5px;
 	font-size: 16px;
 	transition: border-color 0.2s, box-shadow 0.2s;
-	background-color: #343a40;
+	background-color: var(--bg-header);
 	color: var(--light-color);
 }
 
@@ -127,9 +173,9 @@ h4 {
 	width: 100%;
 	box-sizing: border-box;
 	font-family: monospace;
-	background: #1a1a1a;
+	background: var(--bg-surface);
 	color: #e9ecef;
-	border: 1px solid #333;
+	border: 1px solid var(--border-color);
 	border-radius: 6px;
 	padding: 12px;
 	resize: vertical;
@@ -176,7 +222,7 @@ h4 {
 	align-items: center;
 	justify-content: center;
 	border: none;
-	background: #495057;
+	background: var(--border-color);
 	cursor: pointer;
 	border-radius: 5px;
 	font-size: 20px;
@@ -210,39 +256,53 @@ h4 {
 	background-color: var(--primary-color);
 }
 .button-primary:hover {
-	background-color: #339af0;
+	background-color: var(--primary-hover);
+}
+
+/* Secondary button (Отмена) */
+.button.button-secondary {
+	color: var(--dark-color-text-primary);
+	background-color: rgb(10 117 87 / 30%);
+	border: 1px solid var(--color-primary-100);
+}
+.button.button-secondary:hover {
+	background-color: rgb(10 117 87 / 45%);
+	border-color: var(--primary-hover);
+	color: var(--dark-color-text-primary);
 }
 
 .button-start {
 	background-color: var(--success-color);
 }
 .button-start:hover {
-	background-color: #37b24d;
+	background-color: var(--success-hover);
 }
 
 .button-stop {
 	background-color: var(--warning-color);
 }
 .button-stop:hover {
-	background-color: #fa5252;
+	background-color: var(--warning-color);
 }
 
 .button-danger {
-	background-color: var(--danger-color);
+    /* Меняем цвет на #008771 по запросу */
+    background-color: #008771;
 }
 .button-danger:hover {
-	background-color: #fa5252;
+    /* Hover оставляем без изменений (как было ранее) */
+    background-color: var(--warning-color);
 }
 
 .button-warning {
 	background-color: var(--warning-color);
 }
 .button-warning:hover {
-	background-color: #fa5252;
+	background-color: var(--warning-color);
 }
 
 .button-disabled {
-	background-color: #6c757d;
+    background-color: var(--muted);
 	cursor: not-allowed;
 	opacity: 0.7;
 }
@@ -268,18 +328,36 @@ h4 {
 	margin-bottom: 20px;
 	border: 1px solid transparent;
 	border-radius: 5px;
+    position: relative;
 }
 
 .flash-success {
 	color: var(--light-color);
-	background-color: #2f6b3b;
-	border-color: #3e874b;
+    background-color: var(--success-color);
+    border-color: var(--success-hover);
 }
 
 .flash-danger {
 	color: var(--light-color);
-	background-color: #7a2e34;
-	border-color: #943b42;
+    background-color: var(--danger-strong);
+    border-color: var(--danger-strong-hover);
+}
+
+/* Кнопка закрытия для flash-уведомлений (справа) */
+.flash .flash-close {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    background: transparent;
+    color: inherit;
+    border: none;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.8;
+}
+.flash .flash-close:hover {
+    opacity: 1;
 }
 
 .user-session-controls {
@@ -292,9 +370,12 @@ h4 {
 	background-color: #6c757d;
 	padding: 8px 15px;
 	font-size: 14px;
+	display: block;
+	width: 100%;
+	max-width: 200px;
 }
 .button-logout:hover {
-	background-color: #5a6268;
+    background-color: var(--muted-hover);
 }
 
 body.login-page {
@@ -309,7 +390,7 @@ body.login-page {
 	width: 100%;
 	max-width: 400px;
 	padding: 30px 40px;
-	background: #2d3238;
+		background: var(--bg-surface);
 	border-radius: 8px;
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
@@ -336,7 +417,7 @@ body.login-page {
 }
 
 .stat-card {
-	background-color: #2d3238;
+    background-color: var(--bg-surface);
 	padding: 12px;
 	border-radius: 6px;
 	text-align: center;
@@ -395,6 +476,7 @@ body.login-page {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 30px;
+	justify-content: center; /* центрируем содержимое внутри контейнера */
 }
 
 .settings-column-left {
@@ -408,7 +490,7 @@ body.login-page {
 }
 
 .host-card {
-	background-color: #2d3238;
+    background-color: var(--bg-surface);
 	border: 1px solid var(--border-color);
 	border-radius: 8px;
 	padding: 20px;
@@ -433,6 +515,7 @@ body.login-page {
 .plans-section h5 {
 	color: var(--light-color);
 	border: none;
+    margin: 0;
 }
 
 .plan-list {
@@ -474,8 +557,6 @@ body.login-page {
 	display: flex;
 	align-items: center;
 	gap: 15px;
-	border-right: 1px solid var(--border-color);
-	padding-right: 20px;
 }
 
 .bot-control p {
@@ -515,8 +596,8 @@ body.login-page {
 }
 
 .chart-container {
-	background-color: #1a1a1a;
-	border: 1px solid #333;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
 	border-radius: 8px;
 	margin-bottom: 30px;
 	width: 100%;
@@ -531,7 +612,7 @@ body.login-page {
 }
 
 .transaction-item {
-	background-color: #2d3238;
+    background-color: var(--bg-surface);
 	border: 1px solid var(--border-color);
 	border-radius: 8px;
 	padding: 15px;
@@ -575,7 +656,7 @@ body.login-page {
 /* Ширина для колонки Ключ в платежах задается через max-width у .key-cell */
 
 .transactions-table thead {
-	background-color: #343a40;
+    background-color: #0a1222;
 }
 
 .transactions-table th {
@@ -596,7 +677,7 @@ body.login-page {
 	bottom: 0;
 	left: 280px; /* Учитываем ширину сайдбара */
 	right: 0;
-	background: #1a1a1a;
+	background: var(--bg-elevated);
 	border-top: 1px solid #333;
 	padding: 8px 20px;
 	z-index: 100;
@@ -625,7 +706,7 @@ body.login-page {
 }
 
 .per-page-selector select {
-	background: #2a2a2a;
+	background: var(--bg-hover);
 	color: #fff;
 	border: 1px solid #333;
 	border-radius: 4px;
@@ -636,7 +717,7 @@ body.login-page {
 }
 
 .per-page-selector select:hover {
-	background: #333;
+    background: var(--bg-hover);
 	border-color: #555;
 }
 
@@ -656,7 +737,7 @@ body.login-page {
 
 .pagination-link {
 	padding: 8px 12px;
-	background: #2a2a2a;
+	background: var(--bg-hover);
 	color: #ccc;
 	text-decoration: none;
 	border: 1px solid #333;
@@ -671,7 +752,7 @@ body.login-page {
 }
 
 .pagination-link:hover {
-	background: #333;
+    background: var(--bg-hover);
 	color: #fff;
 }
 
@@ -729,6 +810,11 @@ body.login-page {
 	margin-top: 20px;
 }
 
+/* Контейнер горизонтальной прокрутки таблиц: на десктопе не обрезаем выпадающие меню */
+.table-scroll-x {
+    overflow: visible;
+}
+
 .users-table th,
 .users-table td {
 	border: 1px solid var(--border-color);
@@ -753,7 +839,7 @@ body.login-page {
 }
 
 .users-table thead {
-	background-color: #343a40;
+    background-color: var(--bg-header);
 }
 
 .users-table th {
@@ -761,13 +847,22 @@ body.login-page {
 }
 
 .users-table .actions-cell {
-	width: 250px;
-	text-align: right;
+    width: 1%;
+    white-space: nowrap;
+    text-align: center;
+    padding-left: 6px;
+    padding-right: 6px;
 }
 
 .actions-cell form {
 	display: inline-block;
 	margin-left: 5px;
+}
+
+/* Hover on rows to signal interactivity */
+.users-table tbody tr.user-row:hover {
+    background: var(--bg-hover);
+    cursor: pointer;
 }
 
 .status-badge {
@@ -785,12 +880,12 @@ body.login-page {
 }
 
 .status-paid {
-    background-color: #28a745;
+    background-color: #43a047;
     color: #fff;
 }
 
 .transaction-link {
-    color: #007bff;
+    color: #4790de;
     text-decoration: none;
     font-size: 0.9em;
 }
@@ -832,7 +927,7 @@ body.login-page {
     font-size: 14px;
     font-weight: 600;
     transition: all 0.3s ease;
-    background-color: #007bff !important;
+    background-color: var(--primary-color) !important;
     color: white !important;
     border: none;
     border-radius: 6px;
@@ -842,7 +937,7 @@ body.login-page {
 }
 
 #refreshBtn:hover:not(:disabled) {
-    background-color: #0056b3 !important;
+    background-color: var(--primary-hover) !important;
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
 }
@@ -867,7 +962,7 @@ body.login-page {
 
 .transaction-link:hover {
     text-decoration: underline;
-    color: #0056b3;
+    color: var(--primary-hover);
 }
 
 /* Стили для вкладок */
@@ -875,7 +970,7 @@ body.login-page {
     display: flex;
     border-bottom: 2px solid #333;
     margin-bottom: 20px;
-    background: #1a1a1a;
+    background: var(--bg-surface);
     border-radius: 8px 8px 0 0;
     padding: 0;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
@@ -920,11 +1015,11 @@ body.login-page {
 #transactions-tab .transactions-table {
     width: 100%;
     font-size: 14px;
-    background: #1a1a1a;
+    background: var(--bg-surface);
     border-radius: 8px;
     overflow: hidden;
     box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    border: 1px solid #333;
+    border: 1px solid var(--border-color);
 }
 
 #transactions-tab .transactions-table th,
@@ -937,7 +1032,7 @@ body.login-page {
 }
 
 #transactions-tab .transactions-table thead {
-    background-color: #343a40;
+    background-color: #0a1222;
 }
 
 #transactions-tab .transactions-table th {
@@ -947,17 +1042,20 @@ body.login-page {
 #transactions-tab .transactions-table tbody tr:last-child td {
     border-bottom: none;
 }
+#transactions-tab .transactions-table tbody tr:hover {
+    background: #1a2437;
+}
 
 /* Улучшаем графики для полной ширины */
 #analytics-tab .chart-container {
     margin-bottom: 30px;
-    background: #1a1a1a;
+    background: var(--bg-surface);
     padding: 20px;
     border-radius: 8px;
     box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     width: 100%;
     height: calc(100vh - 200px);
-    border: 1px solid #333;
+    border: 1px solid var(--border-color);
 }
 
 #analytics-tab .chart-container h3 {
@@ -979,7 +1077,7 @@ body.login-page {
 #analytics-tab canvas {
     width: 100% !important;
     height: 300px !important;
-    background: #1a1a1a !important;
+    background: var(--bg-surface) !important;
     border-radius: 4px;
 }
 
@@ -988,7 +1086,9 @@ body.login-page {
 }
 
 .status-active {
-	background-color: var(--success-color);
+    background-color: transparent;
+    border: 1px solid var(--success-color);
+    color: var(--success-color);
 }
 
 @media (max-width: 1256px) {
@@ -1332,13 +1432,14 @@ body.login-page {
 }
 
 /* Кнопка бургерного меню */
+
 .burger-menu {
 	display: none; /* Hidden on desktop */
 	position: fixed;
 	top: 15px;
 	left: 15px;
 	z-index: 1002;
-	background: #2d3238;
+		background: var(--bg-surface);
 	border: 1px solid #333;
 	border-radius: 4px;
 	padding: 8px;
@@ -1371,7 +1472,7 @@ body.login-page {
 /* Боковое меню */
 .sidebar {
 	width: 280px;
-	background: #1a1a1a;
+		background: var(--bg-elevated);
 	border-right: 1px solid #333;
 	display: flex;
 	flex-direction: column;
@@ -1398,12 +1499,12 @@ body.login-page {
 }
 
 .nav-link:hover {
-	background: #2a2a2a;
+    background: var(--bg-hover);
 	color: #fff;
 }
 
 .nav-link.active {
-	background: #2a2a2a;
+    background: var(--bg-hover);
 	color: var(--primary-color);
 	border-left-color: var(--primary-color);
 }
@@ -1441,7 +1542,7 @@ body.login-page {
 
 .dropdown-menu {
 	position: static;
-	background: #2a2a2a;
+    background: var(--bg-hover);
 	border: 1px solid #333;
 	border-top: none;
 	z-index: 1001;
@@ -1459,9 +1560,9 @@ body.login-page {
 
 /* Для мобильных устройств - всегда показывать */
 @media (max-width: 768px) {
-	.dropdown-menu {
-		position: static;
-		background: #1a1a1a;
+    .dropdown-menu {
+        position: static;
+        background: var(--bg-elevated);
 		border: none;
 		border-top: 1px solid #333;
 		max-height: none;
@@ -1480,17 +1581,17 @@ body.login-page {
 }
 
 .dropdown-item:hover {
-	background: #333;
+    background: var(--bg-hover);
 	color: #fff;
 }
 
 .dropdown-item.active {
-	background: #333;
+    background: var(--bg-hover);
 	color: var(--primary-color);
 }
 
 .dropdown-toggle.active {
-	background: #2a2a2a;
+    background: var(--bg-hover);
 	color: var(--primary-color);
 }
 
@@ -1498,7 +1599,7 @@ body.login-page {
 .bot-controls {
 	padding: 20px;
 	border-top: 1px solid #333;
-	background: #1a1a1a;
+		background: var(--bg-elevated);
 }
 
 .bot-control {
@@ -1562,7 +1663,7 @@ body.login-page {
 	left: 0;
 	right: 0;
 	bottom: 0;
-	background-color: #dc3545;
+    background-color: var(--danger-color);
 	transition: .4s;
 	border-radius: 24px;
 }
@@ -1580,7 +1681,7 @@ body.login-page {
 }
 
 .bot-checkbox:checked + .toggle-slider {
-	background-color: #28a745;
+    background-color: var(--success-color);
 }
 
 .bot-checkbox:checked + .toggle-slider:before {
@@ -1611,13 +1712,11 @@ body.login-page {
 
 .logout-form {
 	margin-top: 10px;
+	margin-left: auto;
+	margin-right: auto;
 }
 
-.version-info {
-	margin-top: 15px;
-	padding-top: 15px;
-	border-top: 1px solid #333;
-}
+
 
 .version-text {
 	font-size: 11px;
@@ -1631,7 +1730,7 @@ body.login-page {
 	flex: 1;
 	margin-left: 280px;
 	padding: 5px;
-	background: #212529;
+	background: var(--bg-page);
 	min-height: 100vh;
 	display: flex;
 	flex-direction: column;
@@ -1692,7 +1791,7 @@ body.login-page {
 		left: 280px;
 		width: calc(100vw - 280px);
 		height: 100vh;
-		background: rgba(0, 0, 0, 0.5);
+    background: var(--overlay-dim);
 		z-index: -1;
 	}
 }
@@ -1741,7 +1840,7 @@ body.login-page {
 }
 
 .chart-container {
-	background: #2d3238;
+    background: var(--bg-surface);
 	border-radius: 6px;
 	padding: 15px;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
@@ -1818,8 +1917,8 @@ body.login-page {
 }
 
 .table-container {
-	width: 100%;
-	background: #2d3238;
+    width: 100%;
+    background: var(--bg-surface);
 	border-radius: 8px;
 	overflow: hidden;
 	margin-top: 20px;
@@ -1844,7 +1943,7 @@ body.login-page {
 /* Колонка Ключ без фиксированной ширины; ограничение задаётся содержимым (.key-cell) */
 
 .keys-table thead {
-	background-color: #343a40;
+	background-color: var(--bg-header);
 }
 
 .keys-table th {
@@ -1881,10 +1980,10 @@ body.login-page {
 }
 
 .modal-content {
-	background-color: #2d3238;
+    background-color: var(--bg-surface);
 	margin: 5% auto;
 	padding: 0;
-	border: 1px solid #444;
+	border: 1px solid var(--border-color);
 	border-radius: 8px;
 	width: 90%;
 	max-width: 500px;
@@ -1905,8 +2004,9 @@ body.login-page {
 	justify-content: space-between;
 	align-items: flex-start;
 	padding: 20px;
-	border-bottom: 1px solid #444;
-	background-color: #343a40;
+	border-bottom: 1px solid var(--border-color);
+	/* Убираем фон у заголовка модалки */
+	background-color: transparent;
 	border-radius: 8px 8px 0 0;
 }
 
@@ -2019,8 +2119,9 @@ body.login-page {
 	justify-content: flex-end;
 	gap: 10px;
 	padding: 20px;
-	border-top: 1px solid #444;
-	background-color: #343a40;
+	border-top: 1px solid var(--border-color);
+	/* Убираем фон у футера модалки */
+	background-color: transparent;
 	border-radius: 0 0 8px 8px;
 }
 
@@ -2035,7 +2136,9 @@ body.login-page {
 }
 
 .modal .status-active {
-	background-color: #28a745;
+    background-color: transparent;
+    border: 1px solid var(--success-color);
+    color: var(--success-color);
 }
 
 .modal .status-banned {
@@ -2045,8 +2148,9 @@ body.login-page {
 /* Стили для вкладок в модальном окне */
 .modal-tabs {
 	display: flex;
-	border-bottom: 1px solid #444;
-	background-color: #343a40;
+	border-bottom: 1px solid var(--border-color);
+	/* Убираем фон у контейнера вкладок */
+	background-color: transparent;
 	border-radius: 8px 8px 0 0;
 }
 
@@ -2056,6 +2160,8 @@ body.login-page {
 	padding: 15px 20px;
 	cursor: pointer;
 	color: #ccc;
+	/* Новый фон для кнопок вкладок */
+	background-color: #0a1222;
 	font-size: 14px;
 	font-weight: 500;
 	border-bottom: 3px solid transparent;
@@ -2068,9 +2174,9 @@ body.login-page {
 }
 
 .tab-button.active {
-	color: #007bff;
-	border-bottom-color: #007bff;
-	background-color: #2d3238;
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    background-color: var(--bg-surface);
 }
 
 .tab-content {
@@ -2085,9 +2191,9 @@ body.login-page {
 
 /* Стили для таблиц в модальном окне */
 .modal-table-container {
-	max-height: 400px;
-	overflow-y: auto;
-	background: #2d3238;
+    max-height: 400px;
+    overflow-y: auto;
+    background: var(--bg-surface);
 }
 
 .modal-table {
@@ -2107,7 +2213,8 @@ body.login-page {
 }
 
 .modal-table thead {
-	background-color: #343a40;
+    /* Новый фон для шапки таблиц в модалке */
+    background-color: #0a1222;
 	position: sticky;
 	top: 0;
 	z-index: 10;
@@ -2118,7 +2225,7 @@ body.login-page {
 }
 
 .modal-table tbody tr:hover {
-	background-color: #3a4046;
+    background-color: var(--bg-hover);
 }
 
 /* Адаптивность для модального окна */
@@ -2205,10 +2312,76 @@ body.login-page {
 }
 
 .transactions-table {
-	background: #2d3238;
+    background: var(--bg-surface);
 	border-radius: 8px;
 	overflow: hidden;
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Unified kebab menu button style */
+.kebab-btn {
+    background: var(--bg-surface);
+	color: #fff;
+	border: none;
+}
+.kebab-btn:hover {
+    background: var(--bg-hover);
+}
+
+/* Kebab dropdown in tables */
+.kebab-menu {
+    position: relative;
+    display: inline-block;
+}
+
+.kebab-toggle {
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.kebab-dropdown {
+    position: absolute;
+    top: 100%;
+    background: var(--bg-surface);
+    border: 1px solid #333;
+    border-radius: 6px;
+    min-width: 200px;
+    z-index: 50;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+    padding: 6px;
+    display: none;
+}
+
+/* Внутри выпадающего меню элементы списком по вертикали */
+.kebab-dropdown form {
+    display: block;
+    margin: 0 0 4px 0;
+}
+.kebab-dropdown form:last-child { margin-bottom: 0; }
+
+.kebab-menu.open .kebab-dropdown {
+    display: block;
+}
+
+.kebab-item {
+    width: 100%;
+    text-align: left;
+    padding: 8px 10px;
+    background: transparent;
+    border: none;
+    color: #e9ecef;
+    border-radius: 4px;
+    cursor: pointer;
+    display: block;
+}
+
+.kebab-item:hover {
+    background: #2a2f35;
+}
+
+.kebab-item-danger {
+    color: #ff6b6b;
 }
 
 .transactions-table table {
@@ -2217,7 +2390,7 @@ body.login-page {
 }
 
 .transactions-table tbody tr:hover {
-	background: #3a3a3a;
+    background: #1a2437;
 }
 
 .transactions-table tbody tr:last-child td {
