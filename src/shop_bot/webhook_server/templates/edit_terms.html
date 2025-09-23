@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Редактирование условий использования{% endblock %}
+{% block header_title %}Редактирование условий использования{% endblock %}
+{% block content %}
+
+<div class="content-container">
+    <div class="page-header">
+        <h1>Редактирование условий использования</h1>
+        <div class="header-actions">
+            <a href="{{ url_for('terms_page') }}" target="_blank" class="button button-secondary" title="Предварительный просмотр">
+                <i class="fas fa-eye"></i>
+                Предварительный просмотр
+            </a>
+        </div>
+    </div>
+
+    <form method="POST" class="edit-form">
+        <div class="form-group">
+            <label for="terms_content">HTML-код страницы:</label>
+            <textarea 
+                id="terms_content" 
+                name="terms_content" 
+                rows="30" 
+                placeholder="Введите HTML-код страницы..."
+                required
+            >{{ terms_content }}</textarea>
+            <small class="form-help">
+                Вы можете редактировать HTML-код страницы условий использования. 
+                <a href="{{ url_for('terms_page') }}" target="_blank">Предварительный просмотр</a>
+            </small>
+        </div>
+        
+        <div class="form-actions">
+            <button type="button" class="button button-secondary" onclick="window.history.back()" title="Отменить изменения">
+                <i class="fas fa-times"></i>
+                Отмена
+            </button>
+            <button type="submit" class="button button-primary" title="Сохранить изменения">
+                <i class="fas fa-save"></i>
+                Сохранить
+            </button>
+        </div>
+    </form>
+</div>
+
+<style>
+.content-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+.page-header h1 {
+    color: #2c3e50;
+    margin: 0;
+}
+
+.header-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.edit-form {
+    background: white;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.form-group {
+    margin-bottom: 25px;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #34495e;
+}
+
+.form-group textarea {
+    width: 100%;
+    min-height: 500px;
+    padding: 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    resize: vertical;
+    background: #f8f9fa;
+}
+
+.form-group textarea:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.form-help {
+    display: block;
+    margin-top: 8px;
+    color: #7f8c8d;
+    font-size: 13px;
+}
+
+.form-help a {
+    color: #3498db;
+    text-decoration: none;
+}
+
+.form-help a:hover {
+    text-decoration: underline;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #e0e0e0;
+}
+
+.button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 6px;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.button-primary {
+    background: #3498db;
+    color: white;
+}
+
+.button-primary:hover {
+    background: #2980b9;
+}
+
+.button-secondary {
+    background: #95a5a6;
+    color: white;
+}
+
+.button-secondary:hover {
+    background: #7f8c8d;
+}
+
+.flash {
+    padding: 15px 20px;
+    margin-bottom: 20px;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+.flash-success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.flash-danger {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+</style>
+
+{% endblock %}

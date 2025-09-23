@@ -39,6 +39,19 @@ def format_time_left(hours: int) -> str:
 
 async def send_subscription_notification(bot: Bot, user_id: int, key_id: int, time_left_hours: int, expiry_date: datetime):
     try:
+        # Дополнительная проверка: не отправляем уведомления, если время истекло
+        current_time = datetime.now()
+        if expiry_date <= current_time:
+            logger.warning(f"Attempted to send expiry notification for already expired key {key_id} (user {user_id}). Skipping.")
+            return
+        
+        # Проверяем, что time_left_hours соответствует реальному времени до истечения
+        actual_time_left = expiry_date - current_time
+        actual_hours_left = int(actual_time_left.total_seconds() / 3600)
+        if time_left_hours <= 0 or actual_hours_left <= 0:
+            logger.warning(f"Invalid time_left_hours ({time_left_hours}) or actual_hours_left ({actual_hours_left}) for key {key_id}. Skipping notification.")
+            return
+        
         time_text = format_time_left(time_left_hours)
         expiry_str = expiry_date.strftime('%d.%m.%Y в %H:%M')
 
@@ -149,6 +162,19 @@ def _marker_logged(user_id: int, key_id: int, marker_hours: int, notif_type: str
 
 async def send_autorenew_balance_notice(bot: Bot, user_id: int, key_id: int, time_left_hours: int, expiry_date: datetime, balance_val: float):
     try:
+        # Дополнительная проверка: не отправляем уведомления, если время истекло
+        current_time = datetime.now()
+        if expiry_date <= current_time:
+            logger.warning(f"Attempted to send autorenew notice for already expired key {key_id} (user {user_id}). Skipping.")
+            return
+        
+        # Проверяем, что time_left_hours соответствует реальному времени до истечения
+        actual_time_left = expiry_date - current_time
+        actual_hours_left = int(actual_time_left.total_seconds() / 3600)
+        if time_left_hours <= 0 or actual_hours_left <= 0:
+            logger.warning(f"Invalid time_left_hours ({time_left_hours}) or actual_hours_left ({actual_hours_left}) for autorenew notice key {key_id}. Skipping notification.")
+            return
+        
         time_text = format_time_left(time_left_hours)
         expiry_str = expiry_date.strftime('%d.%m.%Y в %H:%M')
 
@@ -253,23 +279,28 @@ async def check_expiring_subscriptions(bot: Bot):
             user_balance = float(get_user_balance(user_id) or 0.0)
 
             # Catch-up: решаем, что отправлять на каждом маркере
-            for hours_mark in sorted(NOTIFY_BEFORE_HOURS, reverse=True):
-                if total_hours_left <= hours_mark:
-                    balance_covers = price_to_renew > 0 and user_balance >= price_to_renew
-                    if balance_covers:
-                        # Подавляем стандартные уведомления. На 24ч — отправляем новый тип, один раз.
-                        if hours_mark == 24 and not _marker_logged(user_id, key_id, hours_mark, 'subscription_autorenew_notice'):
-                            await send_autorenew_balance_notice(bot, user_id, key_id, hours_mark, expiry_date, user_balance)
-                            notified_users.setdefault(user_id, {}).setdefault(key_id, set()).add(hours_mark)
-                            break
-                        # 72/48/1 — ничего не отправляем
-                        continue
-                    else:
-                        # Обычные уведомления
-                        if not _marker_logged(user_id, key_id, hours_mark, 'subscription_expiry'):
-                            await send_subscription_notification(bot, user_id, key_id, hours_mark, expiry_date)
-                            notified_users.setdefault(user_id, {}).setdefault(key_id, set()).add(hours_mark)
-                            break
+            # Важно: не отправляем уведомления, если ключ уже истек (total_hours_left <= 0)
+            if total_hours_left > 0:
+                for hours_mark in sorted(NOTIFY_BEFORE_HOURS, reverse=True):
+                    if total_hours_left <= hours_mark:
+                        balance_covers = price_to_renew > 0 and user_balance >= price_to_renew
+                        if balance_covers:
+                            # Подавляем стандартные уведомления. На 24ч — отправляем новый тип, один раз.
+                            if hours_mark == 24 and not _marker_logged(user_id, key_id, hours_mark, 'subscription_autorenew_notice'):
+                                await send_autorenew_balance_notice(bot, user_id, key_id, hours_mark, expiry_date, user_balance)
+                                notified_users.setdefault(user_id, {}).setdefault(key_id, set()).add(hours_mark)
+                                break
+                            # 72/48/1 — ничего не отправляем
+                            continue
+                        else:
+                            # Обычные уведомления
+                            if not _marker_logged(user_id, key_id, hours_mark, 'subscription_expiry'):
+                                await send_subscription_notification(bot, user_id, key_id, hours_mark, expiry_date)
+                                notified_users.setdefault(user_id, {}).setdefault(key_id, set()).add(hours_mark)
+                                break
+            else:
+                # Ключ уже истек - не отправляем уведомления об истечении
+                logger.debug(f"Key {key_id} for user {user_id} has already expired ({total_hours_left} hours left). Skipping notifications.")
 
         except Exception as e:
             logger.error(f"Error processing expiry for key {key.get('key_id')}: {e}")

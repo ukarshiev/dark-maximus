@@ -1,15 +1,32 @@
-{% extends "base.html" %} {% block title %}Инструкции{% endblock %}
+{% extends "base.html" %} 
+{% block title %}Инструкции{% endblock %}
+{% block header_title %}Инструкции{% endblock %}
 {% block content %}
 
-<h1>Инструкции</h1>
 
-<div class="settings-navigation">
-    <a class="nav-button {% if active_tab=='android' %}active{% endif %}" href="{{ url_for('instructions_page', tab='android') }}">📱 Android</a>
-    <a class="nav-button {% if active_tab=='ios' %}active{% endif %}" href="{{ url_for('instructions_page', tab='ios') }}">📱 iOS</a>
-    <a class="nav-button {% if active_tab=='windows' %}active{% endif %}" href="{{ url_for('instructions_page', tab='windows') }}">💻 Windows</a>
-    <a class="nav-button {% if active_tab=='macos' %}active{% endif %}" href="{{ url_for('instructions_page', tab='macos') }}">🖥 MacOS</a>
-    <a class="nav-button {% if active_tab=='linux' %}active{% endif %}" href="{{ url_for('instructions_page', tab='linux') }}">🐧 Linux</a>
-    </div>
+<!-- Навигация по подменю -->
+<div class="tab-navigation">
+    <a class="nav-button {% if active_tab=='android' %}active{% endif %}" href="{{ url_for('instructions_page', tab='android') }}" title="Инструкции для Android">
+        <i class="fas fa-mobile-alt"></i>
+        Android
+    </a>
+    <a class="nav-button {% if active_tab=='ios' %}active{% endif %}" href="{{ url_for('instructions_page', tab='ios') }}" title="Инструкции для iOS">
+        <i class="fas fa-mobile-alt"></i>
+        iOS
+    </a>
+    <a class="nav-button {% if active_tab=='windows' %}active{% endif %}" href="{{ url_for('instructions_page', tab='windows') }}" title="Инструкции для Windows">
+        <i class="fas fa-laptop"></i>
+        Windows
+    </a>
+    <a class="nav-button {% if active_tab=='macos' %}active{% endif %}" href="{{ url_for('instructions_page', tab='macos') }}" title="Инструкции для macOS">
+        <i class="fas fa-desktop"></i>
+        MacOS
+    </a>
+    <a class="nav-button {% if active_tab=='linux' %}active{% endif %}" href="{{ url_for('instructions_page', tab='linux') }}" title="Инструкции для Linux">
+        <i class="fas fa-terminal"></i>
+        Linux
+    </a>
+</div>
 
 <section class="settings-section">
     <h2 style="margin-bottom:10px;">Текст инструкции: {{ active_tab|capitalize }}</h2>
@@ -17,20 +34,18 @@
         <input type="hidden" name="platform" value="{{ active_tab }}" />
         <textarea name="instructions_content" class="textarea-changelog" spellcheck="false" autocomplete="off" autocapitalize="off" style="background:var(--bg-surface);color:#e9ecef;border:1px solid var(--border-color);min-height:calc(100vh - 260px);width:100%;box-sizing:border-box;font-family:monospace;">{{ instructions_text }}</textarea>
         <div style="margin-top: 12px; display: flex; gap: 8px;">
-            <button type="submit" class="button button-start" title="Сохранить изменения">Сохранить</button>
-            <a class="button button-secondary" href="{{ url_for('instructions_page', tab=active_tab) }}" title="Отменить изменения">Отмена</a>
+            <button type="submit" class="button button-start" data-size="md" title="Сохранить изменения инструкций">
+				<i class="fas fa-save"></i>
+				Сохранить
+			</button>
+            <a class="button button-secondary" href="{{ url_for('instructions_page', tab=active_tab) }}" data-size="md" title="Отменить изменения">
+				<i class="fas fa-times"></i>
+				Отмена
+			</a>
         </div>
     </form>
 </section>
 
-<style>
-/* Переиспользуем стили навигации и секций из settings.html */
-.settings-navigation { display:flex; gap:10px; margin-bottom:20px; border-bottom:2px solid var(--border-color); padding-bottom:10px; }
-.nav-button { padding: 12px 20px; border: none; background: var(--bg-surface); color: #ffffff; cursor: pointer; border-radius: 8px 8px 0 0; font-weight: 500; transition: all 0.3s ease; border-bottom: 3px solid transparent; text-decoration: none; }
-.nav-button:hover { background: var(--bg-hover); transform: translateY(-2px); }
-.nav-button.active { background: var(--primary-color); color: white; border-bottom: 3px solid var(--primary-hover); }
-.settings-section { background: var(--bg-surface); border-radius: 8px; padding: 20px; color: #ffffff; }
-</style>
 
 {% endblock %}
 

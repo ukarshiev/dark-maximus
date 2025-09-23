@@ -6,25 +6,43 @@
 		<title>{% block title %}Панель управления Ботом{% endblock %}</title>
 		<link
 			rel="stylesheet"
-			href="{{ url_for('static', filename='css/style.css', v=project_version or '1') }}"
+			href="{{ url_for('static', filename='css/style.css', v=project_version or '1') }}?t=20241221"
 		/>
 		<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+		<!-- Font Awesome Icons -->
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 	</head>
 	<body>
-		<div class="container">
-			<!-- Кнопка бургерного меню (только для мобильных) -->
-			<button class="burger-menu" id="burgerMenu">
+		<!-- Закрепленная панель в head -->
+		<header class="header-panel">
+			<button class="header-burger" id="headerBurger" title="Открыть меню">
 				<span></span>
 				<span></span>
 				<span></span>
 			</button>
-			
+			<div class="header-title">{% block header_title %}Панель управления{% endblock %}</div>
+		</header>
+		
+		<div class="container">
 			<!-- Боковое меню -->
 			<aside class="sidebar" id="sidebar">
+				<!-- Header бокового меню -->
+				<div class="menu-items-header">
+					<button class="sidebar-burger" id="sidebarBurger" title="Скрыть боковое меню">
+						<span></span>
+						<span></span>
+						<span></span>
+					</button>
+					<div class="sidebar-logo">
+						<img src="{{ url_for('static', filename='logo.svg') }}" alt="Логотип" class="logo-img">
+					</div>
+				</div>
+				
 				<nav class="sidebar-nav">
 					<a
 						href="{{ url_for('dashboard_page') }}"
 						class="nav-link {% if request.endpoint == 'dashboard_page' %}active{% endif %}"
+						title="Главная"
 					>
 						<span class="nav-icon">🏠</span>
 						<span class="nav-text">Главная</span>
@@ -32,6 +50,7 @@
 					<a
 						href="{{ url_for('users_page') }}"
 						class="nav-link {% if request.endpoint == 'users_page' %}active{% endif %}"
+						title="Пользователи"
 					>
 						<span class="nav-icon">👥</span>
 						<span class="nav-text">Пользователи</span>
@@ -39,6 +58,7 @@
 					<a
 						href="{{ url_for('transactions_page') }}"
 						class="nav-link {% if request.endpoint == 'transactions_page' %}active{% endif %}"
+						title="Платежи"
 					>
 						<span class="nav-icon">💳</span>
 						<span class="nav-text">Платежи</span>
@@ -46,6 +66,7 @@
 					<a
 						href="{{ url_for('keys_page') }}"
 						class="nav-link {% if request.endpoint == 'keys_page' %}active{% endif %}"
+						title="Ключи"
 					>
 						<span class="nav-icon">🔑</span>
 						<span class="nav-text">Ключи</span>
@@ -53,6 +74,7 @@
 					<a
 						href="{{ url_for('notifications_page') }}"
 						class="nav-link {% if request.endpoint == 'notifications_page' %}active{% endif %}"
+						title="Уведомления"
 					>
 						<span class="nav-icon">🔔</span>
 						<span class="nav-text">Уведомления</span>
@@ -60,6 +82,7 @@
 					<a
 						href="{{ url_for('instructions_page') }}"
 						class="nav-link {% if request.endpoint == 'instructions_page' %}active{% endif %}"
+						title="Инструкции"
 					>
 						<span class="nav-icon">📙</span>
 						<span class="nav-text">Инструкции</span>
@@ -67,10 +90,115 @@
 					<a
 						href="{{ url_for('settings_page') }}"
 						class="nav-link {% if request.endpoint == 'settings_page' %}active{% endif %}"
+						title="Настройки"
 					>
 						<span class="nav-icon">⚙️</span>
 						<span class="nav-text">Настройки</span>
 					</a>
+				</nav>
+
+				<!-- Свернутое меню с иконками -->
+				<nav class="sidebar-nav sidebar-nav-collapsed" style="display: none;">
+					<!-- Основная навигация -->
+					<div class="sidebar-nav-main">
+						<a
+							href="{{ url_for('dashboard_page') }}"
+							class="nav-link {% if request.endpoint == 'dashboard_page' %}active{% endif %}"
+							title="Главная"
+						>
+							<span class="nav-icon">🏠</span>
+						</a>
+						<a
+							href="{{ url_for('users_page') }}"
+							class="nav-link {% if request.endpoint == 'users_page' %}active{% endif %}"
+							title="Пользователи"
+						>
+							<span class="nav-icon">👥</span>
+						</a>
+						<a
+							href="{{ url_for('transactions_page') }}"
+							class="nav-link {% if request.endpoint == 'transactions_page' %}active{% endif %}"
+							title="Платежи"
+						>
+							<span class="nav-icon">💳</span>
+						</a>
+						<a
+							href="{{ url_for('keys_page') }}"
+							class="nav-link {% if request.endpoint == 'keys_page' %}active{% endif %}"
+							title="Ключи"
+						>
+							<span class="nav-icon">🔑</span>
+						</a>
+						<a
+							href="{{ url_for('notifications_page') }}"
+							class="nav-link {% if request.endpoint == 'notifications_page' %}active{% endif %}"
+							title="Уведомления"
+						>
+							<span class="nav-icon">🔔</span>
+						</a>
+						<a
+							href="{{ url_for('instructions_page') }}"
+							class="nav-link {% if request.endpoint == 'instructions_page' %}active{% endif %}"
+							title="Инструкции"
+						>
+							<span class="nav-icon">📙</span>
+						</a>
+						<a
+							href="{{ url_for('settings_page') }}"
+							class="nav-link {% if request.endpoint == 'settings_page' %}active{% endif %}"
+							title="Настройки"
+						>
+							<span class="nav-icon">⚙️</span>
+						</a>
+					</div>
+					
+					<!-- Кнопки управления (внизу) -->
+					<div class="sidebar-nav-controls">
+						<!-- Скрытый режим -->
+						<div class="nav-link nav-toggle" title="Скрытый режим">
+							<label class="bot-toggle">
+								<input type="checkbox" 
+									   class="bot-checkbox"
+									   id="hiddenModeToggleCollapsed"
+									   {% if hidden_mode %}checked{% endif %}>
+								<span class="toggle-slider"></span>
+							</label>
+						</div>
+						<!-- Бот витрина -->
+						<div class="nav-link nav-toggle" title="Бот витрина">
+							<label class="bot-toggle">
+								<input type="checkbox" 
+									   class="bot-checkbox" 
+									   data-bot="shop"
+									   {% if bot_status.shop_bot_running %}checked{% endif %}>
+								<span class="toggle-slider"></span>
+							</label>
+						</div>
+						<!-- Бот поддержки -->
+						<div class="nav-link nav-toggle" title="Бот поддержки">
+							<label class="bot-toggle">
+								<input type="checkbox" 
+									   class="bot-checkbox" 
+									   data-bot="support"
+									   {% if bot_status.support_bot_running %}checked{% endif %}>
+								<span class="toggle-slider"></span>
+							</label>
+						</div>
+						<!-- Версия -->
+						<a
+							href="{{ url_for('dev_page') }}"
+							class="nav-link"
+							title="Версия: {{ project_version or 'N/A' }}"
+						>
+							<i class="fas fa-server"></i>
+						</a>
+						<!-- Выйти -->
+						<form action="{{ url_for('logout_page') }}" method="post" class="nav-link-form">
+							<button type="submit" class="nav-link nav-button" title="Выйти из панели">
+								<i class="fas fa-sign-out-alt"></i>
+							</button>
+						</form>
+					</div>
 				</nav>
 
 				<!-- Управление ботами -->
@@ -78,7 +206,7 @@
 					<div class="bot-control">
 						<div class="bot-status">
 							<div class="bot-label-row">
-								<span class="bot-label">Режим:</span>
+								<span class="bot-label">Скрытый режим:</span>
 								<label class="bot-toggle">
 									<input type="checkbox" 
 										   class="bot-checkbox"
@@ -87,7 +215,7 @@
 									<span class="toggle-slider"></span>
 								</label>
 								<span id="hiddenModeStatus" class="bot-status-text {% if hidden_mode %}status-running{% else %}status-stopped{% endif %}">
-									{% if hidden_mode %}Включен{% else %}Отключен{% endif %}
+									{% if hidden_mode %}ON{% else %}OFF{% endif %}
 								</span>
 							</div>
 						</div>
@@ -95,7 +223,7 @@
 					<div class="bot-control">
 						<div class="bot-status">
 							<div class="bot-label-row">
-								<span class="bot-label">Shop:</span>
+								<span class="bot-label">Бот витрина:</span>
                                 <label class="bot-toggle">
                                     <input type="checkbox" 
                                            class="bot-checkbox" 
@@ -104,7 +232,7 @@
                                     <span class="toggle-slider"></span>
                                 </label>
 								<span class="bot-status-text {% if bot_status.shop_bot_running %}status-running{% else %}status-stopped{% endif %}">
-									{% if bot_status.shop_bot_running %}Запущен{% else %}Остановлен{% endif %}
+									{% if bot_status.shop_bot_running %}ON{% else %}OFF{% endif %}
 								</span>
 							</div>
 						</div>
@@ -113,7 +241,7 @@
 					<div class="bot-control">
 						<div class="bot-status">
 							<div class="bot-label-row">
-								<span class="bot-label">Support:</span>
+								<span class="bot-label">Бот поддержка:</span>
 								<label class="bot-toggle">
 									<input type="checkbox" 
 										   class="bot-checkbox" 
@@ -122,23 +250,25 @@
 									<span class="toggle-slider"></span>
 								</label>
 								<span class="bot-status-text {% if bot_status.support_bot_running %}status-running{% else %}status-stopped{% endif %}">
-									{% if bot_status.support_bot_running %}Запущен{% else %}Остановлен{% endif %}
+									{% if bot_status.support_bot_running %}ON{% else %}OFF{% endif %}
 								</span>
 							</div>
 						</div>
 					</div>
 
 				<div class="version-block">
-					<a href="{{ url_for('versions_page') }}" class="version-info" style="text-decoration: none;">
+					<a href="{{ url_for('dev_page') }}" class="version-info" style="text-decoration: none;" title="Версия: {{ project_version or 'N/A' }}">
 						<div class="version-text">Версия: {{ project_version or 'N/A' }}</div>
 					</a>
 				</div>
 
 				<div class="user-session-controls">
 					<form action="{{ url_for('logout_page') }}" method="post" class="logout-form">
-						<button type="submit" class="button button-logout" title="Выйти из панели">Выйти</button>
+						<button type="submit" class="button button-logout" data-size="sm" title="Выйти из панели">
+							<i class="fas fa-sign-out-alt"></i>
+							Выйти
+						</button>
 					</form>
-				</div>
 				</div>
 			</aside>
 
@@ -199,9 +329,18 @@
 				<div class="modal-body">
 					<!-- Вкладки -->
                     <div class="modal-tabs">
-                        <button class="tab-button active" onclick="switchTab('payments')" title="Открыть вкладку Платежи">Платежи</button>
-                        <button class="tab-button" onclick="switchTab('keys')" title="Открыть вкладку Ключи">Ключи</button>
-                        <button class="tab-button" onclick="switchTab('notifications')" title="Открыть вкладку Уведомления">Уведомления</button>
+                        <button class="tab-button active" onclick="switchTab('payments')" title="Открыть вкладку Платежи">
+							<i class="fas fa-credit-card"></i>
+							Платежи
+						</button>
+                        <button class="tab-button" onclick="switchTab('keys')" title="Открыть вкладку Ключи">
+							<i class="fas fa-key"></i>
+							Ключи
+						</button>
+                        <button class="tab-button" onclick="switchTab('notifications')" title="Открыть вкладку Уведомления">
+							<i class="fas fa-bell"></i>
+							Уведомления
+						</button>
                     </div>
 
 					<!-- Вкладка: Платежи -->

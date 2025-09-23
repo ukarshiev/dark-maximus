@@ -3,7 +3,6 @@ import uuid
 import qrcode
 import aiohttp
 import re
-import aiohttp
 import hashlib
 import json
 import base64
@@ -24,7 +23,7 @@ from pytonconnect.exceptions import UserRejectsError
 
 from aiogram import Bot, Router, F, types, html
 from aiogram.filters import Command, CommandObject, CommandStart, StateFilter
-from aiogram.types import BufferedInputFile
+from aiogram.types import BufferedInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -44,7 +43,8 @@ from shop_bot.data_manager.database import (
 
 from shop_bot.config import (
     get_profile_text, get_vpn_active_text, VPN_INACTIVE_TEXT, VPN_NO_DATA_TEXT,
-    get_key_info_text, CHOOSE_PAYMENT_METHOD_MESSAGE, HOWTO_CHOOSE_OS_MESSAGE, get_purchase_success_text
+    get_key_info_text, CHOOSE_PAYMENT_METHOD_MESSAGE, HOWTO_CHOOSE_OS_MESSAGE, get_purchase_success_text,
+    VIDEO_INSTRUCTIONS_ENABLED, get_video_instruction_path, has_video_instruction, VIDEO_INSTRUCTIONS_DIR
 )
 
 from pathlib import Path
@@ -183,6 +183,35 @@ def _load_instruction_text(platform: str) -> str:
     except Exception:
         pass
     return _default_instruction_text(platform)
+
+async def _send_instruction_with_video(callback: types.CallbackQuery, platform: str, keyboard_func):
+    """Отправляет инструкцию с видео, если оно доступно"""
+    text = _load_instruction_text(platform)
+    
+    if VIDEO_INSTRUCTIONS_ENABLED and has_video_instruction(platform):
+        try:
+            video_path = Path(get_video_instruction_path(platform))
+            if video_path.exists():
+                # Отправляем видео с текстом
+                with open(video_path, 'rb') as video_file:
+                    video_input = BufferedInputFile(video_file.read(), filename=f"{platform}_instruction.mp4")
+                    await callback.message.answer_video(
+                        video=video_input,
+                        caption=text,
+                        reply_markup=keyboard_func(),
+                        parse_mode="HTML"
+                    )
+                return
+        except Exception as e:
+            logger.error(f"Ошибка при отправке видеоинструкции для {platform}: {e}")
+    
+    # Если видео недоступно, отправляем только текст
+    await callback.message.edit_text(
+        text,
+        reply_markup=keyboard_func(),
+        disable_web_page_preview=True,
+        parse_mode="HTML"
+    )
 
 async def show_main_menu(message: types.Message, edit_message: bool = False):
     user_id = message.chat.id
@@ -875,6 +904,115 @@ def get_user_router() -> Router:
         except Exception as e:
             await message.answer(f"Ошибка: {e}")
 
+    @user_router.message(Command(commands=["upload_video"]))
+    async def upload_video_handler(message: types.Message):
+        """Админская команда для загрузки видеоинструкций"""
+        admin_id = int(get_setting("admin_telegram_id"))
+        if message.from_user.id != admin_id:
+            return
+        
+        if not message.video:
+            await message.answer("❌ Пожалуйста, отправьте видеофайл вместе с командой /upload_video")
+            return
+        
+        # Получаем платформу из текста команды
+        command_text = message.text or ""
+        parts = command_text.split()
+        if len(parts) < 2:
+            await message.answer(
+                "❌ Использование: /upload_video <платформа>\n"
+                "Доступные платформы: android, ios, windows, macos, linux"
+            )
+            return
+        
+        platform = parts[1].lower()
+        valid_platforms = ['android', 'ios', 'windows', 'macos', 'linux']
+        if platform not in valid_platforms:
+            await message.answer(f"❌ Неверная платформа. Доступные: {', '.join(valid_platforms)}")
+            return
+        
+        try:
+            # Создаем папку если не существует
+            video_dir = Path(VIDEO_INSTRUCTIONS_DIR)
+            video_dir.mkdir(exist_ok=True)
+            
+            # Получаем файл
+            video_file = await message.bot.get_file(message.video.file_id)
+            video_path = video_dir / f"{platform}_video.mp4"
+            
+            # Скачиваем и сохраняем видео
+            await video_file.download_to_drive(video_path)
+            
+            await message.answer(f"✅ Видеоинструкция для {platform} успешно загружена!")
+            
+        except Exception as e:
+            logger.error(f"Ошибка при загрузке видео для {platform}: {e}")
+            await message.answer(f"❌ Ошибка при загрузке видео: {e}")
+
+    @user_router.message(Command(commands=["list_videos"]))
+    async def list_videos_handler(message: types.Message):
+        """Админская команда для просмотра загруженных видеоинструкций"""
+        admin_id = int(get_setting("admin_telegram_id"))
+        if message.from_user.id != admin_id:
+            return
+        
+        try:
+            video_dir = Path(VIDEO_INSTRUCTIONS_DIR)
+            if not video_dir.exists():
+                await message.answer("📁 Папка с видеоинструкциями не существует")
+                return
+            
+            videos = list(video_dir.glob("*_video.mp4"))
+            if not videos:
+                await message.answer("📁 Видеоинструкции не загружены")
+                return
+            
+            text = "📹 <b>Загруженные видеоинструкции:</b>\n\n"
+            for video in videos:
+                platform = video.stem.replace("_video", "")
+                size_mb = video.stat().st_size / (1024 * 1024)
+                text += f"• {platform}: {size_mb:.1f} MB\n"
+            
+            await message.answer(text, parse_mode="HTML")
+            
+        except Exception as e:
+            logger.error(f"Ошибка при получении списка видео: {e}")
+            await message.answer(f"❌ Ошибка: {e}")
+
+    @user_router.message(Command(commands=["delete_video"]))
+    async def delete_video_handler(message: types.Message):
+        """Админская команда для удаления видеоинструкций"""
+        admin_id = int(get_setting("admin_telegram_id"))
+        if message.from_user.id != admin_id:
+            return
+        
+        command_text = message.text or ""
+        parts = command_text.split()
+        if len(parts) < 2:
+            await message.answer(
+                "❌ Использование: /delete_video <платформа>\n"
+                "Доступные платформы: android, ios, windows, macos, linux"
+            )
+            return
+        
+        platform = parts[1].lower()
+        valid_platforms = ['android', 'ios', 'windows', 'macos', 'linux']
+        if platform not in valid_platforms:
+            await message.answer(f"❌ Неверная платформа. Доступные: {', '.join(valid_platforms)}")
+            return
+        
+        try:
+            video_path = Path(VIDEO_INSTRUCTIONS_DIR) / f"{platform}_video.mp4"
+            if video_path.exists():
+                video_path.unlink()
+                await message.answer(f"✅ Видеоинструкция для {platform} удалена")
+            else:
+                await message.answer(f"❌ Видеоинструкция для {platform} не найдена")
+                
+        except Exception as e:
+            logger.error(f"Ошибка при удалении видео для {platform}: {e}")
+            await message.answer(f"❌ Ошибка при удалении видео: {e}")
+
     @user_router.callback_query(F.data == "show_about")
     @registration_required
     async def about_handler(callback: types.CallbackQuery):
@@ -1061,6 +1199,38 @@ def get_user_router() -> Router:
             await callback.message.edit_text("❌ Произошла ошибка при получении данных ключа.")
 
 
+    @user_router.callback_query(F.data.startswith("copy_key_"))
+    @registration_required
+    async def copy_key_handler(callback: types.CallbackQuery):
+        await callback.answer("Подготавливаю ключ для копирования...")
+        key_id = int(callback.data.split("_")[2])
+        key_data = get_key_by_id(key_id)
+        if not key_data or key_data['user_id'] != callback.from_user.id: 
+            return
+        
+        try:
+            details = await xui_api.get_key_details_from_host(key_data)
+            if not details or not details['connection_string']:
+                await callback.answer("Ошибка: Не удалось получить ключ.", show_alert=True)
+                return
+
+            connection_string = details['connection_string']
+            copy_text = (
+                f"📋 <b>Ваш Ключ для копирования:</b>\n\n"
+                f"<code>{connection_string}</code>\n\n"
+                f"💡 <i>Нажмите на ключ выше, чтобы скопировать его</i>"
+            )
+            
+            await callback.message.answer(
+                text=copy_text,
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="⬅️ Назад к ключу", callback_data=f"show_key_{key_id}")
+                ]])
+            )
+        except Exception as e:
+            logger.error(f"Error copying key {key_id}: {e}")
+            await callback.answer("Ошибка при получении ключа.", show_alert=True)
+
     @user_router.callback_query(F.data.startswith("show_qr_"))
     @registration_required
     async def show_qr_handler(callback: types.CallbackQuery):
@@ -1079,7 +1249,12 @@ def get_user_router() -> Router:
             qr_img = qrcode.make(connection_string)
             bio = BytesIO(); qr_img.save(bio, "PNG"); bio.seek(0)
             qr_code_file = BufferedInputFile(bio.read(), filename="vpn_qr.png")
-            await callback.message.answer_photo(photo=qr_code_file)
+            
+            await callback.message.answer_photo(
+                photo=qr_code_file,
+                caption="📱 Отсканируйте QR-код через VPN приложение",
+                reply_markup=keyboards.create_qr_keyboard(key_id)
+            )
         except Exception as e:
             logger.error(f"Error showing QR for key {key_id}: {e}")
 
@@ -1110,56 +1285,31 @@ def get_user_router() -> Router:
     @registration_required
     async def howto_android_handler(callback: types.CallbackQuery):
         await callback.answer()
-        text = _load_instruction_text('android')
-        await callback.message.edit_text(
-            text,
-            reply_markup=keyboards.create_howto_vless_keyboard(),
-            disable_web_page_preview=True
-        )
+        await _send_instruction_with_video(callback, 'android', keyboards.create_howto_vless_keyboard)
 
     @user_router.callback_query(F.data == "howto_ios")
     @registration_required
     async def howto_ios_handler(callback: types.CallbackQuery):
         await callback.answer()
-        text = _load_instruction_text('ios')
-        await callback.message.edit_text(
-            text,
-            reply_markup=keyboards.create_howto_vless_keyboard(),
-            disable_web_page_preview=True
-        )
+        await _send_instruction_with_video(callback, 'ios', keyboards.create_howto_vless_keyboard)
 
     @user_router.callback_query(F.data == "howto_macos")
     @registration_required
     async def howto_macos_handler(callback: types.CallbackQuery):
         await callback.answer()
-        text = _load_instruction_text('macos')
-        await callback.message.edit_text(
-            text,
-            reply_markup=keyboards.create_howto_vless_keyboard(),
-            disable_web_page_preview=True
-        )
+        await _send_instruction_with_video(callback, 'macos', keyboards.create_howto_vless_keyboard)
 
     @user_router.callback_query(F.data == "howto_windows")
     @registration_required
     async def howto_windows_handler(callback: types.CallbackQuery):
         await callback.answer()
-        text = _load_instruction_text('windows')
-        await callback.message.edit_text(
-            text,
-            reply_markup=keyboards.create_howto_vless_keyboard(),
-            disable_web_page_preview=True
-        )
+        await _send_instruction_with_video(callback, 'windows', keyboards.create_howto_vless_keyboard)
 
     @user_router.callback_query(F.data == "howto_linux")
     @registration_required
     async def howto_linux_handler(callback: types.CallbackQuery):
         await callback.answer()
-        text = _load_instruction_text('linux')
-        await callback.message.edit_text(
-            text,
-            reply_markup=keyboards.create_howto_vless_keyboard(),
-            disable_web_page_preview=True
-        )
+        await _send_instruction_with_video(callback, 'linux', keyboards.create_howto_vless_keyboard)
 
     @user_router.callback_query(F.data == "buy_new_key")
     @registration_required

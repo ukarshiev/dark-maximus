@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Ключи{% endblock %}
+{% block header_title %}Ключи{% endblock %}
 {% block content %}
 
 <div class="keys-container">
 	<div class="keys-header">
-		<h1>Ключи VPN</h1>
 	</div>
 
 	<section class="keys-section">
-		<div class="table-container">
+		<div class="table-container" style="padding-bottom: 80px;">
 			<table class="keys-table">
 				<thead>
 					<tr>
@@ -41,7 +41,9 @@
 											<span>{{ hidden_mode and '***' or key.user_id }}</span>
 										</div>
 										<div class="cell-actions">
-											<button class="modal-action-btn" onclick="openUserModal({{ key.user_id }}, {{ (key.username or 'N/A')|tojson }}, false, 1)" title="Открыть карточку пользователя">🔍</button>
+											<button class="modal-action-btn" data-size="xs" onclick="openUserModal({{ key.user_id }}, '{{ key.username or 'N/A' }}', false, {{ key.user_keys_count or 0 }})" title="Открыть карточку пользователя">
+												<i class="fas fa-eye"></i>
+											</button>
 										</div>
 									</div>
 								</div>
@@ -112,8 +114,8 @@
 							{% if key.connection_string %}
 								<div class="key-cell">
 									<span class="key-text" title="{{ key.connection_string }}">{{ key.connection_string[:50] }}{% if key.connection_string|length > 50 %}...{% endif %}</span>
-									<button class="copy-btn" onclick="copyKey({{ key.connection_string|tojson }})" title="Копировать ключ подключения">
-										📋
+									<button class="copy-btn" data-size="xs" onclick="copyKey({{ key.connection_string|tojson }})" title="Копировать ключ подключения">
+										<i class="fas fa-copy"></i>
 									</button>
 								</div>
 							{% else %}
@@ -124,7 +126,9 @@
 							{% if key.key_email %}
 								<div class="key-cell">
 									<span class="key-text" title="{{ key.key_email }}">{{ key.key_email }}</span>
-									<button class="copy-btn" onclick="copyKey({{ key.key_email|tojson }})" title="Копировать email ключа">📋</button>
+									<button class="copy-btn" data-size="xs" onclick="copyKey({{ key.key_email|tojson }})" title="Копировать email ключа">
+										<i class="fas fa-copy"></i>
+									</button>
 								</div>
 							{% else %}
 								-
@@ -139,42 +143,91 @@
 		<!-- Пагинация -->
 		<div class="pagination-panel">
 			<div class="pagination-controls">
-				<!-- Кнопка обновления -->
-				<button class="button button-primary button-small-refresh" onclick="refreshKeys()" id="refreshBtn" title="Обновить данные ключей">
-					<span id="refreshIcon">🔄</span>
-					<span id="refreshText">Обновить</span>
-				</button>
-				
-				<!-- Пагинация -->
-				{% if total_pages > 1 %}
-				<div class="pagination">
-					{% if current_page > 1 %}
-						<a href="{{ url_for('keys_page', page=current_page-1, per_page=per_page) }}" class="pagination-link">«</a>
-					{% endif %}
-					
-					{% for page_num in range(1, total_pages + 1) %}
-						{% if page_num == current_page %}
-							<span class="pagination-link active">{{ page_num }}</span>
-						{% else %}
-							<a href="{{ url_for('keys_page', page=page_num, per_page=per_page) }}" class="pagination-link">{{ page_num }}</a>
-						{% endif %}
-					{% endfor %}
-					
-					{% if current_page < total_pages %}
-						<a href="{{ url_for('keys_page', page=current_page+1, per_page=per_page) }}" class="pagination-link">»</a>
-					{% endif %}
+				<!-- Левая область: кнопки действий -->
+				<div class="pagination-left">
+					<button class="button button-primary button-small-refresh" data-size="sm" onclick="refreshKeys()" id="refreshBtn" title="Обновить данные ключей">
+						<i class="fas fa-sync-alt" id="refreshIcon"></i>
+						<span id="refreshText">Обновить</span>
+					</button>
 				</div>
-				{% endif %}
 				
-				<!-- Переключатель количества записей -->
-				<div class="per-page-selector">
-					<select id="perPageSelect" onchange="changePerPage(this.value)" title="Количество записей на странице">
-						<option value="5" {% if per_page == 5 %}selected{% endif %}>5</option>
-						<option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
-						<option value="15" {% if per_page == 15 %}selected{% endif %}>15</option>
-						<option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
-						<option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
-					</select>
+				<!-- Правая область: пагинация и переключатель -->
+				<div class="pagination-right">
+					<!-- Пагинация -->
+					{% if total_pages > 1 %}
+					<div class="pagination">
+						<!-- Стрелка назад -->
+						{% if current_page > 1 %}
+							<a href="{{ url_for('keys_page', page=current_page-1, per_page=per_page) }}" class="pagination-link" title="Предыдущая страница">«</a>
+						{% endif %}
+						
+						<!-- Логика отображения страниц: максимум 6 номеров -->
+						{% if total_pages <= 6 %}
+							<!-- Если страниц 6 или меньше, показываем все -->
+							{% for p in range(1, total_pages + 1) %}
+								{% if p == current_page %}
+									<span class="pagination-link active" title="Текущая страница">{{ p }}</span>
+								{% else %}
+									<a href="{{ url_for('keys_page', page=p, per_page=per_page) }}" class="pagination-link" title="Страница {{ p }}">{{ p }}</a>
+								{% endif %}
+							{% endfor %}
+						{% else %}
+							<!-- Если страниц больше 6, показываем первые 4, многоточие и последнюю -->
+							{% if current_page <= 4 %}
+								<!-- Показываем 1, 2, 3, 4, ..., последняя -->
+								{% for p in range(1, 5) %}
+									{% if p == current_page %}
+										<span class="pagination-link active" title="Текущая страница">{{ p }}</span>
+									{% else %}
+										<a href="{{ url_for('keys_page', page=p, per_page=per_page) }}" class="pagination-link" title="Страница {{ p }}">{{ p }}</a>
+									{% endif %}
+								{% endfor %}
+								<span class="pagination-link">...</span>
+								<a href="{{ url_for('keys_page', page=total_pages, per_page=per_page) }}" class="pagination-link" title="Страница {{ total_pages }}">{{ total_pages }}</a>
+							{% elif current_page >= total_pages - 3 %}
+								<!-- Показываем 1, ..., последние 4 -->
+								<a href="{{ url_for('keys_page', page=1, per_page=per_page) }}" class="pagination-link" title="Страница 1">1</a>
+								<span class="pagination-link">...</span>
+								{% for p in range(total_pages - 3, total_pages + 1) %}
+									{% if p == current_page %}
+										<span class="pagination-link active" title="Текущая страница">{{ p }}</span>
+									{% else %}
+										<a href="{{ url_for('keys_page', page=p, per_page=per_page) }}" class="pagination-link" title="Страница {{ p }}">{{ p }}</a>
+									{% endif %}
+								{% endfor %}
+							{% else %}
+								<!-- Показываем 1, ..., текущая-1, текущая, текущая+1, ..., последняя -->
+								<a href="{{ url_for('keys_page', page=1, per_page=per_page) }}" class="pagination-link" title="Страница 1">1</a>
+								<span class="pagination-link">...</span>
+								{% for p in range(current_page - 1, current_page + 2) %}
+									{% if p == current_page %}
+										<span class="pagination-link active" title="Текущая страница">{{ p }}</span>
+									{% else %}
+										<a href="{{ url_for('keys_page', page=p, per_page=per_page) }}" class="pagination-link" title="Страница {{ p }}">{{ p }}</a>
+									{% endif %}
+								{% endfor %}
+								<span class="pagination-link">...</span>
+								<a href="{{ url_for('keys_page', page=total_pages, per_page=per_page) }}" class="pagination-link" title="Страница {{ total_pages }}">{{ total_pages }}</a>
+							{% endif %}
+						{% endif %}
+						
+						<!-- Стрелка вперед -->
+						{% if current_page < total_pages %}
+							<a href="{{ url_for('keys_page', page=current_page+1, per_page=per_page) }}" class="pagination-link" title="Следующая страница">»</a>
+						{% endif %}
+					</div>
+					{% endif %}
+					
+					<!-- Переключатель количества записей -->
+					<div class="per-page-selector">
+						<select id="perPageSelect" onchange="changePerPage(this.value)" title="Выберите количество записей на странице">
+							<option value="5" {% if per_page == 5 %}selected{% endif %}>5</option>
+							<option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+							<option value="15" {% if per_page == 15 %}selected{% endif %}>15</option>
+							<option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+							<option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+						</select>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -208,9 +261,22 @@ function refreshKeys() {
 	.then(data => {
 		if (data.status === 'success') {
 			refreshText.textContent = data.message;
-			setTimeout(() => {
-				window.location.reload();
-			}, 1000);
+			
+			// Если есть ошибки, показываем модальное окно и НЕ обновляем страницу автоматически
+			if (data.errors && data.errors.length > 0) {
+				showSyncErrorsModal(data.errors);
+				// Сбрасываем состояние кнопки, но не обновляем страницу
+				setTimeout(() => {
+					refreshBtn.disabled = false;
+					refreshIcon.classList.remove('spinning');
+					refreshText.textContent = 'Обновить';
+				}, 1000);
+			} else {
+				// Если ошибок нет, обновляем страницу как обычно
+				setTimeout(() => {
+					window.location.reload();
+				}, 1000);
+			}
 		} else {
 			refreshText.textContent = 'Ошибка: ' + data.message;
 			setTimeout(() => {
@@ -229,6 +295,159 @@ function refreshKeys() {
 			refreshText.textContent = 'Обновить';
 		}, 2000);
 	});
+}
+
+function showSyncErrorsModal(errors) {
+	// Создаем модальное окно для ошибок синхронизации
+	const modalHtml = `
+		<div id="syncErrorsModal" class="modal" style="display: block;" onclick="closeSyncErrorsModal()">
+			<div class="modal-content" onclick="event.stopPropagation();">
+				<div class="modal-header">
+					<h2>⚠️ Ошибки синхронизации с 3x-ui</h2>
+					<span class="close" onclick="closeSyncErrorsModal()">&times;</span>
+				</div>
+				<div class="modal-body">
+					<p>Найдено ${errors.length} ключей с ошибками синхронизации:</p>
+					<div class="errors-list" style="max-height: 400px; overflow-y: auto; margin-top: 15px; background-color: #151f31; border-radius: 8px; padding: 10px;">
+						${errors.map(error => `
+							<div class="error-item" style="border: 1px solid #e74c3c; border-radius: 8px; padding: 12px; margin-bottom: 12px; background-color: #151f31; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+								<div style="font-weight: bold; color: #ecf0f1; margin-bottom: 8px; font-size: 16px;">
+									${error.email}
+								</div>
+								<div style="font-size: 14px; color: #bdc3c7; line-height: 1.4;">
+									<strong style="color: #3498db;">Создано:</strong> ${error.created_date}<br>
+									<strong style="color: #3498db;">Срок действия:</strong> ${error.expiry_date}
+									${error.error ? `<br><strong style="color: #e74c3c;">Ошибка:</strong> <span style="color: #f39c12;">${error.error}</span>` : ''}
+								</div>
+							</div>
+						`).join('')}
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button onclick="deleteErrorKeys()" class="button button-danger" data-size="md" id="deleteBtn" title="Удалить ключи с ошибками из 3x-ui">
+						<i class="fas fa-trash"></i>
+						Удалить ключи с ошибками в 3x-ui
+					</button>
+				</div>
+			</div>
+		</div>
+	`;
+	
+	// Добавляем модальное окно в DOM
+	document.body.insertAdjacentHTML('beforeend', modalHtml);
+	
+	// Сохраняем данные об ошибках для использования при удалении
+	window.currentSyncErrors = errors;
+}
+
+function deleteErrorKeys() {
+	const deleteBtn = document.getElementById('deleteBtn');
+	const deleteResult = document.getElementById('deleteResult');
+	
+	if (!window.currentSyncErrors || window.currentSyncErrors.length === 0) {
+		showDeleteResult('Нет ключей для удаления', 'error');
+		return;
+	}
+	
+	// Показываем процесс удаления
+	deleteBtn.disabled = true;
+	deleteBtn.innerHTML = '🔄 Удаляем...';
+	
+	// Подготавливаем данные для отправки
+	const keysToDelete = window.currentSyncErrors.map(error => ({
+		email: error.email,
+		host_name: error.host_name,
+		xui_client_uuid: error.xui_client_uuid
+	}));
+	
+	fetch('/delete-error-keys', {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({ keys: keysToDelete })
+	})
+	.then(response => response.json())
+	.then(data => {
+		if (data.status === 'success') {
+			let resultMessage = `✅ ${data.message}`;
+			
+			if (data.failed_deletions && data.failed_deletions.length > 0) {
+				resultMessage += `<br><br>❌ Ошибки при удалении:`;
+				data.failed_deletions.forEach(failed => {
+					resultMessage += `<br>• ${failed.email}: ${failed.error}`;
+				});
+			}
+			
+			showDeleteResult(resultMessage, 'success');
+			
+			// Обновляем список ошибок (убираем удаленные)
+			if (data.deleted_count > 0) {
+				window.currentSyncErrors = window.currentSyncErrors.filter(error => 
+					!data.failed_deletions?.some(failed => failed.email === error.email)
+				);
+				
+				// Если все ключи удалены, скрываем кнопку
+				if (window.currentSyncErrors.length === 0) {
+					deleteBtn.style.display = 'none';
+				}
+			}
+		} else {
+			showDeleteResult(`❌ Ошибка: ${data.message}`, 'error');
+		}
+	})
+	.catch(error => {
+		console.error('Error:', error);
+		showDeleteResult('❌ Ошибка соединения при удалении ключей', 'error');
+	})
+	.finally(() => {
+		deleteBtn.disabled = false;
+		deleteBtn.innerHTML = '🗑️ Удалить ключи с ошибками в 3x-ui';
+	});
+}
+
+function showDeleteResult(message, type) {
+	// Создаем отдельное модальное окно для результата удаления
+	const resultModalHtml = `
+		<div id="deleteResultModal" class="modal" style="display: block;" onclick="closeDeleteResultModal()">
+			<div class="modal-content" onclick="event.stopPropagation();">
+				<div class="modal-header">
+					<h2>${type === 'success' ? '✅ Результат удаления' : '❌ Ошибка удаления'}</h2>
+					<span class="close" onclick="closeDeleteResultModal()">&times;</span>
+				</div>
+				<div class="modal-body">
+					<div style="max-height: 400px; overflow-y: auto; padding: 15px; background-color: #151f31; border-radius: 8px; border: 1px solid ${type === 'success' ? '#2ecc71' : '#e74c3c'};">
+						<div style="color: #ecf0f1; line-height: 1.6; white-space: pre-wrap;">${message}</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button onclick="closeDeleteResultModal()" class="button button-primary" data-size="md" title="Закрыть окно">
+						<i class="fas fa-times"></i>
+						Закрыть
+					</button>
+				</div>
+			</div>
+		</div>
+	`;
+	
+	// Добавляем модальное окно в DOM
+	document.body.insertAdjacentHTML('beforeend', resultModalHtml);
+}
+
+function closeDeleteResultModal() {
+	const modal = document.getElementById('deleteResultModal');
+	if (modal) {
+		modal.remove();
+	}
+}
+
+function closeSyncErrorsModal() {
+	const modal = document.getElementById('syncErrorsModal');
+	if (modal) {
+		modal.remove();
+		// Обновляем страницу после закрытия модального окна
+		window.location.reload();
+	}
 }
 
 // Функция для копирования ключа

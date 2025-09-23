@@ -6,6 +6,10 @@ services:
     container_name: dark-maximus-bot
     ports:
       - '1488:1488'
+    environment:
+      - PYTHONIOENCODING=utf-8
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
     volumes:
       - .:/app/project
       - /app/.venv

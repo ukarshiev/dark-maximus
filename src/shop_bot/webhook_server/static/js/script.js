@@ -232,50 +232,220 @@ document.addEventListener('DOMContentLoaded', function () {
 		})
 	}
 
-	// Управление боковым меню (только для мобильных)
+	// Управление боковым меню
 	function initializeSidebar() {
-		const burgerMenu = document.getElementById('burgerMenu');
+		const sidebarBurger = document.getElementById('sidebarBurger');
+		const headerBurger = document.getElementById('headerBurger');
 		const sidebar = document.getElementById('sidebar');
 		
-		if (!burgerMenu || !sidebar) return;
+		if (!sidebar) return;
 		
-		// Функция переключения меню (только для мобильных)
-		function toggleSidebar() {
-			// Работает только на мобильных устройствах
-			if (window.innerWidth <= 768) {
-				sidebar.classList.toggle('sidebar-open');
-				burgerMenu.classList.toggle('burger-active');
-				
-				// Блокируем скролл при открытом меню
-				if (sidebar.classList.contains('sidebar-open')) {
-					document.body.style.overflow = 'hidden';
-				} else {
-					document.body.style.overflow = '';
-				}
+		// Загружаем сохраненное состояние меню
+		const savedState = localStorage.getItem('sidebarState');
+		const isMobile = window.innerWidth <= 768;
+		
+		// Применяем сохраненное состояние при загрузке страницы (только для десктопа)
+		if (savedState && !isMobile) {
+			const state = JSON.parse(savedState);
+			if (state.collapsed) {
+				collapseSidebar();
+			} else if (state.hidden) {
+				hideSidebar();
 			}
 		}
 		
-		// Обработчик события для бургерного меню
-		burgerMenu.addEventListener('click', toggleSidebar);
+		// На мобильных устройствах sidebar скрыт по умолчанию
+		if (isMobile) {
+			sidebar.classList.remove('sidebar-mobile-open');
+		}
 		
-		// Закрытие меню при клике на overlay (только мобильные)
+		// Функция переключения меню для мобильных устройств
+		// На мобильных устройствах sidebar полностью скрыт через CSS
+		function toggleSidebarMobile() {
+			// На мобильных устройствах sidebar скрыт, ничего не делаем
+			if (window.innerWidth <= 768) {
+				return;
+			}
+		}
+		
+		// Функция скрытия бокового меню (для десктопа)
+		function hideSidebar() {
+			sidebar.classList.add('sidebar-hidden');
+			if (sidebarBurger) {
+				sidebarBurger.classList.add('burger-active');
+			}
+			// Обновляем header-panel чтобы он занял всю ширину
+			const headerPanel = document.querySelector('.header-panel');
+			if (headerPanel) {
+				headerPanel.style.left = '0';
+			}
+			// Сохраняем состояние
+			localStorage.setItem('sidebarState', JSON.stringify({ hidden: true, collapsed: false }));
+		}
+		
+		// Функция показа бокового меню (для десктопа)
+		function showSidebar() {
+			sidebar.classList.remove('sidebar-hidden');
+			if (sidebarBurger) {
+				sidebarBurger.classList.remove('burger-active');
+			}
+			// Возвращаем header-panel на место после sidebar
+			const headerPanel = document.querySelector('.header-panel');
+			if (headerPanel) {
+				headerPanel.style.left = '280px';
+			}
+			// Сохраняем состояние
+			localStorage.setItem('sidebarState', JSON.stringify({ hidden: false, collapsed: false }));
+		}
+		
+		// Функция сворачивания бокового меню (только иконки)
+		function collapseSidebar() {
+			sidebar.classList.add('sidebar-collapsed');
+			const mainContent = document.querySelector('.main-content');
+			const headerPanel = document.querySelector('.header-panel');
+			
+			if (mainContent) {
+				mainContent.classList.add('sidebar-collapsed');
+			}
+			if (headerPanel) {
+				headerPanel.style.left = '60px';
+			}
+			// Сохраняем состояние
+			localStorage.setItem('sidebarState', JSON.stringify({ hidden: false, collapsed: true }));
+		}
+		
+		// Функция разворачивания бокового меню
+		function expandSidebar() {
+			sidebar.classList.remove('sidebar-collapsed');
+			const mainContent = document.querySelector('.main-content');
+			const headerPanel = document.querySelector('.header-panel');
+			
+			if (mainContent) {
+				mainContent.classList.remove('sidebar-collapsed');
+			}
+			if (headerPanel) {
+				headerPanel.style.left = '280px';
+			}
+			// Сохраняем состояние
+			localStorage.setItem('sidebarState', JSON.stringify({ hidden: false, collapsed: false }));
+		}
+		
+		// Обработчик события для мобильного бургерного меню (теперь только через sidebarBurger)
+		// burgerMenu удален, используем только sidebarBurger
+		
+		// Обработчик события для бургера в боковом меню (только для десктопа)
+		if (sidebarBurger) {
+			sidebarBurger.addEventListener('click', function() {
+				if (window.innerWidth > 768) {
+					// На десктопе переключаем между развернутым, свернутым и скрытым состояниями
+					if (sidebar.classList.contains('sidebar-hidden')) {
+						// Если скрыт, показываем развернутым
+						showSidebar();
+					} else if (sidebar.classList.contains('sidebar-collapsed')) {
+						// Если свернут, разворачиваем
+						expandSidebar();
+					} else {
+						// Если развернут, сворачиваем
+						collapseSidebar();
+					}
+				}
+			});
+		}
+		
+		// Обработчик события для бургера в header (для мобильных устройств)
+		if (headerBurger) {
+			headerBurger.addEventListener('click', function() {
+				if (window.innerWidth <= 768) {
+					// На мобильных переключаем sidebar
+					sidebar.classList.toggle('sidebar-mobile-open');
+					headerBurger.classList.toggle('burger-active');
+					
+					// Блокируем скролл при открытом меню
+					if (sidebar.classList.contains('sidebar-mobile-open')) {
+						document.body.style.overflow = 'hidden';
+					} else {
+						document.body.style.overflow = '';
+					}
+				}
+			});
+		}
+		
+		// Обработчик события для бургера в sidebar (для мобильных устройств)
+		if (sidebarBurger) {
+			sidebarBurger.addEventListener('click', function() {
+				if (window.innerWidth <= 768) {
+					// На мобильных переключаем sidebar
+					sidebar.classList.toggle('sidebar-mobile-open');
+					if (headerBurger) {
+						headerBurger.classList.toggle('burger-active');
+					}
+					
+					// Блокируем скролл при открытом меню
+					if (sidebar.classList.contains('sidebar-mobile-open')) {
+						document.body.style.overflow = 'hidden';
+					} else {
+						document.body.style.overflow = '';
+					}
+				}
+			});
+		}
+		
+		// Закрытие меню при клике на overlay
 		document.addEventListener('click', function(e) {
-			if (window.innerWidth <= 768 && 
-				sidebar.classList.contains('sidebar-open') && 
-				!sidebar.contains(e.target) && 
-				!burgerMenu.contains(e.target)) {
-				sidebar.classList.remove('sidebar-open');
-				burgerMenu.classList.remove('burger-active');
-				document.body.style.overflow = '';
+			if (window.innerWidth <= 768) {
+				// На мобильных закрываем sidebar при клике вне его
+				if (sidebar.classList.contains('sidebar-mobile-open') && 
+					!sidebar.contains(e.target) && 
+					!(headerBurger && headerBurger.contains(e.target)) &&
+					!(sidebarBurger && sidebarBurger.contains(e.target))) {
+					sidebar.classList.remove('sidebar-mobile-open');
+					if (headerBurger) {
+						headerBurger.classList.remove('burger-active');
+					}
+					document.body.style.overflow = '';
+				}
+			} else {
+				// Обработка для десктопа (если нужно)
+				if (sidebar.classList.contains('sidebar-open') && 
+					!sidebar.contains(e.target) && 
+					!(sidebarBurger && sidebarBurger.contains(e.target))) {
+					sidebar.classList.remove('sidebar-open');
+					if (sidebarBurger) {
+						sidebarBurger.classList.remove('burger-active');
+					}
+					document.body.style.overflow = '';
+				}
 			}
 		});
 		
 		// Адаптация при изменении размера окна
 		window.addEventListener('resize', function() {
 			if (window.innerWidth > 768) {
-				// На десктопе убираем все классы и блокировку скролла
-				sidebar.classList.remove('sidebar-open');
-				burgerMenu.classList.remove('burger-active');
+				// На десктопе убираем мобильные классы и блокировку скролла
+				sidebar.classList.remove('sidebar-mobile-open');
+				if (headerBurger) {
+					headerBurger.classList.remove('burger-active');
+				}
+				document.body.style.overflow = '';
+				
+				// Восстанавливаем сохраненное состояние для десктопа
+				const savedState = localStorage.getItem('sidebarState');
+				if (savedState) {
+					const state = JSON.parse(savedState);
+					if (state.collapsed) {
+						collapseSidebar();
+					} else if (state.hidden) {
+						hideSidebar();
+					} else {
+						showSidebar();
+					}
+				}
+			} else {
+				// На мобильных устройствах скрываем sidebar по умолчанию
+				sidebar.classList.remove('sidebar-mobile-open');
+				if (headerBurger) {
+					headerBurger.classList.remove('burger-active');
+				}
 				document.body.style.overflow = '';
 			}
 		});
@@ -289,16 +459,24 @@ document.addEventListener('DOMContentLoaded', function () {
 		botCheckboxes.forEach(checkbox => {
 			checkbox.addEventListener('change', function() {
 				const botType = this.getAttribute('data-bot');
-				const statusText = this.closest('.bot-label-row').querySelector('.bot-status-text');
+				const statusText = this.closest('.bot-label-row')?.querySelector('.bot-status-text');
 				const isChecked = this.checked;
 				
-				// Обновляем текст статуса только для ботов (Shop/Support)
-				if (isChecked) {
-					statusText.textContent = 'Запущен';
-					statusText.className = 'bot-status-text status-running';
-				} else {
-					statusText.textContent = 'Остановлен';
-					statusText.className = 'bot-status-text status-stopped';
+				// Обновляем текст статуса только для ботов (Shop/Support) в развернутом режиме
+				if (statusText) {
+					if (isChecked) {
+						statusText.textContent = 'ON';
+						statusText.className = 'bot-status-text status-running';
+					} else {
+						statusText.textContent = 'OFF';
+						statusText.className = 'bot-status-text status-stopped';
+					}
+				}
+				
+				// Синхронизируем с другим переключателем того же типа
+				const otherCheckbox = document.querySelector(`.bot-checkbox[data-bot="${botType}"]:not(#${this.id})`);
+				if (otherCheckbox) {
+					otherCheckbox.checked = isChecked;
 				}
 				
 				// Отправляем запрос на сервер
@@ -313,27 +491,33 @@ document.addEventListener('DOMContentLoaded', function () {
 				})
 				.then(response => {
 					if (!response.ok) {
-						// Если запрос не удался, возвращаем чекбокс в исходное состояние
+						// Если запрос не удался, возвращаем чекбоксы в исходное состояние
 						this.checked = !isChecked;
-						if (isChecked) {
-							statusText.textContent = 'Остановлен';
-							statusText.className = 'bot-status-text status-stopped';
-						} else {
-							statusText.textContent = 'Запущен';
-							statusText.className = 'bot-status-text status-running';
+						if (otherCheckbox) otherCheckbox.checked = !isChecked;
+						if (statusText) {
+							if (isChecked) {
+								statusText.textContent = 'OFF';
+								statusText.className = 'bot-status-text status-stopped';
+							} else {
+								statusText.textContent = 'ON';
+								statusText.className = 'bot-status-text status-running';
+							}
 						}
 					}
 				})
 				.catch(error => {
 					console.error('Error:', error);
-					// В случае ошибки возвращаем чекбокс в исходное состояние
+					// В случае ошибки возвращаем чекбоксы в исходное состояние
 					this.checked = !isChecked;
-					if (isChecked) {
-						statusText.textContent = 'Остановлен';
-						statusText.className = 'bot-status-text status-stopped';
-					} else {
-						statusText.textContent = 'Запущен';
-						statusText.className = 'bot-status-text status-running';
+					if (otherCheckbox) otherCheckbox.checked = !isChecked;
+					if (statusText) {
+						if (isChecked) {
+							statusText.textContent = 'OFF';
+							statusText.className = 'bot-status-text status-stopped';
+						} else {
+							statusText.textContent = 'ON';
+							statusText.className = 'bot-status-text status-running';
+						}
 					}
 				});
 			});
@@ -521,21 +705,29 @@ async function submitCreateNotification() {
 // Скрытый режим
 function initializeHiddenModeToggle() {
     const toggle = document.getElementById('hiddenModeToggle');
+    const toggleCollapsed = document.getElementById('hiddenModeToggleCollapsed');
     const statusText = document.getElementById('hiddenModeStatus');
-    if (!toggle || !statusText) return;
+    
+    // Используем основной переключатель, если есть
+    const activeToggle = toggle || toggleCollapsed;
+    if (!activeToggle) return;
 
-    window.__HIDDEN_MODE__ = !!toggle.checked;
+    window.__HIDDEN_MODE__ = !!activeToggle.checked;
     // Явно синхронизируем визуальное состояние
-    toggle.checked = window.__HIDDEN_MODE__;
+    activeToggle.checked = window.__HIDDEN_MODE__;
+    if (toggleCollapsed) toggleCollapsed.checked = window.__HIDDEN_MODE__;
     applyHiddenMode();
 
-    toggle.addEventListener('change', function() {
+    function handleToggleChange() {
         const isOn = !!this.checked;
         window.__HIDDEN_MODE__ = isOn;
-        // Форсируем визуальное положение переключателя
-        toggle.checked = isOn;
-        statusText.textContent = isOn ? 'Включен' : 'Отключен';
-        statusText.className = 'bot-status-text ' + (isOn ? 'status-running' : 'status-stopped');
+        // Синхронизируем оба переключателя
+        if (toggle) toggle.checked = isOn;
+        if (toggleCollapsed) toggleCollapsed.checked = isOn;
+        if (statusText) {
+            statusText.textContent = isOn ? 'ON' : 'OFF';
+            statusText.className = 'bot-status-text ' + (isOn ? 'status-running' : 'status-stopped');
+        }
         applyHiddenMode();
         // сохраняем на сервере и синхронизируем по ответу (0/1)
         fetch('/toggle-hidden-mode', { method: 'POST' })
@@ -543,15 +735,28 @@ function initializeHiddenModeToggle() {
         .then(data => {
             const serverOn = (String(data.hidden_mode) === '1');
             window.__HIDDEN_MODE__ = serverOn;
-            toggle.checked = serverOn;
-            statusText.textContent = serverOn ? 'Включен' : 'Отключен';
-            statusText.className = 'bot-status-text ' + (serverOn ? 'status-running' : 'status-stopped');
+            if (toggle) toggle.checked = serverOn;
+            if (toggleCollapsed) toggleCollapsed.checked = serverOn;
+            if (statusText) {
+                statusText.textContent = serverOn ? 'ON' : 'OFF';
+                statusText.className = 'bot-status-text ' + (serverOn ? 'status-running' : 'status-stopped');
+            }
             applyHiddenMode();
         })
         .catch(() => {});
         // Доп. гарантия после любого возможного перерендера
-        setTimeout(() => { toggle.checked = window.__HIDDEN_MODE__; }, 50);
-    });
+        setTimeout(() => { 
+            if (toggle) toggle.checked = window.__HIDDEN_MODE__; 
+            if (toggleCollapsed) toggleCollapsed.checked = window.__HIDDEN_MODE__; 
+        }, 50);
+    }
+
+    if (toggle) {
+        toggle.addEventListener('change', handleToggleChange);
+    }
+    if (toggleCollapsed) {
+        toggleCollapsed.addEventListener('change', handleToggleChange);
+    }
 }
 
 function maskValue(value, type='text') {
@@ -613,7 +818,27 @@ function applyHiddenMode() {
         if (priceCell) {
             const original = priceCell.getAttribute('data-original') || priceCell.textContent.trim();
             priceCell.setAttribute('data-original', original);
-            priceCell.textContent = hidden ? '*** RUB' : original;
+            
+            // Сохраняем полный HTML контент для восстановления
+            if (!priceCell.hasAttribute('data-original-html')) {
+                priceCell.setAttribute('data-original-html', priceCell.innerHTML);
+            }
+            
+            if (hidden) {
+                // В скрытом режиме показываем только замаскированную цену
+                const div = priceCell.querySelector('div');
+                if (div) {
+                    div.innerHTML = '*** RUB';
+                } else {
+                    priceCell.textContent = '*** RUB';
+                }
+            } else {
+                // Восстанавливаем оригинальный HTML контент
+                const originalHtml = priceCell.getAttribute('data-original-html');
+                if (originalHtml) {
+                    priceCell.innerHTML = originalHtml;
+                }
+            }
         }
     });
 

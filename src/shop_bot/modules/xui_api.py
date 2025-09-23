@@ -5,10 +5,11 @@ from urllib.parse import urlparse
 from typing import List, Dict
 import json
 import requests
+import sqlite3
 
 from py3xui import Api, Client, Inbound
 
-from shop_bot.data_manager.database import get_host, get_key_by_email
+from shop_bot.data_manager.database import get_host, get_key_by_email, DB_FILE
 
 logger = logging.getLogger(__name__)
 
@@ -428,7 +429,60 @@ async def get_key_details_from_host(key_data: dict) -> dict | None:
     except Exception:
         return {"connection_string": connection_string}
 
-async def delete_client_on_host(host_name: str, client_email: str) -> bool:
+async def delete_client_by_uuid(client_uuid: str, client_email: str = None) -> bool:
+    """Удаляет клиента напрямую по UUID из всех доступных хостов"""
+    if not client_uuid or client_uuid == 'Unknown':
+        logger.error(f"Cannot delete client: Invalid UUID '{client_uuid}'")
+        return False
+    
+    # Получаем все хосты из базы данных
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM xui_hosts")
+            hosts = [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        logger.error(f"Error getting hosts: {e}")
+        return False
+    
+    # Пытаемся удалить клиента с каждого хоста
+    for host_data in hosts:
+        try:
+            api, inbound = login_to_host(
+                host_url=host_data['host_url'],
+                username=host_data['host_username'],
+                password=host_data['host_pass'],
+                inbound_id=host_data['host_inbound_id']
+            )
+            
+            if not api or not inbound:
+                logger.warning(f"Cannot login to host '{host_data['host_name']}', skipping...")
+                continue
+            
+            try:
+                # Пытаемся удалить по UUID
+                api.client.delete(inbound.id, client_uuid)
+                logger.info(f"Successfully deleted client '{client_uuid}' (email: '{client_email or 'Unknown'}') from host '{host_data['host_name']}'")
+                return True
+            except Exception as e:
+                logger.debug(f"Client '{client_uuid}' not found on host '{host_data['host_name']}': {e}")
+                continue
+                
+        except Exception as e:
+            logger.warning(f"Error processing host '{host_data['host_name']}': {e}")
+            continue
+    
+    logger.warning(f"Client with UUID '{client_uuid}' not found on any host")
+    return False
+
+async def delete_client_on_host(host_name: str, client_email: str, client_uuid: str = None) -> bool:
+    """Устаревшая функция - используйте delete_client_by_uuid для прямого удаления по UUID"""
+    # Если есть UUID, используем новую функцию
+    if client_uuid and client_uuid != 'Unknown':
+        return await delete_client_by_uuid(client_uuid, client_email)
+    
+    # Иначе используем старую логику
     host_data = get_host(host_name)
     if not host_data:
         logger.error(f"Cannot delete client: Host '{host_name}' not found.")
@@ -446,15 +500,39 @@ async def delete_client_on_host(host_name: str, client_email: str) -> bool:
         return False
         
     try:
+        # Ищем в базе данных
         client_to_delete = get_key_by_email(client_email)
-        if client_to_delete:
-            api.client.delete(inbound.id, client_to_delete['xui_client_uuid'])
-            logger.info(f"Successfully deleted client '{client_to_delete['xui_client_uuid']}' from host '{host_name}'.")
-            return True
-        else:
-            logger.warning(f"Client '{client_to_delete['xui_client_uuid']}' not found on host '{host_name}' for deletion (already gone).")
-            return True
+        
+        if client_to_delete and client_to_delete.get('xui_client_uuid'):
+            # Если клиент найден в базе, удаляем по UUID из базы
+            try:
+                api.client.delete(inbound.id, client_to_delete['xui_client_uuid'])
+                logger.info(f"Successfully deleted client '{client_to_delete['xui_client_uuid']}' from host '{host_name}' by database UUID.")
+                return True
+            except Exception as e:
+                logger.warning(f"Failed to delete client '{client_to_delete['xui_client_uuid']}' by database UUID: {e}. Trying email search.")
+        
+        # Если удаление по UUID не удалось, ищем по email в 3x-ui панели
+        logger.info(f"Searching client by email '{client_email}' in 3x-ui panel.")
+        
+        # Получаем список всех клиентов в inbound
+        inbound_data = api.inbound.get_by_id(inbound.id)
+        if inbound_data and inbound_data.settings.clients:
+            for client in inbound_data.settings.clients:
+                if client.email == client_email:
+                    # Найден клиент в панели, удаляем его
+                    try:
+                        api.client.delete(inbound.id, client.id)
+                        logger.info(f"Successfully deleted client '{client.id}' (email: '{client_email}') from host '{host_name}' by email search.")
+                        return True
+                    except Exception as e:
+                        logger.error(f"Failed to delete client '{client.id}' by email search: {e}")
+                        continue
+        
+        # Клиент не найден ни в базе, ни в панели
+        logger.warning(f"Client with email '{client_email}' not found on host '{host_name}' (already deleted or never existed).")
+        return True
             
     except Exception as e:
-        logger.error(f"Failed to delete client '{client_to_delete['xui_client_uuid']}' from host '{host_name}': {e}", exc_info=True)
+        logger.error(f"Failed to delete client '{client_email}' from host '{host_name}': {e}", exc_info=True)
         return False

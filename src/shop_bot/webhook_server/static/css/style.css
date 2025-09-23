@@ -100,13 +100,15 @@ h4 {
 }
 
 .settings-section {
-	margin-bottom: 40px;
+	margin-bottom: 20px; /* Уменьшаем отступ снизу */
 	/* не шире 1000px, но занимает всю доступную ширину до этого порога */
 	width: min(100%, var(--container-max));
 	/* горизонтально по центру */
 	margin-inline: auto;
 	/* чтобы контент не лип к краям на мобильных */
 	padding-inline: 16px;
+	padding-top: 10px; /* Уменьшаем отступ сверху */
+	padding-bottom: 10px; /* Уменьшаем отступ снизу */
 	box-sizing: border-box;
 }
 
@@ -126,6 +128,37 @@ h4 {
 	margin-left: auto;
 	margin-right: auto;
 	padding-inline: 16px;
+}
+
+/* Flex-box для вкладки "Бот" - 2 ряда по 2 колонки */
+#bot-tab form {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 20px;
+	justify-content: center;
+}
+
+#bot-tab .settings-section {
+	flex: 0 1 calc(50% - 10px);
+	min-width: 300px;
+	max-width: 500px;
+	margin: 0;
+}
+
+/* Кнопка "Сохранить" отдельно от flex-контейнера */
+#bot-tab form button[type="submit"] {
+	flex: 0 0 100%;
+	width: 100%;
+	margin-top: 20px;
+}
+
+/* Адаптивность для вкладки "Бот" */
+@media (max-width: 768px) {
+	#bot-tab .settings-section {
+		flex: 0 1 100%;
+		min-width: 100%;
+		max-width: 100%;
+	}
 }
 
 .form-group {
@@ -157,7 +190,7 @@ h4 {
 
 .form-group textarea {
 	resize: vertical;
-	min-height: 80px;
+	height: 150px;
 }
 
 .form-group input:focus,
@@ -179,7 +212,7 @@ h4 {
 	border-radius: 6px;
 	padding: 12px;
 	resize: vertical;
-	min-height: calc(100vh - 220px);
+	min-height: calc(100vh - 250px);
 	line-height: 1.4;
 	font-size: 14px;
 }
@@ -234,18 +267,98 @@ h4 {
 	background: #5c636a;
 }
 
+/* ===== УНИФИЦИРОВАННАЯ СИСТЕМА КНОПОК =====
+ * 
+ * Основные классы:
+ * - .button - базовый класс для всех кнопок
+ * - .button-primary - основная кнопка (синяя)
+ * - .button-secondary - вторичная кнопка (серая)
+ * - .button-start - кнопка успеха (зеленая)
+ * - .button-stop - кнопка предупреждения (желтая)
+ * - .button-danger - кнопка опасности (красная)
+ * 
+ * Размеры (data-size):
+ * - xs: 24px высота, мелкие действия в таблицах
+ * - sm: 32px высота, вторичные действия
+ * - md: 36px высота, основные действия
+ * - lg: 44px высота, важные действия (по умолчанию)
+ * - xl: 52px высота, особо важные действия
+ * - xxl: 60px высота, главные действия
+ * 
+ * Специальные классы:
+ * - .button-icon-only - кнопка только с иконкой
+ * - .button-small, .button-tiny - устаревшие размеры (совместимость)
+ * 
+ * Примеры использования:
+ * <button class="button button-primary" data-size="md" title="Добавить сервер">
+ *     <i class="fas fa-plus"></i>
+ *     Добавить сервер
+ * </button>
+ * 
+ * <button class="button button-danger button-icon-only" data-size="sm" title="Удалить">
+ *     <i class="fas fa-trash"></i>
+ * </button>
+ */
+
 .button {
-	display: inline-block;
-	padding: 12px 25px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 12px 24px;
 	font-size: 16px;
 	font-weight: 600;
 	text-align: center;
 	cursor: pointer;
 	border: none;
-	border-radius: 5px;
-	transition: background-color 0.2s, transform 0.1s;
+	border-radius: 8px;
+	transition: all 0.2s ease;
 	color: #fff;
 	text-decoration: none;
+	min-height: 44px; /* Минимальная высота для удобства нажатия */
+}
+
+/* Система размеров кнопок */
+.button[data-size="xs"] {
+	padding: 4px 8px;
+	font-size: 12px;
+	min-height: 24px;
+	gap: 4px;
+}
+
+.button[data-size="sm"] {
+	padding: 6px 12px;
+	font-size: 14px;
+	min-height: 32px;
+	gap: 6px;
+}
+
+.button[data-size="md"] {
+	padding: 8px 16px;
+	font-size: 14px;
+	min-height: 36px;
+	gap: 6px;
+}
+
+.button[data-size="lg"] {
+	padding: 12px 24px;
+	font-size: 16px;
+	min-height: 44px;
+	gap: 8px;
+}
+
+.button[data-size="xl"] {
+	padding: 16px 32px;
+	font-size: 18px;
+	min-height: 52px;
+	gap: 10px;
+}
+
+.button[data-size="xxl"] {
+	padding: 20px 40px;
+	font-size: 20px;
+	min-height: 60px;
+	gap: 12px;
 }
 
 .button:active {
@@ -286,12 +399,10 @@ h4 {
 }
 
 .button-danger {
-    /* Меняем цвет на #008771 по запросу */
-    background-color: #008771;
+    background-color: #dc3545;
 }
 .button-danger:hover {
-    /* Hover оставляем без изменений (как было ранее) */
-    background-color: var(--warning-color);
+    background-color: #c82333;
 }
 
 .button-warning {
@@ -307,20 +418,87 @@ h4 {
 	opacity: 0.7;
 }
 
+/* Устаревшие классы размеров - используйте data-size */
 .button-small {
-	padding: 8px 15px;
+	padding: 6px 12px;
 	font-size: 14px;
+	min-height: 32px;
+	gap: 6px;
+	background: #282b30;
 }
 
 .button-tiny {
-	padding: 2px 8px;
+	padding: 4px 8px;
 	font-size: 12px;
+	min-height: 24px;
+	gap: 4px;
 	line-height: 1.5;
 }
 
 .button-small-refresh {
 	padding: 6px 12px;
 	font-size: 12px;
+	min-height: 32px;
+	gap: 6px;
+}
+
+/* Стили для иконок в кнопках */
+.button i,
+.button .fas,
+.button .far,
+.button .fab {
+	font-size: inherit;
+	line-height: 1;
+}
+
+/* Кнопки только с иконками */
+.button-icon-only {
+	padding: 8px;
+	width: 44px;
+	height: 44px;
+	min-height: 44px;
+}
+
+.button-icon-only[data-size="xs"] {
+	padding: 4px;
+	width: 24px;
+	height: 24px;
+	min-height: 24px;
+}
+
+.button-icon-only[data-size="sm"] {
+	padding: 6px;
+	width: 32px;
+	height: 32px;
+	min-height: 32px;
+}
+
+.button-icon-only[data-size="md"] {
+	padding: 8px;
+	width: 36px;
+	height: 36px;
+	min-height: 36px;
+}
+
+.button-icon-only[data-size="lg"] {
+	padding: 12px;
+	width: 44px;
+	height: 44px;
+	min-height: 44px;
+}
+
+.button-icon-only[data-size="xl"] {
+	padding: 16px;
+	width: 52px;
+	height: 52px;
+	min-height: 52px;
+}
+
+.button-icon-only[data-size="xxl"] {
+	padding: 20px;
+	width: 60px;
+	height: 60px;
+	min-height: 60px;
 }
 
 .flash {
@@ -384,6 +562,7 @@ body.login-page {
 	justify-content: center;
 	height: 100vh;
 	padding: 0;
+	margin-top: 55px; /* Учитываем высоту header-panel */
 }
 
 .login-container {
@@ -454,29 +633,37 @@ body.login-page {
 @media (max-width: 768px) {
 	.stats-grid {
 		grid-template-columns: repeat(2, 1fr);
-		gap: 8px;
-		margin-bottom: 10px;
+		gap: 6px; /* Уменьшаем отступы между карточками */
+		margin-bottom: 8px; /* Уменьшаем отступ снизу */
 	}
 	
 	.stat-card {
-		padding: 8px;
+		padding: 6px; /* Уменьшаем отступы внутри карточек */
 	}
 	
 	.stat-card h3 {
 		font-size: 0.7em;
-		margin-bottom: 3px;
+		margin-bottom: 2px; /* Уменьшаем отступ снизу */
 	}
 	
 	.stat-card .stat-number {
-		font-size: 1.3em;
+		font-size: 1.2em; /* Немного уменьшаем размер */
 	}
 }
 
 .settings-container {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 30px;
+	gap: 20px; /* Уменьшаем отступы между элементами */
 	justify-content: center; /* центрируем содержимое внутри контейнера */
+}
+
+.settings-container .button {
+	background: #282b30 !important;
+}
+
+.settings-container .button-primary {
+	background: #008771;
 }
 
 .settings-column-left {
@@ -688,8 +875,25 @@ body.login-page {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	max-width: 1200px;
 	margin: 0 auto;
+	gap: 20px;
+}
+
+/* Левая область для кнопок действий */
+.pagination-left {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+/* Правая область для пагинации и переключателя */
+.pagination-right {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 15px;
 }
 
 /* Переключатель количества записей */
@@ -697,6 +901,7 @@ body.login-page {
 	display: flex;
 	align-items: center;
 	gap: 10px;
+	margin-left: 20px;
 }
 
 .per-page-selector label {
@@ -710,7 +915,7 @@ body.login-page {
 	color: #fff;
 	border: 1px solid #333;
 	border-radius: 4px;
-	padding: 6px 10px;
+	padding: 8px 10px;
 	font-size: 14px;
 	cursor: pointer;
 	transition: all 0.3s ease;
@@ -772,16 +977,40 @@ body.login-page {
 	}
 	
 	.pagination-controls {
-		flex-direction: column;
-		gap: 15px;
+		flex-direction: row;
+		gap: 10px;
+		align-items: center;
+	}
+	
+	.pagination-left {
+		justify-content: flex-start;
+		order: 1;
+		flex: 1;
+	}
+	
+	.pagination-right {
+		flex-direction: row;
+		gap: 10px;
+		order: 2;
+		justify-content: flex-end;
+		align-items: center;
 	}
 	
 	.per-page-selector {
-		order: 2;
+		margin-left: 0;
+		display: flex;
+		align-items: center;
+		gap: 5px;
 	}
 	
-	.pagination {
-		order: 1;
+	.per-page-selector label {
+		font-size: 12px;
+		white-space: nowrap;
+	}
+	
+	.per-page-selector select {
+		padding: 6px 8px;
+		font-size: 12px;
 	}
 }
 
@@ -797,10 +1026,21 @@ body.login-page {
 		font-size: 12px;
 	}
 	
-	.per-page-selector {
-		flex-direction: column;
+	.pagination-controls {
 		gap: 5px;
-		text-align: center;
+	}
+	
+	.per-page-selector {
+		gap: 3px;
+	}
+	
+	.per-page-selector label {
+		font-size: 11px;
+	}
+	
+	.per-page-selector select {
+		padding: 4px 6px;
+		font-size: 11px;
 	}
 }
 
@@ -875,13 +1115,15 @@ body.login-page {
 }
 
 .status-pending {
-    background-color: #ffc107;
-    color: #000;
+    background-color: #FFD96620;
+    color: #FFD966;
+    border: 1px solid #FFD966;
 }
 
 .status-paid {
-    background-color: #43a047;
-    color: #fff;
+    background-color: #53b66330;
+    color: #53b663;
+    border: 1px solid #008771;
 }
 
 .transaction-link {
@@ -963,6 +1205,93 @@ body.login-page {
 .transaction-link:hover {
     text-decoration: underline;
     color: var(--primary-hover);
+}
+
+/* Стили для навигации вкладок */
+.tab-navigation {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 10px;
+    background: #1a1a1a;
+    padding: 10px;
+    border-radius: 8px;
+}
+
+.tab-navigation a.nav-button {
+    padding: 12px 20px;
+    border: none;
+    background: var(--bg-surface) !important;
+    color: #ffffff !important;
+    cursor: pointer;
+    border-radius: 8px 8px 0 0;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    border-bottom: 3px solid transparent;
+    text-decoration: none !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tab-navigation a.nav-button:hover {
+    background: var(--bg-hover) !important;
+    transform: translateY(-2px);
+    color: #ffffff !important;
+    text-decoration: none !important;
+}
+
+.tab-navigation a.nav-button.active {
+    background: var(--primary-color) !important;
+    color: white !important;
+    border-bottom: 3px solid var(--primary-hover);
+    text-decoration: none !important;
+}
+
+.tab-navigation button.nav-button {
+    padding: 12px 20px;
+    border: none;
+    background: var(--bg-surface) !important;
+    color: #ffffff !important;
+    cursor: pointer;
+    border-radius: 8px 8px 0 0;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    border-bottom: 3px solid transparent;
+    text-decoration: none !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tab-navigation button.nav-button:hover {
+    background: var(--bg-hover) !important;
+    transform: translateY(-2px);
+    color: #ffffff !important;
+    text-decoration: none !important;
+}
+
+.tab-navigation button.nav-button.active {
+    background: var(--primary-color) !important;
+    color: white !important;
+    border-bottom: 3px solid var(--primary-hover);
+    text-decoration: none !important;
+}
+
+/* Стили для содержимого вкладок */
+.settings-tab {
+    display: none;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.settings-tab.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 /* Стили для вкладок */
@@ -1086,9 +1415,9 @@ body.login-page {
 }
 
 .status-active {
-    background-color: transparent;
-    border: 1px solid var(--success-color);
-    color: var(--success-color);
+    background-color: #53b66330;
+    color: #53b663;
+    border: 1px solid #008771;
 }
 
 @media (max-width: 1256px) {
@@ -1320,7 +1649,7 @@ body.login-page {
 	}
 
 	.form-group textarea {
-		min-height: 60px;
+		height: 120px;
 	}
 
 	.toggle-password {
@@ -1420,6 +1749,71 @@ body.login-page {
 
 /* ===== НОВЫЙ ДИЗАЙН С БОКОВЫМ МЕНЮ ===== */
 
+/* Закрепленная панель в head */
+.header-panel {
+	position: fixed;
+	top: 0;
+	left: 280px; /* Начинается после sidebar */
+	right: 0;
+	height: 55px;
+	background: var(--bg-elevated);
+	border-bottom: 1px solid #333;
+	z-index: 1001;
+	display: flex;
+	align-items: center;
+	padding: 0 20px;
+}
+
+/* Кнопка бургерного меню в header */
+.header-burger {
+	display: none; /* По умолчанию скрыта */
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	width: 32px;
+	height: 32px;
+	background: transparent;
+	border: 1px solid #555;
+	border-radius: 4px;
+	cursor: pointer;
+	transition: all 0.3s ease;
+	margin-right: 15px;
+}
+
+.header-burger:hover {
+	background: var(--bg-hover);
+	border-color: #777;
+}
+
+.header-burger span {
+	display: block;
+	width: 16px;
+	height: 2px;
+	background: #fff;
+	margin: 2px 0;
+	transition: all 0.3s ease;
+}
+
+.header-burger.burger-active span:nth-child(1) {
+	transform: rotate(45deg) translate(4px, 4px);
+}
+
+.header-burger.burger-active span:nth-child(2) {
+	opacity: 0;
+}
+
+.header-burger.burger-active span:nth-child(3) {
+	transform: rotate(-45deg) translate(4px, -4px);
+}
+
+/* Заголовок в header */
+.header-title {
+	font-size: 18px;
+	font-weight: 600;
+	color: var(--light-color);
+	flex: 1;
+}
+
 .container {
 	display: flex;
 	max-width: 100%;
@@ -1429,44 +1823,10 @@ body.login-page {
 	border-radius: 0;
 	box-shadow: none;
 	min-height: 100vh;
+	margin-top: 55px; /* Учитываем высоту header-panel */
 }
 
-/* Кнопка бургерного меню */
-
-.burger-menu {
-	display: none; /* Hidden on desktop */
-	position: fixed;
-	top: 15px;
-	left: 15px;
-	z-index: 1002;
-		background: var(--bg-surface);
-	border: 1px solid #333;
-	border-radius: 4px;
-	padding: 8px;
-	cursor: pointer;
-	transition: all 0.3s ease;
-}
-
-.burger-menu span {
-	display: block;
-	width: 20px;
-	height: 2px;
-	background: #fff;
-	margin: 3px 0;
-	transition: all 0.3s ease;
-}
-
-.burger-menu.burger-active span:nth-child(1) {
-	transform: rotate(45deg) translate(5px, 5px);
-}
-
-.burger-menu.burger-active span:nth-child(2) {
-	opacity: 0;
-}
-
-.burger-menu.burger-active span:nth-child(3) {
-	transform: rotate(-45deg) translate(7px, -6px);
-}
+/* Кнопка бургерного меню удалена */
 
 
 /* Боковое меню */
@@ -1483,9 +1843,78 @@ body.login-page {
 	z-index: 1000;
 }
 
+/* Header бокового меню */
+.menu-items-header {
+	height: 55px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0 15px;
+	border-bottom: 1px solid #333;
+	background: var(--bg-elevated);
+}
+
+/* Бургер в боковом меню */
+.sidebar-burger {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	width: 32px;
+	height: 32px;
+	background: transparent;
+	border: 1px solid #555;
+	border-radius: 4px;
+	cursor: pointer;
+	transition: all 0.3s ease;
+}
+
+.sidebar-burger:hover {
+	background: var(--bg-hover);
+	border-color: #777;
+}
+
+.sidebar-burger span {
+	display: block;
+	width: 16px;
+	height: 2px;
+	background: #fff;
+	margin: 2px 0;
+	transition: all 0.3s ease;
+}
+
+.sidebar-burger.burger-active span:nth-child(1) {
+	transform: rotate(45deg) translate(4px, 4px);
+}
+
+.sidebar-burger.burger-active span:nth-child(2) {
+	opacity: 0;
+}
+
+.sidebar-burger.burger-active span:nth-child(3) {
+	transform: rotate(-45deg) translate(4px, -4px);
+}
+
+/* Логотип в боковом меню */
+.sidebar-logo {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 1;
+}
+
+.logo-img {
+	height: 32px;
+	width: auto;
+	max-width: 120px;
+	object-fit: contain;
+}
+
 .sidebar-nav {
 	flex: 1;
 	padding: 20px 0;
+	overflow-y: auto; /* Добавляем скролл для навигации если нужно */
+	overflow-x: hidden; /* Убираем горизонтальный скролл */
 }
 
 .nav-link {
@@ -1613,17 +2042,20 @@ body.login-page {
 }
 
 .bot-label-row {
-	display: flex;
+	display: grid;
+	grid-template-columns: 1fr auto 1fr;
 	align-items: center;
 	gap: 10px;
-	flex-wrap: wrap;
+	min-height: 32px;
 }
 
 .bot-label {
 	font-size: 12px;
 	color: #888;
 	font-weight: 500;
-	min-width: 50px;
+	grid-column: 1;
+	justify-self: start;
+	min-width: 110px;
 }
 
 .status-running {
@@ -1693,9 +2125,16 @@ body.login-page {
 	cursor: not-allowed;
 }
 
+.bot-toggle {
+	grid-column: 2;
+	justify-self: center;
+}
+
 .bot-status-text {
 	font-size: 13px;
 	font-weight: 500;
+	grid-column: 3;
+	justify-self: center;
 }
 
 .user-session-controls {
@@ -1731,7 +2170,7 @@ body.login-page {
 	margin-left: 280px;
 	padding: 5px;
 	background: var(--bg-page);
-	min-height: 100vh;
+	min-height: calc(100vh - 55px); /* Учитываем высоту header-panel */
 	display: flex;
 	flex-direction: column;
 	transition: margin-left 0.3s ease;
@@ -1741,85 +2180,341 @@ body.login-page {
 	margin-left: 0;
 }
 
+/* Скрытое состояние бокового меню */
+.sidebar.sidebar-hidden {
+	left: -280px;
+}
+
+.sidebar.sidebar-hidden + .main-content {
+	margin-left: 0;
+}
+
+/* Когда sidebar скрыт, header-panel занимает всю ширину */
+.sidebar.sidebar-hidden ~ .header-panel {
+	left: 0;
+}
+
+/* Свернутое состояние бокового меню (только иконки) */
+.sidebar.sidebar-collapsed {
+	width: 60px;
+	transition: width 0.3s ease;
+}
+
+.sidebar.sidebar-collapsed .sidebar-logo {
+	display: none;
+}
+
+.sidebar.sidebar-collapsed .nav-text {
+	display: none;
+}
+
+.sidebar.sidebar-collapsed .nav-link {
+	justify-content: center;
+	padding: 12px 0;
+}
+
+.sidebar.sidebar-collapsed .nav-icon {
+	margin-right: 0;
+	font-size: 20px;
+}
+
+.sidebar.sidebar-collapsed .bot-controls {
+	display: none;
+}
+
+.sidebar.sidebar-collapsed .version-block {
+	display: none;
+}
+
+.sidebar.sidebar-collapsed .user-session-controls {
+	display: none;
+}
+
+/* Адаптация main-content для свернутого sidebar */
+.main-content.sidebar-collapsed {
+	margin-left: 60px;
+}
+
+/* Адаптация header-panel для свернутого sidebar */
+.sidebar.sidebar-collapsed ~ .header-panel {
+	left: 60px;
+}
+
+/* Стили для свернутого меню */
+.sidebar-nav-collapsed {
+	display: none !important;
+	height: 100%;
+	flex-direction: column;
+}
+
+.sidebar.sidebar-collapsed .sidebar-nav {
+	display: none !important;
+}
+
+.sidebar.sidebar-collapsed .sidebar-nav-collapsed {
+	display: flex !important;
+	flex-direction: column;
+	height: 100%;
+}
+
+.sidebar-nav-collapsed .sidebar-nav-main {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+}
+
+.sidebar-nav-collapsed .sidebar-nav-controls {
+	display: flex;
+	flex-direction: column;
+	margin-top: auto;
+	padding-top: 20px;
+	border-top: 1px solid #333;
+}
+
+.sidebar-nav-collapsed .nav-link {
+	justify-content: center;
+	padding: 12px 0;
+	display: flex;
+	align-items: center;
+}
+
+.sidebar-nav-collapsed .nav-icon {
+	margin-right: 0;
+	font-size: 20px;
+}
+
+.sidebar-nav-collapsed .nav-toggle {
+	cursor: pointer;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+.sidebar-nav-collapsed .nav-toggle .bot-toggle {
+	margin: 0;
+	width: 35px; /* Уменьшаем на 30% от 50px */
+	height: 17px; /* Уменьшаем на 30% от 24px */
+}
+
+.sidebar-nav-collapsed .nav-toggle .toggle-slider {
+	position: absolute;
+	cursor: pointer;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: var(--danger-color);
+	transition: .4s;
+	border-radius: 17px; /* Уменьшаем на 30% от 24px */
+}
+
+.sidebar-nav-collapsed .nav-toggle .toggle-slider:before {
+	position: absolute;
+	content: "";
+	height: 13px; /* Уменьшаем на 30% от 18px */
+	width: 13px; /* Уменьшаем на 30% от 18px */
+	left: 2px; /* Уменьшаем на 30% от 3px */
+	bottom: 2px; /* Уменьшаем на 30% от 3px */
+	background-color: white;
+	transition: .4s;
+	border-radius: 50%;
+}
+
+.sidebar-nav-collapsed .nav-toggle .bot-checkbox:checked + .toggle-slider:before {
+	transform: translateX(18px); /* Уменьшаем на 30% от 26px */
+}
+
+.sidebar-nav-collapsed .nav-link-form {
+	margin: 0;
+	padding: 0;
+}
+
+.sidebar-nav-collapsed .nav-button {
+	background: none;
+	border: none;
+	color: #ccc;
+	cursor: pointer;
+	padding: 12px 0;
+	width: 100%;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	transition: all 0.3s ease;
+}
+
+.sidebar-nav-collapsed .nav-button:hover {
+	background: var(--bg-hover);
+	color: #fff;
+}
+
+.sidebar-nav-collapsed .nav-button i {
+	font-size: 18px;
+}
+
+/* Структура свернутого меню */
+.sidebar-nav-collapsed {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.sidebar-nav-main {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+}
+
+.sidebar-nav-controls {
+	display: flex;
+	flex-direction: column;
+	margin-top: auto;
+	padding-top: 20px;
+	border-top: 1px solid #333;
+}
+
 @media (max-width: 1200px) {
 	.main-content {
 		padding: 3px;
 	}
 }
 
+/* Адаптивность для мобильных устройств */
 @media (max-width: 768px) {
-	.main-content {
-		padding: 2px;
-	}
-}
-
-/* Адаптивность */
-@media (max-width: 768px) {
-	.burger-menu {
-		display: block; /* Show on mobile */
+	.header-panel {
+		left: 0; /* На мобильных занимает всю ширину */
+		display: flex;
+		align-items: center;
+		justify-content: flex-start;
+		padding: 0 15px;
 	}
 	
+	/* Показываем кнопку бургерного меню на мобильных */
+	.header-burger {
+		display: flex !important;
+	}
+	
+	/* На мобильных устройствах sidebar скрыт по умолчанию */
 	.sidebar {
-		width: 280px;
-		height: 100vh;
-		position: fixed;
-		left: -280px; /* Hidden on mobile by default */
-		top: 0;
-		z-index: 1000;
-		box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+		left: -100%; /* Скрываем за левым краем - используем 100% для всех мобильных */
+		width: 100%; /* На мобильных занимаем всю ширину */
 		transition: left 0.3s ease;
+		height: 100vh; /* Ограничиваем высоту экраном */
+		overflow-y: auto; /* Добавляем скролл только внутри меню */
+		overflow-x: hidden; /* Убираем горизонтальный скролл */
 	}
 	
-	.sidebar.sidebar-open {
-		left: 0; /* Shown when toggled */
+	/* Когда sidebar открыт на мобильных */
+	.sidebar.sidebar-mobile-open {
+		left: 0;
+		z-index: 1002;
+		height: 100vh; /* Ограничиваем высоту экраном */
+		overflow-y: auto; /* Добавляем скролл только внутри меню */
+		overflow-x: hidden; /* Убираем горизонтальный скролл */
+	}
+	
+	/* Overlay для мобильных при открытом sidebar - убираем, так как меню занимает всю ширину */
+	.sidebar.sidebar-mobile-open::before {
+		display: none;
 	}
 	
 	.main-content {
-		margin-left: 0;
+		margin-left: 0; /* Убираем отступ для мобильных */
 		padding: 2px;
+		width: 100%;
+		min-height: auto; /* Убираем фиксированную минимальную высоту */
 	}
 	
 	.container {
-		flex-direction: row;
+		flex-direction: column;
 	}
 	
-	/* Overlay для мобильных */
-	.sidebar.sidebar-open::before {
-		content: '';
-		position: fixed;
-		top: 0;
-		left: 280px;
-		width: calc(100vw - 280px);
-		height: 100vh;
-    background: var(--overlay-dim);
-		z-index: -1;
+	/* Уменьшаем отступы для мобильных */
+	.settings-section {
+		margin-bottom: 15px;
+		padding-inline: 12px;
+		padding-top: 8px;
+		padding-bottom: 8px;
+	}
+	
+	/* Уменьшаем отступы в контейнере настроек */
+	.settings-container {
+		gap: 15px;
+		padding: 10px;
+	}
+	
+	/* Уменьшаем отступы в формах */
+	.form-group {
+		margin-bottom: 15px;
+	}
+	
+	/* Уменьшаем отступы в заголовках */
+	h1 {
+		margin-bottom: 15px;
+	}
+	
+	h2 {
+		margin-bottom: 10px;
+		padding-bottom: 4px;
 	}
 }
 
 @media (max-width: 480px) {
-	.burger-menu {
-		top: 10px;
-		left: 10px;
-		padding: 6px;
-	}
-	
-	.burger-menu span {
-		width: 18px;
-		height: 2px;
-		margin: 2px 0;
-	}
-	
+	/* На очень маленьких экранах sidebar занимает всю ширину */
 	.sidebar {
 		width: 100%;
 		left: -100%;
+		height: 100vh; /* Ограничиваем высоту экраном */
+		overflow-y: auto; /* Добавляем скролл только внутри меню */
+		overflow-x: hidden; /* Убираем горизонтальный скролл */
 	}
 	
-	.sidebar.sidebar-open {
+	.sidebar.sidebar-mobile-open {
 		left: 0;
+		height: 100vh; /* Ограничиваем высоту экраном */
+		overflow-y: auto; /* Добавляем скролл только внутри меню */
+		overflow-x: hidden; /* Убираем горизонтальный скролл */
 	}
 	
-	.sidebar.sidebar-open::before {
+	.sidebar.sidebar-mobile-open::before {
 		display: none;
+	}
+	
+	.main-content {
+		margin-left: 0;
+		width: 100%;
+		padding: 1px;
+		min-height: auto; /* Убираем фиксированную минимальную высоту */
+	}
+	
+	/* Еще больше уменьшаем отступы для маленьких экранов */
+	.settings-section {
+		margin-bottom: 10px;
+		padding-inline: 8px;
+		padding-top: 6px;
+		padding-bottom: 6px;
+	}
+	
+	/* Еще больше уменьшаем отступы в контейнере настроек */
+	.settings-container {
+		gap: 10px;
+		padding: 5px;
+	}
+	
+	/* Еще больше уменьшаем отступы в формах */
+	.form-group {
+		margin-bottom: 12px;
+	}
+	
+	/* Еще больше уменьшаем отступы в заголовках */
+	h1 {
+		margin-bottom: 10px;
+		font-size: 1.2em;
+	}
+	
+	h2 {
+		margin-bottom: 8px;
+		padding-bottom: 3px;
+		font-size: 1.1em;
 	}
 }
 
@@ -1830,7 +2525,6 @@ body.login-page {
 	gap: 10px;
 	margin-top: 8px;
 	width: 100%;
-	flex: 1;
 }
 
 .analytics-section {
@@ -1844,7 +2538,8 @@ body.login-page {
 	border-radius: 6px;
 	padding: 15px;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-	height: calc(100vh - 300px);
+	height: calc(100vh - 350px); /* Уменьшаем высоту */
+	max-height: 400px; /* Добавляем максимальную высоту */
 	width: 100%;
 	position: relative;
 	display: flex;
@@ -1881,7 +2576,8 @@ body.login-page {
 	
 	.chart-container {
 		padding: 12px;
-		height: calc(100vh - 150px);
+		height: calc(100vh - 200px); /* Уменьшаем высоту для мобильных */
+		max-height: 300px; /* Ограничиваем максимальную высоту */
 	}
 	
 	.chart-container h3 {
@@ -1897,7 +2593,8 @@ body.login-page {
 	
 	.chart-container {
 		padding: 10px;
-		height: calc(100vh - 120px);
+		height: calc(100vh - 180px); /* Уменьшаем высоту для маленьких экранов */
+		max-height: 250px; /* Ограничиваем максимальную высоту */
 	}
 	
 	.chart-container h3 {
@@ -1968,7 +2665,7 @@ body.login-page {
 }
 
 /* Стили для модального окна */
-.modal {
+.modal-backdrop {
 	display: none;
 	position: fixed;
 	z-index: 1000;
@@ -1977,6 +2674,17 @@ body.login-page {
 	width: 100%;
 	height: 100%;
 	background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal {
+	display: none;
+	position: fixed;
+	z-index: 1001;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	background-color: transparent;
 }
 
 .modal-content {
@@ -2044,7 +2752,7 @@ body.login-page {
 }
 
 .modal-action-btn {
-	background: #007bff;
+	background: #00877140;
 	border: none;
 	color: white;
 	padding: 4px 8px;
@@ -2136,9 +2844,9 @@ body.login-page {
 }
 
 .modal .status-active {
-    background-color: transparent;
-    border: 1px solid var(--success-color);
-    color: var(--success-color);
+    background-color: #53b66330;
+    color: #53b663;
+    border: 1px solid #008771;
 }
 
 .modal .status-banned {
@@ -2250,7 +2958,7 @@ body.login-page {
 
 /* Стили для кнопки копирования */
 .copy-btn {
-	background: #007bff;
+	background: #00877140;
 	color: white;
 	border: none;
 	border-radius: 4px;
@@ -2280,6 +2988,22 @@ body.login-page {
 	align-items: center;
 	gap: 8px;
 	max-width: 150px;
+}
+
+/* Стили для обертки полей контента */
+.content-field-wrapper {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.content-field-wrapper textarea,
+.content-field-wrapper input {
+	margin-bottom: 0;
+}
+
+.content-field-wrapper .button {
+	align-self: flex-start;
 }
 
 .key-text {

@@ -4,6 +4,10 @@ HOWTO_CHOOSE_OS_MESSAGE = "Выберите операционную систе�
 VPN_INACTIVE_TEXT = "❌ <b>Статус VPN:</b> Неактивен (срок истек)"
 VPN_NO_DATA_TEXT = "ℹ️ <b>Статус VPN:</b> У вас пока нет активных ключей."
 
+# Поддержка видеоинструкций
+VIDEO_INSTRUCTIONS_ENABLED = True
+VIDEO_INSTRUCTIONS_DIR = "video_instructions"
+
 def get_profile_text(username, balance, total_spent, total_months, vpn_status_text):
     return (
         f"👤 <b>Профиль:</b> {username}\n"
@@ -27,7 +31,16 @@ def get_key_info_text(key_number, expiry_date, created_date, connection_string):
         f"<b>🔑 Информация о ключе #{key_number}</b>\n\n"
         f"<b>➕ Приобретён:</b> {created_formatted}\n"
         f"<b>⏳ Действителен до:</b> {expiry_formatted}\n\n"
-        f"<code>{connection_string}</code>"
+
+        f"                    ⬇️ <b>НИЖЕ ВАШ КЛЮЧ</b> ⬇️\n"
+        f"------------------------------------------------------------------------\n"
+        f"<code>{connection_string}</code>\n"
+        f"------------------------------------------------------------------------\n"
+        f"💡<i>Просто нажмите на ключ один раз, чтобы скопировать</i>\n\n"
+
+        f"<blockquote>⁉️ Если возник вопрос: Что делать дальше?</blockquote>\n"
+        f"<blockquote>📢 Вам нужно скопировать этот ключ и вставить его в VPN приложение</blockquote>\n"
+        f"<blockquote>Чтобы получить инструкцию как это сделать, нажмите на кнопку  [Инструкция как пользоваться]</blockquote>"
     )
 
 def get_purchase_success_text(action: str, key_number: int, expiry_date, connection_string: str):
@@ -37,5 +50,33 @@ def get_purchase_success_text(action: str, key_number: int, expiry_date, connect
     return (
         f"🎉 <b>Ваш ключ #{key_number} {action_text}!</b>\n\n"
         f"⏳ <b>Он будет действовать до:</b> {expiry_formatted}\n\n"
-        f"<code>{connection_string}</code>"
+        f"                    ⬇️ <b>НИЖЕ ВАШ КЛЮЧ</b> ⬇️\n"
+        f"------------------------------------------------------------------------\n"
+        f"<code>{connection_string}</code>\n"
+        f"------------------------------------------------------------------------\n"
+        f"💡<i>Просто нажмите на ключ один раз, чтобы скопировать</i>\n\n"
+
+        f"<blockquote>⁉️ Если возник вопрос: Что делать дальше?</blockquote>\n"
+        f"<blockquote>📢 Вам нужно скопировать этот ключ и вставить его в VPN приложение</blockquote>\n"
+        f"<blockquote>Чтобы получить инструкцию как это сделать, нажмите на кнопку  [Инструкция как пользоваться]</blockquote>"
     )
+
+def get_video_instruction_path(platform: str) -> str:
+    """Возвращает путь к видеоинструкции для платформы"""
+    video_mapping = {
+        'android': 'android_video.mp4',
+        'ios': 'ios_video.mp4', 
+        'windows': 'windows_video.mp4',
+        'macos': 'macos_video.mp4',
+        'linux': 'linux_video.mp4',
+    }
+    return f"{VIDEO_INSTRUCTIONS_DIR}/{video_mapping.get(platform, 'android_video.mp4')}"
+
+def has_video_instruction(platform: str) -> bool:
+    """Проверяет, есть ли видеоинструкция для платформы"""
+    if not VIDEO_INSTRUCTIONS_ENABLED:
+        return False
+    
+    from pathlib import Path
+    video_path = Path(get_video_instruction_path(platform))
+    return video_path.exists()

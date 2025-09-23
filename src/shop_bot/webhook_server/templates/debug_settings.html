@@ -3,16 +3,21 @@
 	<head>
 		<meta charset="UTF-8" />
 		<title>ОТЛАДКА - Панель управления</title>
+		<link
+			rel="stylesheet"
+			href="{{ url_for('static', filename='css/style.css', v=project_version or '1') }}?t=20241221"
+		/>
+		<!-- Font Awesome Icons -->
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 	</head>
 	<body>
-		<h1>Страница отладки</h1>
 		<hr />
 
 		<h2>Статус Бота</h2>
 		{% if bot_status.is_running %}
-		<p style="color: green">Статус: <strong>Запущен</strong></p>
+		<p style="color: green">Статус: <strong>ON</strong></p>
 		{% else %}
-		<p style="color: red">Статус: <strong>Остановлен</strong></p>
+		<p style="color: red">Статус: <strong>OFF</strong></p>
 		{% endif %}
 
 		<hr />
@@ -21,14 +26,20 @@
 
 		<h3>Запустить Бота</h3>
 		<form action="{{ url_for('start_bot_route') }}" method="post">
-			<button type="submit">ЗАПУСТИТЬ</button>
+			<button type="submit" class="button button-start" data-size="lg" title="Запустить бота">
+				<i class="fas fa-play"></i>
+				ЗАПУСТИТЬ
+			</button>
 		</form>
 
 		<br />
 
 		<h3>Остановить Бота</h3>
 		<form action="{{ url_for('stop_bot_route') }}" method="post">
-			<button type="submit">ОСТАНОВИТЬ</button>
+			<button type="submit" class="button button-stop" data-size="lg" title="Остановить бота">
+				<i class="fas fa-stop"></i>
+				ОСТАНОВИТЬ
+			</button>
 		</form>
 
 		<hr />

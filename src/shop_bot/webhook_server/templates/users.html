@@ -1,7 +1,8 @@
-{% extends "base.html" %} {% block title %}Управление Пользователями{% endblock
+{% extends "base.html" %} 
+{% block title %}Управление Пользователями{% endblock %}
+{% block header_title %}Пользователи{% endblock %}
 %} {% block content %}
 
-<h1>Пользователи</h1>
 
 <section class="settings-section settings-section--fluid">
 	<div class="table-scroll-x">
@@ -23,19 +24,30 @@
 				<tr class="user-row" data-user-id="{{ user.telegram_id }}" data-username="{{ user.username or 'N/A' }}" data-is-banned="{{ 'true' if user.is_banned else 'false' }}" data-keys-count="{{ user.user_keys|length if user.user_keys else 0 }}">
 					<td class="actions-cell">
 						<div class="kebab-menu">
-							<button type="button" class="kebab-toggle kebab-btn" aria-haspopup="true" aria-expanded="false" title="Действия">⋮</button>
+							<button type="button" class="kebab-toggle kebab-btn" aria-haspopup="true" aria-expanded="false" data-size="sm" title="Действия с пользователем">
+								<i class="fas fa-ellipsis-v"></i>
+							</button>
 							<div class="kebab-dropdown">
 								{% if user.is_banned %}
 								<form action="{{ url_for('unban_user_route', user_id=user.telegram_id) }}" method="post">
-									<button type="submit" class="kebab-item">🟢🔓 Разбанить</button>
+									<button type="submit" class="kebab-item" title="Разблокировать пользователя">
+										<i class="fas fa-unlock"></i>
+										Разбанить
+									</button>
 								</form>
 								{% else %}
 								<form action="{{ url_for('ban_user_route', user_id=user.telegram_id) }}" method="post" data-confirm="Вы уверены, что хотите забанить этого пользователя? Он не сможет пользоваться ботом.">
-									<button type="submit" class="kebab-item">🔴🔓 Забанить</button>
+									<button type="submit" class="kebab-item" title="Заблокировать пользователя">
+										<i class="fas fa-lock"></i>
+										Забанить
+									</button>
 								</form>
 								{% endif %}
 								<form action="{{ url_for('revoke_keys_route', user_id=user.telegram_id) }}" method="post" data-confirm="ВНИМАНИЕ! Это действие удалит ВСЕ ключи пользователя с серверов. Вы уверены?">
-									<button type="submit" class="kebab-item kebab-item-danger" {% if not user.user_keys %}disabled title="Нет ключей"{% endif %}>⛔🗝️ Отозвать ключи</button>
+									<button type="submit" class="kebab-item kebab-item-danger" {% if not user.user_keys %}disabled title="Нет ключей для отзыва"{% endif %} title="{% if user.user_keys %}Отозвать все ключи пользователя{% else %}Нет ключей для отзыва{% endif %}">
+										<i class="fas fa-key"></i>
+										Отозвать ключи
+									</button>
 								</form>
 							</div>
 						</div>

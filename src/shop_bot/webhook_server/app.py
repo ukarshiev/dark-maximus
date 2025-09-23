@@ -284,8 +284,24 @@ def create_webhook_app(bot_controller_instance):
         # Получаем активную вкладку из параметра URL
         active_tab = request.args.get('tab', 'servers')
         
+        # Получаем настройки контента для модальных окон
+        about_content = current_settings.get('about_text', '')
+        support_content = current_settings.get('support_text', '')
+        
+        # Для terms и privacy используем наши внутренние страницы
+        terms_content = request.url_root.rstrip('/') + '/terms'
+        privacy_content = request.url_root.rstrip('/') + '/privacy'
+        
         common_data = get_common_template_data()
-        return render_template('settings.html', settings=current_settings, hosts=hosts, active_tab=active_tab, **common_data)
+        return render_template('settings.html', 
+                             settings=current_settings, 
+                             hosts=hosts, 
+                             active_tab=active_tab,
+                             about_content=about_content,
+                             support_content=support_content,
+                             terms_content=terms_content,
+                             privacy_content=privacy_content,
+                             **common_data)
 
     @flask_app.route('/settings/panel', methods=['POST'])
     @login_required
@@ -355,6 +371,27 @@ def create_webhook_app(bot_controller_instance):
         flash('Настройки платежных систем успешно сохранены!', 'success')
         return redirect(url_for('settings_page', tab='payments'))
 
+    @flask_app.route('/save-content-setting', methods=['POST'])
+    @login_required
+    def save_content_setting():
+        """Сохранение отдельной настройки контента через AJAX"""
+        try:
+            # Получаем все данные из формы
+            form_data = request.form.to_dict()
+            
+            # Сохраняем каждую настройку
+            for field_name, value in form_data.items():
+                if field_name in ['about_content', 'support_content', 'terms_content', 'privacy_content']:
+                    # Преобразуем названия полей в названия настроек
+                    setting_name = field_name.replace('_content', '_text') if field_name in ['about_content', 'support_content'] else field_name.replace('_content', '_url')
+                    update_setting(setting_name, value)
+            
+            return {'status': 'success', 'message': 'Настройка сохранена'}, 200
+            
+        except Exception as e:
+            logger.error(f"Error saving content setting: {e}")
+            return {'status': 'error', 'message': 'Ошибка при сохранении'}, 500
+
     # Старый endpoint для совместимости (удалим позже)
     @flask_app.route('/settings/legacy', methods=['POST'])
     @login_required
@@ -417,59 +454,198 @@ def create_webhook_app(bot_controller_instance):
             logger.error(f"Failed to toggle hidden mode: {e}")
             return {'status': 'error'}, 500
 
-    @flask_app.route('/versions', methods=['GET', 'POST'])
+    @flask_app.route('/dev')
     @login_required
-    def versions_page():
-        """Просмотр и редактирование CHANGELOG.md"""
+    def dev_page():
+        """DevPage - страница разработчика с навигацией по разделам"""
+        # Перенаправляем на страницу версий по умолчанию
+        return redirect(url_for('versions_page_new'))
+
+    @flask_app.route('/versions', methods=['GET', 'POST'], endpoint='versions_page_new')
+    @login_required
+    def versions_page_new():
+        """Страница истории изменений (версий)"""
         def resolve_changelog_path():
             try:
                 candidates = [
                     PROJECT_ROOT / 'CHANGELOG.md',
-                    Path(__file__).resolve().parents[3] / 'CHANGELOG.md',
-                    Path.cwd() / 'CHANGELOG.md'
+                    Path.cwd() / 'CHANGELOG.md',
+                    Path.cwd().parent / 'CHANGELOG.md'
                 ]
-            except Exception:
-                candidates = [PROJECT_ROOT / 'CHANGELOG.md']
-            for p in candidates:
-                try:
-                    if p.exists() or p.parent.exists():
-                        return p
-                except Exception:
-                    continue
-            return candidates[0]
+                for path in candidates:
+                    if path.exists():
+                        return path
+                # Создаём файл в корне проекта
+                changelog_path = PROJECT_ROOT / 'CHANGELOG.md'
+                changelog_path.parent.mkdir(parents=True, exist_ok=True)
+                return changelog_path
+            except Exception as e:
+                logger.error(f"Failed to resolve changelog path: {e}")
+                return PROJECT_ROOT / 'CHANGELOG.md'
 
-        changelog_path = resolve_changelog_path()
-
+        # POST: сохраняем изменения
         if request.method == 'POST':
             try:
+                changelog_path = resolve_changelog_path()
                 new_content = request.form.get('changelog_content', '')
                 # Безопасно перезаписываем файл (создаём при отсутствии)
                 with open(changelog_path, 'w', encoding='utf-8') as f:
                     f.write(new_content)
                 flash('CHANGELOG.md обновлён.', 'success')
-                return redirect(url_for('versions_page'))
+                return redirect(url_for('versions_page_new'))
             except Exception as e:
                 logger.error(f"Failed to write CHANGELOG.md: {e}")
                 flash('Не удалось сохранить изменения.', 'danger')
 
         # GET: читаем changelog (создаём, если отсутствует)
-        changelog_text = ''
         try:
-            if not changelog_path.exists():
-                try:
-                    with open(changelog_path, 'w', encoding='utf-8') as f:
-                        f.write('# История изменений\n\n')
-                except Exception as e:
-                    logger.error(f"Failed to create CHANGELOG.md: {e}")
+            changelog_path = resolve_changelog_path()
             if changelog_path.exists():
                 with open(changelog_path, 'r', encoding='utf-8') as f:
                     changelog_text = f.read()
+            else:
+                changelog_text = ''
         except Exception as e:
             logger.error(f"Failed to read CHANGELOG.md: {e}")
             changelog_text = ''
+
         # Общие данные для шаблонов (боты/режим/версия)
         common_data = get_common_template_data()
         return render_template('versions.html', changelog_text=changelog_text, **common_data)
+
+    @flask_app.route('/demo')
+    @login_required
+    def demo_page():
+        """Демо страница с элементами интерфейса"""
+        common_data = get_common_template_data()
+        return render_template('demo.html', **common_data)
+
+    @flask_app.route('/terms')
+    def terms_page():
+        """Страница условий использования"""
+        from datetime import datetime
+        current_date = datetime.now().strftime('%d.%m.%Y')
+        return render_template('terms.html', current_date=current_date)
+
+    @flask_app.route('/privacy')
+    def privacy_page():
+        """Страница политики конфиденциальности"""
+        from datetime import datetime
+        current_date = datetime.now().strftime('%d.%m.%Y')
+        return render_template('privacy.html', current_date=current_date)
+
+    @flask_app.route('/edit-terms', methods=['GET', 'POST'])
+    @login_required
+    def edit_terms_page():
+        """Редактирование страницы условий использования"""
+        from pathlib import Path
+        
+        def get_terms_file_path():
+            return PROJECT_ROOT / 'src' / 'shop_bot' / 'webhook_server' / 'templates' / 'terms.html'
+        
+        if request.method == 'POST':
+            try:
+                new_content = request.form.get('terms_content', '')
+                file_path = get_terms_file_path()
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(new_content)
+                flash('Страница условий использования обновлена.', 'success')
+                return redirect(url_for('edit_terms_page'))
+            except Exception as e:
+                logger.error(f"Failed to save terms page: {e}")
+                flash('Не удалось сохранить изменения.', 'danger')
+        
+        # GET: читаем содержимое файла
+        try:
+            file_path = get_terms_file_path()
+            if file_path.exists():
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    terms_content = f.read()
+            else:
+                terms_content = ''
+        except Exception as e:
+            logger.error(f"Failed to read terms file: {e}")
+            terms_content = ''
+        
+        return render_template('edit_terms.html', terms_content=terms_content, **get_common_template_data())
+
+    @flask_app.route('/edit-privacy', methods=['GET', 'POST'])
+    @login_required
+    def edit_privacy_page():
+        """Редактирование страницы политики конфиденциальности"""
+        from pathlib import Path
+        
+        def get_privacy_file_path():
+            return PROJECT_ROOT / 'src' / 'shop_bot' / 'webhook_server' / 'templates' / 'privacy.html'
+        
+        if request.method == 'POST':
+            try:
+                new_content = request.form.get('privacy_content', '')
+                file_path = get_privacy_file_path()
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(new_content)
+                flash('Страница политики конфиденциальности обновлена.', 'success')
+                return redirect(url_for('edit_privacy_page'))
+            except Exception as e:
+                logger.error(f"Failed to save privacy page: {e}")
+                flash('Не удалось сохранить изменения.', 'danger')
+        
+        # GET: читаем содержимое файла
+        try:
+            file_path = get_privacy_file_path()
+            if file_path.exists():
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    privacy_content = f.read()
+            else:
+                privacy_content = ''
+        except Exception as e:
+            logger.error(f"Failed to read privacy file: {e}")
+            privacy_content = ''
+        
+        return render_template('edit_privacy.html', privacy_content=privacy_content, **get_common_template_data())
+
+    @flask_app.route('/api/get-terms-content')
+    @login_required
+    def get_terms_content():
+        """API для получения контента страницы условий использования"""
+        from pathlib import Path
+        
+        try:
+            file_path = PROJECT_ROOT / 'src' / 'shop_bot' / 'webhook_server' / 'templates' / 'terms.html'
+            if file_path.exists():
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+            else:
+                content = ''
+            return jsonify({'content': content})
+        except Exception as e:
+            logger.error(f"Failed to read terms file: {e}")
+            return jsonify({'content': ''}), 500
+
+    @flask_app.route('/api/get-privacy-content')
+    @login_required
+    def get_privacy_content():
+        """API для получения контента страницы политики конфиденциальности"""
+        from pathlib import Path
+        
+        try:
+            file_path = PROJECT_ROOT / 'src' / 'shop_bot' / 'webhook_server' / 'templates' / 'privacy.html'
+            if file_path.exists():
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+            else:
+                content = ''
+            return jsonify({'content': content})
+        except Exception as e:
+            logger.error(f"Failed to read privacy file: {e}")
+            return jsonify({'content': ''}), 500
+
+    @flask_app.route('/debug')
+    @login_required
+    def debug_page():
+        """Страница отладки"""
+        common_data = get_common_template_data()
+        return render_template('debug.html', **common_data)
 
     @flask_app.route('/instructions', methods=['GET', 'POST'])
     @login_required
@@ -1098,6 +1274,8 @@ def create_webhook_app(bot_controller_instance):
         try:
             # Синхронизация дат начала/окончания с XUI панелями
             updated = 0
+            errors = []  # Список для сбора ошибок
+            
             with sqlite3.connect(DB_FILE) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
@@ -1171,13 +1349,115 @@ def create_webhook_app(bot_controller_instance):
                                 )
                             conn.commit()
                             updated += 1
-                except Exception:
+                    else:
+                        # Ключ не найден в 3x-ui панели
+                        created_date = key.get('created_date', 'Неизвестно')
+                        expiry_date = key.get('expiry_date', 'Неизвестно')
+                        # Используем key_email из базы данных (это и есть email из 3x-ui)
+                        email = key.get('key_email', 'N/A')
+                        host_name = key.get('host_name', 'Unknown')
+                        xui_client_uuid = key.get('xui_client_uuid', 'Unknown')
+                        error_info = {
+                            'email': email,
+                            'host_name': host_name,
+                            'xui_client_uuid': xui_client_uuid,
+                            'created_date': created_date.strftime('%Y-%m-%d %H:%M') if isinstance(created_date, datetime) else str(created_date),
+                            'expiry_date': expiry_date.strftime('%Y-%m-%d %H:%M') if isinstance(expiry_date, datetime) else str(expiry_date)
+                        }
+                        errors.append(error_info)
+                except Exception as e:
+                    # Ошибка при получении деталей ключа
+                    created_date = key.get('created_date', 'Неизвестно')
+                    expiry_date = key.get('expiry_date', 'Неизвестно')
+                    # Используем key_email из базы данных (это и есть email из 3x-ui)
+                    email = key.get('key_email', 'N/A')
+                    host_name = key.get('host_name', 'Unknown')
+                    xui_client_uuid = key.get('xui_client_uuid', 'Unknown')
+                    error_info = {
+                        'email': email,
+                        'host_name': host_name,
+                        'xui_client_uuid': xui_client_uuid,
+                        'created_date': created_date.strftime('%Y-%m-%d %H:%M') if isinstance(created_date, datetime) else str(created_date),
+                        'expiry_date': expiry_date.strftime('%Y-%m-%d %H:%M') if isinstance(expiry_date, datetime) else str(expiry_date),
+                        'error': str(e)
+                    }
+                    errors.append(error_info)
                     continue
-            return {'status': 'success', 'message': f'Ключи обновлены: {updated}'}
+            
+            response_data = {'status': 'success', 'message': f'Ключи обновлены: {updated}'}
+            if errors:
+                response_data['errors'] = errors
+            
+            return response_data
             
         except Exception as e:
             logger.error(f"Error refreshing keys: {e}")
             return {'status': 'error', 'message': f'Ошибка при обновлении: {str(e)}'}, 500
+
+    @flask_app.route('/delete-error-keys', methods=['POST'])
+    @login_required
+    def delete_error_keys_route():
+        """Удаляет ключи с ошибками из 3x-ui панелей"""
+        try:
+            data = request.get_json()
+            error_keys = data.get('keys', [])
+            
+            if not error_keys:
+                return {'status': 'error', 'message': 'Нет ключей для удаления'}, 400
+            
+            deleted_count = 0
+            failed_deletions = []
+            
+            from shop_bot.modules.xui_api import delete_client_by_uuid
+            
+            for key_data in error_keys:
+                try:
+                    email = key_data.get('email')
+                    host_name = key_data.get('host_name')
+                    xui_client_uuid = key_data.get('xui_client_uuid')
+                    
+                    if not email or not xui_client_uuid or xui_client_uuid == 'Unknown':
+                        failed_deletions.append({
+                            'email': email or 'Unknown',
+                            'error': 'Отсутствует email или UUID клиента'
+                        })
+                        continue
+                    
+                    # Удаляем ключ из 3x-ui панели напрямую по UUID
+                    success = asyncio.run(delete_client_by_uuid(xui_client_uuid, email))
+                    
+                    if success:
+                        deleted_count += 1
+                        logger.info(f"Successfully deleted key {email} (UUID: {xui_client_uuid}) using direct UUID deletion")
+                    else:
+                        failed_deletions.append({
+                            'email': email,
+                            'error': 'Не удалось удалить ключ из 3x-ui панели'
+                        })
+                        
+                except Exception as e:
+                    failed_deletions.append({
+                        'email': key_data.get('email', 'Unknown'),
+                        'error': str(e)
+                    })
+                    logger.error(f"Error deleting key {key_data.get('email')}: {e}")
+                    continue
+            
+            response_data = {
+                'status': 'success',
+                'deleted_count': deleted_count,
+                'failed_count': len(failed_deletions),
+                'message': f'Удалено ключей: {deleted_count}, ошибок: {len(failed_deletions)}'
+            }
+            
+            if failed_deletions:
+                response_data['failed_deletions'] = failed_deletions
+            
+            return response_data
+            
+        except Exception as e:
+            logger.error(f"Error deleting error keys: {e}")
+            return {'status': 'error', 'message': f'Ошибка при удалении: {str(e)}'}, 500
 
     # API endpoints для модального окна пользователя
     @flask_app.route('/api/user-payments/<int:user_id>')
@@ -1365,6 +1645,7 @@ def create_webhook_app(bot_controller_instance):
         except Exception as e:
             logger.error(f"Error getting user notifications: {e}")
             return {'notifications': []}, 500
+
 
     # Запускаем мониторинг сразу
     start_ton_monitoring_task()

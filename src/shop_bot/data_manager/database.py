@@ -1513,7 +1513,8 @@ def get_paginated_keys(page: int = 1, per_page: int = 15) -> tuple[list[dict], i
                     vk.remaining_seconds,
                     vk.quota_remaining_bytes,
                     vk.quota_total_gb,
-                    vk.traffic_down_bytes
+                    vk.traffic_down_bytes,
+                    (SELECT COUNT(*) FROM vpn_keys vk2 WHERE vk2.user_id = vk.user_id) as user_keys_count
                 FROM vpn_keys vk
                 LEFT JOIN users u ON vk.user_id = u.telegram_id
                 ORDER BY vk.created_date DESC 

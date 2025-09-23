@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Проверка платежей{% endblock %}
+{% block header_title %}Проверка платежей{% endblock %}
 {% block content %}
 
-<h1>Проверка TON платежей</h1>
 
 <div class="form-container">
     <form method="POST">
@@ -10,7 +10,10 @@
             <label for="tx_hash">Хеш транзакции (Transaction Hash):</label>
             <input type="text" id="tx_hash" name="tx_hash" placeholder="Введите хеш транзакции" required>
         </div>
-        <button type="submit" class="button">Проверить платеж</button>
+        <button type="submit" class="button button-primary" data-size="md" title="Проверить статус платежа">
+			<i class="fas fa-search"></i>
+			Проверить платеж
+		</button>
     </form>
 </div>
 

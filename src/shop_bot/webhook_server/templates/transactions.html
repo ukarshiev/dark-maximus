@@ -1,9 +1,11 @@
-{% extends "base.html" %} {% block title %}Недавние транзакции{% endblock %} {%
+{% extends "base.html" %} 
+{% block title %}Недавние транзакции{% endblock %}
+{% block header_title %}Платежи{% endblock %}
+{%
 block content %}
 
 <div class="transactions-container">
 	<div class="transactions-header">
-		<h1 style="text-align: center;">Платежи</h1>
 	</div>
 
 	<section class="transactions-section">
@@ -13,15 +15,14 @@ block content %}
 					<tr>
 						<th>ID</th>
 						<th>Пользователь</th>
-						<th>Хост</th>
-						<th>План</th>
+						<th>Дата</th>
+						<th>Тип операции</th>
 						<th>Способ оплаты</th>
 						<th>Цена</th>
-						<th>Звезды</th>
 						<th>Статус</th>
+						<th>Хост</th>
+						<th>План</th>
 						<th>Транзакция</th>
-						<th>Дата</th>
-                        <th>Тип операции</th>
 						<th>Ключ</th>
 					</tr>
 				</thead>
@@ -38,61 +39,13 @@ block content %}
 											<span>{{ hidden_mode and '***' or tx.user_id }}</span>
 										</div>
 										<div class="cell-actions">
-											<button class="modal-action-btn" onclick="openUserModal({{ tx.user_id }}, '{{ tx.username or 'N/A' }}', false, 0)" title="Открыть карточку">🔍</button>
+											<button class="modal-action-btn" data-size="xs" onclick="openUserModal({{ tx.user_id }}, '{{ tx.username or 'N/A' }}', false, 0)" title="Открыть карточку пользователя">
+												<i class="fas fa-eye"></i>
+											</button>
 										</div>
 									</div>
 								</div>
 								<div data-field="tx_username" data-original="{{ tx.username or 'N/A' }}"><strong>Username:</strong> {{ hidden_mode and '***' or (tx.username or 'N/A') }}</div>
-							</div>
-						</td>
-                        <td>{{ tx.host_name }}</td>
-                        <td>
-                            {% if tx.metadata and tx.metadata.get('operation') == 'topup' %}
-                                -
-                            {% else %}
-                                {{ tx.plan_name or 'N/A' }}
-                            {% endif %}
-                        </td>
-						<td>{{ tx.payment_method or '-' }}</td>
-						<td data-field="price" data-original="{{ tx.amount_rub | round(2) }} RUB">{{ hidden_mode and '*** RUB' or (tx.amount_rub | round(2)) ~ ' RUB' }}</td>
-						<td>
-							{% if tx.payment_method == 'Stars' %}
-								{% set meta = tx.metadata %}
-								{% if meta %}
-									{% set stars = meta.get('stars_paid') or (tx.amount_currency) %}
-									{% set rate = meta.get('stars_rate') %}
-									{{ (stars | int) }}⭐️{% if rate %} - {{ rate }}{% endif %}
-								{% else %}
-									{{ (tx.amount_currency or 0) | int }}⭐️
-								{% endif %}
-							{% else %}-{% endif %}
-						</td>
-						<td>
-							{% if tx.status == 'paid' %}
-								<span class="status-badge status-paid">Оплачено</span>
-							{% elif tx.status == 'pending' %}
-								<span class="status-badge status-pending">Ожидает</span>
-							{% else %}
-								<span class="status-badge status-{{ tx.status }}">{{ tx.status }}</span>
-							{% endif %}
-						</td>
-						<td>
-							<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-								{% if tx.transaction_hash %}
-									{% if tx.payment_method == 'TON Connect' %}
-										<a href="https://tonscan.org/tx/{{ tx.transaction_hash }}" target="_blank" class="transaction-link">Посмотреть</a>
-									{% elif tx.payment_method == 'Stars' %}
-										<button class="copy-btn" onclick="copyPaymentLink('{{ tx.transaction_hash }}')" title="Копировать ID">📋</button>
-									{% else %}
-										<code>{{ tx.transaction_hash }}</code>
-									{% endif %}
-								{% else %}
-									<span>-</span>
-								{% endif %}
-
-								{% if tx.payment_link %}
-									<button class="copy-btn" onclick="copyPaymentLink('{{ tx.payment_link }}')" title="Копировать ссылку">📋</button>
-								{% endif %}
 							</div>
 						</td>
 						<td>
@@ -111,11 +64,69 @@ block content %}
                                 {% else %}-{% endif %}
                             {% else %}-{% endif %}
                         </td>
+						<td>{{ tx.payment_method or '-' }}</td>
+						<td data-field="price" data-original="{{ tx.amount_rub | round(2) }} RUB{% if tx.payment_method == 'Stars' %}{% set meta = tx.metadata %}{% if meta %}{% set stars = meta.get('stars_paid') or (tx.amount_currency) %}{% set rate = meta.get('stars_rate') %} {{ (stars | int) }}⭐️{% if rate %} - {{ rate }}{% endif %}{% else %} {{ (tx.amount_currency or 0) | int }}⭐️{% endif %}{% endif %}">
+							<div>
+								{{ hidden_mode and '*** RUB' or (tx.amount_rub | round(2)) ~ ' RUB' }}
+								{% if not hidden_mode and tx.payment_method == 'Stars' %}
+									{% set meta = tx.metadata %}
+									{% if meta %}
+										{% set stars = meta.get('stars_paid') or (tx.amount_currency) %}
+										{% set rate = meta.get('stars_rate') %}
+										<br>{{ (stars | int) }}⭐️{% if rate %} - {{ rate }}{% endif %}
+									{% else %}
+										<br>{{ (tx.amount_currency or 0) | int }}⭐️
+									{% endif %}
+								{% endif %}
+							</div>
+						</td>
+						<td>
+							{% if tx.status == 'paid' %}
+								<span class="status-badge status-paid">Оплачено</span>
+							{% elif tx.status == 'pending' %}
+								<span class="status-badge status-pending">Ожидает</span>
+							{% else %}
+								<span class="status-badge status-{{ tx.status }}">{{ tx.status }}</span>
+							{% endif %}
+						</td>
+                        <td>{{ tx.host_name }}</td>
+                        <td>
+                            {% if tx.metadata and tx.metadata.get('operation') == 'topup' %}
+                                -
+                            {% else %}
+                                {{ tx.plan_name or 'N/A' }}
+                            {% endif %}
+                        </td>
+						<td>
+							<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+								{% if tx.transaction_hash %}
+									{% if tx.payment_method == 'TON Connect' %}
+										<a href="https://tonscan.org/tx/{{ tx.transaction_hash }}" target="_blank" class="transaction-link">Посмотреть</a>
+									{% elif tx.payment_method == 'Stars' %}
+										<button class="copy-btn" data-size="xs" onclick="copyPaymentLink('{{ tx.transaction_hash }}')" title="Копировать ID транзакции">
+											<i class="fas fa-copy"></i>
+										</button>
+									{% else %}
+										<code>{{ tx.transaction_hash }}</code>
+									{% endif %}
+								{% else %}
+									<span>-</span>
+								{% endif %}
+
+								{% if tx.payment_link %}
+									<button class="copy-btn" data-size="xs" onclick="copyPaymentLink('{{ tx.payment_link }}')" title="Копировать ссылку на платеж">
+										<i class="fas fa-copy"></i>
+									</button>
+								{% endif %}
+							</div>
+						</td>
 						<td>
 							{% if tx.metadata and tx.metadata.get('connection_string') %}
 								<div class="key-cell">
 									<span class="key-text" title="{{ tx.metadata.get('connection_string') }}">{{ tx.metadata.get('connection_string')[:40] }}{% if tx.metadata.get('connection_string')|length > 40 %}...{% endif %}</span>
-									<button class="copy-btn" onclick="copyPaymentLink('{{ tx.metadata.get('connection_string') }}')" title="Копировать ключ">📋</button>
+									<button class="copy-btn" data-size="xs" onclick="copyPaymentLink('{{ tx.metadata.get('connection_string') }}')" title="Копировать ключ подключения">
+										<i class="fas fa-copy"></i>
+									</button>
 								</div>
 							{% else %}
 								-
@@ -131,42 +142,91 @@ block content %}
 	<!-- Закрепленная панель пагинации -->
 	<div class="pagination-panel">
 		<div class="pagination-controls">
-			<!-- Кнопка обновления -->
-			<button class="button button-primary button-small-refresh" onclick="refreshTransactions()" id="refreshBtn">
-				<span id="refreshIcon">🔄</span>
-				<span id="refreshText">Обновить</span>
-			</button>
-			
-			<!-- Пагинация -->
-			{% if total_pages > 1 %}
-			<div class="pagination">
-				{% if current_page > 1 %}
-					<a href="{{ url_for('transactions_page', page=current_page-1, per_page=per_page) }}" class="pagination-link">«</a>
-				{% endif %}
-				
-				{% for p in range(1, total_pages + 1) %}
-					{% if p == current_page %}
-						<span class="pagination-link active">{{ p }}</span>
-					{% else %}
-						<a href="{{ url_for('transactions_page', page=p, per_page=per_page) }}" class="pagination-link">{{ p }}</a>
-					{% endif %}
-				{% endfor %}
-				
-				{% if current_page < total_pages %}
-					<a href="{{ url_for('transactions_page', page=current_page+1, per_page=per_page) }}" class="pagination-link">»</a>
-				{% endif %}
+			<!-- Левая область: кнопки действий -->
+			<div class="pagination-left">
+				<button class="button button-primary button-small-refresh" data-size="sm" onclick="refreshTransactions()" id="refreshBtn" title="Обновить список транзакций">
+					<i class="fas fa-sync-alt" id="refreshIcon"></i>
+					<span id="refreshText">Обновить</span>
+				</button>
 			</div>
-			{% endif %}
 			
-			<!-- Переключатель количества записей -->
-			<div class="per-page-selector">
-				<select id="perPageSelect" onchange="changePerPage(this.value)">
-					<option value="5" {% if per_page == 5 %}selected{% endif %}>5</option>
-					<option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
-					<option value="15" {% if per_page == 15 %}selected{% endif %}>15</option>
-					<option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
-					<option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
-				</select>
+			<!-- Правая область: пагинация и переключатель -->
+			<div class="pagination-right">
+				<!-- Пагинация -->
+				{% if total_pages > 1 %}
+				<div class="pagination">
+					<!-- Стрелка назад -->
+					{% if current_page > 1 %}
+						<a href="{{ url_for('transactions_page', page=current_page-1, per_page=per_page) }}" class="pagination-link" title="Предыдущая страница">«</a>
+					{% endif %}
+					
+					<!-- Логика отображения страниц: максимум 6 номеров -->
+					{% if total_pages <= 6 %}
+						<!-- Если страниц 6 или меньше, показываем все -->
+						{% for p in range(1, total_pages + 1) %}
+							{% if p == current_page %}
+								<span class="pagination-link active" title="Текущая страница">{{ p }}</span>
+							{% else %}
+								<a href="{{ url_for('transactions_page', page=p, per_page=per_page) }}" class="pagination-link" title="Страница {{ p }}">{{ p }}</a>
+							{% endif %}
+						{% endfor %}
+					{% else %}
+						<!-- Если страниц больше 6, показываем первые 4, многоточие и последнюю -->
+						{% if current_page <= 4 %}
+							<!-- Показываем 1, 2, 3, 4, ..., последняя -->
+							{% for p in range(1, 5) %}
+								{% if p == current_page %}
+									<span class="pagination-link active" title="Текущая страница">{{ p }}</span>
+								{% else %}
+									<a href="{{ url_for('transactions_page', page=p, per_page=per_page) }}" class="pagination-link" title="Страница {{ p }}">{{ p }}</a>
+								{% endif %}
+							{% endfor %}
+							<span class="pagination-link">...</span>
+							<a href="{{ url_for('transactions_page', page=total_pages, per_page=per_page) }}" class="pagination-link" title="Страница {{ total_pages }}">{{ total_pages }}</a>
+						{% elif current_page >= total_pages - 3 %}
+							<!-- Показываем 1, ..., последние 4 -->
+							<a href="{{ url_for('transactions_page', page=1, per_page=per_page) }}" class="pagination-link" title="Страница 1">1</a>
+							<span class="pagination-link">...</span>
+							{% for p in range(total_pages - 3, total_pages + 1) %}
+								{% if p == current_page %}
+									<span class="pagination-link active" title="Текущая страница">{{ p }}</span>
+								{% else %}
+									<a href="{{ url_for('transactions_page', page=p, per_page=per_page) }}" class="pagination-link" title="Страница {{ p }}">{{ p }}</a>
+								{% endif %}
+							{% endfor %}
+						{% else %}
+							<!-- Показываем 1, ..., текущая-1, текущая, текущая+1, ..., последняя -->
+							<a href="{{ url_for('transactions_page', page=1, per_page=per_page) }}" class="pagination-link" title="Страница 1">1</a>
+							<span class="pagination-link">...</span>
+							{% for p in range(current_page - 1, current_page + 2) %}
+								{% if p == current_page %}
+									<span class="pagination-link active" title="Текущая страница">{{ p }}</span>
+								{% else %}
+									<a href="{{ url_for('transactions_page', page=p, per_page=per_page) }}" class="pagination-link" title="Страница {{ p }}">{{ p }}</a>
+								{% endif %}
+							{% endfor %}
+							<span class="pagination-link">...</span>
+							<a href="{{ url_for('transactions_page', page=total_pages, per_page=per_page) }}" class="pagination-link" title="Страница {{ total_pages }}">{{ total_pages }}</a>
+						{% endif %}
+					{% endif %}
+					
+					<!-- Стрелка вперед -->
+					{% if current_page < total_pages %}
+						<a href="{{ url_for('transactions_page', page=current_page+1, per_page=per_page) }}" class="pagination-link" title="Следующая страница">»</a>
+					{% endif %}
+				</div>
+				{% endif %}
+				
+				<!-- Переключатель количества записей -->
+				<div class="per-page-selector">
+					<select id="perPageSelect" onchange="changePerPage(this.value)" title="Выберите количество записей на странице">
+						<option value="5" {% if per_page == 5 %}selected{% endif %}>5</option>
+						<option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+						<option value="15" {% if per_page == 15 %}selected{% endif %}>15</option>
+						<option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+						<option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+					</select>
+				</div>
 			</div>
 		</div>
 	</div>
