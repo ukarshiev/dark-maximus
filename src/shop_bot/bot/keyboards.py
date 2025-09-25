@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+Клавиатуры для Telegram-бота
+"""
+
 import logging
 
 from datetime import datetime
@@ -9,9 +14,10 @@ from shop_bot.data_manager.database import get_setting
 
 logger = logging.getLogger(__name__)
 
-def get_main_reply_keyboard() -> ReplyKeyboardMarkup:
+def get_main_reply_keyboard(is_admin: bool = False) -> ReplyKeyboardMarkup:
     """Возвращает актуальную Reply-клавиатуру без пункта "Главное меню".
     Пункт "Реферальная программа" отображается только при включенной настройке.
+    Пункт "Админ-панель" отображается только для администраторов.
     """
     rows = []
     # Первая строка: Купить VPN
@@ -22,6 +28,10 @@ def get_main_reply_keyboard() -> ReplyKeyboardMarkup:
 
     # Третья строка: Помощь и поддержка + О проекте
     rows.append([KeyboardButton(text="⁉️ Помощь и поддержка"), KeyboardButton(text="ℹ️ О проекте")])
+
+    # Четвертая строка: Админ-панель (только для администраторов)
+    if is_admin:
+        rows.append([KeyboardButton(text="⚙️ Админ-панель")])
 
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
@@ -75,6 +85,7 @@ def create_profile_menu_keyboard(total_keys_count: int | None = None) -> InlineK
     builder.button(text="💳 Пополнить баланс", callback_data="topup_root")
     if get_setting("enable_referrals") == "true":
         builder.button(text="🤝 Реферальная программа", callback_data="show_referral_program")
+    builder.button(text="❌ Отозвать согласие", callback_data="revoke_consent")
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
     builder.adjust(1)
     return builder.as_markup()
@@ -131,8 +142,23 @@ def create_broadcast_cancel_keyboard() -> InlineKeyboardMarkup:
     builder.button(text="❌ Отмена", callback_data="cancel_broadcast")
     return builder.as_markup()
 
+def create_admin_panel_keyboard() -> InlineKeyboardMarkup:
+    """Создает клавиатуру админ-панели"""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📢 Рассылка", callback_data="start_broadcast")
+    builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
+    builder.adjust(1)
+    return builder.as_markup()
+
 def create_about_keyboard(channel_url: str | None, terms_url: str | None, privacy_url: str | None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+    
+    # Проверяем, что URL не localhost
+    if terms_url and (terms_url.startswith("http://localhost") or terms_url.startswith("https://localhost")):
+        terms_url = None
+    if privacy_url and (privacy_url.startswith("http://localhost") or privacy_url.startswith("https://localhost")):
+        privacy_url = None
+    
     if channel_url:
         builder.button(text="📰 Наш канал", url=channel_url)
     if terms_url:
@@ -247,9 +273,9 @@ def create_keys_management_keyboard(keys: list) -> InlineKeyboardMarkup:
 
 def create_key_info_keyboard(key_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="🔄 Продлить этот ключ", callback_data=f"extend_key_{key_id}")
     builder.button(text="📑 Скопировать ключ", callback_data=f"copy_key_{key_id}")
     builder.button(text="📱 Сканировать QR ключа", callback_data=f"show_qr_{key_id}")
+    builder.button(text="🔄 Продлить этот ключ", callback_data=f"extend_key_{key_id}")
     builder.button(text="❓ Инструкция как пользоваться", callback_data=f"howto_vless_{key_id}")
     builder.button(text="⬅️ Назад к списку ключей", callback_data="manage_keys")
     builder.adjust(1, 2, 1, 1)
@@ -293,6 +319,12 @@ def create_back_to_menu_keyboard() -> InlineKeyboardMarkup:
 
 def create_welcome_keyboard(channel_url: str | None, is_subscription_forced: bool = False, terms_url: str | None = None, privacy_url: str | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+    
+    # Проверяем, что URL не localhost
+    if terms_url and (terms_url.startswith("http://localhost") or terms_url.startswith("https://localhost")):
+        terms_url = None
+    if privacy_url and (privacy_url.startswith("http://localhost") or privacy_url.startswith("https://localhost")):
+        privacy_url = None
 
     if channel_url and terms_url and privacy_url and is_subscription_forced:
         builder.button(text="📢 Перейти в канал", url=channel_url)
@@ -325,4 +357,21 @@ def get_main_menu_button() -> InlineKeyboardButton:
 
 def get_buy_button() -> InlineKeyboardButton:
     return InlineKeyboardButton(text="💳 Купить подписку", callback_data="buy_vpn")
+
+def create_terms_agreement_keyboard(terms_url: str, privacy_url: str) -> InlineKeyboardMarkup:
+    """Создает клавиатуру для согласия с документами"""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📄 Условия использования", url=terms_url)
+    builder.button(text="🔒 Политика конфиденциальности", url=privacy_url)
+    builder.button(text="✅ Принимаю условия", callback_data="agree_to_terms")
+    builder.adjust(1, 1, 1)
+    return builder.as_markup()
+
+def create_subscription_keyboard(channel_url: str) -> InlineKeyboardMarkup:
+    """Создает клавиатуру для проверки подписки"""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📢 Перейти в канал", url=channel_url)
+    builder.button(text="✅ Я подписался", callback_data="check_subscription")
+    builder.adjust(1)
+    return builder.as_markup()
 

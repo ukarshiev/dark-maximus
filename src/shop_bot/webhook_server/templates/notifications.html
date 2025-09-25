@@ -1,6 +1,18 @@
 {% extends "base.html" %} 
 {% block title %}Уведомления{% endblock %}
 {% block header_title %}Уведомления{% endblock %}
+
+{% block header_buttons %}
+<button class="button button-primary" data-size="sm" onclick="openCreateNotificationModal()" title="Создать новое уведомление">
+	<i class="fas fa-plus"></i>
+	Создать
+</button>
+<button class="button button-secondary" data-size="sm" onclick="refreshNotificationsPage()" title="Обновить список уведомлений">
+	<i class="fas fa-sync-alt"></i>
+	Обновить
+</button>
+{% endblock %}
+
 {% block content %}
 
 <div class="transactions-container">
@@ -84,14 +96,6 @@
         <div class="pagination-controls">
             <!-- Левая область: кнопки действий -->
             <div class="pagination-left">
-                <button class="button button-primary" data-size="md" onclick="openCreateNotificationModal()" title="Создать новое уведомление">
-					<i class="fas fa-plus"></i>
-					Создать
-				</button>
-                <button class="button button-primary button-small-refresh" data-size="sm" onclick="refreshNotificationsPage()" title="Обновить список уведомлений">
-					<i class="fas fa-sync-alt"></i>
-					Обновить
-				</button>
             </div>
             
             <!-- Правая область: пагинация и переключатель -->
@@ -188,7 +192,7 @@
         <div class="modal-body">
             <div class="form-group">
                 <label for="notifUserSearch">Пользователь</label>
-                <input type="text" id="notifUserSearch" placeholder="ID или username" oninput="debouncedSearchUsers(this.value)" />
+                <input type="text" id="notifUserSearch" placeholder="ID или username" oninput="debouncedUserSearch(this.value, 'notification')" />
                 <input type="hidden" id="notifSelectedUserId" />
                 <div id="notifSelectedUserLabel" style="margin-top: 6px; color: #adb5bd;"></div>
                 <div id="notifUserSuggestions" class="suggestions" style="margin-top: 6px;"></div>

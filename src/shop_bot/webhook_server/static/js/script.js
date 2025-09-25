@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
     });
+
 	function initializePasswordToggles() {
 		const togglePasswordButtons = document.querySelectorAll('.toggle-password')
 		togglePasswordButtons.forEach(button => {
@@ -534,11 +535,17 @@ document.addEventListener('DOMContentLoaded', function () {
 	initializeHiddenModeToggle()
 	initializeCreateNotificationModal()
 	initializeUsersTableInteractions()
+	initializeTransactionsTableInteractions()
+	initializeTopupBalanceModal()
+	
+	// Кебаб-меню теперь закрываются автоматически через CSS при потере hover/focus
 	
 	
 	// Загружаем заработанную сумму для всех пользователей на странице пользователей
 	loadAllUsersEarned()
 	loadAllUsersBalances()
+	
+	// Кебаб-меню теперь работают на чистом CSS без JavaScript
 })
 
 // Функции для модального окна пользователя
@@ -555,7 +562,7 @@ function initializeUserModal() {
 }
 
 // Создание уведомления: модалка и логика
-let notifSearchTimeout = null
+let userSearchTimeout = null
 function initializeCreateNotificationModal() {
     // Закрытие по клику вне окна
     window.addEventListener('click', function (event) {
@@ -582,35 +589,40 @@ function initializeUsersTableInteractions() {
         })
     })
 
-    // Кебаб-меню: открытие/закрытие
-    document.querySelectorAll('.kebab-menu .kebab-toggle').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation()
-            const menu = btn.closest('.kebab-menu')
-            const isOpen = menu.classList.contains('open')
-            document.querySelectorAll('.kebab-menu.open').forEach(m => m.classList.remove('open'))
-            if (!isOpen) menu.classList.add('open')
-        })
-    })
+    // Кебаб-меню теперь работают на чистом CSS
+}
 
-    // Предотвращаем даблклик на кебаб-меню от открытия карточки
-    document.querySelectorAll('.kebab-menu').forEach(m => {
-        m.addEventListener('dblclick', (e) => {
-            e.stopPropagation()
-        })
-        m.addEventListener('click', (e) => {
-            e.stopPropagation()
-        })
-    })
-
-    // Клик вне — закрыть любые открытые меню (только в рамках страницы пользователей)
-    const usersTable = document.querySelector('.users-table')
-    if (usersTable) {
-        document.addEventListener('click', () => {
-            usersTable.querySelectorAll('.kebab-menu.open').forEach(m => m.classList.remove('open'))
-        })
+// Хелперы: открытие карточки пользователя и пополнения баланса из кнопки в строке таблицы
+function openUserModalFromElement(buttonEl) {
+    const row = buttonEl && buttonEl.closest ? buttonEl.closest('.user-row') : null;
+    if (!row) return;
+    const userId = parseInt(row.getAttribute('data-user-id'));
+    const username = row.getAttribute('data-username') || 'N/A';
+    const isBanned = row.getAttribute('data-is-banned') === 'true';
+    const keysCount = parseInt(row.getAttribute('data-keys-count') || '0');
+    if (!isNaN(userId)) {
+        openUserModal(userId, username, isBanned, isNaN(keysCount) ? 0 : keysCount);
     }
 }
+
+function openTopupBalanceModalFromElement(buttonEl) {
+    const row = buttonEl && buttonEl.closest ? buttonEl.closest('.user-row') : null;
+    if (!row) return;
+    const userId = parseInt(row.getAttribute('data-user-id'));
+    const username = (row.getAttribute('data-username') || 'N/A').replace(/^@/, '');
+    if (!isNaN(userId)) {
+        openTopupBalanceModal(userId, username);
+    } else {
+        openTopupBalanceModal();
+    }
+}
+
+// Инициализация действий таблицы транзакций: кебаб-меню
+function initializeTransactionsTableInteractions() {
+    // Кебаб-меню теперь работают на чистом CSS
+}
+
+// Кебаб-меню теперь работают на чистом CSS без JavaScript
 
 function openCreateNotificationModal() {
     const modal = document.getElementById('createNotificationModal')
@@ -622,9 +634,15 @@ function openCreateNotificationModal() {
         const sugg = document.getElementById('notifUserSuggestions')
         if (input) input.value = ''
         if (selectedId) selectedId.value = ''
-        if (label) label.textContent = ''
-        if (sugg) sugg.innerHTML = ''
-        modal.style.display = 'block'
+        if (label) {
+            label.textContent = ''
+            label.style.display = 'none'
+        }
+        if (sugg) {
+            sugg.innerHTML = ''
+            sugg.style.display = 'none'
+        }
+        modal.style.display = 'flex'
     }
 }
 
@@ -633,26 +651,54 @@ function closeCreateNotificationModal() {
     if (modal) modal.style.display = 'none'
 }
 
-function debouncedSearchUsers(query) {
-    clearTimeout(notifSearchTimeout)
-    notifSearchTimeout = setTimeout(() => searchUsers(query), 300)
+// Универсальная функция поиска пользователей
+function debouncedUserSearch(query, context) {
+    console.log('debouncedUserSearch вызвана с параметрами:', query, context)
+    clearTimeout(userSearchTimeout)
+    userSearchTimeout = setTimeout(() => searchUsers(query, context), 300)
 }
 
-async function searchUsers(query) {
-    const sugg = document.getElementById('notifUserSuggestions')
-    const label = document.getElementById('notifSelectedUserLabel')
-    const selectedId = document.getElementById('notifSelectedUserId')
-    if (!sugg) return
+async function searchUsers(query, context) {
+    console.log('searchUsers вызвана с параметрами:', query, context)
+    // Определяем элементы в зависимости от контекста
+    let sugg, label, selectedId, input
+    
+    if (context === 'notification') {
+        sugg = document.getElementById('notifUserSuggestions')
+        label = document.getElementById('notifSelectedUserLabel')
+        selectedId = document.getElementById('notifSelectedUserId')
+        input = document.getElementById('notifUserSearch')
+    } else if (context === 'topup') {
+        sugg = document.getElementById('topupUserSuggestions')
+        label = document.getElementById('topupSelectedUserLabel')
+        selectedId = document.getElementById('topupSelectedUserId')
+        input = document.getElementById('topupUserSearch')
+    } else {
+        console.error('Неизвестный контекст поиска:', context)
+        return
+    }
+    
+    if (!sugg) {
+        console.log('Элемент sugg не найден для контекста:', context)
+        return
+    }
     sugg.innerHTML = ''
-    if (!query || query.trim().length < 1) return
+    sugg.style.display = 'none'
+    if (!query || query.trim().length < 1) {
+        return
+    }
+    
     try {
         const resp = await fetch(`/api/search-users?q=${encodeURIComponent(query)}`)
         const data = await resp.json()
         const users = data.users || []
+        
         if (users.length === 0) {
             sugg.innerHTML = '<div style="color:#999; padding:6px;">Не найдено</div>'
+            sugg.style.display = 'block'
             return
         }
+        
         users.slice(0, 10).forEach(u => {
             const div = document.createElement('div')
             div.style.padding = '6px 8px'
@@ -663,13 +709,20 @@ async function searchUsers(query) {
             div.textContent = `${u.telegram_id} · @${u.username || 'N/A'}`
             div.onclick = () => {
                 if (selectedId) selectedId.value = String(u.telegram_id)
-                if (label) label.textContent = `Выбрано: ${u.telegram_id} · @${u.username || 'N/A'}`
+                if (label) {
+                    label.textContent = `Выбрано: ${u.telegram_id} · @${u.username || 'N/A'}`
+                    label.style.display = 'block'
+                }
+                if (input) input.value = `${u.telegram_id} · @${u.username || 'N/A'}`
                 sugg.innerHTML = ''
+                sugg.style.display = 'none'
             }
             sugg.appendChild(div)
         })
+        sugg.style.display = 'block'
     } catch (e) {
         sugg.innerHTML = '<div style="color:#dc3545; padding:6px;">Ошибка поиска</div>'
+        sugg.style.display = 'block'
     }
 }
 
@@ -933,15 +986,13 @@ function openUserModal(userId, username, isBanned, keysCount) {
 	loadUserPayments(userId)
 	loadUserKeys(userId)
 	loadUserNotifications(userId)
-	loadUserEarned(userId)
-	loadUserBalance(userId)
 	
 	// Применяем скрытый режим к шапке модалки после заполнения
 	if (window.__HIDDEN_MODE__) {
 		applyHiddenMode()
 	}
-	// Показываем модальное окно
-	document.getElementById('userModal').style.display = 'block'
+    // Показываем модальное окно
+    document.getElementById('userModal').style.display = 'flex'
 }
 
 function closeUserModal() {
@@ -1012,7 +1063,10 @@ function switchTab(tabName) {
 	document.getElementById(`tab-${tabName}`).classList.add('active')
 	
 	// Активируем соответствующую кнопку
-	event.target.classList.add('active')
+	const activeButton = document.querySelector(`[onclick="switchTab('${tabName}')"]`)
+	if (activeButton) {
+		activeButton.classList.add('active')
+	}
 }
 
 // Функции для загрузки данных
@@ -1027,23 +1081,45 @@ async function loadUserPayments(userId) {
 		if (data.payments && data.payments.length > 0) {
 			data.payments.forEach(payment => {
 				const row = document.createElement('tr')
+				
+				// Определяем тип операции и описание
+				let operationType = 'N/A'
+				let description = ''
+				
+				if (payment.metadata) {
+					try {
+						const metadata = typeof payment.metadata === 'string' ? JSON.parse(payment.metadata) : payment.metadata
+						if (metadata.type === 'balance_topup' || metadata.operation === 'topup') {
+							operationType = 'Зачисление'
+							description = 'Пополнение баланса'
+						} else if (metadata.action) {
+							operationType = metadata.action === 'new' ? 'Новый' : 'Продление'
+							description = `${metadata.host_name || 'N/A'} · ${metadata.plan_name || 'N/A'}`
+						}
+					} catch (e) {
+						// не критично
+					}
+				} else if (payment.payment_method === 'Balance') {
+					operationType = 'Зачисление'
+					description = 'Пополнение баланса'
+				} else {
+					description = `${payment.host_name || 'N/A'} · ${payment.plan_name || 'N/A'}`
+				}
+				
+				const dateCell = payment.created_date ? new Date(payment.created_date).toLocaleString('ru-RU') : 'N/A'
+				const amountCell = payment.amount_rub ? payment.amount_rub.toFixed(2) + ' RUB' : 'N/A'
+				
 				row.innerHTML = `
-					<td>${payment.transaction_id}</td>
-					<td>${payment.host_name || 'N/A'}</td>
-					<td>${payment.plan_name || 'N/A'}</td>
-					<td data-field="price">${payment.amount_rub ? payment.amount_rub.toFixed(2) + ' RUB' : 'N/A'}</td>
-					<td>
-						<span class="status-badge ${payment.status === 'paid' ? 'status-active' : 'status-pending'}">
-							${payment.status === 'paid' ? 'Оплачено' : 'Ожидает'}
-						</span>
-					</td>
-					<td>${payment.created_date ? new Date(payment.created_date).toLocaleString('ru-RU') : 'N/A'}</td>
+					<td>${dateCell}</td>
+					<td>${operationType}</td>
+					<td data-field="price">${amountCell}</td>
+					<td>${description}</td>
 				`
 				tbody.appendChild(row)
 			})
 			applyHiddenMode()
 		} else {
-			tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #999;">Нет платежей</td></tr>'
+			tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #999;">Нет платежей</td></tr>'
 		}
 	} catch (error) {
 		console.error('Ошибка загрузки платежей:', error)
@@ -1066,7 +1142,6 @@ async function loadUserKeys(userId) {
 					<td>${key.key_id}</td>
 					<td>${key.host_name || 'N/A'}</td>
 					<td>${key.plan_name || 'N/A'}</td>
-					<td>${key.price ? key.price + ' RUB' : 'N/A'}</td>
 					<td>
 						${key.connection_string ? 
 							`<div class="key-cell">
@@ -1095,23 +1170,22 @@ async function loadUserNotifications(userId) {
         const data = await response.json()
         const tbody = document.getElementById('modalNotificationsTable')
         tbody.innerHTML = ''
-        if (data.notifications && data.notifications.length > 0) {
-            data.notifications.forEach(n => {
-                const row = document.createElement('tr')
-                row.innerHTML = `
-                    <td>${n.notification_id}</td>
-                    <td>${n.type || '-'}</td>
-                    <td>${n.title || '-'}</td>
-                    <td>
-                        ${n.status === 'resent' ? '<span class="status-badge status-active">Повтор</span>' : (n.status === 'sent' ? '<span class="status-badge status-active">Отправлено</span>' : '<span class="status-badge">' + (n.status || '-') + '</span>')}
-                    </td>
-                    <td>${n.created_date || ''}</td>
-                `
-                tbody.appendChild(row)
-            })
-            applyHiddenMode()
-        } else {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #999;">Нет уведомлений</td></tr>'
+        		if (data.notifications && data.notifications.length > 0) {
+			data.notifications.forEach(n => {
+				const row = document.createElement('tr')
+				row.innerHTML = `
+					<td>${n.created_date || ''}</td>
+					<td>${n.type || '-'}</td>
+					<td>${n.title || '-'}</td>
+					<td>
+						${n.status === 'resent' ? '<span class="status-badge status-active">Повтор</span>' : (n.status === 'sent' ? '<span class="status-badge status-active">Отправлено</span>' : '<span class="status-badge">' + (n.status || '-') + '</span>')}
+					</td>
+				`
+				tbody.appendChild(row)
+			})
+			applyHiddenMode()
+		} else {
+            			tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #999;">Нет уведомлений</td></tr>'
         }
     } catch (error) {
         console.error('Ошибка загрузки уведомлений:', error)
@@ -1298,3 +1372,193 @@ function copyUsernameFromTable(username) {
         showNotification('Ошибка копирования', 'error');
     });
 }
+
+// Функции для модального окна пополнения баланса
+function initializeTopupBalanceModal() {
+    // Закрытие по клику вне окна
+    window.addEventListener('click', function (event) {
+        const modal = document.getElementById('topupBalanceModal');
+        if (!modal) return;
+        if (event.target === modal) {
+            closeTopupBalanceModal();
+        }
+    });
+}
+
+function openTopupBalanceModal(userId = null, username = null) {
+    const modal = document.getElementById('topupBalanceModal');
+    if (modal) {
+        // Сброс полей
+        const input = document.getElementById('topupUserSearch');
+        const selectedId = document.getElementById('topupSelectedUserId');
+        const label = document.getElementById('topupSelectedUserLabel');
+        const sugg = document.getElementById('topupUserSuggestions');
+        const amount = document.getElementById('topupAmount');
+        
+        if (input) input.value = '';
+        if (selectedId) selectedId.value = '';
+        if (label) {
+            label.textContent = ''
+            label.style.display = 'none'
+        }
+        if (sugg) {
+            sugg.innerHTML = ''
+            sugg.style.display = 'none'
+        }
+        if (amount) amount.value = '';
+        
+        // Если передан userId, заполняем поля
+        if (userId && username) {
+            if (selectedId) selectedId.value = String(userId);
+            if (label) {
+                label.textContent = `Выбрано: ${userId} · @${username}`;
+                label.style.display = 'block';
+            }
+            if (input) input.value = `${userId} · @${username}`;
+        }
+        
+        // Поиск пользователей инициализируется через inline обработчик oninput
+        
+        modal.style.display = 'flex';
+    }
+}
+
+function openTopupBalanceModalFromUserModal() {
+    // Получаем данные из модального окна пользователя
+    const modalUserIdEl = document.getElementById('modalUserId');
+    const modalUsernameEl = document.getElementById('modalUsername');
+    
+    if (modalUserIdEl && modalUsernameEl) {
+        const userId = modalUserIdEl.textContent.trim();
+        const username = modalUsernameEl.textContent.trim().replace('@', '');
+        openTopupBalanceModal(userId, username);
+    } else {
+        openTopupBalanceModal();
+    }
+}
+
+function closeTopupBalanceModal() {
+    const modal = document.getElementById('topupBalanceModal');
+    if (modal) modal.style.display = 'none';
+}
+
+
+async function submitTopupBalance() {
+    const userIdEl = document.getElementById('topupSelectedUserId');
+    const amountEl = document.getElementById('topupAmount');
+    const userId = userIdEl && userIdEl.value ? parseInt(userIdEl.value) : null;
+    const amount = amountEl ? parseFloat(amountEl.value) : null;
+    
+    if (!userId || !amount || amount <= 0) {
+        alert('Выберите пользователя и введите корректную сумму');
+        return;
+    }
+    
+    try {
+        const resp = await fetch('/api/topup-balance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: userId, amount: amount })
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+            alert(data.message || 'Баланс успешно пополнен');
+            closeTopupBalanceModal();
+            // Перезагрузим страницу, чтобы увидеть обновленный баланс
+            window.location.reload();
+        } else {
+            alert(data.message || 'Ошибка пополнения баланса');
+        }
+    } catch (e) {
+        alert('Ошибка пополнения баланса');
+    }
+}
+
+// Добавляем обработчики событий для поиска пользователей
+// Функция обновления текущей страницы из header
+function refreshCurrentPage() {
+    const refreshBtn = document.getElementById('headerRefreshBtn');
+    const refreshIcon = document.getElementById('headerRefreshIcon');
+    const refreshText = document.getElementById('headerRefreshText');
+    
+    if (!refreshBtn || !refreshIcon || !refreshText) return;
+    
+    // Блокируем кнопку и показываем анимацию
+    refreshBtn.disabled = true;
+    refreshIcon.classList.add('spinning');
+    refreshText.textContent = 'Обновляем...';
+    
+    // Определяем текущую страницу и вызываем соответствующую функцию обновления
+    const currentPath = window.location.pathname;
+    
+    if (currentPath.includes('/transactions')) {
+        // Для страницы транзакций
+        if (typeof refreshTransactions === 'function') {
+            refreshTransactions();
+        } else {
+            location.reload();
+        }
+    } else if (currentPath.includes('/keys')) {
+        // Для страницы ключей
+        if (typeof refreshKeys === 'function') {
+            refreshKeys();
+        } else {
+            location.reload();
+        }
+    } else if (currentPath.includes('/notifications')) {
+        // Для страницы уведомлений
+        if (typeof refreshNotificationsPage === 'function') {
+            refreshNotificationsPage();
+        } else {
+            location.reload();
+        }
+    } else {
+        // Для остальных страниц просто перезагружаем
+        location.reload();
+    }
+    
+    // Возвращаем кнопку в исходное состояние через 2 секунды
+    setTimeout(() => {
+        refreshBtn.disabled = false;
+        refreshIcon.classList.remove('spinning');
+        refreshText.textContent = 'Обновить';
+    }, 2000);
+}
+
+// Функции для кебаб-меню
+function toggleKebabMenu(menuId) {
+    // Закрываем все открытые меню
+    const allMenus = document.querySelectorAll('.kebab-menu');
+    allMenus.forEach(menu => {
+        if (menu.id !== menuId) {
+            menu.style.display = 'none';
+        }
+    });
+    
+    // Переключаем текущее меню
+    const menu = document.getElementById(menuId);
+    if (menu) {
+        if (menu.style.display === 'none' || menu.style.display === '') {
+            menu.style.display = 'block';
+        } else {
+            menu.style.display = 'none';
+        }
+    }
+}
+
+function closeKebabMenu(menuId) {
+    const menu = document.getElementById(menuId);
+    if (menu) {
+        menu.style.display = 'none';
+    }
+}
+
+// Закрываем все кебаб-меню при клике вне их
+document.addEventListener('click', function(event) {
+    if (!event.target.closest('.kebab-wrapper')) {
+        const allMenus = document.querySelectorAll('.kebab-menu');
+        allMenus.forEach(menu => {
+            menu.style.display = 'none';
+        });
+    }
+});

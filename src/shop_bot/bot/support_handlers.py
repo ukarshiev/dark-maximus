@@ -1,15 +1,18 @@
+# -*- coding: utf-8 -*-
+"""
+Обработчики для бота поддержки
+"""
+
 import logging
 import json
 
 from aiogram import Bot, Router, F, types
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram.enums import ParseMode
 
 from shop_bot.data_manager import database
 
 logger = logging.getLogger(__name__)
-
-SUPPORT_GROUP_ID = None
 
 router = Router()
 
@@ -42,6 +45,137 @@ async def get_user_summary(user_id: int, username: str) -> str:
     return "\n".join(summary_parts)
 def get_support_router() -> Router:
     support_router = Router()
+    
+    @support_router.message(Command("check_test"))
+    async def check_test_command(message: types.Message, bot: Bot):
+        """Команда для тестирования бота поддержки без проверки тем"""
+        user_id = message.from_user.id
+        is_admin = str(user_id) == database.get_setting("admin_telegram_id")
+        
+        if not is_admin:
+            await message.answer("❌ У вас нет прав для выполнения этой команды.")
+            return
+        
+        try:
+            # Получаем настройки
+            support_group_id = database.get_setting("support_group_id")
+            support_bot_token = database.get_setting("support_bot_token")
+            
+            test_info = f"🧪 <b>Тест бота поддержки:</b>\n\n"
+            test_info += f"📋 Support Group ID: {support_group_id or 'Не настроено'}\n"
+            test_info += f"🔑 Support Bot Token: {'Настроено' if support_bot_token else 'Не настроено'}\n\n"
+            
+            if not support_group_id:
+                test_info += "❌ <b>Ошибка:</b> ID группы поддержки не настроен\n"
+            elif not support_bot_token:
+                test_info += "❌ <b>Ошибка:</b> Токен бота поддержки не настроен\n"
+            else:
+                # Простая проверка доступности группы
+                try:
+                    chat_info = await bot.get_chat(support_group_id)
+                    test_info += f"✅ <b>Группа найдена:</b> {chat_info.title}\n"
+                    test_info += f"📊 <b>Тип группы:</b> {chat_info.type}\n"
+                    test_info += f"🆔 <b>ID группы:</b> {chat_info.id}\n"
+                    
+                    # Проверяем права бота
+                    try:
+                        bot_member = await bot.get_chat_member(support_group_id, bot.id)
+                        test_info += f"👤 <b>Статус бота:</b> {bot_member.status}\n"
+                        
+                        if bot_member.status in ['administrator', 'creator']:
+                            test_info += "✅ <b>Права:</b> Бот является администратором\n"
+                        else:
+                            test_info += "❌ <b>Права:</b> Бот не является администратором\n"
+                            test_info += "💡 <b>Решение:</b> Сделайте бота администратором группы\n"
+                            
+                    except Exception as member_error:
+                        test_info += f"❌ <b>Ошибка проверки прав:</b> {member_error}\n"
+                    
+                    test_info += "\n🧪 <b>Тест отправки сообщения:</b>\n"
+                    try:
+                        await bot.send_message(
+                            chat_id=support_group_id,
+                            text="🧪 Тестовое сообщение от бота поддержки",
+                            disable_notification=True
+                        )
+                        test_info += "✅ Сообщение отправлено успешно\n"
+                    except Exception as send_error:
+                        test_info += f"❌ Ошибка отправки: {send_error}\n"
+                        
+                except Exception as e:
+                    test_info += f"❌ <b>Ошибка доступа к группе:</b> {e}\n"
+                    test_info += "💡 <b>Возможные решения:</b>\n"
+                    test_info += "• Убедитесь, что ID группы правильный\n"
+                    test_info += "• Проверьте, что бот добавлен в группу\n"
+                    if "upgraded to a supergroup" in str(e):
+                        test_info += "• <b>ВАЖНО:</b> Группа была мигрирована в супергруппу!\n"
+                        test_info += "• При включении тем Telegram автоматически мигрирует группу\n"
+                        test_info += "• Новый ID обычно начинается с -100 (например: -1002919676196)\n"
+                        test_info += "• Обновите ID группы в настройках веб-интерфейса\n"
+                    else:
+                        test_info += "• Группа могла быть мигрирована в супергруппу\n"
+            
+            await message.answer(test_info, parse_mode=ParseMode.HTML)
+            
+        except Exception as e:
+            logger.error(f"Error in check_test command: {e}")
+            await message.answer(f"❌ Ошибка при выполнении теста: {e}")
+
+    @support_router.message(Command("check_config"))
+    async def check_config_command(message: types.Message, bot: Bot):
+        """Команда для проверки конфигурации бота поддержки"""
+        user_id = message.from_user.id
+        is_admin = str(user_id) == database.get_setting("admin_telegram_id")
+        
+        if not is_admin:
+            await message.answer("❌ У вас нет прав для выполнения этой команды.")
+            return
+        
+        try:
+            # Проверяем настройки
+            support_group_id = database.get_setting("support_group_id")
+            support_bot_token = database.get_setting("support_bot_token")
+            
+            config_info = f"🔧 <b>Конфигурация бота поддержки:</b>\n\n"
+            config_info += f"📋 Support Group ID: {support_group_id or 'Не настроено'}\n"
+            config_info += f"🔑 Support Bot Token: {'Настроено' if support_bot_token else 'Не настроено'}\n\n"
+            
+            if not support_group_id:
+                config_info += "❌ <b>Ошибка:</b> ID группы поддержки не настроен\n"
+            elif not support_bot_token:
+                config_info += "❌ <b>Ошибка:</b> Токен бота поддержки не настроен\n"
+            else:
+                # Проверяем доступность группы
+                try:
+                    chat_info = await bot.get_chat(support_group_id)
+                    config_info += f"✅ <b>Группа найдена:</b> {chat_info.title}\n"
+                    
+                    # Проверяем включение тем через попытку создания тестовой темы
+                    try:
+                        test_topic = await bot.create_forum_topic(chat_id=support_group_id, name="Тестовая тема для проверки")
+                        await bot.delete_forum_topic(chat_id=support_group_id, message_thread_id=test_topic.message_thread_id)
+                        config_info += f"📊 <b>Тип:</b> Темы включены\n"
+                        config_info += "✅ <b>Статус:</b> Группа настроена корректно\n"
+                    except Exception as forum_error:
+                        config_info += f"📊 <b>Тип:</b> Обычная группа\n"
+                        config_info += "❌ <b>Ошибка:</b> Темы не включены в группе!\n"
+                        config_info += "💡 <b>Решение:</b> Включите функцию 'Темы' в настройках группы\n"
+                        
+                except Exception as e:
+                    config_info += f"❌ <b>Ошибка доступа к группе:</b> {e}\n"
+                    if "upgraded to a supergroup" in str(e):
+                        config_info += "💡 <b>ВАЖНО:</b> Группа была мигрирована в супергруппу!\n"
+                        config_info += "• При включении тем Telegram автоматически мигрирует группу\n"
+                        config_info += "• Новый ID обычно начинается с -100 (например: -1002919676196)\n"
+                        config_info += "• Обновите ID группы в настройках веб-интерфейса\n"
+                    else:
+                        config_info += "💡 <b>Решение:</b> Убедитесь, что бот добавлен в группу и имеет права администратора\n"
+            
+            await message.answer(config_info, parse_mode=ParseMode.HTML)
+            
+        except Exception as e:
+            logger.error(f"Error checking support bot config: {e}")
+            await message.answer(f"❌ Ошибка при проверке конфигурации: {e}")
 
     @support_router.message(CommandStart())
     async def handle_start(message: types.Message, bot: Bot):
@@ -51,21 +185,42 @@ def get_support_router() -> Router:
         thread_id = database.get_support_thread_id(user_id)
         
         if not thread_id:
-            if not SUPPORT_GROUP_ID:
-                logger.error("Support bot: SUPPORT_GROUP_ID is not configured!")
+            # Получаем ID группы поддержки из базы данных
+            support_group_id = database.get_setting("support_group_id")
+            if not support_group_id:
+                logger.error("Support bot: support_group_id is not configured!")
                 await message.answer("Извините, служба поддержки временно недоступна.")
                 return
 
             try:
+                # Сначала проверяем, что группа существует и в ней включены темы
+                try:
+                    chat_info = await bot.get_chat(support_group_id)
+                    # Проверяем включение тем через попытку создания тестовой темы
+                    try:
+                        test_topic = await bot.create_forum_topic(chat_id=support_group_id, name="Тестовая тема для проверки")
+                        await bot.delete_forum_topic(chat_id=support_group_id, message_thread_id=test_topic.message_thread_id)
+                    except Exception as forum_error:
+                        logger.error(f"Support group {support_group_id} topics are not enabled: {forum_error}")
+                        await message.answer("❌ Темы не включены в группе поддержки. Обратитесь к администратору.")
+                        return
+                except Exception as chat_error:
+                    logger.error(f"Support group {support_group_id} not found or inaccessible: {chat_error}")
+                    if "upgraded to a supergroup" in str(chat_error):
+                        await message.answer("❌ Группа поддержки была мигрирована в супергруппу. Обратитесь к администратору для обновления ID группы.")
+                    else:
+                        await message.answer("❌ Группа поддержки не найдена или недоступна. Обратитесь к администратору.")
+                    return
+                
                 thread_name = f"Тикет от @{username} ({user_id})"
-                new_thread = await bot.create_forum_topic(chat_id=SUPPORT_GROUP_ID, name=thread_name)
+                new_thread = await bot.create_forum_topic(chat_id=support_group_id, name=thread_name)
                 thread_id = new_thread.message_thread_id
                 
                 database.add_support_thread(user_id, thread_id)
                 
                 summary_text = await get_user_summary(user_id, username)
                 await bot.send_message(
-                    chat_id=SUPPORT_GROUP_ID,
+                    chat_id=support_group_id,
                     message_thread_id=thread_id,
                     text=summary_text,
                     parse_mode=ParseMode.HTML
@@ -74,7 +229,14 @@ def get_support_router() -> Router:
                 
             except Exception as e:
                 logger.error(f"Failed to create support thread for user {user_id}: {e}", exc_info=True)
-                await message.answer("Не удалось создать тикет в поддержке. Пожалуйста, попробуйте позже.")
+                if "chat not found" in str(e).lower():
+                    await message.answer("❌ Группа поддержки не найдена. Обратитесь к администратору.")
+                elif "upgraded to a supergroup" in str(e).lower():
+                    await message.answer("❌ Группа поддержки была мигрирована в супергруппу. Обратитесь к администратору для обновления ID группы.")
+                elif "not a forum" in str(e).lower() or "topics" in str(e).lower():
+                    await message.answer("❌ Темы не включены в группе поддержки. Обратитесь к администратору.")
+                else:
+                    await message.answer("❌ Не удалось создать тикет в поддержке. Пожалуйста, попробуйте позже.")
                 return
 
         await message.answer("Напишите ваш вопрос, и администратор скоро с вами свяжется.")
@@ -83,10 +245,11 @@ def get_support_router() -> Router:
     async def from_user_to_admin(message: types.Message, bot: Bot):
         user_id = message.from_user.id
         thread_id = database.get_support_thread_id(user_id)
+        support_group_id = database.get_setting("support_group_id")
         
-        if thread_id and SUPPORT_GROUP_ID:
+        if thread_id and support_group_id:
             await bot.copy_message(
-                chat_id=SUPPORT_GROUP_ID,
+                chat_id=support_group_id,
                 from_chat_id=user_id,
                 message_id=message.message_id,
                 message_thread_id=thread_id
@@ -94,7 +257,7 @@ def get_support_router() -> Router:
         else:
             await message.answer("Пожалуйста, сначала нажмите /start, чтобы создать тикет в поддержке.")
 
-    @support_router.message(F.chat.id == SUPPORT_GROUP_ID, F.message_thread_id)
+    @support_router.message(F.message_thread_id)
     async def from_admin_to_user(message: types.Message, bot: Bot):
         thread_id = message.message_thread_id
         user_id = database.get_user_id_by_thread(thread_id)
@@ -103,13 +266,15 @@ def get_support_router() -> Router:
             return
             
         if user_id:
-            try:
-                await bot.copy_message(
-                    chat_id=user_id,
-                    from_chat_id=SUPPORT_GROUP_ID,
-                    message_id=message.message_id
-                )
-            except Exception as e:
-                logger.error(f"Failed to send message from thread {thread_id} to user {user_id}: {e}")
-                await message.reply("❌ Не удалось доставить сообщение этому пользователю (возможно, он заблокировал бота).")
+            support_group_id = database.get_setting("support_group_id")
+            if support_group_id:
+                try:
+                    await bot.copy_message(
+                        chat_id=user_id,
+                        from_chat_id=support_group_id,
+                        message_id=message.message_id
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send message from thread {thread_id} to user {user_id}: {e}")
+                    await message.reply("❌ Не удалось доставить сообщение этому пользователю (возможно, он заблокировал бота).")
     return support_router

@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+Контроллер для управления ботами
+"""
+
 import asyncio
 import logging
 
@@ -139,7 +144,6 @@ class BotController:
             self.support_bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
             self.support_dp = Dispatcher()
             
-            support_handlers.SUPPORT_GROUP_ID = int(group_id)
             support_handlers.user_bot = self.shop_bot
             
             support_router = get_support_router()

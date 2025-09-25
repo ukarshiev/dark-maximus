@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+API для работы с X-UI панелью
+"""
+
 import uuid
 from datetime import datetime, timedelta
 import logging

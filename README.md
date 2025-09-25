@@ -233,6 +233,18 @@ docker-compose up -d
 curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash
 ```
 
+## 📚 Дополнительные инструкции
+
+### Настройка бота поддержки
+Если у вас возникли проблемы с настройкой бота поддержки, следуйте [подробной инструкции](instructions/telegram-forum-setup.md).
+
+### Платформо-специфичные инструкции
+- [Windows](instructions/windows.md)
+- [macOS](instructions/macos.md)
+- [Linux](instructions/linux.md)
+- [Android](instructions/android.md)
+- [iOS](instructions/ios.md)
+
 ## 🙌 Баги и предложения
 
 Если вы нашли баг, или у вас есть предложение, то создавайте "Issue" или присылайте Pull Request'ы.

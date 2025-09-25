@@ -8,6 +8,10 @@
 			rel="stylesheet"
 			href="{{ url_for('static', filename='css/style.css', v=project_version or '1') }}?t=20241221"
 		/>
+		<link
+			rel="stylesheet"
+			href="{{ url_for('static', filename='css/tw.css', v=project_version or '1') }}"
+		/>
 		<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 		<!-- Font Awesome Icons -->
 		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -15,12 +19,17 @@
 	<body>
 		<!-- Закрепленная панель в head -->
 		<header class="header-panel">
-			<button class="header-burger" id="headerBurger" title="Открыть меню">
-				<span></span>
-				<span></span>
-				<span></span>
-			</button>
-			<div class="header-title">{% block header_title %}Панель управления{% endblock %}</div>
+			<div class="header-panel-left">
+				<button class="header-burger" id="headerBurger" title="Открыть меню">
+					<span></span>
+					<span></span>
+					<span></span>
+				</button>
+				<div class="header-title">{% block header_title %}Панель управления{% endblock %}</div>
+			</div>
+			<div class="header-panel-right">
+				{% block header_buttons %}{% endblock %}
+			</div>
 		</header>
 		
 		<div class="container">
@@ -223,7 +232,7 @@
 					<div class="bot-control">
 						<div class="bot-status">
 							<div class="bot-label-row">
-								<span class="bot-label">Бот витрина:</span>
+								<span class="bot-label">Бот магазина</span>
                                 <label class="bot-toggle">
                                     <input type="checkbox" 
                                            class="bot-checkbox" 
@@ -286,136 +295,127 @@
 			</main>
 		</div>
 
-		<!-- Модальное окно для детального просмотра пользователя -->
-		<div id="userModal" class="modal">
-			<div class="modal-content modal-large">
+		<!-- Модальное окно пользователя -->
+		<div id="userModal" class="modal" style="display: none;">
+			<div class="modal-content modal-content--large">
 				<div class="modal-header">
-					<div class="modal-header-content">
-						<div class="modal-user-info">
-							<div class="modal-info-column">
-								<div class="modal-info-row">
-									<span class="modal-info-label">Telegram ID:</span>
-									<span id="modalUserId"></span>
-									<button class="modal-action-btn" onclick="openTelegramProfile()" title="Перейти в Telegram">🔗</button>
-								</div>
-								<div class="modal-info-row">
-									<span class="modal-info-label">Username:</span>
-									<span id="modalUsername"></span>
-									<button class="modal-action-btn" onclick="copyUsername()" title="Копировать username">📋</button>
-								</div>
-								<div class="modal-info-row">
-									<span class="modal-info-label">Статус:</span>
-									<span id="modalStatus"></span>
-								</div>
+					<h3>Карточка пользователя</h3>
+					<span class="close" onclick="closeUserModal()" title="Закрыть карточку пользователя">&times;</span>
+				</div>
+				<div class="modal-body">
+					<!-- Основная информация -->
+					<div class="user-info-section">
+						<div class="user-info-grid">
+							<div class="user-info-item">
+								<label>Telegram ID:</label>
+								<span id="modalUserId" class="user-info-value"></span>
 							</div>
-							<div class="modal-info-column">
-								<div class="modal-info-row">
-									<span class="modal-info-label">Активные ключи:</span>
-									<span id="modalKeys"></span>
-								</div>
-						<div class="modal-info-row">
-							<span class="modal-info-label">Баланс:</span>
-							<span id="modalBalance"></span>
-						</div>
-								<div class="modal-info-row">
-									<span class="modal-info-label">Заработано:</span>
-									<span id="modalEarned"></span>
-								</div>
+							<div class="user-info-item">
+								<label>Username:</label>
+								<span id="modalUsername" class="user-info-value"></span>
+							</div>
+							<div class="user-info-item">
+								<label>Статус:</label>
+								<span id="modalStatus" class="user-info-value"></span>
+							</div>
+							<div class="user-info-item">
+								<label>Ключи:</label>
+								<span id="modalKeys" class="user-info-value"></span>
 							</div>
 						</div>
 					</div>
-                    <span class="close" onclick="closeUserModal()" title="Закрыть окно">&times;</span>
-				</div>
-				<div class="modal-body">
+
 					<!-- Вкладки -->
-                    <div class="modal-tabs">
-                        <button class="tab-button active" onclick="switchTab('payments')" title="Открыть вкладку Платежи">
+					<div class="modal-tabs">
+						<button class="tab-button active" onclick="switchTab('payments')" title="Платежи пользователя">
 							<i class="fas fa-credit-card"></i>
 							Платежи
 						</button>
-                        <button class="tab-button" onclick="switchTab('keys')" title="Открыть вкладку Ключи">
+						<button class="tab-button" onclick="switchTab('keys')" title="Ключи пользователя">
 							<i class="fas fa-key"></i>
 							Ключи
 						</button>
-                        <button class="tab-button" onclick="switchTab('notifications')" title="Открыть вкладку Уведомления">
+						<button class="tab-button" onclick="switchTab('notifications')" title="Уведомления пользователя">
 							<i class="fas fa-bell"></i>
 							Уведомления
 						</button>
-                    </div>
+					</div>
 
-					<!-- Вкладка: Платежи -->
-					<div id="tab-payments" class="tab-content active">
+					<!-- Контент вкладок -->
+					<div class="tab-content active" id="tab-payments">
 						<div class="modal-table-container">
 							<table class="modal-table">
 								<thead>
 									<tr>
-										<th>ID</th>
-										<th>Хост</th>
-										<th>План</th>
-										<th>Цена</th>
-										<th>Статус</th>
 										<th>Дата</th>
+										<th>Тип</th>
+										<th>Сумма</th>
+										<th>Описание</th>
 									</tr>
 								</thead>
 								<tbody id="modalPaymentsTable">
-									<!-- Данные загружаются через JavaScript -->
+									<tr>
+										<td colspan="4" class="text-center">Загрузка...</td>
+									</tr>
 								</tbody>
 							</table>
 						</div>
 					</div>
 
-					<!-- Вкладка: Ключи -->
-                    <div id="tab-keys" class="tab-content">
+					<div class="tab-content" id="tab-keys">
 						<div class="modal-table-container">
 							<table class="modal-table">
 								<thead>
 									<tr>
-										<th>ID</th>
+										<th>ID ключа</th>
 										<th>Хост</th>
 										<th>План</th>
-										<th>Стоимость</th>
 										<th>Ключ</th>
 										<th>Дата</th>
 									</tr>
 								</thead>
 								<tbody id="modalKeysTable">
-									<!-- Данные загружаются через JavaScript -->
+									<tr>
+										<td colspan="5" class="text-center">Загрузка...</td>
+									</tr>
 								</tbody>
-                            </table>
-                        </div>
-                    </div>
+							</table>
+						</div>
+					</div>
 
-                    <!-- Вкладка: Уведомления -->
-                    <div id="tab-notifications" class="tab-content">
-                        <div class="modal-table-container">
-                            <table class="modal-table">
-                                <thead>
-                                    <tr>
-                                        <th title="Уникальный идентификатор уведомления">ID</th>
-                                        <th title="Тип отправленного уведомления">Тип</th>
-                                        <th title="Заголовок уведомления">Заголовок</th>
-                                        <th title="Статус доставки уведомления">Статус</th>
-                                        <th title="Дата и время отправки">Дата</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="modalNotificationsTable">
-                                    <!-- Данные загружаются через JavaScript -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+					<div class="tab-content" id="tab-notifications">
+						<div class="modal-table-container">
+							<table class="modal-table">
+								<thead>
+									<tr>
+										<th>Дата</th>
+										<th>Тип</th>
+										<th>Текст</th>
+										<th>Статус</th>
+									</tr>
+								</thead>
+								<tbody id="modalNotificationsTable">
+									<tr>
+										<td colspan="4" class="text-center">Загрузка...</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+					</div>
 				</div>
-                <div class="modal-footer">
-                    <button id="banButton" class="button button-danger" onclick="banUser()" style="display: none;" title="Бан пользователя">
-                        Бан
-                    </button>
-                    <button id="unbanButton" class="button button-start" onclick="unbanUser()" style="display: none;" title="Отозвать бан у пользователя">
-                        Отозвать бан
-                    </button>
-                    <button id="revokeButton" class="button button-danger" onclick="revokeKeys()" title="Отозвать все ключи пользователя">
-                        Отозвать ключи
-                    </button>
-                </div>
+				<div class="modal-footer">
+					<button type="button" class="button button-secondary" onclick="closeUserModal()" title="Закрыть карточку пользователя">
+						Закрыть
+					</button>
+					<button type="button" class="button button-warning" id="banButton" onclick="banUser()" style="display: none;" title="Заблокировать пользователя">
+						<i class="fas fa-lock"></i>
+						Забанить
+					</button>
+					<button type="button" class="button button-success" id="unbanButton" onclick="unbanUser()" style="display: none;" title="Разблокировать пользователя">
+						<i class="fas fa-unlock"></i>
+						Разбанить
+					</button>
+				</div>
 			</div>
 		</div>
 

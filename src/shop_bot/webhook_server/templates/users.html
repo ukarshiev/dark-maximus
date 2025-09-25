@@ -1,7 +1,15 @@
 {% extends "base.html" %} 
 {% block title %}Управление Пользователями{% endblock %}
 {% block header_title %}Пользователи{% endblock %}
-%} {% block content %}
+
+{% block header_buttons %}
+<button class="button button-primary" data-size="sm" onclick="openTopupBalanceModal()" title="Пополнить баланс пользователя">
+	<i class="fas fa-plus-circle"></i>
+	Пополнить баланс
+</button>
+{% endblock %}
+
+{% block content %}
 
 
 <section class="settings-section settings-section--fluid">
@@ -13,6 +21,8 @@
 					<th>Telegram ID</th>
 					<th>Username</th>
 					<th>Статус</th>
+					<th>Согласие с документами</th>
+					<th>Каналы</th>
 					<th>Ключи</th>
 					<th title="Количество уведомлений, отправленных пользователю">Уведомления</th>
 					<th>Баланс</th>
@@ -23,32 +33,48 @@
 				{% for user in users %}
 				<tr class="user-row" data-user-id="{{ user.telegram_id }}" data-username="{{ user.username or 'N/A' }}" data-is-banned="{{ 'true' if user.is_banned else 'false' }}" data-keys-count="{{ user.user_keys|length if user.user_keys else 0 }}">
 					<td class="actions-cell">
-						<div class="kebab-menu">
-							<button type="button" class="kebab-toggle kebab-btn" aria-haspopup="true" aria-expanded="false" data-size="sm" title="Действия с пользователем">
+						<div class="kebab-wrapper">
+							<button class="kebab-btn" onclick="toggleKebabMenu('kebab-user-{{ user.telegram_id }}')" title="Действия с пользователем">
 								<i class="fas fa-ellipsis-v"></i>
 							</button>
-							<div class="kebab-dropdown">
+							<div class="kebab-menu" id="kebab-user-{{ user.telegram_id }}">
 								{% if user.is_banned %}
 								<form action="{{ url_for('unban_user_route', user_id=user.telegram_id) }}" method="post">
-									<button type="submit" class="kebab-item" title="Разблокировать пользователя">
+									<button type="submit" class="kebab-item" onclick="closeKebabMenu('kebab-user-{{ user.telegram_id }}')" title="Разблокировать пользователя">
 										<i class="fas fa-unlock"></i>
-										Разбанить
+										<span>Разбанить</span>
 									</button>
 								</form>
 								{% else %}
 								<form action="{{ url_for('ban_user_route', user_id=user.telegram_id) }}" method="post" data-confirm="Вы уверены, что хотите забанить этого пользователя? Он не сможет пользоваться ботом.">
-									<button type="submit" class="kebab-item" title="Заблокировать пользователя">
+									<button type="submit" class="kebab-item" onclick="closeKebabMenu('kebab-user-{{ user.telegram_id }}')" title="Заблокировать пользователя">
 										<i class="fas fa-lock"></i>
-										Забанить
+										<span>Забанить</span>
 									</button>
 								</form>
 								{% endif %}
 								<form action="{{ url_for('revoke_keys_route', user_id=user.telegram_id) }}" method="post" data-confirm="ВНИМАНИЕ! Это действие удалит ВСЕ ключи пользователя с серверов. Вы уверены?">
-									<button type="submit" class="kebab-item kebab-item-danger" {% if not user.user_keys %}disabled title="Нет ключей для отзыва"{% endif %} title="{% if user.user_keys %}Отозвать все ключи пользователя{% else %}Нет ключей для отзыва{% endif %}">
+									<button type="submit" class="kebab-item danger" onclick="closeKebabMenu('kebab-user-{{ user.telegram_id }}')" {% if not user.user_keys %}disabled title="Нет ключей для отзыва"{% endif %} title="{% if user.user_keys %}Отозвать все ключи пользователя{% else %}Нет ключей для отзыва{% endif %}">
 										<i class="fas fa-key"></i>
-										Отозвать ключи
+										<span>Отозвать ключи</span>
 									</button>
 								</form>
+								{% if user.agreed_to_documents %}
+								<form action="{{ url_for('revoke_consent_route', user_id=user.telegram_id) }}" method="post" data-confirm="Вы уверены, что хотите отозвать согласие этого пользователя с документами?">
+									<button type="submit" class="kebab-item warning" onclick="closeKebabMenu('kebab-user-{{ user.telegram_id }}')" title="Отозвать согласие пользователя с документами">
+										<i class="fas fa-user-times"></i>
+										<span>Отозвать согласие</span>
+									</button>
+								</form>
+								{% endif %}
+							<button type="button" class="kebab-item" onclick="closeKebabMenu('kebab-user-{{ user.telegram_id }}'); openUserModalFromElement(this)" title="Открыть карточку пользователя">
+									<i class="fas fa-user"></i>
+									<span>Открыть карточку</span>
+								</button>
+							<button type="button" class="kebab-item" onclick="closeKebabMenu('kebab-user-{{ user.telegram_id }}'); openTopupBalanceModalFromElement(this)" title="Пополнить баланс пользователя">
+									<i class="fas fa-plus-circle"></i>
+									<span>Пополнить баланс</span>
+								</button>
 							</div>
 						</div>
 					</td>
@@ -70,6 +96,22 @@
 						{% endif %}
 					</td>
 					<td>
+						{% if user.agreed_to_documents %}
+						<span class="status-badge status-active">✅ Согласен</span>
+						{% else %}
+						<span class="status-badge status-banned">❌ Не согласен</span>
+						{% endif %}
+					</td>
+					<td>
+						{% if user.subscription_status == 'subscribed' %}
+						<span class="status-badge status-active">✅ Подписан</span>
+						{% elif user.subscription_status == 'not_subscribed' %}
+						<span class="status-badge status-banned">❌ Не подписан</span>
+						{% else %}
+						<span class="status-badge status-banned">❓ Не проверено</span>
+						{% endif %}
+					</td>
+					<td>
 						{% if user.user_keys %} {{ user.user_keys | length }} шт. {% else %}
 						0 {% endif %}
 					</td>
@@ -87,5 +129,38 @@
 		</table>
 	</div>
 </section>
+
+<!-- Модальное окно для пополнения баланса -->
+<div id="topupBalanceModal" class="modal" style="display: none;">
+	<div class="modal-content">
+		<div class="modal-header">
+			<h3>Пополнить баланс</h3>
+			<span class="close" onclick="closeTopupBalanceModal()" title="Закрыть окно">&times;</span>
+		</div>
+		<div class="modal-body">
+			<form id="topupBalanceForm">
+				<div class="form-group">
+					<label for="topupUserSearch">Пользователь:</label>
+					<input type="text" id="topupUserSearch" placeholder="Введите Telegram ID или username для поиска" title="Введите Telegram ID или username для поиска" oninput="debouncedUserSearch(this.value, 'topup')">
+					<div id="topupUserSuggestions" class="suggestions"></div>
+					<input type="hidden" id="topupSelectedUserId">
+					<div id="topupSelectedUserLabel" class="selected-user-label"></div>
+				</div>
+				<div class="form-group">
+					<label for="topupAmount">Сумма (RUB):</label>
+					<input type="number" id="topupAmount" min="1" step="1" placeholder="Введите сумму пополнения" title="Введите сумму пополнения в рублях">
+				</div>
+			</form>
+		</div>
+		<div class="modal-footer">
+			<button type="button" class="button button-secondary" onclick="closeTopupBalanceModal()" title="Отменить пополнение баланса">
+				Отменить
+			</button>
+			<button type="button" class="button button-primary" onclick="submitTopupBalance()" title="Сохранить пополнение баланса">
+				Сохранить
+			</button>
+		</div>
+	</div>
+</div>
 
 {% endblock %}

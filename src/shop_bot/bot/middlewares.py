@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+Middleware для Telegram-бота
+"""
+
 from typing import Callable, Dict, Any, Awaitable
 from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject, Message, CallbackQuery, Chat

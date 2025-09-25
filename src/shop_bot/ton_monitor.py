@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 TON Transaction Monitor
 Мониторит транзакции на TON кошельке и обрабатывает платежи

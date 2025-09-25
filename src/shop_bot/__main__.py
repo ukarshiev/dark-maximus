@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+Точка входа в приложение
+"""
+
 import logging
 import threading
 import asyncio

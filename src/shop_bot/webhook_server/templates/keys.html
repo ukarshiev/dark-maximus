@@ -1,6 +1,18 @@
 {% extends "base.html" %}
 {% block title %}Ключи{% endblock %}
 {% block header_title %}Ключи{% endblock %}
+
+{% block header_buttons %}
+<button class="button button-secondary" data-size="sm" onclick="openHostRefreshModal()" id="hostRefreshBtn" title="Обновить ключи по выбранному хосту">
+	<i class="fas fa-server"></i>
+	<span>Обновить по хосту</span>
+</button>
+<button class="button button-secondary" data-size="sm" onclick="refreshKeys()" id="headerRefreshBtn" title="Обновить все ключи из 3x-ui панелей">
+	<i class="fas fa-sync-alt" id="headerRefreshIcon"></i>
+	<span id="headerRefreshText">Обновить все ключи</span>
+</button>
+{% endblock %}
+
 {% block content %}
 
 <div class="keys-container">
@@ -12,6 +24,7 @@
 			<table class="keys-table">
 				<thead>
 					<tr>
+						<th>Меню</th>
 						<th>ID</th>
 						<th>Пользователь</th>
 						<th>Хост</th>
@@ -31,6 +44,19 @@
 				<tbody>
 					{% for key in keys %}
 					<tr class="key-row">
+						<td>
+							<div class="kebab-wrapper">
+								<button class="kebab-btn" onclick="toggleKebabMenu('kebab-key-{{ key.key_id }}')" title="Действия с ключом">
+									<i class="fas fa-ellipsis-v"></i>
+								</button>
+								<div class="kebab-menu" id="kebab-key-{{ key.key_id }}">
+									<button class="kebab-item" onclick="closeKebabMenu('kebab-key-{{ key.key_id }}'); refreshUserKey({{ key.user_id }})" title="Обновить из 3x-ui">
+										<i class="fas fa-sync-alt"></i>
+										<span>Обновить из 3x-ui</span>
+									</button>
+								</div>
+							</div>
+						</td>
 						<td>{{ key.key_id }}</td>
 						<td>
 							<div class="user-info">
@@ -143,13 +169,9 @@
 		<!-- Пагинация -->
 		<div class="pagination-panel">
 			<div class="pagination-controls">
-				<!-- Левая область: кнопки действий -->
-				<div class="pagination-left">
-					<button class="button button-primary button-small-refresh" data-size="sm" onclick="refreshKeys()" id="refreshBtn" title="Обновить данные ключей">
-						<i class="fas fa-sync-alt" id="refreshIcon"></i>
-						<span id="refreshText">Обновить</span>
-					</button>
-				</div>
+			<!-- Левая область: кнопки действий -->
+			<div class="pagination-left">
+			</div>
 				
 				<!-- Правая область: пагинация и переключатель -->
 				<div class="pagination-right">
@@ -234,6 +256,42 @@
 	</section>
 </div>
 
+<!-- Модальное окно для обновления по хосту -->
+<div id="hostRefreshModal" class="modal" style="display: none;">
+	<div class="modal-content">
+		<div class="modal-header">
+			<h3>Обновить ключи по хосту</h3>
+			<button class="modal-close" onclick="closeHostRefreshModal()" title="Закрыть модальное окно">
+				<i class="fas fa-times"></i>
+			</button>
+		</div>
+		<div class="modal-body">
+			<div class="form-group">
+				<label for="hostSelect">Выберите хост:</label>
+				<select id="hostSelect" title="Выберите хост для обновления ключей">
+					<option value="">Загрузка хостов...</option>
+				</select>
+			</div>
+			<div class="form-group">
+				<div class="info-text">
+					<i class="fas fa-info-circle"></i>
+					<span>Будут обновлены все ключи, принадлежащие выбранному хосту. Это более эффективно, чем обновление всех ключей сразу.</span>
+				</div>
+			</div>
+		</div>
+		<div class="modal-footer">
+			<button class="button button-secondary" onclick="closeHostRefreshModal()" title="Отменить операцию">
+				<i class="fas fa-times"></i>
+				<span>Отмена</span>
+			</button>
+			<button class="button button-primary" onclick="executeHostRefresh()" id="executeHostRefreshBtn" title="Выполнить обновление ключей для выбранного хоста">
+				<i class="fas fa-sync-alt"></i>
+				<span>Выполнить запрос</span>
+			</button>
+		</div>
+	</div>
+</div>
+
 <script>
 function changePerPage(value) {
 	const url = new URL(window.location);
@@ -243,9 +301,17 @@ function changePerPage(value) {
 }
 
 function refreshKeys() {
-	const refreshBtn = document.getElementById('refreshBtn');
-	const refreshIcon = document.getElementById('refreshIcon');
-	const refreshText = document.getElementById('refreshText');
+	// Ищем кнопку обновления - сначала в header, потом в пагинации
+	let refreshBtn = document.getElementById('headerRefreshBtn');
+	let refreshIcon = document.getElementById('headerRefreshIcon');
+	let refreshText = document.getElementById('headerRefreshText');
+	
+	// Если кнопка в header не найдена, ищем в пагинации (для обратной совместимости)
+	if (!refreshBtn) {
+		refreshBtn = document.getElementById('refreshBtn');
+		refreshIcon = document.getElementById('refreshIcon');
+		refreshText = document.getElementById('refreshText');
+	}
 	
 	refreshBtn.disabled = true;
 	refreshIcon.classList.add('spinning');
@@ -272,10 +338,16 @@ function refreshKeys() {
 					refreshText.textContent = 'Обновить';
 				}, 1000);
 			} else {
-				// Если ошибок нет, обновляем страницу как обычно
+				// Если ошибок нет, показываем результат дольше, затем обновляем страницу
 				setTimeout(() => {
-					window.location.reload();
-				}, 1000);
+					refreshBtn.disabled = false;
+					refreshIcon.classList.remove('spinning');
+					refreshText.textContent = 'Обновить';
+					// Обновляем страницу через 3 секунды, чтобы пользователь успел увидеть результат
+					setTimeout(() => {
+						window.location.reload();
+					}, 2000);
+				}, 3000);
 			}
 		} else {
 			refreshText.textContent = 'Ошибка: ' + data.message;
@@ -300,7 +372,7 @@ function refreshKeys() {
 function showSyncErrorsModal(errors) {
 	// Создаем модальное окно для ошибок синхронизации
 	const modalHtml = `
-		<div id="syncErrorsModal" class="modal" style="display: block;" onclick="closeSyncErrorsModal()">
+		<div id="syncErrorsModal" class="modal" style="display: flex;" onclick="closeSyncErrorsModal()">
 			<div class="modal-content" onclick="event.stopPropagation();">
 				<div class="modal-header">
 					<h2>⚠️ Ошибки синхронизации с 3x-ui</h2>
@@ -409,7 +481,7 @@ function deleteErrorKeys() {
 function showDeleteResult(message, type) {
 	// Создаем отдельное модальное окно для результата удаления
 	const resultModalHtml = `
-		<div id="deleteResultModal" class="modal" style="display: block;" onclick="closeDeleteResultModal()">
+		<div id="deleteResultModal" class="modal" style="display: flex;" onclick="closeDeleteResultModal()">
 			<div class="modal-content" onclick="event.stopPropagation();">
 				<div class="modal-header">
 					<h2>${type === 'success' ? '✅ Результат удаления' : '❌ Ошибка удаления'}</h2>
@@ -475,6 +547,154 @@ function copyKey(key) {
 		console.error('Ошибка копирования: ', err);
 		alert('Не удалось скопировать ключ');
 	});
+}
+
+// Функции для работы с меню ключей теперь обрабатываются глобально в script.js
+
+// Закрытие меню при клике вне его теперь обрабатывается глобально в script.js
+
+// Функция для обновления ключей конкретного пользователя
+function refreshUserKey(userId) {
+	// Закрываем все меню
+	document.querySelectorAll('.kebab-menu.open').forEach(menu => {
+		menu.classList.remove('open');
+	});
+	
+	// Показываем индикатор загрузки
+	const refreshBtn = document.getElementById('headerRefreshBtn');
+	const refreshIcon = document.getElementById('headerRefreshIcon');
+	const refreshText = document.getElementById('headerRefreshText');
+	
+	if (refreshBtn) {
+		refreshBtn.disabled = true;
+		if (refreshIcon) refreshIcon.classList.add('spinning');
+		if (refreshText) refreshText.textContent = 'Обновляем...';
+	}
+	
+	// Отправляем запрос на обновление ключей пользователя
+	fetch('/refresh-user-keys', {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({ user_id: userId })
+	})
+	.then(response => response.json())
+	.then(data => {
+		if (data.success) {
+			alert(`Успешно обновлено ${data.updated_count} ключей для пользователя ${userId}`);
+			location.reload();
+		} else {
+			alert('Ошибка при обновлении: ' + (data.error || 'Неизвестная ошибка'));
+		}
+	})
+	.catch(error => {
+		console.error('Ошибка:', error);
+		alert('Ошибка при обновлении ключей');
+	})
+	.finally(() => {
+		if (refreshBtn) {
+			refreshBtn.disabled = false;
+			if (refreshIcon) refreshIcon.classList.remove('spinning');
+			if (refreshText) refreshText.textContent = 'Обновить все ключи';
+		}
+	});
+}
+
+// Функции для работы с модальным окном обновления по хосту
+function openHostRefreshModal() {
+	const modal = document.getElementById('hostRefreshModal');
+	if (!modal) {
+		return;
+	}
+    modal.style.display = 'flex';
+	loadHosts();
+
+	const headerMenu = document.getElementById('keysDropdownMenu');
+	if (headerMenu) {
+		headerMenu.style.display = 'none';
+	}
+}
+
+function closeHostRefreshModal() {
+	const modal = document.getElementById('hostRefreshModal');
+	modal.style.display = 'none';
+}
+
+function loadHosts() {
+	const hostSelect = document.getElementById('hostSelect');
+	hostSelect.innerHTML = '<option value="">Загрузка хостов...</option>';
+	
+	fetch('/api/hosts')
+		.then(response => {
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}`);
+			}
+			return response.json();
+		})
+		.then(data => {
+			if (!data.success || !Array.isArray(data.hosts)) {
+				throw new Error(data.error || 'Неверный формат данных');
+			}
+			hostSelect.innerHTML = '<option value="">Выберите хост</option>';
+			data.hosts.forEach(host => {
+				const option = document.createElement('option');
+				option.value = host.host_name;
+				option.textContent = host.host_name;
+				hostSelect.appendChild(option);
+			});
+		})
+		.catch(error => {
+			console.error('Ошибка загрузки хостов:', error);
+			hostSelect.innerHTML = '<option value="">Ошибка загрузки хостов</option>';
+		});
+}
+
+function executeHostRefresh() {
+	const hostSelect = document.getElementById('hostSelect');
+	const selectedHost = hostSelect.value;
+	const executeBtn = document.getElementById('executeHostRefreshBtn');
+	
+	if (!selectedHost) {
+		alert('Пожалуйста, выберите хост');
+		return;
+	}
+	
+	executeBtn.disabled = true;
+	executeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Обновляем...</span>';
+	
+	fetch('/api/refresh-keys-by-host', {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({ host_name: selectedHost })
+	})
+	.then(response => response.json())
+	.then(data => {
+		if (data.success) {
+			alert(`Успешно обновлено ${data.updated} из ${data.total} ключей для хоста ${selectedHost}`);
+			location.reload();
+		} else {
+			alert('Ошибка при обновлении: ' + (data.error || 'Неизвестная ошибка'));
+		}
+	})
+	.catch(error => {
+		console.error('Ошибка:', error);
+		alert('Ошибка при обновлении ключей');
+	})
+	.finally(() => {
+		executeBtn.disabled = false;
+		executeBtn.innerHTML = '<i class="fas fa-sync-alt"></i><span>Выполнить запрос</span>';
+	});
+}
+
+// Закрытие модального окна при клике вне его
+window.onclick = function(event) {
+	const modal = document.getElementById('hostRefreshModal');
+	if (event.target === modal) {
+		closeHostRefreshModal();
+	}
 }
 </script>
 

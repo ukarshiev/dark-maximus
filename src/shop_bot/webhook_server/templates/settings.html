@@ -107,21 +107,21 @@
 							Создать тариф
 						</button>
 						<div class="kebab-wrapper">
-							<button class="button button-small button-icon kebab-btn" type="button" data-size="sm" title="Действия с сервером">
+							<button class="kebab-btn" onclick="toggleKebabMenu('kebab-server-{{ host.host_name }}')" title="Действия с сервером">
 								<i class="fas fa-ellipsis-v"></i>
 							</button>
-							<div class="kebab-menu">
-								<button type="button" class="kebab-item" onclick="checkHost('{{ host.host_name }}')" title="Проверить соединение с сервером">
+							<div class="kebab-menu" id="kebab-server-{{ host.host_name }}">
+								<button type="button" class="kebab-item" onclick="closeKebabMenu('kebab-server-{{ host.host_name }}'); checkHost('{{ host.host_name }}')" title="Проверить соединение с сервером">
 									<i class="fas fa-plug"></i>
-									Проверить соединение
+									<span>Проверить соединение</span>
 								</button>
-                                <button type="button" class="kebab-item" onclick="openHostModalData(this)" data-host-name="{{ host.host_name }}" data-host-url="{{ host.host_url }}" data-host-username="{{ host.host_username }}" data-host-inbound-id="{{ host.host_inbound_id }}" data-host-code="{{ host.host_code or (host.host_name|replace(' ', '')|lower) }}" title="Редактировать настройки сервера">
+                                <button type="button" class="kebab-item" onclick="closeKebabMenu('kebab-server-{{ host.host_name }}'); openHostModalData(this)" data-host-name="{{ host.host_name }}" data-host-url="{{ host.host_url }}" data-host-username="{{ host.host_username }}" data-host-inbound-id="{{ host.host_inbound_id }}" data-host-code="{{ host.host_code or (host.host_name|replace(' ', '')|lower) }}" title="Редактировать настройки сервера">
 									<i class="fas fa-edit"></i>
-									Редактировать
+									<span>Редактировать</span>
 								</button>
-								<button type="button" class="kebab-item danger" onclick="deleteHost('{{ host.host_name }}')" title="Удалить сервер">
+								<button type="button" class="kebab-item danger" onclick="closeKebabMenu('kebab-server-{{ host.host_name }}'); deleteHost('{{ host.host_name }}')" title="Удалить сервер">
 									<i class="fas fa-trash"></i>
-									Удалить
+									<span>Удалить</span>
 								</button>
 							</div>
 						</div>
@@ -133,6 +133,7 @@
                         <table class="plans-table" data-host-name="{{ host.host_name }}">
                             <thead>
                                 <tr>
+                                    <th>ID</th>
                                     <th>Название</th>
                                     <th>Срок</th>
                                     <th>Цена</th>
@@ -156,6 +157,7 @@
                                     data-plan-traffic="{{ traffic }}"
                                     data-host-name="{{ host.host_name }}"
                                 >
+                                    <td title="Идентификатор тарифа">{{ plan.plan_id }}</td>
                                     <td>{{ plan.plan_name }}</td>
                                     <td>
                                         {% if months and months|int > 0 %}{{ months }} мес{% endif %}
@@ -166,20 +168,20 @@
                                     <td>{{ plan.price|round(0) }} RUB</td>
                                     <td>{{ traffic and (traffic|round(2) ~ ' ГБ') or '∞' }}</td>
 								<td style="text-align:right; position:relative;">
-									<div class="kebab-wrapper">
-										<button class="button button-small button-icon kebab-btn" type="button" data-size="sm" title="Действия с тарифом">
-											<i class="fas fa-ellipsis-v"></i>
-										</button>
-										<div class="kebab-menu">
+								<div class="kebab-wrapper">
+									<button class="kebab-btn" onclick="toggleKebabMenu('kebab-plan-{{ plan.plan_id }}')" title="Действия с тарифом">
+										<i class="fas fa-ellipsis-v"></i>
+									</button>
+									<div class="kebab-menu" id="kebab-plan-{{ plan.plan_id }}">
                                             <button type="button" class="kebab-item"
-                                                onclick="openPlanModalData(this)"
+                                                onclick="closeKebabMenu('kebab-plan-{{ plan.plan_id }}'); openPlanModalData(this)"
                                                 data-plan-id="{{ plan.plan_id }}" data-plan-name="{{ plan.plan_name }}" data-plan-months="{{ months }}" data-plan-days="{{ days }}" data-plan-hours="{{ hours }}" data-plan-price="{{ plan.price }}" data-plan-traffic="{{ traffic }}" data-host-name="{{ host.host_name }}" title="Редактировать тариф">
 												<i class="fas fa-edit"></i>
-												Редактировать
+												<span>Редактировать</span>
 											</button>
-											<button type="button" class="kebab-item danger" onclick="deletePlan('{{ plan.plan_id }}')" title="Удалить тариф">
+											<button type="button" class="kebab-item danger" onclick="closeKebabMenu('kebab-plan-{{ plan.plan_id }}'); deletePlan('{{ plan.plan_id }}')" title="Удалить тариф">
 												<i class="fas fa-trash"></i>
-												Удалить
+												<span>Удалить</span>
 											</button>
 										</div>
 									</div>
@@ -239,42 +241,145 @@
 	<!-- Вкладка "Бот" -->
 	<div id="bot-tab" class="settings-tab">
 		<form action="{{ url_for('save_bot_settings') }}" method="post">
-			<section class="settings-section">
-				<h2>Настройка Бота</h2>
-				<div class="form-group password-wrapper">
-					<label for="telegram_bot_token">Токен бота:</label>
-					<input
-						type="password"
-						id="telegram_bot_token"
-						name="telegram_bot_token"
-						value="{{ settings.telegram_bot_token or '' }}"
-						required
-					/>
-					<button type="button" class="toggle-password" title="Показать/скрыть пароль">
-						<i class="fas fa-eye"></i>
+		<section class="settings-section">
+			<h2>Бот магазина</h2>
+			<div class="form-group password-wrapper">
+				<label for="telegram_bot_token">Токен бота:</label>
+				<input
+					type="password"
+					id="telegram_bot_token"
+					name="telegram_bot_token"
+					value="{{ settings.telegram_bot_token or '' }}"
+					required
+				/>
+				<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+					<i class="fas fa-eye"></i>
+				</button>
+			</div>
+			<div class="form-group">
+				<label for="telegram_bot_username">Username бота (без @):</label>
+				<input
+					type="text"
+					id="telegram_bot_username"
+					name="telegram_bot_username"
+					value="{{ hidden_mode and '' or (settings.telegram_bot_username or '') }}"
+					required
+				/>
+			</div>
+			<div class="form-group">
+				<label for="admin_telegram_id">Telegram ID Администратора:</label>
+				<input
+					type="text"
+					id="admin_telegram_id"
+					name="admin_telegram_id"
+					value="{{ hidden_mode and '' or (settings.admin_telegram_id or '') }}"
+					required
+				/>
+			</div>
+		</section>
+		<section class="settings-section">
+			<h2>Бот поддержки</h2>
+            <div class="form-group form-group-checkbox">
+                <input type="hidden" name="support_enabled" value="false" />
+                <input type="checkbox" id="support_enabled" name="support_enabled" value="true" {% if settings.support_enabled == 'true' %}checked{% endif %}>
+                <label for="support_enabled">Включить бота поддержки</label>
+            </div>
+			<div class="form-group">
+				<label for="support_user">URL поддержки или Бота-Саппорта:</label>
+				<input
+					type="text"
+					id="support_user"
+					name="support_user"
+					value="{{ settings.support_user or '' }}"
+					placeholder="@username или https://t.me/username"
+				/>
+			</div>
+			<div class="form-group password-wrapper">
+				<label for="support_bot_token"
+					>Токен Support-бота (если используется):</label
+				>
+				<input
+					type="password"
+					id="support_bot_token"
+					name="support_bot_token"
+					value="{{ settings.support_bot_token or '' }}"
+				/>
+				<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+					<i class="fas fa-eye"></i>
+				</button>
+			</div>
+			<div class="form-group">
+				<label for="support_group_id"
+					>ID Группы поддержки (должна быть включена функция форума
+					(Topics)):</label
+				>
+				<input
+					type="text"
+					id="support_group_id"
+					name="support_group_id"
+					value="{{ settings.support_group_id or '' }}"
+				/>
+			</div>
+		</section>
+		<section class="settings-section">
+			<h2>Настройки Контента</h2>
+			<div class="form-group">
+				<div class="form-group-header">
+					<label for="about_content">О проекте</label>
+					<button type="button" class="button button-primary button-small button-icon" onclick="openContentModalWithAutoSave('about_content', 'Текст О проекте', 'textarea')" title="Редактировать текст о проекте">
+						<i class="fas fa-edit"></i>
 					</button>
 				</div>
-				<div class="form-group">
-					<label for="telegram_bot_username">Username бота (без @):</label>
-					<input
-						type="text"
-						id="telegram_bot_username"
-						name="telegram_bot_username"
-						value="{{ hidden_mode and '' or (settings.telegram_bot_username or '') }}"
-						required
-					/>
+				<textarea id="about_content" name="about_content" class="textarea-small" rows="3" placeholder="Введите текст о проекте" readonly>{{ about_content or '' }}</textarea>
+			</div>
+			<div class="form-group">
+				<div class="form-group-header">
+					<label for="support_content">Помощь и поддержка</label>
+					<button type="button" class="button button-primary button-small button-icon" onclick="openContentModalWithAutoSave('support_content', 'Текст в разделе Поддержка', 'textarea')" title="Редактировать текст поддержки">
+						<i class="fas fa-edit"></i>
+					</button>
 				</div>
-				<div class="form-group">
-					<label for="admin_telegram_id">Telegram ID Администратора:</label>
-					<input
-						type="text"
-						id="admin_telegram_id"
-						name="admin_telegram_id"
-						value="{{ hidden_mode and '' or (settings.admin_telegram_id or '') }}"
-						required
-					/>
+				<textarea id="support_content" name="support_content" class="textarea-small" rows="3" placeholder="Введите текст поддержки" readonly>{{ support_content or '' }}</textarea>
+			</div>
+			<div class="form-group">
+				<label for="terms_content">Условия использования</label>
+				<div class="content-field-wrapper">
+					<input type="url" id="terms_content" name="terms_content" value="{{ terms_content or '' }}" placeholder="https://example.com/terms" readonly>
+				<button type="button" class="button button-primary button-small button-icon" onclick="openHtmlEditor('terms')" title="Редактировать HTML страницы условий использования">
+					<i class="fas fa-code"></i>
+				</button>
 				</div>
-			</section>
+			</div>
+			<div class="form-group">
+				<label for="privacy_content">Политика конфиденциальности</label>
+				<div class="content-field-wrapper">
+					<input type="url" id="privacy_content" name="privacy_content" value="{{ privacy_content or '' }}" placeholder="https://example.com/privacy" readonly>
+				<button type="button" class="button button-primary button-small button-icon" onclick="openHtmlEditor('privacy')" title="Редактировать HTML страницы политики конфиденциальности">
+					<i class="fas fa-code"></i>
+				</button>
+				</div>
+			</div>
+			<div class="form-group">
+				<label for="channel_url"
+					>Telegram-канал</label
+				>
+				<input
+					type="url"
+					id="channel_url"
+					name="channel_url"
+					value="{{ settings.channel_url or '' }}"
+				/>
+			</div>
+			<div class="form-group form-group-checkbox">
+				<input type="hidden" name="force_subscription" value="false" />
+				<input type="checkbox" id="force_subscription"
+				name="force_subscription" value="true" {% if
+				settings.force_subscription == 'true' %}checked{% endif %}>
+				<label for="force_subscription"
+					>Требовать обязательную подписку на канал</label
+				>
+			</div>
+		</section>
 		<section class="settings-section">
 			<h2>Платежи в боте</h2>
 			<div class="form-group">
@@ -283,176 +388,68 @@
 				<small class="text-muted">Эта сумма используется в проверке "Ввести другую сумму".</small>
 			</div>
 		</section>
-			<section class="settings-section">
-				<h2>Настройки Поддержки и Бота-Саппорта</h2>
-                <div class="form-group form-group-checkbox">
-                    <input type="hidden" name="support_enabled" value="false" />
-                    <input type="checkbox" id="support_enabled" name="support_enabled" value="true" {% if settings.support_enabled == 'true' %}checked{% endif %}>
-                    <label for="support_enabled">Включить бота поддержки</label>
-                </div>
-				<div class="form-group">
-					<label for="support_user">URL поддержки или Бота-Саппорта:</label>
-					<input
-						type="text"
-						id="support_user"
-						name="support_user"
-						value="{{ settings.support_user or '' }}"
-					/>
-				</div>
-				<div class="form-group password-wrapper">
-					<label for="support_bot_token"
-						>Токен Support-бота (если используется):</label
-					>
-					<input
-						type="password"
-						id="support_bot_token"
-						name="support_bot_token"
-						value="{{ settings.support_bot_token or '' }}"
-					/>
-					<button type="button" class="toggle-password" title="Показать/скрыть пароль">
-						<i class="fas fa-eye"></i>
-					</button>
-				</div>
-				<div class="form-group">
-					<label for="support_group_id"
-						>ID Группы поддержки (должна быть включена функция форума
-						(Topics)):</label
-					>
-					<input
-						type="text"
-						id="support_group_id"
-						name="support_group_id"
-						value="{{ settings.support_group_id or '' }}"
-					/>
-				</div>
-			</section>
-			<section class="settings-section">
-				<h2>Настройки Реферальной программы</h2>
-				<div class="form-group form-group-checkbox">
-					<input type="hidden" name="enable_referrals" value="false" />
-					<input type="checkbox" id="enable_referrals" name="enable_referrals"
-					value="true" {% if settings.enable_referrals == 'true' %}checked{%
-					endif %}>
-					<label for="enable_referrals">Включить реферальную систему</label>
-				</div>
-				<div class="form-group">
-					<label for="minimum_withdrawal">Минимальная сумма для вывода:</label>
-					<input
-						type="number"
-						id="minimum_withdrawal"
-						name="minimum_withdrawal"
-						value="{{ settings.minimum_withdrawal or '10' }}"
-					/>
-				</div>
-				<div class="form-group">
-					<label for="referral_percentage"
-						>Процент вознаграждения пригласившему (%):</label
-					>
-					<input
-						type="number"
-						id="referral_percentage"
-						name="referral_percentage"
-						value="{{ settings.referral_percentage or '10' }}"
-					/>
-				</div>
-				<div class="form-group">
-					<label for="referral_discount"
-						>Скидка для нового пользователя на первую покупку (%):</label
-					>
-					<input
-						type="number"
-						id="referral_discount"
-						name="referral_discount"
-						value="{{ settings.referral_discount or '5' }}"
-					/>
-				</div>
-			</section>
-
-			<section class="settings-section">
-				<h2>Настройки Контента</h2>
-				<div class="form-group">
-					<label for="about_content">Текст "О проекте":</label>
-					<div class="content-field-wrapper">
-						<textarea id="about_content" name="about_content" rows="3" placeholder="Введите текст о проекте" readonly>{{ about_content or '' }}</textarea>
-					<button type="button" class="button button-primary button-small" onclick="openContentModalWithAutoSave('about_content', 'Текст О проекте', 'textarea')" title="Редактировать текст о проекте">
-						<i class="fas fa-edit"></i>
-						Редактировать
-					</button>
-					</div>
-				</div>
-				<div class="form-group">
-					<label for="support_content">Текст в разделе "Поддержка":</label>
-					<div class="content-field-wrapper">
-						<textarea id="support_content" name="support_content" rows="3" placeholder="Введите текст поддержки" readonly>{{ support_content or '' }}</textarea>
-					<button type="button" class="button button-primary button-small" onclick="openContentModalWithAutoSave('support_content', 'Текст в разделе Поддержка', 'textarea')" title="Редактировать текст поддержки">
-						<i class="fas fa-edit"></i>
-						Редактировать
-					</button>
-					</div>
-				</div>
-				<div class="form-group">
-					<label for="terms_content">URL "Условия использования":</label>
-					<div class="content-field-wrapper">
-						<input type="url" id="terms_content" name="terms_content" value="{{ terms_content or '' }}" placeholder="https://example.com/terms" readonly>
-					<button type="button" class="button button-primary button-small" onclick="openHtmlEditor('terms')" title="Редактировать HTML страницы условий использования">
-						<i class="fas fa-code"></i>
-						Редактировать HTML
-					</button>
-					</div>
-				</div>
-				<div class="form-group">
-					<label for="privacy_content">URL "Политика конфиденциальности":</label>
-					<div class="content-field-wrapper">
-						<input type="url" id="privacy_content" name="privacy_content" value="{{ privacy_content or '' }}" placeholder="https://example.com/privacy" readonly>
-					<button type="button" class="button button-primary button-small" onclick="openHtmlEditor('privacy')" title="Редактировать HTML страницы политики конфиденциальности">
-						<i class="fas fa-code"></i>
-						Редактировать HTML
-					</button>
-					</div>
-				</div>
-				<div class="form-group">
-					<label for="channel_url"
-						>URL Telegram-канала (напр. https://t.me/nnstorenews):</label
-					>
-					<input
-						type="url"
-						id="channel_url"
-						name="channel_url"
-						value="{{ settings.channel_url or '' }}"
-					/>
-				</div>
-				<div class="form-group form-group-checkbox">
-					<input type="hidden" name="force_subscription" value="false" />
-					<input type="checkbox" id="force_subscription"
-					name="force_subscription" value="true" {% if
-					settings.force_subscription == 'true' %}checked{% endif %}>
-					<label for="force_subscription"
-						>Требовать обязательную подписку на канал</label
-					>
-				</div>
-			</section>
-
-			<section class="settings-section">
-				<h2>Настройки Пробного периода</h2>
-				<div class="form-group form-group-checkbox">
-					<input type="hidden" name="trial_enabled" value="false" />
-					<input type="checkbox" id="trial_enabled" name="trial_enabled"
-					value="true" {% if settings.trial_enabled == 'true' %}checked{% endif
-					%}>
-					<label for="trial_enabled">Включить пробный период</label>
-				</div>
-				<div class="form-group">
-					<label for="trial_duration_days"
-						>Длительность пробного периода (в днях):</label
-					>
-					<input
-						type="number"
-						id="trial_duration_days"
-						name="trial_duration_days"
-						value="{{ settings.trial_duration_days or '3' }}"
-					/>
-				</div>
-			</section>
+		<section class="settings-section">
+			<h2>Настройки Пробного периода</h2>
+			<div class="form-group form-group-checkbox">
+				<input type="hidden" name="trial_enabled" value="false" />
+				<input type="checkbox" id="trial_enabled" name="trial_enabled"
+				value="true" {% if settings.trial_enabled == 'true' %}checked{% endif
+				%}>
+				<label for="trial_enabled">Включить пробный период</label>
+			</div>
+			<div class="form-group">
+				<label for="trial_duration_days"
+					>Длительность пробного периода (в днях):</label
+				>
+				<input
+					type="number"
+					id="trial_duration_days"
+					name="trial_duration_days"
+					value="{{ settings.trial_duration_days or '3' }}"
+				/>
+			</div>
+		</section>
+		<section class="settings-section">
+			<h2>Настройки Реферальной программы</h2>
+			<div class="form-group form-group-checkbox">
+				<input type="hidden" name="enable_referrals" value="false" />
+				<input type="checkbox" id="enable_referrals" name="enable_referrals"
+				value="true" {% if settings.enable_referrals == 'true' %}checked{%
+				endif %}>
+				<label for="enable_referrals">Включить реферальную систему</label>
+			</div>
+			<div class="form-group">
+				<label for="minimum_withdrawal">Минимальная сумма для вывода:</label>
+				<input
+					type="number"
+					id="minimum_withdrawal"
+					name="minimum_withdrawal"
+					value="{{ settings.minimum_withdrawal or '10' }}"
+				/>
+			</div>
+			<div class="form-group">
+				<label for="referral_percentage"
+					>Процент вознаграждения пригласившему (%):</label
+				>
+				<input
+					type="number"
+					id="referral_percentage"
+					name="referral_percentage"
+					value="{{ settings.referral_percentage or '10' }}"
+				/>
+			</div>
+			<div class="form-group">
+				<label for="referral_discount"
+					>Скидка для нового пользователя на первую покупку (%):</label
+				>
+				<input
+					type="number"
+					id="referral_discount"
+					name="referral_discount"
+					value="{{ settings.referral_discount or '5' }}"
+				/>
+			</div>
+		</section>
 			
 			<button type="submit" class="button button-primary" data-size="md" title="Сохранить настройки бота">
 				<i class="fas fa-save"></i>
@@ -466,140 +463,186 @@
 		<form action="{{ url_for('save_payment_settings') }}" method="post">
 			<section class="settings-section">
 				<h2>Настройки Платежных Систем</h2>
-				<h2>Настройка YooKassa</h2>
-				<div class="form-group">
-					<label for="receipt_email">Почта для чеков:</label>
-					<input
-						type="text"
-						id="receipt_email"
-						name="receipt_email"
-						value="{{ settings.receipt_email or '' }}"
-					/>
-				</div>
-				<div class="form-group">
-					<label for="yookassa_shop_id">YooKassa Shop ID:</label>
-					<input
-						type="text"
-						id="yookassa_shop_id"
-						name="yookassa_shop_id"
-						value="{{ settings.yookassa_shop_id or '' }}"
-					/>
-				</div>
-				<div class="form-group password-wrapper">
-					<label for="yookassa_secret_key">YooKassa Secret Key:</label>
-					<input
-						type="password"
-						id="yookassa_secret_key"
-						name="yookassa_secret_key"
-						value="{{ settings.yookassa_secret_key or '' }}"
-					/>
-					<button type="button" class="toggle-password" title="Показать/скрыть пароль">
-						<i class="fas fa-eye"></i>
-					</button>
-				</div>
-				<div class="form-group form-group-checkbox">
-					<input type="hidden" name="sbp_enabled" value="false" />
-					<input type="checkbox" id="sbp_enabled" name="sbp_enabled"
-					value="true" {% if settings.sbp_enabled == 'true' %}checked{% endif
-					%}>
-					<label for="sbp_enabled">Включить оплату через СБП</label>
-				</div>
-				<h2>Настройка CryptoBot</h2>
-				<div class="form-group password-wrapper">
-					<label for="cryptobot_token">CryptoBot Token:</label>
-					<input
-						type="password"
-						id="cryptobot_token"
-						name="cryptobot_token"
-						value="{{ settings.cryptobot_token or '' }}"
-					/>
-					<button type="button" class="toggle-password" title="Показать/скрыть пароль">
-						<i class="fas fa-eye"></i>
-					</button>
-				</div>
-				<h2>Настройка Heleket</h2>
-				<div class="form-group">
-					<label for="heleket_merchant_id">Heleket Merchant ID:</label>
-					<input
-						type="text"
-						id="heleket_merchant_id"
-						name="heleket_merchant_id"
-						value="{{ settings.heleket_merchant_id or '' }}"
-					/>
-				</div>
-				<div class="form-group password-wrapper">
-					<label for="heleket_api_key">Heleket API Key:</label>
-					<input
-						type="password"
-						id="heleket_api_key"
-						name="heleket_api_key"
-						value="{{ settings.heleket_api_key or '' }}"
-					/>
-					<button type="button" class="toggle-password" title="Показать/скрыть пароль">
-						<i class="fas fa-eye"></i>
-					</button>
-				</div>
-				<div class="form-group">
-					<label for="domain">Ваш домен (например, my-shop.com):</label>
-					<input
-						type="text"
-						id="domain"
-						name="domain"
-						value="{{ settings.domain or '' }}"
-					/>
-				</div>
-				<h2>Настройка TonConnect</h2>
-				<div class="form-group">
-					<label for="ton_wallet_address">Ton Wallet:</label>
-					<input
-						type="text"
-						id="ton_wallet_address"
-						name="ton_wallet_address"
-						value="{{ settings.ton_wallet_address or '' }}"
-					/>
-				</div>
-				<div class="form-group password-wrapper">
-					<label for="tonapi_key">TonAPI Key:</label>
-					<input
-						type="password"
-						id="tonapi_key"
-						name="tonapi_key"
-						value="{{ settings.tonapi_key or '' }}"
-					/>
-					<button type="button" class="toggle-password" title="Показать/скрыть пароль">
-						<i class="fas fa-eye"></i>
-					</button>
-				</div>
-				<h2>Настройка Telegram Stars</h2>
-				<div class="form-group form-group-checkbox">
-					<input type="hidden" name="stars_enabled" value="false" />
-					<input type="checkbox" id="stars_enabled" name="stars_enabled"
-					value="true" {% if settings.stars_enabled == 'true' %}checked{% endif %}>
-					<label for="stars_enabled">Включить оплату звездами Telegram</label>
-				</div>
-				<div class="form-group">
-					<label for="stars_conversion_rate">Курс конвертации (рублей за 1 звезду):</label>
-					<div style="display: flex; gap: 10px; align-items: center;">
-						<input
-							type="number"
-							step="0.01"
-							id="stars_conversion_rate"
-							name="stars_conversion_rate"
-							value="{{ settings.stars_conversion_rate or '1.79' }}"
-							placeholder="1.79"
-							style="flex: 1;"
-						/>
-						<button type="button" onclick="updateStarsRate()" class="button button-small" style="white-space: nowrap;">
-							🔄 Обновить
-						</button>
+				<div class="payment-systems-grid">
+					<!-- Левая колонка -->
+					<div class="payment-column">
+						<!-- Настройка Telegram Stars -->
+						<div class="payment-system-card">
+							<h3>Настройка Telegram Stars</h3>
+							<div class="form-group form-group-checkbox">
+								<input type="hidden" name="stars_enabled" value="false" />
+								<input type="checkbox" id="stars_enabled" name="stars_enabled"
+								value="true" {% if settings.stars_enabled == 'true' %}checked{% endif %}>
+								<label for="stars_enabled">Включить оплату звездами Telegram</label>
+							</div>
+							<div class="form-group">
+								<label for="stars_conversion_rate">Курс конвертации (рублей за 1 звезду):</label>
+								<div style="display: flex; gap: 10px; align-items: center;">
+									<input
+										type="number"
+										step="0.01"
+										id="stars_conversion_rate"
+										name="stars_conversion_rate"
+										value="{{ settings.stars_conversion_rate or '1.79' }}"
+										placeholder="1.79"
+										style="flex: 1;"
+									/>
+									<button type="button" onclick="updateStarsRate()" class="button button-small" style="white-space: nowrap;">
+										🔄 Обновить
+									</button>
+								</div>
+								<small class="text-muted">
+									💡 <strong>Как рассчитать:</strong><br>
+									• Посмотрите курс в Telegram: 100 звезд = 179 рублей<br>
+									• Значит 1 звезда = 1.79 рублей<br>
+									• Этот курс используется для корректной статистики и отчетности<br>
+									• Кнопка "Обновить" установит примерный курс (1.79)
+								</small>
+							</div>
+						</div>
+
+						<!-- Настройка TonConnect -->
+						<div class="payment-system-card">
+							<h3>Настройка TonConnect</h3>
+							<div class="form-group">
+								<label for="ton_wallet_address">Ton Wallet:</label>
+								<input
+									type="text"
+									id="ton_wallet_address"
+									name="ton_wallet_address"
+									value="{{ settings.ton_wallet_address or '' }}"
+								/>
+							</div>
+							<div class="form-group password-wrapper">
+								<label for="tonapi_key">TonAPI Key:</label>
+								<input
+									type="password"
+									id="tonapi_key"
+									name="tonapi_key"
+									value="{{ settings.tonapi_key or '' }}"
+								/>
+								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+									<i class="fas fa-eye"></i>
+								</button>
+							</div>
+							<div class="form-group">
+								<label for="ton_manifest_url">Ton manifest:</label>
+								<div class="content-field-wrapper">
+									<input
+										type="url"
+										id="ton_manifest_url"
+										name="ton_manifest_url"
+										value="{{ (settings.domain or 'https://paris.dark-maximus.com') + '/.well-known/tonconnect-manifest.json' }}"
+										placeholder="https://example.com/.well-known/tonconnect-manifest.json"
+										readonly
+									/>
+									<button type="button" class="button button-primary button-small button-icon" onclick="openTonManifest()" title="Перейти к манифесту TON Connect">
+										<i class="fas fa-external-link-alt"></i>
+									</button>
+									<button type="button" class="button button-primary button-small button-icon" onclick="openTonManifestEditor()" title="Редактировать манифест TON Connect">
+										<i class="fas fa-edit"></i>
+									</button>
+								</div>
+							</div>
+						</div>
+
+						<!-- Настройка YooKassa -->
+						<div class="payment-system-card">
+							<h3>Настройка YooKassa</h3>
+							<div class="form-group">
+								<label for="receipt_email">Почта для чеков:</label>
+								<input
+									type="text"
+									id="receipt_email"
+									name="receipt_email"
+									value="{{ settings.receipt_email or '' }}"
+								/>
+							</div>
+							<div class="form-group">
+								<label for="yookassa_shop_id">YooKassa Shop ID:</label>
+								<input
+									type="text"
+									id="yookassa_shop_id"
+									name="yookassa_shop_id"
+									value="{{ settings.yookassa_shop_id or '' }}"
+								/>
+							</div>
+							<div class="form-group password-wrapper">
+								<label for="yookassa_secret_key">YooKassa Secret Key:</label>
+								<input
+									type="password"
+									id="yookassa_secret_key"
+									name="yookassa_secret_key"
+									value="{{ settings.yookassa_secret_key or '' }}"
+								/>
+								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+									<i class="fas fa-eye"></i>
+								</button>
+							</div>
+							<div class="form-group form-group-checkbox">
+								<input type="hidden" name="sbp_enabled" value="false" />
+								<input type="checkbox" id="sbp_enabled" name="sbp_enabled"
+								value="true" {% if settings.sbp_enabled == 'true' %}checked{% endif
+								%}>
+								<label for="sbp_enabled">Включить оплату через СБП</label>
+							</div>
+						</div>
 					</div>
-					<small class="text-muted">
-						💡 <strong>Как рассчитать:</strong><br>
-						• Посмотрите курс в Telegram: 100 звезд = 179 рублей<br>
-						• Значит 1 звезда = 1.79 рублей<br>
-						• Этот курс используется для корректной статистики и отчетности<br>
-						• Кнопка "Обновить" установит примерный курс (1.79)
-					</small>
+
+					<!-- Правая колонка -->
+					<div class="payment-column">
+						<!-- Настройка CryptoBot -->
+						<div class="payment-system-card">
+							<h3>Настройка CryptoBot</h3>
+							<div class="form-group password-wrapper">
+								<label for="cryptobot_token">CryptoBot Token:</label>
+								<input
+									type="password"
+									id="cryptobot_token"
+									name="cryptobot_token"
+									value="{{ settings.cryptobot_token or '' }}"
+								/>
+								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+									<i class="fas fa-eye"></i>
+								</button>
+							</div>
+						</div>
+
+						<!-- Настройка Heleket -->
+						<div class="payment-system-card">
+							<h3>Настройка Heleket</h3>
+							<div class="form-group">
+								<label for="heleket_merchant_id">Heleket Merchant ID:</label>
+								<input
+									type="text"
+									id="heleket_merchant_id"
+									name="heleket_merchant_id"
+									value="{{ settings.heleket_merchant_id or '' }}"
+								/>
+							</div>
+							<div class="form-group password-wrapper">
+								<label for="heleket_api_key">Heleket API Key:</label>
+								<input
+									type="password"
+									id="heleket_api_key"
+									name="heleket_api_key"
+									value="{{ settings.heleket_api_key or '' }}"
+								/>
+								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+									<i class="fas fa-eye"></i>
+								</button>
+							</div>
+							<div class="form-group">
+								<label for="domain">Ваш домен (например, my-shop.com):</label>
+								<input
+									type="text"
+									id="domain"
+									name="domain"
+									value="{{ settings.domain or '' }}"
+								/>
+							</div>
+						</div>
+					</div>
 				</div>
 			</section>
 
@@ -797,22 +840,92 @@
 .host-header.section-top .host-actions .button-primary:hover{
     background: #006e5e !important;
 }
+
+/* Стили для поля с кнопками (content-field-wrapper) */
+.content-field-wrapper {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.content-field-wrapper input {
+    flex: 1;
+}
+
+.content-field-wrapper .button-small {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Стили для заголовка группы с кнопкой */
+.form-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.form-group-header label {
+    margin-bottom: 0;
+}
+
+/* Стили для textarea с кодом */
+.textarea-code {
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.4;
+    background: #2d3748;
+    color: #e2e8f0;
+    border: 1px solid #4a5568;
+    border-radius: 6px;
+    padding: 12px;
+    resize: vertical;
+}
+
+.textarea-code:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 135, 113, 0.25);
+}
+
+/* Стили для модального окна большого размера */
+.modal-large {
+    width: 90% !important;
+    max-width: 1200px !important;
+    max-height: 90vh !important;
+}
+
+/* Стили для form-actions */
+.form-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #4a5568;
+}
+
+/* Стили для form-help */
+.form-help {
+    color: #a0aec0;
+    font-size: 13px;
+    margin-top: 8px;
+    display: block;
+}
+
+.form-help a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.form-help a:hover {
+    text-decoration: underline;
+}
+
 </style>
 
 <script>
-// ===== Kebab menu styles injected here to keep self-contained =====
-const kebabStyle = document.createElement('style');
-kebabStyle.textContent = `
-.kebab-wrapper{ position:relative; }
-.kebab-btn{ min-width:36px; }
-.kebab-menu{ position:absolute; top:110%; background:#151f31; border:1px solid #444; border-radius:6px; box-shadow:0 8px 18px rgba(0,0,0,0.35); display:none; min-width:200px; z-index:1000; padding:6px; }
-.kebab-menu.open{ display:block; }
-.kebab-item{ width:100%; text-align:left; background:#3a4147; color:#fff; border:none; padding:8px 10px; border-radius:4px; cursor:pointer; margin:4px 0; font-size:14px; }
-.kebab-item:hover{ background:#4a5058; }
-.kebab-item.danger{ background:#7a2e34; }
-.kebab-item.danger:hover{ background:#943b42; }
-`;
-document.head.appendChild(kebabStyle);
+// ===== Kebab menu styles теперь находятся в style.css =====
 
     function showTab(tabName, el) {
     // Скрыть все вкладки
@@ -831,7 +944,21 @@ document.head.appendChild(kebabStyle);
     document.getElementById(tabName + '-tab').classList.add('active');
     
     // Активировать соответствующую кнопку
-        if (el) { el.classList.add('active'); }
+    if (el) { 
+        el.classList.add('active'); 
+    } else {
+        // Если кнопка не передана, найдем её по tabName
+        const targetButton = Array.from(document.querySelectorAll('.nav-button'))
+            .find(btn => (btn.getAttribute('onclick') || '').includes("'" + tabName + "'"));
+        if (targetButton) {
+            targetButton.classList.add('active');
+        }
+    }
+    
+    // Сохраняем активную вкладку в URL
+    const url = new URL(window.location);
+    url.searchParams.set('tab', tabName);
+    window.history.replaceState({}, '', url);
 }
 
 function updateStarsRate() {
@@ -844,32 +971,16 @@ function updateStarsRate() {
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
-    const currentActiveTab = '{{ active_tab or "servers" }}';
-    // Показываем переданную активную вкладку или серверы по умолчанию
+    // Получаем активную вкладку из URL параметров или используем переданную с сервера
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlTab = urlParams.get('tab');
+    const serverTab = '{{ active_tab or "servers" }}';
+    const currentActiveTab = urlTab || serverTab;
+    
+    // Показываем активную вкладку
     showTab(currentActiveTab);
-    // Проставим активность правильной кнопке
-    const currentBtn = Array.from(document.querySelectorAll('.nav-button'))
-        .find(btn => (btn.getAttribute('onclick') || '').includes("'" + currentActiveTab + "'"));
-    if (currentBtn) { currentBtn.classList.add('active'); }
 
-    // Kebab toggling
-    document.body.addEventListener('click', function(e){
-        const btn = e.target.closest('.kebab-btn');
-        const anyMenu = document.querySelectorAll('.kebab-menu.open');
-        if (!btn){
-            // click outside: close all
-            anyMenu.forEach(m=>m.classList.remove('open'));
-            return;
-        }
-        const wrap = btn.closest('.kebab-wrapper');
-        if (!wrap) return;
-        const menu = wrap.querySelector('.kebab-menu');
-        if (!menu) return;
-        // close others
-        anyMenu.forEach(m=>{ if(m!==menu) m.classList.remove('open'); });
-        // toggle current
-        menu.classList.toggle('open');
-    });
+    // Kebab toggling теперь обрабатывается глобально в script.js
 
     // Делегирование dblclick по строкам тарифов
     document.body.addEventListener('dblclick', function(e){
@@ -1023,15 +1134,36 @@ function openPlanModalData(el){
 }
 
 function showModal(html){
+    // Удаляем все существующие модальные окна перед созданием нового
+    const existingModals = document.querySelectorAll('.modal-backdrop');
+    existingModals.forEach(modal => modal.remove());
+    
     const wrap = document.createElement('div');
     wrap.innerHTML = html;
     document.body.appendChild(wrap);
     const modal = wrap.querySelector('.modal');
     const backdrop = wrap.querySelector('.modal-backdrop');
-    if (modal) modal.style.display = 'block';
+    const modalContent = wrap.querySelector('.modal-content');
+    
+    if (modal) modal.style.display = 'flex';
     if (backdrop) backdrop.style.display = 'block';
+    
+    // Убеждаемся, что модальное окно имеет правильные размеры
+    if (modalContent) {
+        // Если у модального окна нет явно заданных стилей, устанавливаем стандартные
+        if (!modalContent.style.width && !modalContent.style.maxWidth) {
+            modalContent.style.width = '90%';
+            modalContent.style.maxWidth = '500px';
+            modalContent.style.maxHeight = '90vh';
+        }
+    }
 }
 function closeModal(){
+    const el = document.querySelector('.modal-backdrop');
+    if(el) el.remove();
+}
+
+function closeHtmlEditor(){
     const el = document.querySelector('.modal-backdrop');
     if(el) el.remove();
 }
@@ -1047,7 +1179,7 @@ function openContentModal(fieldId, fieldLabel, fieldType) {
     const html = `
     <div class="modal-backdrop">
       <div class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="width: 90%; max-width: 500px; max-height: 90vh;">
           <div class="modal-header">
             <h3>Редактировать ${fieldLabel}</h3>
             <span class="close" onclick="closeModal()">&times;</span>
@@ -1057,7 +1189,7 @@ function openContentModal(fieldId, fieldLabel, fieldType) {
               <div class="form-group">
                 <label for="contentValue">${fieldLabel}:</label>
                 ${isTextarea ? 
-                    `<textarea id="contentValue" name="contentValue" rows="5" placeholder="Введите ${fieldLabel.toLowerCase()}" required>${currentValue}</textarea>` :
+                    `<textarea id="contentValue" name="contentValue" class="textarea-small" rows="5" placeholder="Введите ${fieldLabel.toLowerCase()}" required>${currentValue}</textarea>` :
                     `<input type="${fieldType}" id="contentValue" name="contentValue" value="${currentValue}" placeholder="Введите ${fieldLabel.toLowerCase()}" required>`
                 }
               </div>
@@ -1099,7 +1231,7 @@ function openContentModalWithAutoSave(fieldId, fieldLabel, fieldType) {
     const html = `
     <div class="modal-backdrop">
       <div class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="width: 90%; max-width: 500px; max-height: 90vh;">
           <div class="modal-header">
             <h3>Редактировать ${fieldLabel}</h3>
             <span class="close" onclick="closeModal()">&times;</span>
@@ -1109,7 +1241,7 @@ function openContentModalWithAutoSave(fieldId, fieldLabel, fieldType) {
               <div class="form-group">
                 <label for="contentValue">${fieldLabel}:</label>
                 ${isTextarea ? 
-                    `<textarea id="contentValue" name="contentValue" rows="5" placeholder="Введите ${fieldLabel.toLowerCase()}" required>${currentValue}</textarea>` :
+                    `<textarea id="contentValue" name="contentValue" class="textarea-small" rows="5" placeholder="Введите ${fieldLabel.toLowerCase()}" required>${currentValue}</textarea>` :
                     `<input type="${fieldType}" id="contentValue" name="contentValue" value="${currentValue}" placeholder="Введите ${fieldLabel.toLowerCase()}" required>`
                 }
               </div>
@@ -1207,11 +1339,11 @@ function openHtmlEditor(pageType) {
     const pageTitle = pageType === 'terms' ? 'Условия использования' : 'Политика конфиденциальности';
     const previewUrl = pageType === 'terms' ? '/terms' : '/privacy';
     
-    // Создаем модальное окно
-    const modal = document.createElement('div');
-    modal.className = 'modal-backdrop';
-    modal.innerHTML = `
-        <div class="modal-content modal-large">
+    // Создаем HTML для модального окна
+    const html = `
+    <div class="modal-backdrop">
+      <div class="modal">
+        <div class="modal-content modal-large" style="width: 90%; max-width: 1200px; max-height: 90vh;">
             <div class="modal-header">
                 <h2>Редактирование ${pageTitle}</h2>
                 <span class="close" onclick="closeHtmlEditor()">&times;</span>
@@ -1223,6 +1355,7 @@ function openHtmlEditor(pageType) {
                         <textarea 
                             id="html_content" 
                             name="${pageType}_content" 
+                            class="textarea-code"
                             rows="30" 
                             placeholder="Введите HTML-код страницы..."
                             required
@@ -1245,136 +1378,11 @@ function openHtmlEditor(pageType) {
                 </form>
             </div>
         </div>
-    `;
+      </div>
+    </div>`;
     
-    // Добавляем стили для модального окна
-    const style = document.createElement('style');
-    style.textContent = `
-        .modal-backdrop {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .modal-content {
-            background: var(--bg-surface);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            width: 90%;
-            max-width: 1200px;
-            max-height: 90vh;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px;
-            border-bottom: 1px solid var(--border-color);
-            background: var(--bg-elevated);
-        }
-        
-        .modal-header h2 {
-            color: var(--light-color);
-            margin: 0;
-            font-size: 1.5em;
-            font-weight: 600;
-        }
-        
-        .close {
-            color: var(--muted);
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-            line-height: 1;
-        }
-        
-        .close:hover {
-            color: var(--light-color);
-        }
-        
-        .modal-body {
-            padding: 20px;
-            overflow-y: auto;
-            flex: 1;
-        }
-        
-        .form-group {
-            margin-bottom: 25px;
-        }
-        
-        .form-group label {
-            display: block;
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: var(--light-color);
-        }
-        
-        .form-group textarea {
-            width: 100%;
-            padding: 15px;
-            border: 2px solid var(--border-color);
-            border-radius: 6px;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            line-height: 1.5;
-            resize: vertical;
-            color: var(--light-color);
-            background: var(--bg-header);
-        }
-        
-        .form-group textarea:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(0, 135, 113, 0.25);
-        }
-        
-        .form-help {
-            display: block;
-            margin-top: 8px;
-            color: var(--muted);
-            font-size: 13px;
-        }
-        
-        .form-help a {
-            color: var(--primary-color);
-            text-decoration: none;
-        }
-        
-        .form-help a:hover {
-            text-decoration: underline;
-            color: var(--primary-hover);
-        }
-        
-        .form-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 15px;
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid var(--border-color);
-        }
-    `;
+    showModal(html);
     
-    document.head.appendChild(style);
-    document.body.appendChild(modal);
-    
-    // Добавляем обработчик для закрытия по клику на фон
-    modal.addEventListener('click', function(e) {
-        if (e.target === modal) {
-            closeHtmlEditor();
-        }
-    });
     
     // Добавляем обработчик формы
     const form = document.getElementById('htmlEditForm');
@@ -1418,7 +1426,8 @@ function openHtmlEditor(pageType) {
 
 // Функция для загрузки текущего контента
 function loadCurrentContent(pageType) {
-    fetch(`/api/get-${pageType}-content`)
+    const apiUrl = pageType === 'terms' ? '/api/get-terms-content' : '/api/get-privacy-content';
+    fetch(apiUrl)
         .then(response => response.json())
         .then(data => {
             document.getElementById('html_content').value = data.content || '';
@@ -1441,7 +1450,240 @@ function closeHtmlEditor() {
     }
 }
 
+// Функция для открытия манифеста TON Connect в новой вкладке
+function openTonManifest() {
+    // Открываем манифест TON Connect в новом окне
+    const manifestUrl = '/.well-known/tonconnect-manifest.json';
+    window.open(manifestUrl, '_blank');
+}
+
+// Функция для открытия редактора манифеста TON Connect
+function openTonManifestEditor() {
+    const html = `
+    <div class="modal-backdrop">
+      <div class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>Редактирование Ton Connect Manifest</h2>
+                <span class="close" onclick="closeTonManifestEditor()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="tonManifestForm" class="ton-manifest-form">
+                    <div class="form-group">
+                        <label for="ton_manifest_name">Название приложения:</label>
+                        <input type="text" id="ton_manifest_name" name="ton_manifest_name" 
+                               value="" 
+                               placeholder="Введите название приложения" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="app_url">URL приложения:</label>
+                        <input type="url" id="app_url" name="app_url" 
+                               value="" 
+                               placeholder="https://example.com" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="ton_manifest_icon_url">URL иконки:</label>
+                        <div class="icon-upload-container">
+                            <div class="icon-url-input">
+                                <input type="url" id="ton_manifest_icon_url" name="ton_manifest_icon_url" 
+                                       value="" 
+                                       placeholder="https://example.com/icon.png" required>
+                                <button type="button" class="button button-secondary" onclick="document.getElementById('icon_file_input').click()" title="Загрузить файл">
+                                    <i class="fas fa-upload"></i>
+                                    Загрузить
+                                </button>
+                            </div>
+                            <input type="file" id="icon_file_input" accept="image/png,image/jpg,image/jpeg,image/gif,image/webp" style="display: none;">
+                            <div class="icon-preview" id="icon_preview">
+                                <img id="icon_preview_img" src="" alt="Превью иконки">
+                            </div>
+                            <small>Рекомендуемый размер: 256x256 пикселей (PNG, JPG, JPEG, GIF, WEBP)</small>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="ton_manifest_terms_url">URL условий использования:</label>
+                        <input type="url" id="ton_manifest_terms_url" name="ton_manifest_terms_url" 
+                               value="" 
+                               placeholder="https://example.com/terms" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="ton_manifest_privacy_url">URL политики конфиденциальности:</label>
+                        <input type="url" id="ton_manifest_privacy_url" name="ton_manifest_privacy_url" 
+                               value="" 
+                               placeholder="https://example.com/privacy" required>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="button button-secondary" onclick="closeTonManifestEditor()" title="Отменить изменения">
+                            <i class="fas fa-times"></i>
+                            Отменить
+                        </button>
+                        <button type="submit" class="button button-primary" title="Сохранить изменения манифеста">
+                            <i class="fas fa-save"></i>
+                            Сохранить
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+      </div>
+    </div>`;
+    
+    showModal(html);
+    
+    // Загружаем актуальные данные из базы данных
+    loadTonManifestData();
+    
+    // Добавляем обработчики
+    const form = document.getElementById('tonManifestForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(form);
+            
+            fetch('/save-ton-manifest-settings', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Настройки Ton Connect манифеста успешно сохранены', 'success');
+                    closeTonManifestEditor();
+                } else {
+                    showNotification('Ошибка при сохранении настроек: ' + (data.message || 'Неизвестная ошибка'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+                showNotification('Ошибка при сохранении настроек', 'error');
+            });
+        });
+    }
+    
+    // Обработка загрузки иконки
+    const iconFileInput = document.getElementById('icon_file_input');
+    if (iconFileInput) {
+        iconFileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                uploadIconFile(file);
+            }
+        });
+    }
+}
+
+// Функция для загрузки актуальных данных Ton manifest
+function loadTonManifestData() {
+    console.log('Начинаем загрузку данных манифеста...');
+    
+    fetch('/api/get-ton-manifest-data')
+        .then(response => {
+            console.log('Ответ сервера:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('Полученные данные:', data);
+            
+            if (data.success) {
+                // Заполняем поля формы актуальными данными
+                const nameField = document.getElementById('ton_manifest_name');
+                const urlField = document.getElementById('app_url');
+                const iconUrlField = document.getElementById('ton_manifest_icon_url');
+                const termsUrlField = document.getElementById('ton_manifest_terms_url');
+                const privacyUrlField = document.getElementById('ton_manifest_privacy_url');
+                
+                if (nameField) nameField.value = data.data.name || '';
+                if (urlField) urlField.value = data.data.url || '';
+                if (iconUrlField) iconUrlField.value = data.data.iconUrl || '';
+                if (termsUrlField) termsUrlField.value = data.data.termsOfUseUrl || '';
+                if (privacyUrlField) privacyUrlField.value = data.data.privacyPolicyUrl || '';
+                
+                // Обновляем превью иконки
+                const previewImg = document.getElementById('icon_preview_img');
+                if (previewImg) previewImg.src = data.data.iconUrl || '';
+                
+                console.log('Поля формы заполнены:', {
+                    name: data.data.name,
+                    url: data.data.url,
+                    iconUrl: data.data.iconUrl,
+                    termsUrl: data.data.termsOfUseUrl,
+                    privacyUrl: data.data.privacyPolicyUrl
+                });
+            } else {
+                console.error('Ошибка получения данных:', data.message);
+                showNotification('Ошибка при загрузке данных манифеста: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки данных манифеста:', error);
+            showNotification('Ошибка при загрузке данных манифеста', 'error');
+        });
+}
+
+// Функция для загрузки файла иконки
+function uploadIconFile(file) {
+    const formData = new FormData();
+    formData.append('icon', file);
+    
+    // Показываем индикатор загрузки
+    const iconPreview = document.getElementById('icon_preview');
+    const iconUrlInput = document.getElementById('ton_manifest_icon_url');
+    const uploadButton = document.querySelector('.icon-url-input .button');
+    
+    iconPreview.classList.add('icon-upload-loading');
+    uploadButton.disabled = true;
+    uploadButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Загрузка...';
+    
+    fetch('/upload-ton-icon', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Обновляем URL в поле ввода
+            iconUrlInput.value = data.icon_url;
+            
+            // Обновляем превью
+            const previewImg = document.getElementById('icon_preview_img');
+            previewImg.src = data.icon_url;
+            
+            // Показываем уведомление об успехе
+            showNotification('Иконка успешно загружена', 'success');
+        } else {
+            showNotification('Ошибка при загрузке иконки: ' + data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка:', error);
+        showNotification('Ошибка при загрузке иконки', 'error');
+    })
+    .finally(() => {
+        // Убираем индикатор загрузки
+        iconPreview.classList.remove('icon-upload-loading');
+        uploadButton.disabled = false;
+        uploadButton.innerHTML = '<i class="fas fa-upload"></i> Загрузить';
+    });
+}
+
+// Функция для закрытия редактора манифеста TON Connect
+function closeTonManifestEditor() {
+    const modal = document.querySelector('.modal-backdrop');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+
+
 </script>
+
 
 
 <style>

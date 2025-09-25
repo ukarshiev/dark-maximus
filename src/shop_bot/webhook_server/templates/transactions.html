@@ -1,6 +1,17 @@
 {% extends "base.html" %} 
 {% block title %}Недавние транзакции{% endblock %}
 {% block header_title %}Платежи{% endblock %}
+
+{% block header_buttons %}
+<button class="button button-primary" data-size="sm" onclick="openTopupBalanceModal()" title="Пополнить баланс пользователя">
+	<i class="fas fa-plus-circle"></i>
+	Пополнить баланс
+</button>
+<button class="button button-secondary" data-size="sm" onclick="refreshTransactions()" id="headerRefreshBtn" title="Обновить список транзакций">
+	<i class="fas fa-sync-alt" id="headerRefreshIcon"></i>
+	<span id="headerRefreshText">Обновить</span>
+</button>
+{% endblock %}
 {%
 block content %}
 
@@ -9,10 +20,12 @@ block content %}
 	</div>
 
 	<section class="transactions-section">
+		<div class="table-scroll-x">
 		<div class="transactions-table">
-			<table>
+			<table class="transactions-table">
 				<thead>
 					<tr>
+						<th class="actions-cell">Меню</th>
 						<th>ID</th>
 						<th>Пользователь</th>
 						<th>Дата</th>
@@ -29,6 +42,19 @@ block content %}
 				<tbody>
 					{% for tx in transactions %}
 					<tr class="tx-row">
+						<td class="actions-cell">
+							<div class="kebab-wrapper">
+								<button class="kebab-btn" onclick="toggleKebabMenu('kebab-tx-{{ tx.id }}')" title="Действия с транзакцией">
+									<i class="fas fa-ellipsis-v"></i>
+								</button>
+								<div class="kebab-menu" id="kebab-tx-{{ tx.id }}">
+									<button type="button" class="kebab-item" onclick="closeKebabMenu('kebab-tx-{{ tx.id }}'); openTopupBalanceModal({{ tx.user_id }}, '{{ tx.username or 'N/A' }}')" title="Пополнить баланс пользователя">
+										<i class="fas fa-plus-circle"></i>
+										<span>Пополнить баланс</span>
+									</button>
+								</div>
+							</div>
+						</td>
 						<td>{{ tx.transaction_id }}</td>
 						<td>
 							<div class="user-info">
@@ -57,11 +83,13 @@ block content %}
 						</td>
                         <td>
                             {% if tx.metadata %}
-                                {% if tx.metadata.get('operation') == 'topup' %}
-                                    Пополнение
+                                {% if tx.metadata.get('operation') == 'topup' or tx.metadata.get('type') == 'balance_topup' %}
+                                    Зачисление
                                 {% elif tx.metadata.get('action') %}
                                     {% if tx.metadata.get('action') == 'new' %}новый{% else %}продление{% endif %}
                                 {% else %}-{% endif %}
+                            {% elif tx.payment_method == 'Balance' %}
+                                Зачисление
                             {% else %}-{% endif %}
                         </td>
 						<td>{{ tx.payment_method or '-' }}</td>
@@ -91,7 +119,7 @@ block content %}
 						</td>
                         <td>{{ tx.host_name }}</td>
                         <td>
-                            {% if tx.metadata and tx.metadata.get('operation') == 'topup' %}
+                            {% if tx.metadata and (tx.metadata.get('operation') == 'topup' or tx.metadata.get('type') == 'balance_topup') %}
                                 -
                             {% else %}
                                 {{ tx.plan_name or 'N/A' }}
@@ -136,6 +164,7 @@ block content %}
 					{% endfor %}
 				</tbody>
 			</table>
+			</div>
 		</div>
 	</section>
 
@@ -144,10 +173,6 @@ block content %}
 		<div class="pagination-controls">
 			<!-- Левая область: кнопки действий -->
 			<div class="pagination-left">
-				<button class="button button-primary button-small-refresh" data-size="sm" onclick="refreshTransactions()" id="refreshBtn" title="Обновить список транзакций">
-					<i class="fas fa-sync-alt" id="refreshIcon"></i>
-					<span id="refreshText">Обновить</span>
-				</button>
 			</div>
 			
 			<!-- Правая область: пагинация и переключатель -->
@@ -241,9 +266,19 @@ function changePerPage(value) {
 }
 
 function refreshTransactions() {
-    const refreshBtn = document.getElementById('refreshBtn');
-    const refreshIcon = document.getElementById('refreshIcon');
-    const refreshText = document.getElementById('refreshText');
+    // Ищем кнопку обновления - сначала в header, потом в пагинации
+    let refreshBtn = document.getElementById('headerRefreshBtn');
+    let refreshIcon = document.getElementById('headerRefreshIcon');
+    let refreshText = document.getElementById('headerRefreshText');
+    
+    // Если кнопка в header не найдена, ищем в пагинации
+    if (!refreshBtn) {
+        refreshBtn = document.getElementById('refreshBtn');
+        refreshIcon = document.getElementById('refreshIcon');
+        refreshText = document.getElementById('refreshText');
+    }
+    
+    if (!refreshBtn || !refreshIcon || !refreshText) return;
     
     // Блокируем кнопку и показываем анимацию
     refreshBtn.disabled = true;
@@ -316,5 +351,38 @@ function copyPaymentLink(link) {
     });
 }
 </script>
+
+<!-- Модальное окно для пополнения баланса -->
+<div id="topupBalanceModal" class="modal" style="display: none;">
+	<div class="modal-content">
+		<div class="modal-header">
+			<h3>Пополнить баланс</h3>
+			<span class="close" onclick="closeTopupBalanceModal()" title="Закрыть окно">&times;</span>
+		</div>
+		<div class="modal-body">
+			<form id="topupBalanceForm">
+				<div class="form-group">
+					<label for="topupUserSearch">Пользователь:</label>
+					<input type="text" id="topupUserSearch" placeholder="Введите Telegram ID или username для поиска" title="Введите Telegram ID или username для поиска" oninput="debouncedUserSearch(this.value, 'topup')">
+					<div id="topupUserSuggestions" class="suggestions"></div>
+					<input type="hidden" id="topupSelectedUserId">
+					<div id="topupSelectedUserLabel" class="selected-user-label"></div>
+				</div>
+				<div class="form-group">
+					<label for="topupAmount">Сумма (RUB):</label>
+					<input type="number" id="topupAmount" min="1" step="1" placeholder="Введите сумму пополнения" title="Введите сумму пополнения в рублях">
+				</div>
+			</form>
+		</div>
+		<div class="modal-footer">
+			<button type="button" class="button button-secondary" onclick="closeTopupBalanceModal()" title="Отменить пополнение баланса">
+				Отменить
+			</button>
+			<button type="button" class="button button-primary" onclick="submitTopupBalance()" title="Сохранить пополнение баланса">
+				Сохранить
+			</button>
+		</div>
+	</div>
+</div>
 
 {% endblock %}

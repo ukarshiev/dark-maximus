@@ -5,11 +5,14 @@ import json
 import hashlib
 import base64
 import sqlite3
+import requests
+import time
 from hmac import compare_digest
 from datetime import datetime
+from datetime import timedelta
 from functools import wraps
 from math import ceil
-from flask import Flask, request, render_template, redirect, url_for, flash, session, current_app
+from flask import Flask, request, render_template, redirect, url_for, flash, session, current_app, jsonify
 from pathlib import Path
 
 logging.basicConfig(level=logging.INFO)
@@ -27,8 +30,10 @@ from shop_bot.data_manager.database import (
     get_total_keys_count, get_total_spent_sum, get_total_notifications_count, get_daily_stats_for_charts,
     get_recent_transactions, get_paginated_transactions, get_all_users, get_user_keys,
     ban_user, unban_user, delete_user_keys, get_setting, find_and_complete_ton_transaction, find_ton_transaction_by_amount,
-    get_paginated_keys, get_plan_by_id, update_plan, get_host, update_host
+    get_paginated_keys, get_plan_by_id, update_plan, get_host, update_host, revoke_user_consent,
+    search_users as db_search_users, add_to_user_balance, log_transaction, get_user, get_notification_by_id
 )
+from shop_bot.data_manager.scheduler import send_subscription_notification
 from shop_bot.ton_monitor import start_ton_monitoring
 
 _bot_controller = None
@@ -118,7 +123,10 @@ def create_webhook_app(bot_controller_instance):
     @flask_app.route('/.well-known/tonconnect-manifest.json')
     def tonconnect_manifest():
         """Возвращает манифест для TON Connect"""
-        return current_app.send_static_file('.well-known/tonconnect-manifest.json')
+        from shop_bot.data_manager.database import get_ton_manifest
+        import json
+        manifest_data = get_ton_manifest()
+        return json.dumps(manifest_data, ensure_ascii=False, indent=2), 200, {'Content-Type': 'application/json'}
 
     @flask_app.route('/login', methods=['GET', 'POST'])
     def login_page():
@@ -370,6 +378,102 @@ def create_webhook_app(bot_controller_instance):
         
         flash('Настройки платежных систем успешно сохранены!', 'success')
         return redirect(url_for('settings_page', tab='payments'))
+
+    @flask_app.route('/save-ton-manifest-settings', methods=['POST'])
+    @login_required
+    def save_ton_manifest_settings():
+        """Сохранение настроек Ton Connect манифеста"""
+        try:
+            ton_manifest_keys = [
+                'ton_manifest_name', 'app_url', 'ton_manifest_icon_url',
+                'ton_manifest_terms_url', 'ton_manifest_privacy_url'
+            ]
+            
+            # Сохраняем каждую настройку
+            for key in ton_manifest_keys:
+                value = request.form.get(key, '')
+                update_setting(key, value)
+            
+            return {'success': True, 'message': 'Настройки Ton Connect манифеста успешно сохранены'}, 200
+            
+        except Exception as e:
+            logger.error(f"Error saving Ton manifest settings: {e}")
+            return {'success': False, 'message': f'Ошибка при сохранении: {str(e)}'}, 500
+
+    @flask_app.route('/upload-ton-icon', methods=['POST'])
+    @login_required
+    def upload_ton_icon():
+        """Загрузка иконки для Ton Connect манифеста"""
+        try:
+            from werkzeug.utils import secure_filename
+            import os
+            from pathlib import Path
+            
+            # Проверяем, что файл был загружен
+            if 'icon' not in request.files:
+                return {'success': False, 'message': 'Файл не найден'}, 400
+            
+            file = request.files['icon']
+            if file.filename == '':
+                return {'success': False, 'message': 'Файл не выбран'}, 400
+            
+            # Проверяем расширение файла
+            allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+            if not ('.' in file.filename and 
+                   file.filename.rsplit('.', 1)[1].lower() in allowed_extensions):
+                return {'success': False, 'message': 'Недопустимый формат файла. Разрешены: PNG, JPG, JPEG, GIF, WEBP'}, 400
+            
+            # Создаем папку для иконок, если её нет
+            icons_dir = Path('/app/project/src/shop_bot/webhook_server/static/icons')
+            icons_dir.mkdir(exist_ok=True)
+            
+            # Генерируем уникальное имя файла
+            filename = secure_filename(file.filename)
+            name, ext = os.path.splitext(filename)
+            unique_filename = f"ton_icon_{int(time.time())}{ext}"
+            
+            # Сохраняем файл
+            file_path = icons_dir / unique_filename
+            file.save(file_path)
+            
+            # Генерируем полный URL для доступа к файлу
+            # Получаем домен из настроек или используем текущий хост
+            domain = get_setting('domain') or request.host
+            if not domain.startswith('http'):
+                domain = f"https://{domain}"
+            icon_url = f"{domain}/static/icons/{unique_filename}"
+            
+            # Сохраняем URL в настройках
+            update_setting('ton_manifest_icon_url', icon_url)
+            
+            return {
+                'success': True, 
+                'message': 'Иконка успешно загружена',
+                'icon_url': icon_url
+            }, 200
+            
+        except Exception as e:
+            logger.error(f"Error uploading Ton icon: {e}")
+            return {'success': False, 'message': f'Ошибка при загрузке: {str(e)}'}, 500
+
+    @flask_app.route('/api/get-ton-manifest-data', methods=['GET'])
+    @login_required
+    def get_ton_manifest_data():
+        """Получение актуальных данных Ton Connect манифеста для формы редактирования"""
+        try:
+            from shop_bot.data_manager.database import get_ton_manifest
+            manifest_data = get_ton_manifest()
+            
+            logger.info(f"Ton manifest data: {manifest_data}")
+            
+            return {
+                'success': True,
+                'data': manifest_data
+            }, 200
+            
+        except Exception as e:
+            logger.error(f"Error getting Ton manifest data: {e}")
+            return {'success': False, 'message': f'Ошибка при загрузке данных: {str(e)}'}, 500
 
     @flask_app.route('/save-content-setting', methods=['POST'])
     @login_required
@@ -870,6 +974,7 @@ def create_webhook_app(bot_controller_instance):
     @login_required
     def add_plan_route():
         days_val = int(request.form.get('days', 0) or 0)
+        hours_val = int(request.form.get('hours', 0) or 0)
         traffic_val = float(request.form.get('traffic_gb', 0) or 0)
         create_plan(
             host_name=request.form['host_name'],
@@ -877,7 +982,8 @@ def create_webhook_app(bot_controller_instance):
             months=int(request.form.get('months', 0) or 0),
             price=float(request.form['price']),
             days=days_val,
-            traffic_gb=traffic_val
+            traffic_gb=traffic_val,
+            hours=hours_val
         )
         flash(f"Новый тариф для хоста '{request.form['host_name']}' добавлен.", 'success')
         return redirect(url_for('settings_page', tab='servers'))
@@ -900,9 +1006,10 @@ def create_webhook_app(bot_controller_instance):
         plan_name = request.form.get('plan_name', plan['plan_name'])
         months = int(request.form.get('months', plan['months']) or 0)
         days = int(request.form.get('days', plan.get('days', 0)) or 0)
+        hours = int(request.form.get('hours', plan.get('hours', 0)) or 0)
         price = float(request.form.get('price', plan['price']))
         traffic_gb = float(request.form.get('traffic_gb', plan.get('traffic_gb', 0)) or 0)
-        update_plan(plan_id, plan_name, months, days, price, traffic_gb)
+        update_plan(plan_id, plan_name, months, days, price, traffic_gb, hours)
         flash("Тариф обновлен.", 'success')
         return redirect(url_for('settings_page', tab='servers'))
 
@@ -1025,7 +1132,6 @@ def create_webhook_app(bot_controller_instance):
                 account_id = data.get('account_id')
                 
                 # Запрашиваем детали транзакции
-                import requests
                 tonapi_key = get_setting('tonapi_key')
                 if tonapi_key:
                     try:
@@ -1126,7 +1232,6 @@ def create_webhook_app(bot_controller_instance):
                 return f"TON API key: {bool(tonapi_key)}, Wallet: {bool(wallet_address)}", 200
             
             # Тестируем получение событий
-            import requests
             response = requests.get(
                 f"https://tonapi.io/v2/accounts/{wallet_address}/events",
                 headers={"Authorization": f"Bearer {tonapi_key}"},
@@ -1152,7 +1257,6 @@ def create_webhook_app(bot_controller_instance):
             tx_hash = request.form.get('tx_hash', '').strip()
             if tx_hash:
                 try:
-                    import requests
                     tonapi_key = get_setting('tonapi_key')
                     if tonapi_key:
                         response = requests.get(
@@ -1209,7 +1313,6 @@ def create_webhook_app(bot_controller_instance):
             for tx in pending_transactions:
                 try:
                     # Проверяем транзакцию через TON API
-                    import requests
                     url = f"https://tonapi.io/v2/accounts/{wallet_address}/events"
                     headers = {"Authorization": f"Bearer {tonapi_key}"}
                     
@@ -1393,6 +1496,118 @@ def create_webhook_app(bot_controller_instance):
         except Exception as e:
             logger.error(f"Error refreshing keys: {e}")
             return {'status': 'error', 'message': f'Ошибка при обновлении: {str(e)}'}, 500
+
+    @flask_app.route('/refresh-user-keys', methods=['POST'])
+    @login_required
+    def refresh_user_keys_route():
+        """Обновляет ключи конкретного пользователя"""
+        try:
+            data = request.get_json()
+            user_id = data.get('user_id')
+            
+            if not user_id:
+                return jsonify({'success': False, 'error': 'Не указан user_id'}), 400
+            
+            # Получаем ключи пользователя
+            user_keys = get_user_keys(user_id)
+            if not user_keys:
+                return jsonify({'success': False, 'error': f'У пользователя {user_id} нет ключей'}), 404
+            
+            updated_count = 0
+            errors = []
+            
+            from shop_bot.modules.xui_api import get_key_details_from_host
+            
+            for key in user_keys:
+                try:
+                    details = asyncio.run(get_key_details_from_host(key))
+                    if details and (details.get('expiry_timestamp_ms') or details.get('status') or details.get('protocol') or details.get('created_at') or details.get('remaining_seconds') is not None or details.get('quota_remaining_bytes') is not None):
+                        with sqlite3.connect(DB_FILE) as conn:
+                            cursor = conn.cursor()
+                            if details.get('expiry_timestamp_ms'):
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET expiry_date = ? WHERE key_id = ?",
+                                    (datetime.fromtimestamp(details['expiry_timestamp_ms']/1000), key['key_id'])
+                                )
+                            if details.get('created_at'):
+                                try:
+                                    cursor.execute(
+                                        "UPDATE vpn_keys SET start_date = ? WHERE key_id = ?",
+                                        (datetime.fromtimestamp(details['created_at']/1000), key['key_id'])
+                                    )
+                                except Exception:
+                                    pass
+                            if details.get('status'):
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET status = ? WHERE key_id = ?",
+                                    (details['status'], key['key_id'])
+                                )
+                            if details.get('protocol'):
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET protocol = ? WHERE key_id = ?",
+                                    (details['protocol'], key['key_id'])
+                                )
+                            if details.get('remaining_seconds') is not None:
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET remaining_seconds = ? WHERE key_id = ?",
+                                    (details['remaining_seconds'], key['key_id'])
+                                )
+                            if details.get('quota_remaining_bytes') is not None:
+                                try:
+                                    cursor.execute(
+                                        "ALTER TABLE vpn_keys ADD COLUMN quota_remaining_bytes INTEGER"
+                                    )
+                                except Exception:
+                                    pass
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET quota_remaining_bytes = ? WHERE key_id = ?",
+                                    (details['quota_remaining_bytes'], key['key_id'])
+                                )
+                            if details.get('quota_total_gb') is not None:
+                                try:
+                                    cursor.execute("ALTER TABLE vpn_keys ADD COLUMN quota_total_gb REAL")
+                                except Exception:
+                                    pass
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET quota_total_gb = ? WHERE key_id = ?",
+                                    (details['quota_total_gb'], key['key_id'])
+                                )
+                            if details.get('traffic_down_bytes') is not None:
+                                try:
+                                    cursor.execute("ALTER TABLE vpn_keys ADD COLUMN traffic_down_bytes INTEGER")
+                                except Exception:
+                                    pass
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET traffic_down_bytes = ? WHERE key_id = ?",
+                                    (details['traffic_down_bytes'], key['key_id'])
+                                )
+                            conn.commit()
+                            updated_count += 1
+                    else:
+                        # Ключ не найден в 3x-ui панели
+                        email = key.get('key_email', 'N/A')
+                        host_name = key.get('host_name', 'Unknown')
+                        errors.append(f"Ключ {email} на хосте {host_name} не найден в панели")
+                except Exception as e:
+                    email = key.get('key_email', 'N/A')
+                    host_name = key.get('host_name', 'Unknown')
+                    errors.append(f"Ошибка обновления ключа {email} на хосте {host_name}: {str(e)}")
+                    continue
+            
+            response_data = {
+                'success': True, 
+                'updated_count': updated_count,
+                'total_keys': len(user_keys)
+            }
+            
+            if errors:
+                response_data['errors'] = errors
+            
+            return jsonify(response_data)
+            
+        except Exception as e:
+            logger.error(f"Error refreshing user keys: {e}")
+            return jsonify({'success': False, 'error': f'Ошибка при обновлении ключей пользователя: {str(e)}'}), 500
 
     @flask_app.route('/delete-error-keys', methods=['POST'])
     @login_required
@@ -1646,6 +1861,458 @@ def create_webhook_app(bot_controller_instance):
             logger.error(f"Error getting user notifications: {e}")
             return {'notifications': []}, 500
 
+
+    @flask_app.route('/users/revoke-consent/<int:user_id>', methods=['POST'])
+    @login_required
+    def revoke_consent_route(user_id):
+        try:
+            revoke_user_consent(user_id)
+            flash(f'Согласие пользователя {user_id} было отозвано.', 'success')
+        except Exception as e:
+            logger.error(f"Failed to revoke consent for user {user_id}: {e}")
+            flash('Не удалось отозвать согласие пользователя. Проверьте логи.', 'danger')
+        return redirect(url_for('users_page'))
+
+    @flask_app.route('/api/search-users')
+    @login_required
+    def api_search_users():
+        """Поиск пользователей по части Telegram ID или username.
+        Возвращает JSON: {"users": [...]}.
+        """
+        try:
+            query = (request.args.get('q') or '').strip()
+            limit = request.args.get('limit', 10)
+            if not query:
+                return jsonify({'users': []})
+            users = db_search_users(query=query, limit=limit)
+            return jsonify({'users': users})
+        except Exception as e:
+            logger.error(f"Failed to handle user search: {e}")
+            return jsonify({'users': []}), 500
+
+    @flask_app.route('/create-notification', methods=['POST'])
+    @login_required
+    def create_notification_route():
+        """Ручной запуск отправки уведомления о скором окончании подписки.
+        Ожидает JSON: {"user_id": int, "marker_hours": int in [1,24,48,72]}.
+        """
+        try:
+            data = request.get_json(silent=True) or {}
+            user_id = int(data.get('user_id') or 0)
+            marker_hours = int(data.get('marker_hours') or 0)
+            if user_id <= 0 or marker_hours not in (1, 24, 48, 72):
+                return jsonify({'message': 'Некорректные данные: выберите пользователя и тип уведомления'}), 400
+
+            # Проверяем наличие активного бота и цикла событий
+            bot = _bot_controller.get_bot_instance()
+            loop = current_app.config.get('EVENT_LOOP')
+            if not bot or not loop or not loop.is_running():
+                return jsonify({'message': 'Бот не запущен. Запустите бота на панели и повторите.'}), 503
+
+            # Ищем ключ пользователя с ближайшим истечением в будущем
+            keys = get_user_keys(user_id) or []
+            from datetime import datetime as _dt
+            now = _dt.now()
+            def _to_dt(v):
+                try:
+                    if isinstance(v, str):
+                        from datetime import datetime
+                        return datetime.fromisoformat(v.replace('Z', '+00:00'))
+                except Exception:
+                    return None
+                return v if isinstance(v, _dt) else None
+
+            future_keys = []
+            for k in keys:
+                exp = _to_dt(k.get('expiry_date'))
+                if exp and exp > now:
+                    future_keys.append((exp, k))
+
+            if not future_keys:
+                return jsonify({'message': 'У пользователя нет активных ключей с будущей датой истечения'}), 400
+
+            # Берём ближайший по истечению
+            future_keys.sort(key=lambda x: x[0])
+            expiry_dt, key = future_keys[0]
+            key_id = int(key.get('key_id'))
+
+            # Гарантируем, что дата истечения в будущем (на случай рассинхронизации)
+            if expiry_dt <= now:
+                expiry_dt = now + timedelta(hours=marker_hours)
+
+            # Отправляем уведомление асинхронно
+            asyncio.run_coroutine_threadsafe(
+                send_subscription_notification(bot=bot, user_id=user_id, key_id=key_id, time_left_hours=marker_hours, expiry_date=expiry_dt),
+                loop
+            )
+
+            return jsonify({'message': 'Уведомление отправлено'}), 200
+        except Exception as e:
+            logger.error(f"Failed to create notification: {e}")
+            return jsonify({'message': 'Внутренняя ошибка сервера'}), 500
+
+    @flask_app.route('/resend-notification/<int:notification_id>', methods=['POST'])
+    @login_required
+    def resend_notification_route(notification_id: int):
+        """Повторная отправка ранее созданного уведомления."""
+        try:
+            notif = get_notification_by_id(notification_id)
+            if not notif:
+                return jsonify({'message': 'Уведомление не найдено'}), 404
+
+            user_id = int(notif.get('user_id') or 0)
+            if user_id <= 0:
+                return jsonify({'message': 'Некорректные данные уведомления'}), 400
+
+            # Определяем маркер часов и ключ
+            marker_hours = None
+            try:
+                marker_hours = int(notif.get('marker_hours') or 0)
+            except Exception:
+                marker_hours = 0
+
+            meta = notif.get('meta')
+            if isinstance(meta, str):
+                try:
+                    meta = json.loads(meta)
+                except Exception:
+                    meta = {}
+            meta = meta or {}
+
+            key_id = meta.get('key_id') or notif.get('key_id')
+            try:
+                key_id = int(key_id) if key_id is not None else None
+            except Exception:
+                key_id = None
+
+            # Если не удалось получить marker_hours из записи, используем 24 как разумный дефолт
+            if marker_hours not in (1, 24, 48, 72):
+                marker_hours = 24
+
+            # Вычисляем дату истечения
+            expiry_dt = None
+            exp_str = meta.get('expiry_at') if isinstance(meta, dict) else None
+            if exp_str:
+                try:
+                    from datetime import datetime
+                    expiry_dt = datetime.fromisoformat(exp_str.replace('Z', '+00:00'))
+                except Exception:
+                    expiry_dt = None
+
+            # Фоллбек: берём ближайший ключ пользователя
+            if expiry_dt is None or key_id is None:
+                keys = get_user_keys(user_id) or []
+                from datetime import datetime as _dt
+                now = _dt.now()
+                def _to_dt(v):
+                    try:
+                        if isinstance(v, str):
+                            from datetime import datetime
+                            return datetime.fromisoformat(v.replace('Z', '+00:00'))
+                    except Exception:
+                        return None
+                    return v if isinstance(v, _dt) else None
+                future = [( _to_dt(k.get('expiry_date')), k) for k in keys]
+                future = [(d,k) for d,k in future if d and d>now]
+                if future:
+                    future.sort(key=lambda x: x[0])
+                    expiry_dt, key = future[0]
+                    key_id = key.get('key_id') if key_id is None else key_id
+                else:
+                    # Если совсем нет данных — шлём «через marker_hours» от текущего момента
+                    expiry_dt = now + timedelta(hours=marker_hours)
+                    # key_id обязателен для клавиатуры; без ключа нет смысла отправлять
+                    return jsonify({'message': 'Невозможно отправить: у пользователя нет активных ключей'}), 400
+
+            # Проверяем состояние бота
+            bot = _bot_controller.get_bot_instance()
+            loop = current_app.config.get('EVENT_LOOP')
+            if not bot or not loop or not loop.is_running():
+                return jsonify({'message': 'Бот не запущен. Запустите бота на панели и повторите.'}), 503
+
+            asyncio.run_coroutine_threadsafe(
+                send_subscription_notification(bot=bot, user_id=user_id, key_id=int(key_id), time_left_hours=int(marker_hours), expiry_date=expiry_dt),
+                loop
+            )
+
+            return jsonify({'message': 'Уведомление отправлено повторно'}), 200
+        except Exception as e:
+            logger.error(f"Failed to resend notification {notification_id}: {e}")
+            return jsonify({'message': 'Внутренняя ошибка сервера'}), 500
+
+    @flask_app.route('/api/topup-balance', methods=['POST'])
+    @login_required
+    def api_topup_balance():
+        """Ручное пополнение баланса пользователя из панели администратора."""
+        try:
+            data = request.get_json(silent=True) or {}
+            user_id = int(data.get('user_id') or 0)
+            amount = float(data.get('amount') or 0)
+            if user_id <= 0 or amount <= 0:
+                return jsonify({'message': 'Некорректные данные: выберите пользователя и укажите сумму > 0'}), 400
+
+            # Пополняем баланс
+            if not add_to_user_balance(user_id=user_id, amount=amount):
+                return jsonify({'message': 'Не удалось пополнить баланс пользователя'}), 500
+
+            # Логируем транзакцию как зачисление на баланс
+            try:
+                user_info = get_user(user_id) or {}
+                username = user_info.get('username') if isinstance(user_info, dict) else None
+            except Exception:
+                username = None
+
+            payment_id = f"manual-topup-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{user_id}"
+            metadata = json.dumps({'type': 'balance_topup', 'operation': 'topup'})
+            try:
+                log_transaction(username or 'N/A', None, payment_id, user_id, 'paid', float(amount), None, None, 'Balance', metadata)
+            except Exception as e:
+                logger.warning(f"Balance was topped up but logging failed: {e}")
+
+            return jsonify({'message': 'Баланс успешно пополнен'})
+        except Exception as e:
+            logger.error(f"Failed to top up balance: {e}")
+            return jsonify({'message': 'Внутренняя ошибка сервера'}), 500
+
+    @flask_app.route('/api/hosts')
+    @login_required
+    def api_get_hosts():
+        """API для получения списка хостов для модального окна обновления ключей."""
+        try:
+            hosts = get_all_hosts()
+            # Преобразуем хосты в формат, ожидаемый фронтендом
+            hosts_data = []
+            for host in hosts:
+                hosts_data.append({
+                    'host_name': host['host_name'],
+                    'host_url': host['host_url'],
+                    'host_username': host['host_username'],
+                    'host_inbound_id': host['host_inbound_id']
+                })
+            
+            return jsonify({
+                'success': True,
+                'hosts': hosts_data
+            })
+        except Exception as e:
+            logger.error(f"Error getting hosts: {e}")
+            return jsonify({
+                'success': False,
+                'error': 'Ошибка загрузки хостов'
+            }), 500
+
+    @flask_app.route('/api/refresh-keys-by-host', methods=['POST'])
+    @login_required
+    def api_refresh_keys_by_host():
+        """API для обновления ключей по конкретному хосту."""
+        try:
+            data = request.get_json(silent=True) or {}
+            host_name = data.get('host_name')
+            
+            if not host_name:
+                return jsonify({
+                    'success': False,
+                    'error': 'Не указан хост'
+                }), 400
+            
+            # Получаем хост из базы данных
+            host = get_host(host_name)
+            if not host:
+                return jsonify({
+                    'success': False,
+                    'error': 'Хост не найден'
+                }), 404
+            
+            # Получаем все ключи для данного хоста
+            with sqlite3.connect(DB_FILE) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM vpn_keys WHERE host_name = ? ORDER BY created_date DESC", (host_name,))
+                keys = [dict(row) for row in cursor.fetchall()]
+            
+            if not keys:
+                return jsonify({
+                    'success': True,
+                    'message': f'На хосте {host_name} нет ключей для обновления'
+                })
+            
+            # Обновляем ключи
+            updated = 0
+            errors = []
+            
+            from shop_bot.modules.xui_api import get_key_details_from_host
+            for key in keys:
+                try:
+                    details = asyncio.run(get_key_details_from_host(key))
+                    if details and (details.get('expiry_timestamp_ms') or details.get('status') or details.get('protocol') or details.get('created_at') or details.get('remaining_seconds') is not None or details.get('quota_remaining_bytes') is not None):
+                        with sqlite3.connect(DB_FILE) as conn:
+                            cursor = conn.cursor()
+                            if details.get('expiry_timestamp_ms'):
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET expiry_date = ? WHERE key_id = ?",
+                                    (datetime.fromtimestamp(details['expiry_timestamp_ms']/1000), key['key_id'])
+                                )
+                            if details.get('created_at'):
+                                try:
+                                    cursor.execute(
+                                        "UPDATE vpn_keys SET start_date = ? WHERE key_id = ?",
+                                        (datetime.fromtimestamp(details['created_at']/1000), key['key_id'])
+                                    )
+                                except Exception:
+                                    pass
+                            if details.get('status'):
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET status = ? WHERE key_id = ?",
+                                    (details['status'], key['key_id'])
+                                )
+                            if details.get('protocol'):
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET protocol = ? WHERE key_id = ?",
+                                    (details['protocol'], key['key_id'])
+                                )
+                            if details.get('remaining_seconds') is not None:
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET remaining_seconds = ? WHERE key_id = ?",
+                                    (details['remaining_seconds'], key['key_id'])
+                                )
+                            if details.get('quota_remaining_bytes') is not None:
+                                try:
+                                    cursor.execute(
+                                        "ALTER TABLE vpn_keys ADD COLUMN quota_remaining_bytes INTEGER"
+                                    )
+                                except Exception:
+                                    pass
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET quota_remaining_bytes = ? WHERE key_id = ?",
+                                    (details['quota_remaining_bytes'], key['key_id'])
+                                )
+                            if details.get('quota_total_gb') is not None:
+                                try:
+                                    cursor.execute("ALTER TABLE vpn_keys ADD COLUMN quota_total_gb REAL")
+                                except Exception:
+                                    pass
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET quota_total_gb = ? WHERE key_id = ?",
+                                    (details['quota_total_gb'], key['key_id'])
+                                )
+                            if details.get('traffic_down_bytes') is not None:
+                                try:
+                                    cursor.execute("ALTER TABLE vpn_keys ADD COLUMN traffic_down_bytes INTEGER")
+                                except Exception:
+                                    pass
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET traffic_down_bytes = ? WHERE key_id = ?",
+                                    (details['traffic_down_bytes'], key['key_id'])
+                                )
+                            conn.commit()
+                            updated += 1
+                    else:
+                        # Ключ не найден в 3x-ui панели
+                        created_date = key.get('created_date', 'Неизвестно')
+                        expiry_date = key.get('expiry_date', 'Неизвестно')
+                        email = key.get('key_email', 'N/A')
+                        xui_client_uuid = key.get('xui_client_uuid', 'Unknown')
+                        error_info = {
+                            'email': email,
+                            'host_name': host_name,
+                            'xui_client_uuid': xui_client_uuid,
+                            'created_date': created_date.strftime('%Y-%m-%d %H:%M') if isinstance(created_date, datetime) else str(created_date),
+                            'expiry_date': expiry_date.strftime('%Y-%m-%d %H:%M') if isinstance(expiry_date, datetime) else str(expiry_date)
+                        }
+                        errors.append(error_info)
+                except Exception as e:
+                    # Ошибка при получении деталей ключа
+                    created_date = key.get('created_date', 'Неизвестно')
+                    expiry_date = key.get('expiry_date', 'Неизвестно')
+                    email = key.get('key_email', 'N/A')
+                    xui_client_uuid = key.get('xui_client_uuid', 'Unknown')
+                    error_info = {
+                        'email': email,
+                        'host_name': host_name,
+                        'xui_client_uuid': xui_client_uuid,
+                        'created_date': created_date.strftime('%Y-%m-%d %H:%M') if isinstance(created_date, datetime) else str(created_date),
+                        'expiry_date': expiry_date.strftime('%Y-%m-%d %H:%M') if isinstance(expiry_date, datetime) else str(expiry_date),
+                        'error': str(e)
+                    }
+                    errors.append(error_info)
+                    continue
+            
+            response_data = {
+                'success': True,
+                'message': f'Обновлено ключей: {updated} из {len(keys)}',
+                'updated': updated,
+                'total': len(keys)
+            }
+            
+            if errors:
+                response_data['errors'] = errors
+            
+            return jsonify(response_data)
+            
+        except Exception as e:
+            logger.error(f"Error refreshing keys by host: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Ошибка при обновлении ключей: {str(e)}'
+            }), 500
+
+    @flask_app.route('/api/get-ton-manifest-content')
+    @login_required
+    def api_get_ton_manifest_content():
+        """API для получения содержимого манифеста TON Connect"""
+        try:
+            manifest_path = os.path.join(flask_app.static_folder, '.well-known', 'tonconnect-manifest.json')
+            if os.path.exists(manifest_path):
+                with open(manifest_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                return jsonify({
+                    'success': True,
+                    'content': content
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Файл манифеста не найден'
+                }), 404
+        except Exception as e:
+            logger.error(f"Error getting TON manifest content: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Ошибка загрузки манифеста: {str(e)}'
+            }), 500
+
+    @flask_app.route('/edit-ton-manifest', methods=['POST'])
+    @login_required
+    def edit_ton_manifest():
+        """Роут для редактирования манифеста TON Connect"""
+        try:
+            content = request.form.get('ton_manifest_content', '').strip()
+            
+            if not content:
+                flash('Содержимое манифеста не может быть пустым', 'danger')
+                return redirect(url_for('settings_page'))
+            
+            # Проверяем, что это валидный JSON
+            try:
+                json.loads(content)
+            except json.JSONDecodeError as e:
+                flash(f'Неверный формат JSON: {str(e)}', 'danger')
+                return redirect(url_for('settings_page'))
+            
+            # Сохраняем манифест
+            manifest_path = os.path.join(flask_app.static_folder, '.well-known', 'tonconnect-manifest.json')
+            os.makedirs(os.path.dirname(manifest_path), exist_ok=True)
+            
+            with open(manifest_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            flash('Манифест TON Connect успешно обновлен', 'success')
+            return redirect(url_for('settings_page'))
+            
+        except Exception as e:
+            logger.error(f"Error editing TON manifest: {e}")
+            flash(f'Ошибка при сохранении манифеста: {str(e)}', 'danger')
+            return redirect(url_for('settings_page'))
 
     # Запускаем мониторинг сразу
     start_ton_monitoring_task()

@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+Модуль для работы с базой данных
+"""
+
 import sqlite3
 from datetime import datetime
 import logging
@@ -18,6 +23,7 @@ def initialize_db():
                     telegram_id INTEGER PRIMARY KEY, username TEXT, total_spent REAL DEFAULT 0,
                     total_months INTEGER DEFAULT 0, trial_used BOOLEAN DEFAULT 0,
                     agreed_to_terms BOOLEAN DEFAULT 0,
+                    agreed_to_documents BOOLEAN DEFAULT 0,
                     registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     is_banned BOOLEAN DEFAULT 0,
                     referred_by INTEGER,
@@ -104,7 +110,7 @@ def initialize_db():
             default_settings = {
                 "panel_login": "admin",
                 "panel_password": "admin",
-                "about_text": None,
+                "about_content": None,
                 "terms_url": None,
                 "privacy_url": None,
                 "support_user": None,
@@ -136,6 +142,11 @@ def initialize_db():
                 "hidden_mode": "0",
                 "support_enabled": "true",
                 "minimum_topup": "50",
+                "ton_manifest_name": "Dark Maximus Shop Bot",
+                "ton_manifest_url": "https://paris.dark-maximus.com",
+                "ton_manifest_icon_url": "https://paris.dark-maximus.com/static/logo.png",
+                "ton_manifest_terms_url": "https://paris.dark-maximus.com/terms",
+                "ton_manifest_privacy_url": "https://paris.dark-maximus.com/privacy",
             }
             run_migration()
             for key, value in default_settings.items():
@@ -184,6 +195,18 @@ def run_migration():
             logging.info(" -> The column 'balance' is successfully added.")
         else:
             logging.info(" -> The column 'balance' already exists.")
+            
+        if 'agreed_to_documents' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN agreed_to_documents BOOLEAN DEFAULT 0")
+            logging.info(" -> The column 'agreed_to_documents' is successfully added.")
+        else:
+            logging.info(" -> The column 'agreed_to_documents' already exists.")
+            
+        if 'subscription_status' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN subscription_status TEXT DEFAULT 'not_checked'")
+            logging.info(" -> The column 'subscription_status' is successfully added.")
+        else:
+            logging.info(" -> The column 'subscription_status' already exists.")
         
         # Добавляем колонки для ключей
         if 'key_id' not in columns:
@@ -735,6 +758,38 @@ def set_terms_agreed(telegram_id: int):
             logging.info(f"User {telegram_id} has agreed to terms.")
     except sqlite3.Error as e:
         logging.error(f"Failed to set terms agreed for user {telegram_id}: {e}")
+
+def set_documents_agreed(telegram_id: int):
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET agreed_to_documents = 1 WHERE telegram_id = ?", (telegram_id,))
+            conn.commit()
+            logging.info(f"User {telegram_id} has agreed to documents.")
+    except sqlite3.Error as e:
+        logging.error(f"Failed to set documents agreed for user {telegram_id}: {e}")
+
+def set_subscription_status(telegram_id: int, status: str):
+    """Устанавливает статус подписки пользователя: 'subscribed', 'not_subscribed', 'not_checked'"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET subscription_status = ? WHERE telegram_id = ?", (status, telegram_id))
+            conn.commit()
+            logging.info(f"User {telegram_id} subscription status set to {status}.")
+    except sqlite3.Error as e:
+        logging.error(f"Failed to set subscription status for user {telegram_id}: {e}")
+
+def revoke_user_consent(telegram_id: int):
+    """Отзывает согласие пользователя с документами"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET agreed_to_documents = 0 WHERE telegram_id = ?", (telegram_id,))
+            conn.commit()
+            logging.info(f"User {telegram_id} consent has been revoked.")
+    except sqlite3.Error as e:
+        logging.error(f"Failed to revoke consent for user {telegram_id}: {e}")
 
 def update_user_stats(telegram_id: int, amount_spent: float, months_purchased: int):
     try:
@@ -1390,6 +1445,48 @@ def get_paginated_notifications(page: int = 1, per_page: int = 15) -> tuple[list
         logging.error(f"Failed to get paginated notifications: {e}")
     return notifications, total
 
+def get_notification_by_id(notification_id: int) -> dict | None:
+    """Получить уведомление по ID"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT n.*, u.username AS joined_username
+                FROM notifications n
+                LEFT JOIN users u ON n.user_id = u.telegram_id
+                WHERE n.notification_id = ?
+                """,
+                (notification_id,)
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            
+            item = dict(row)
+            # Try parse meta
+            meta_str = item.get('meta')
+            if meta_str:
+                try:
+                    item['meta'] = json.loads(meta_str)
+                except Exception:
+                    item['meta'] = {}
+            # Prefer joined username
+            if item.get('joined_username'):
+                item['username'] = item['joined_username']
+            # Normalize created_date
+            try:
+                if isinstance(item.get('created_date'), str):
+                    from datetime import datetime
+                    item['created_date'] = datetime.fromisoformat(item['created_date'].replace('Z', '+00:00'))
+            except Exception:
+                pass
+            return item
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get notification by ID {notification_id}: {e}")
+        return None
+
 def add_support_thread(user_id: int, thread_id: int):
     try:
         with sqlite3.connect(DB_FILE) as conn:
@@ -1432,6 +1529,43 @@ def get_latest_transaction(user_id: int) -> dict | None:
     except sqlite3.Error as e:
         logging.error(f"Failed to get latest transaction for user {user_id}: {e}")
         return None
+
+
+def search_users(query: str, limit: int = 10) -> list[dict]:
+    query = (query or '').strip()
+    if not query:
+        return []
+    try:
+        try:
+            limit_value = int(limit)
+        except (TypeError, ValueError):
+            limit_value = 10
+        limit_value = max(1, min(limit_value, 50))
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            like_id = f"%{query}%"
+            like_username = f"%{query.lower()}%"
+            cursor.execute(
+                """
+                SELECT u.telegram_id,
+                       u.username,
+                       u.is_banned,
+                       u.agreed_to_documents,
+                       u.subscription_status,
+                       COALESCE(u.balance, 0) AS balance
+                FROM users u
+                WHERE CAST(u.telegram_id AS TEXT) LIKE ?
+                   OR (u.username IS NOT NULL AND LOWER(u.username) LIKE ?)
+                ORDER BY u.registration_date DESC
+                LIMIT ?
+                """,
+                (like_id, like_username, limit_value)
+            )
+            return [dict(row) for row in cursor.fetchall()]
+    except sqlite3.Error as e:
+        logger.error(f"Failed to search users with query '{query}': {e}")
+        return []
 
 def get_all_users() -> list[dict]:
     try:
@@ -1593,3 +1727,24 @@ def update_key_quota(key_id: int, quota_total_gb: float | None, traffic_down_byt
             conn.commit()
     except sqlite3.Error as e:
         logging.error(f"Failed to update quota for key_id={key_id}: {e}")
+
+def get_ton_manifest() -> dict:
+    """Получить настройки Ton manifest из базы данных"""
+    try:
+        settings = get_all_settings()
+        return {
+            "url": settings.get("app_url", "https://paris.dark-maximus.com"),
+            "name": settings.get("ton_manifest_name", "Dark Maximus Shop Bot"),
+            "iconUrl": settings.get("ton_manifest_icon_url", "https://paris.dark-maximus.com/static/logo.png"),
+            "termsOfUseUrl": settings.get("ton_manifest_terms_url", "https://paris.dark-maximus.com/terms"),
+            "privacyPolicyUrl": settings.get("ton_manifest_privacy_url", "https://paris.dark-maximus.com/privacy")
+        }
+    except Exception as e:
+        logging.error(f"Failed to get Ton manifest settings: {e}")
+        return {
+            "url": "https://paris.dark-maximus.com",
+            "name": "Dark Maximus Shop Bot",
+            "iconUrl": "https://paris.dark-maximus.com/static/logo.png",
+            "termsOfUseUrl": "https://paris.dark-maximus.com/terms",
+            "privacyPolicyUrl": "https://paris.dark-maximus.com/privacy"
+        }
