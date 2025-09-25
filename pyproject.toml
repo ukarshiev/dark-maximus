@@ -30,7 +30,7 @@ dependencies = [
     "qrcode[pil]==8.2",
     "yookassa==3.5.0",
     "aiosend==2.1.2",
-    "aiohttp==3.9.5",
+    "aiohttp==3.12.15",
     "aiohttp-sse-client==0.2.1",
     "pytonconnect==0.3.2",
     "requests==2.31.0"
