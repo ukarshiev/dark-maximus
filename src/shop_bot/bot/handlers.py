@@ -221,19 +221,16 @@ async def _send_instruction_with_video(callback: types.CallbackQuery, platform: 
     )
 
 async def show_main_menu(message: types.Message, edit_message: bool = False):
+    """Показывает главное меню используя ReplyKeyboardMarkup"""
     user_id = message.chat.id
-    user_db_data = get_user(user_id)
-    user_keys = get_user_keys(user_id)
-    
-    trial_available = not (user_db_data and user_db_data.get('trial_used'))
     is_admin = str(user_id) == ADMIN_ID
 
     text = "🏠 <b>Главное меню</b>\n\nВыберите действие:"
-    keyboard = keyboards.create_main_menu_keyboard(user_keys, trial_available, is_admin)
+    keyboard = keyboards.get_main_reply_keyboard(is_admin)
     
     if edit_message:
         try:
-            await message.edit_text(text, reply_markup=keyboard)
+            await message.edit_text(text, reply_markup=None)  # Убираем inline клавиатуру
         except TelegramBadRequest:
             pass
     else:
@@ -572,7 +569,12 @@ def get_user_router() -> Router:
             await show_subscription_screen(callback.message, state)
         else:
             # Согласие из главного меню - показываем главное меню
-            await show_main_menu(callback.message, edit_message=True)
+            user_id = callback.from_user.id
+            is_admin = str(user_id) == ADMIN_ID
+            try:
+                await callback.message.edit_text("🏠 <b>Главное меню</b>\n\nВыберите действие:", reply_markup=None)
+            except Exception:
+                await callback.message.answer("🏠 <b>Главное меню</b>\n\nВыберите действие:", reply_markup=keyboards.get_main_reply_keyboard(is_admin))
 
     @user_router.callback_query(F.data == "check_subscription")
     async def check_subscription_handler(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
@@ -636,11 +638,13 @@ def get_user_router() -> Router:
         # Гарантируем, что у пользователя установлена актуальная Reply Keyboard
         user_id = callback.from_user.id
         is_admin = str(user_id) == ADMIN_ID
+        
+        # Удаляем inline клавиатуру и показываем только ReplyKeyboardMarkup
         try:
-            await callback.message.answer("Выберите действие:", reply_markup=keyboards.get_main_reply_keyboard(is_admin))
+            await callback.message.edit_text("🏠 <b>Главное меню</b>\n\nВыберите действие:", reply_markup=None)
         except Exception:
-            pass
-        await show_main_menu(callback.message, edit_message=True)
+            # Если не удалось отредактировать сообщение, просто отправляем новое
+            await callback.message.answer("🏠 <b>Главное меню</b>\n\nВыберите действие:", reply_markup=keyboards.get_main_reply_keyboard(is_admin))
 
     @user_router.message(F.text == "🛒 Купить VPN")
     @documents_consent_required
@@ -1152,7 +1156,12 @@ def get_user_router() -> Router:
     async def cancel_broadcast_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer("Рассылка отменена.")
         await state.clear()
-        await show_main_menu(callback.message, edit_message=True)
+        user_id = callback.from_user.id
+        is_admin = str(user_id) == ADMIN_ID
+        try:
+            await callback.message.edit_text("🏠 <b>Главное меню</b>\n\nВыберите действие:", reply_markup=None)
+        except Exception:
+            await callback.message.answer("🏠 <b>Главное меню</b>\n\nВыберите действие:", reply_markup=keyboards.get_main_reply_keyboard(is_admin))
 
     @user_router.callback_query(F.data == "show_referral_program")
     @registration_required

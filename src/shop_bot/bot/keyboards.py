@@ -26,8 +26,8 @@ def get_main_reply_keyboard(is_admin: bool = False) -> ReplyKeyboardMarkup:
     # Вторая строка: Профиль и Пополнить баланс
     rows.append([KeyboardButton(text="👤 Мой профиль"), KeyboardButton(text="💰Пополнить баланс")])
 
-    # Третья строка: Помощь и поддержка + О проекте
-    rows.append([KeyboardButton(text="⁉️ Помощь и поддержка"), KeyboardButton(text="ℹ️ О проекте")])
+    # Третья строка: Помощь и поддержка
+    rows.append([KeyboardButton(text="⁉️ Помощь и поддержка")])
 
     # Четвертая строка: Админ-панель (только для администраторов)
     if is_admin:
@@ -35,37 +35,6 @@ def get_main_reply_keyboard(is_admin: bool = False) -> ReplyKeyboardMarkup:
 
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
-def create_main_menu_keyboard(user_keys: list, trial_available: bool, is_admin: bool) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-
-    trial_enabled = trial_available and get_setting("trial_enabled") == "true"
-    referrals_enabled = get_setting("enable_referrals") == "true"
-
-    if trial_enabled:
-        builder.button(text="🎁 Попробовать бесплатно", callback_data="get_trial")
-
-    # Новое главное меню
-    builder.button(text="🛒 Купить VPN", callback_data="buy_vpn_root")
-    builder.button(text="👤 Мой профиль", callback_data="show_profile")
-    builder.button(text="💰Пополнить баланс", callback_data="topup_root")
-    builder.button(text="⁉️ Помощь и поддержка", callback_data="help_center")
-    builder.button(text="ℹ️ О проекте", callback_data="show_about")
-
-    if is_admin:
-        builder.button(text="📢 Рассылка", callback_data="start_broadcast")
-
-    # Формируем раскладку строк динамически
-    layout: list[int] = []
-    if trial_enabled:
-        layout.append(1)
-    # Строки: Купить VPN; Профиль+Пополнить; Помощь+О проекте
-    layout.extend([1, 2, 2])
-    if is_admin:
-        layout.append(1)
-
-    builder.adjust(*layout)
-
-    return builder.as_markup()
 
 def create_buy_root_keyboard(user_keys: list) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
@@ -99,6 +68,7 @@ def create_help_center_keyboard() -> InlineKeyboardMarkup:
     if support_enabled:
         builder.button(text="🆘 Поддержка", callback_data="show_help")
     builder.button(text="❓ Инструкция как пользоваться", callback_data="howto_vless")
+    builder.button(text="ℹ️ О проекте", callback_data="show_about")
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
     builder.adjust(1)
     return builder.as_markup()
