@@ -24,10 +24,12 @@ DB_FILE = PROJECT_ROOT / "users.db"
 
 from shop_bot.modules import xui_api
 from shop_bot.bot import handlers 
+from shop_bot.security import rate_limit, get_client_ip
+from shop_bot.utils import handle_exceptions
 from shop_bot.data_manager.database import (
     get_all_settings, update_setting, get_all_hosts, get_plans_for_host,
     create_host, delete_host, create_plan, delete_plan, get_user_count,
-    get_total_keys_count, get_total_spent_sum, get_total_notifications_count, get_daily_stats_for_charts,
+    get_total_keys_count, get_total_earned_sum, get_total_notifications_count, get_daily_stats_for_charts,
     get_recent_transactions, get_paginated_transactions, get_all_users, get_user_keys,
     ban_user, unban_user, delete_user_keys, get_setting, find_and_complete_ton_transaction, find_ton_transaction_by_amount,
     get_paginated_keys, get_plan_by_id, update_plan, get_host, update_host, revoke_user_consent,
@@ -74,7 +76,9 @@ def create_webhook_app(bot_controller_instance):
         static_folder='static'
     )
     
-    flask_app.config['SECRET_KEY'] = 'lolkek4eburek'
+    # Безопасное получение секретного ключа из переменных окружения
+    import secrets
+    flask_app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(32))
 
     @flask_app.context_processor
     def inject_current_year():
@@ -129,6 +133,7 @@ def create_webhook_app(bot_controller_instance):
         return json.dumps(manifest_data, ensure_ascii=False, indent=2), 200, {'Content-Type': 'application/json'}
 
     @flask_app.route('/login', methods=['GET', 'POST'])
+    @rate_limit('per_minute', 10, "Too many login attempts. Please try again later.")
     def login_page():
         settings = get_all_settings()
         if request.method == 'POST':
@@ -174,13 +179,15 @@ def create_webhook_app(bot_controller_instance):
     @flask_app.route('/dashboard')
     @login_required
     def dashboard_page():
+        hosts = get_all_hosts()
         stats = {
             "user_count": get_user_count(),
             "total_keys": get_total_keys_count(),
-            "total_spent": get_total_spent_sum(),
-            "host_count": len(get_all_hosts()),
+            "total_spent": get_total_earned_sum(),
+            "host_count": len(hosts),
             "total_notifications": get_total_notifications_count()
         }
+        logging.info(f"Dashboard stats: {stats}")
         
         page = request.args.get('page', 1, type=int)
         tab = request.args.get('tab', 'analytics')
@@ -895,19 +902,150 @@ def create_webhook_app(bot_controller_instance):
     def revoke_keys_route(user_id):
         keys_to_revoke = get_user_keys(user_id)
         success_count = 0
+        failed_keys = []
+        
+        logger.info(f"Revoking all keys for user {user_id}, found {len(keys_to_revoke)} keys")
         
         for key in keys_to_revoke:
-            result = asyncio.run(xui_api.delete_client_on_host(key['host_name'], key['key_email']))
+            logger.info(f"Processing key {key['key_id']} for user {user_id} on host {key['host_name']} with email {key['key_email']} and UUID {key.get('xui_client_uuid', 'Unknown')}")
+            
+            # Сначала пробуем удалить по UUID с конкретного хоста
+            result = False
+            if key.get('xui_client_uuid') and key.get('xui_client_uuid') != 'Unknown':
+                try:
+                    # Прямое удаление по UUID с конкретного хоста
+                    host_data = get_host(key['host_name'])
+                    if host_data:
+                        api, inbound = xui_api.login_to_host(
+                            host_url=host_data['host_url'],
+                            username=host_data['host_username'],
+                            password=host_data['host_pass'],
+                            inbound_id=host_data['host_inbound_id']
+                        )
+                        if api and inbound:
+                            api.client.delete(inbound.id, key['xui_client_uuid'])
+                            result = True
+                            logger.info(f"Successfully deleted key {key['key_id']} by UUID from host {key['host_name']}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete key {key['key_id']} by UUID from host {key['host_name']}: {e}")
+            
+            # Если удаление по UUID не удалось, пробуем через общую функцию
+            if not result:
+                result = asyncio.run(xui_api.delete_client_on_host(
+                    host_name=key['host_name'], 
+                    client_email=key['key_email'],
+                    client_uuid=key.get('xui_client_uuid') or None
+                ))
+            
             if result:
                 success_count += 1
+                logger.info(f"Successfully deleted key {key['key_id']} from host {key['host_name']}")
+            else:
+                failed_keys.append(f"{key['host_name']}:{key['key_email']}")
+                logger.warning(f"Failed to delete key {key['key_id']} from host {key['host_name']}")
         
-        delete_user_keys(user_id)
+        # Удаляем ключи из базы данных только если они были успешно удалены с серверов
+        if success_count > 0:
+            delete_user_keys(user_id)
+            logger.info(f"Deleted {success_count} keys from database for user {user_id}")
         
         if success_count == len(keys_to_revoke):
             flash(f"Все {len(keys_to_revoke)} ключей для пользователя {user_id} были успешно отозваны.", 'success')
         else:
-            flash(f"Удалось отозвать {success_count} из {len(keys_to_revoke)} ключей для пользователя {user_id}. Проверьте логи.", 'warning')
+            message = f"Удалось отозвать {success_count} из {len(keys_to_revoke)} ключей для пользователя {user_id}."
+            if failed_keys:
+                message += f" Не удалось удалить: {', '.join(failed_keys)}"
+            flash(message, 'warning')
 
+        return redirect(url_for('users_page'))
+
+
+    @flask_app.route('/users/reset-trial/<int:user_id>', methods=['POST'])
+    @login_required
+    def reset_trial_route(user_id):
+        """Сбрасывает флаг использования триала для повторного использования"""
+        try:
+            from shop_bot.data_manager.database import reset_trial_used, increment_trial_reuses
+            reset_trial_used(user_id)
+            increment_trial_reuses(user_id)
+            flash(f"Пользователю {user_id} разрешено повторное использование триала.", 'success')
+        except Exception as e:
+            logger.error(f"Error resetting trial for user {user_id}: {e}")
+            flash(f"Ошибка при сбросе триала для пользователя {user_id}.", 'error')
+        
+        return redirect(url_for('users_page'))
+
+    @flask_app.route('/admin/trial-reset', methods=['POST'])
+    @login_required
+    def admin_trial_reset_route():
+        """Админская функция полного сброса триала пользователя"""
+        try:
+            # Проверяем, это JSON запрос или обычная форма
+            if request.is_json:
+                data = request.get_json()
+                telegram_id = data.get('telegram_id')
+                confirm_reset = True  # Для JSON запросов подтверждение уже проверено на фронтенде
+            else:
+                telegram_id = request.form.get('telegram_id')
+                confirm_reset = request.form.get('confirm_reset')
+            
+            if not telegram_id:
+                if request.is_json:
+                    return jsonify({'success': False, 'message': 'Telegram ID не указан'}), 400
+                else:
+                    flash('Telegram ID не указан', 'error')
+                    return redirect(url_for('users_page'))
+            
+            if not request.is_json and not confirm_reset:
+                flash('Необходимо подтвердить понимание последствий', 'error')
+                return redirect(url_for('users_page'))
+            
+            try:
+                telegram_id = int(telegram_id)
+            except ValueError:
+                if request.is_json:
+                    return jsonify({'success': False, 'message': 'Неверный формат Telegram ID'}), 400
+                else:
+                    flash('Неверный формат Telegram ID', 'error')
+                    return redirect(url_for('users_page'))
+            
+            # Проверяем, существует ли пользователь
+            from shop_bot.data_manager.database import get_user, admin_reset_trial_completely
+            user = get_user(telegram_id)
+            
+            if not user:
+                if request.is_json:
+                    return jsonify({'success': False, 'message': f'Пользователь с ID {telegram_id} не найден'}), 404
+                else:
+                    flash(f'Пользователь с ID {telegram_id} не найден', 'error')
+                    return redirect(url_for('users_page'))
+            
+            # Выполняем сброс триала
+            success = admin_reset_trial_completely(telegram_id)
+            
+            if success:
+                message = f'Триал для пользователя {telegram_id} (@{user.get("username", "N/A")}) успешно сброшен. Пользователь сможет заново получить пробный период.'
+                logger.info(f"Admin reset trial for user {telegram_id} (@{user.get('username', 'N/A')})")
+                
+                if request.is_json:
+                    return jsonify({'success': True, 'message': message})
+                else:
+                    flash(message, 'success')
+            else:
+                message = f'Ошибка при сбросе триала для пользователя {telegram_id}'
+                if request.is_json:
+                    return jsonify({'success': False, 'message': message}), 500
+                else:
+                    flash(message, 'error')
+                
+        except Exception as e:
+            logger.error(f"Error in admin trial reset: {e}")
+            message = 'Произошла ошибка при выполнении операции'
+            if request.is_json:
+                return jsonify({'success': False, 'message': message}), 500
+            else:
+                flash(message, 'error')
+        
         return redirect(url_for('users_page'))
 
     @flask_app.route('/add-host', methods=['POST'])
@@ -1450,6 +1588,15 @@ def create_webhook_app(bot_controller_instance):
                                     "UPDATE vpn_keys SET traffic_down_bytes = ? WHERE key_id = ?",
                                     (details['traffic_down_bytes'], key['key_id'])
                                 )
+                            if details.get('enabled') is not None:
+                                try:
+                                    cursor.execute("ALTER TABLE vpn_keys ADD COLUMN enabled INTEGER DEFAULT 1")
+                                except Exception:
+                                    pass
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET enabled = ? WHERE key_id = ?",
+                                    (1 if details['enabled'] else 0, key['key_id'])
+                                )
                             conn.commit()
                             updated += 1
                     else:
@@ -1580,6 +1727,15 @@ def create_webhook_app(bot_controller_instance):
                                 cursor.execute(
                                     "UPDATE vpn_keys SET traffic_down_bytes = ? WHERE key_id = ?",
                                     (details['traffic_down_bytes'], key['key_id'])
+                                )
+                            if details.get('enabled') is not None:
+                                try:
+                                    cursor.execute("ALTER TABLE vpn_keys ADD COLUMN enabled INTEGER DEFAULT 1")
+                                except Exception:
+                                    pass
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET enabled = ? WHERE key_id = ?",
+                                    (1 if details['enabled'] else 0, key['key_id'])
                                 )
                             conn.commit()
                             updated_count += 1
@@ -1755,7 +1911,8 @@ def create_webhook_app(bot_controller_instance):
                         vk.plan_name,
                         vk.price,
                         vk.connection_string,
-                        vk.created_date
+                        vk.created_date,
+                        vk.is_trial
                     FROM vpn_keys vk
                     WHERE vk.user_id = ?
                     ORDER BY vk.created_date DESC
@@ -1875,20 +2032,18 @@ def create_webhook_app(bot_controller_instance):
 
     @flask_app.route('/api/search-users')
     @login_required
+    @rate_limit('per_minute', 30, "Too many search requests. Please try again later.")
+    @handle_exceptions("API search users")
     def api_search_users():
         """Поиск пользователей по части Telegram ID или username.
         Возвращает JSON: {"users": [...]}.
         """
-        try:
-            query = (request.args.get('q') or '').strip()
-            limit = request.args.get('limit', 10)
-            if not query:
-                return jsonify({'users': []})
-            users = db_search_users(query=query, limit=limit)
-            return jsonify({'users': users})
-        except Exception as e:
-            logger.error(f"Failed to handle user search: {e}")
-            return jsonify({'users': []}), 500
+        query = (request.args.get('q') or '').strip()
+        limit = request.args.get('limit', 10)
+        if not query:
+            return jsonify({'users': []})
+        users = db_search_users(query=query, limit=limit)
+        return jsonify({'users': users})
 
     @flask_app.route('/create-notification', methods=['POST'])
     @login_required
@@ -2042,6 +2197,7 @@ def create_webhook_app(bot_controller_instance):
 
     @flask_app.route('/api/topup-balance', methods=['POST'])
     @login_required
+    @rate_limit('per_minute', 5, "Too many balance topup requests. Please try again later.")
     def api_topup_balance():
         """Ручное пополнение баланса пользователя из панели администратора."""
         try:
@@ -2204,6 +2360,15 @@ def create_webhook_app(bot_controller_instance):
                                     "UPDATE vpn_keys SET traffic_down_bytes = ? WHERE key_id = ?",
                                     (details['traffic_down_bytes'], key['key_id'])
                                 )
+                            if details.get('enabled') is not None:
+                                try:
+                                    cursor.execute("ALTER TABLE vpn_keys ADD COLUMN enabled INTEGER DEFAULT 1")
+                                except Exception:
+                                    pass
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET enabled = ? WHERE key_id = ?",
+                                    (1 if details['enabled'] else 0, key['key_id'])
+                                )
                             conn.commit()
                             updated += 1
                     else:
@@ -2313,6 +2478,64 @@ def create_webhook_app(bot_controller_instance):
             logger.error(f"Error editing TON manifest: {e}")
             flash(f'Ошибка при сохранении манифеста: {str(e)}', 'danger')
             return redirect(url_for('settings_page'))
+
+    @flask_app.route('/api/toggle-key-enabled', methods=['POST'])
+    @login_required
+    def api_toggle_key_enabled():
+        """API для включения/отключения ключа"""
+        try:
+            data = request.get_json()
+            key_id = data.get('key_id')
+            enabled = data.get('enabled')
+            
+            if key_id is None or enabled is None:
+                return jsonify({'success': False, 'error': 'Не указан key_id или enabled'}), 400
+            
+            # Получаем информацию о ключе
+            with sqlite3.connect(DB_FILE) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM vpn_keys WHERE key_id = ?", (key_id,))
+                key_data = cursor.fetchone()
+                
+                if not key_data:
+                    return jsonify({'success': False, 'error': 'Ключ не найден'}), 404
+                
+                key_dict = dict(key_data)
+            
+            # Обновляем статус в базе данных
+            from shop_bot.data_manager.database import update_key_enabled_status
+            update_key_enabled_status(key_id, enabled)
+            
+            # Обновляем статус в 3x-ui
+            try:
+                loop = current_app.config.get('EVENT_LOOP')
+                if loop and loop.is_running():
+                    result = asyncio.run_coroutine_threadsafe(
+                        xui_api.update_client_enabled_status_on_host(
+                            key_dict['host_name'], 
+                            key_dict['key_email'], 
+                            enabled
+                        ), 
+                        loop
+                    ).result()
+                    
+                    if not result:
+                        logger.warning(f"Failed to update enabled status in 3x-ui for key {key_id}")
+                else:
+                    logger.warning("Event loop not available for 3x-ui update")
+            except Exception as e:
+                logger.error(f"Error updating 3x-ui enabled status for key {key_id}: {e}")
+                # Не возвращаем ошибку, так как база данных уже обновлена
+            
+            return jsonify({
+                'success': True, 
+                'message': f'Ключ успешно {"включен" if enabled else "отключен"}'
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in toggle_key_enabled: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
 
     # Запускаем мониторинг сразу
     start_ton_monitoring_task()

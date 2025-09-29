@@ -44,7 +44,8 @@ from shop_bot.data_manager.database import (
     get_plans_for_host, get_plan_by_id, log_transaction, get_referral_count,
     add_to_referral_balance, create_pending_transaction, create_pending_ton_transaction, create_pending_stars_transaction, get_all_users,
     set_referral_balance, set_referral_balance_all, update_transaction_on_payment,
-    set_subscription_status, revoke_user_consent
+    set_subscription_status, revoke_user_consent, set_trial_days_given, increment_trial_reuses, 
+    reset_trial_used, get_trial_info
 )
 
 from shop_bot.config import (
@@ -56,13 +57,23 @@ from shop_bot.config import (
 from pathlib import Path
 
 TELEGRAM_BOT_USERNAME = None
-PAYMENT_METHODS = None
+PAYMENT_METHODS = {}
 ADMIN_ID = None
 CRYPTO_BOT_TOKEN = get_setting("cryptobot_token")
 
 logger = logging.getLogger(__name__)
 admin_router = Router()
 user_router = Router()
+
+def get_admin_id() -> int | None:
+    """Безопасно получает ID администратора"""
+    admin_id_str = get_setting("admin_telegram_id")
+    if admin_id_str:
+        try:
+            return int(admin_id_str)
+        except ValueError:
+            return None
+    return None
 
 class KeyPurchase(StatesGroup):
     waiting_for_host_selection = State()
@@ -89,6 +100,9 @@ class Broadcast(StatesGroup):
 
 class WithdrawStates(StatesGroup):
     waiting_for_details = State()
+
+class TrialResetStates(StatesGroup):
+    waiting_for_user_id = State()
 
 def is_valid_email(email: str) -> bool:
     pattern = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
@@ -821,6 +835,46 @@ def get_user_router() -> Router:
             reply_markup=keyboards.create_keys_management_keyboard(user_keys)
         )
 
+    @user_router.message(F.text == "🆓 Пробный период")
+    @documents_consent_required
+    @subscription_required
+    async def trial_period_message_handler(message: types.Message):
+        """Обработчик кнопки 'Пробный период' из главного меню"""
+        user_id = message.from_user.id
+        user_db_data = get_user(user_id)
+        
+        # Проверяем, использовал ли пользователь триал и есть ли у него повторные использования
+        trial_used = user_db_data.get('trial_used', 0) if user_db_data else 0
+        trial_reuses_count = user_db_data.get('trial_reuses_count', 0) if user_db_data else 0
+        
+        # Если триал использован и нет повторных использований - запрещаем
+        if trial_used and trial_reuses_count == 0:
+            await message.answer("Вы уже использовали бесплатный пробный период.", show_alert=True)
+            return
+        
+        # Дополнительная проверка: нет ли активных триальных ключей (только с активным статусом)
+        user_keys = get_user_keys(user_id)
+        active_trial_keys = [key for key in user_keys if key.get('is_trial') == 1 and key.get('remaining_seconds', 0) > 0 and key.get('status') != 'deactivate']
+        if active_trial_keys:
+            await message.answer("У вас уже есть активный пробный ключ.")
+            return
+
+        # Получаем список доступных хостов
+        hosts = get_all_hosts()
+        if not hosts:
+            await message.answer("❌ В данный момент нет доступных серверов для создания пробного ключа.")
+            return
+
+        # Если только один хост, сразу создаем пробный ключ
+        if len(hosts) == 1:
+            await process_trial_key_creation(message, hosts[0]['host_name'])
+        else:
+            # Если несколько хостов, показываем выбор
+            await message.answer(
+                "Выберите сервер для создания пробного ключа:",
+                reply_markup=keyboards.create_host_selection_keyboard(hosts, action="trial")
+            )
+
     @user_router.message(F.text == "🤝 Реферальная программа")
     @registration_required
     async def referral_program_message(message: types.Message):
@@ -829,7 +883,7 @@ def get_user_router() -> Router:
         bot_username = (await message.bot.get_me()).username
         referral_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
         referral_count = get_referral_count(user_id)
-        balance = user_data.get('referral_balance', 0)
+        balance = user_data.get('referral_balance', 0) if user_data else 0
         text = (
             "🤝 <b>Реферальная программа</b>\n\n"
             "Приглашайте друзей и получайте вознаграждение с <b>каждой</b> их покупки!\n\n"
@@ -893,7 +947,7 @@ def get_user_router() -> Router:
             if support_user and support_user.startswith('@'):
                 support_url = f"https://t.me/{support_user.replace('@', '')}"
             else:
-                support_url = support_user
+                support_url = support_user or ""
             
             # Определяем текст для отображения
             if support_text:
@@ -917,14 +971,8 @@ def get_user_router() -> Router:
             return
             
         # Сбрасываем статус согласия
-        from shop_bot.data_manager.database import update_user
-        user_data = get_user(user_id)
-        if user_data:
-            user_data['agreed_to_terms'] = False
-            update_user(user_id, user_data)
-            await message.answer("✅ Статус согласия сброшен. Теперь при следующем /start будет показана проверка подписки.")
-        else:
-            await message.answer("❌ Пользователь не найден.")
+        set_terms_agreed(user_id, False)
+        await message.answer("✅ Статус согласия сброшен. Теперь при следующем /start будет показана проверка подписки.")
 
     @user_router.message(F.text == "ℹ️ О проекте")
     @documents_consent_required
@@ -1212,7 +1260,11 @@ def get_user_router() -> Router:
             await state.clear()
             return
 
-        admin_id = int(get_setting("admin_telegram_id"))
+        admin_id = get_admin_id()
+        if not admin_id:
+            await message.answer("❌ Администратор не настроен.")
+            await state.clear()
+            return
         text = (
             f"💸 <b>Заявка на вывод реферальных средств</b>\n"
             f"👤 Пользователь: @{user.get('username', 'N/A')} (ID: <code>{user_id}</code>)\n"
@@ -1226,8 +1278,8 @@ def get_user_router() -> Router:
 
     @user_router.message(Command(commands=["approve_withdraw"]))
     async def approve_withdraw_handler(message: types.Message):
-        admin_id = int(get_setting("admin_telegram_id"))
-        if message.from_user.id != admin_id:
+        admin_id = get_admin_id()
+        if not admin_id or message.from_user.id != admin_id:
             return
         try:
             user_id = int(message.text.split("_")[-1])
@@ -1248,8 +1300,8 @@ def get_user_router() -> Router:
 
     @user_router.message(Command(commands=["decline_withdraw"]))
     async def decline_withdraw_handler(message: types.Message):
-        admin_id = int(get_setting("admin_telegram_id"))
-        if message.from_user.id != admin_id:
+        admin_id = get_admin_id()
+        if not admin_id or message.from_user.id != admin_id:
             return
         try:
             user_id = int(message.text.split("_")[-1])
@@ -1264,8 +1316,8 @@ def get_user_router() -> Router:
     @user_router.message(Command(commands=["upload_video"]))
     async def upload_video_handler(message: types.Message):
         """Админская команда для загрузки видеоинструкций"""
-        admin_id = int(get_setting("admin_telegram_id"))
-        if message.from_user.id != admin_id:
+        admin_id = get_admin_id()
+        if not admin_id or message.from_user.id != admin_id:
             return
         
         if not message.video:
@@ -1309,8 +1361,8 @@ def get_user_router() -> Router:
     @user_router.message(Command(commands=["list_videos"]))
     async def list_videos_handler(message: types.Message):
         """Админская команда для просмотра загруженных видеоинструкций"""
-        admin_id = int(get_setting("admin_telegram_id"))
-        if message.from_user.id != admin_id:
+        admin_id = get_admin_id()
+        if not admin_id or message.from_user.id != admin_id:
             return
         
         try:
@@ -1339,8 +1391,8 @@ def get_user_router() -> Router:
     @user_router.message(Command(commands=["delete_video"]))
     async def delete_video_handler(message: types.Message):
         """Админская команда для удаления видеоинструкций"""
-        admin_id = int(get_setting("admin_telegram_id"))
-        if message.from_user.id != admin_id:
+        admin_id = get_admin_id()
+        if not admin_id or message.from_user.id != admin_id:
             return
         
         command_text = message.text or ""
@@ -1410,7 +1462,7 @@ def get_user_router() -> Router:
 
     @user_router.callback_query(F.data == "show_help")
     @registration_required
-    async def about_handler(callback: types.CallbackQuery):
+    async def help_handler(callback: types.CallbackQuery):
         await callback.answer()
         from shop_bot.data_manager.database import get_setting
         if get_setting("support_enabled") != "true":
@@ -1452,16 +1504,24 @@ def get_user_router() -> Router:
             else:
                 support_url = support_user
             
-            # Определяем текст для отображения
-            if support_text:
-                display_text = support_text + "\n\n"
+            # Проверяем, что support_url не None
+            if support_url:
+                # Определяем текст для отображения
+                if support_text:
+                    display_text = support_text + "\n\n"
+                else:
+                    display_text = "Для связи с поддержкой используйте кнопку ниже.\n\n"
+                
+                await callback.message.edit_text(
+                    display_text,
+                    reply_markup=keyboards.create_support_keyboard(support_url)
+                )
             else:
-                display_text = "Для связи с поддержкой используйте кнопку ниже.\n\n"
-            
-            await callback.message.edit_text(
-                display_text,
-                reply_markup=keyboards.create_support_keyboard(support_url)
-            )
+                # Если support_url None, показываем сообщение об ошибке
+                await callback.message.edit_text(
+                    "Информация о поддержке не установлена. Установите её в админ-панели.",
+                    reply_markup=keyboards.create_back_to_menu_keyboard()
+                )
 
     @user_router.callback_query(F.data == "manage_keys")
     @registration_required
@@ -1480,8 +1540,24 @@ def get_user_router() -> Router:
     async def trial_period_handler(callback: types.CallbackQuery, state: FSMContext):
         user_id = callback.from_user.id
         user_db_data = get_user(user_id)
+        
+        # Добавляем логирование для отладки
+        logger.info(f"Trial check for user {user_id}: user_db_data={user_db_data}")
+        if user_db_data:
+            trial_used_value = user_db_data.get('trial_used')
+            logger.info(f"Trial check for user {user_id}: trial_used={trial_used_value} (type: {type(trial_used_value)})")
+            logger.info(f"Trial check for user {user_id}: bool(trial_used_value)={bool(trial_used_value)}")
+        
         if user_db_data and user_db_data.get('trial_used'):
+            logger.info(f"Trial blocked for user {user_id}: trial_used is True")
             await callback.answer("Вы уже использовали бесплатный пробный период.", show_alert=True)
+            return
+        
+        # Дополнительная проверка: нет ли активных триальных ключей (только с активным статусом)
+        user_keys = get_user_keys(user_id)
+        active_trial_keys = [key for key in user_keys if key.get('is_trial') == 1 and key.get('remaining_seconds', 0) > 0 and key.get('status') != 'deactivate']
+        if active_trial_keys:
+            await callback.answer("У вас уже есть активный пробный ключ.", show_alert=True)
             return
 
         hosts = get_all_hosts()
@@ -1516,20 +1592,39 @@ def get_user_router() -> Router:
 
     async def process_trial_key_creation(message: types.Message, host_name: str):
         user_id = message.chat.id
-        await message.edit_text(f"Отлично! Создаю для вас бесплатный ключ на {get_setting('trial_duration_days')} дня на сервере \"{host_name}\"...")
+        trial_duration_display = get_setting('trial_duration_days') or "7"
+        await message.edit_text(f"Отлично! Создаю для вас бесплатный ключ на {trial_duration_display} дня на сервере \"{host_name}\"...")
 
         try:
+            trial_duration = get_setting("trial_duration_days")
+            if trial_duration is None:
+                trial_duration = "7"  # Значение по умолчанию - 7 дней
+            
+            # Получаем host_code для триального ключа
+            try:
+                from shop_bot.data_manager.database import get_host
+                host_rec = get_host(host_name)
+                host_code = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec else host_name.replace(' ', '').lower()
+            except Exception:
+                host_code = host_name.replace(' ', '').lower()
+            
+            key_number = get_next_key_number(user_id)
             result = await xui_api.create_or_update_key_on_host(
                 host_name=host_name,
-                email=f"{user_id}",
-                days_to_add=int(get_setting("trial_duration_days")),
-                comment=f"user{user_id}-key{get_next_key_number(user_id)}-trial@telegram.bot"
+                email=f"user{user_id}-key{key_number}-trial@{host_code}.bot",
+                days_to_add=int(trial_duration),
+                comment=f"{user_id}"
             )
             if not result:
                 await message.edit_text("❌ Не удалось создать пробный ключ. Ошибка на сервере.")
                 return
 
+            # Устанавливаем флаг использования триала
             set_trial_used(user_id)
+            # Устанавливаем количество дней из админки
+            set_trial_days_given(user_id, int(trial_duration))
+            # Увеличиваем счетчик повторных использований
+            increment_trial_reuses(user_id)
             
             new_key_id = add_new_key(
                 user_id=user_id,
@@ -1537,28 +1632,32 @@ def get_user_router() -> Router:
                 xui_client_uuid=result['client_uuid'],
                 key_email=result['email'],
                 expiry_timestamp_ms=result['expiry_timestamp_ms'],
-                connection_string=result.get('connection_string'),
+                connection_string=result.get('connection_string') or "",
+                plan_name="Пробный период",
+                price=0.0,
                 protocol='vless',
                 is_trial=1
             )
             # Дополнительно сразу сохраним remaining_seconds и expiry_date
-            try:
-                from datetime import datetime, timezone
-                from shop_bot.data_manager.database import update_key_remaining_seconds
-            except Exception:
-                update_key_remaining_seconds = None
-            try:
-                if update_key_remaining_seconds:
+            if new_key_id:
+                try:
+                    from datetime import datetime, timezone
+                    from shop_bot.data_manager.database import update_key_remaining_seconds
                     now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
                     remaining = max(0, int((result['expiry_timestamp_ms'] - now_ms) / 1000))
                     update_key_remaining_seconds(new_key_id, remaining, datetime.fromtimestamp(result['expiry_timestamp_ms']/1000))
-            except Exception:
-                pass
+                except Exception:
+                    pass
             
             await message.delete()
             new_expiry_date = datetime.fromtimestamp(result['expiry_timestamp_ms'] / 1000)
             final_text = get_purchase_success_text("готов", get_next_key_number(user_id) -1, new_expiry_date, result['connection_string'])
-            await message.answer(text=final_text, reply_markup=keyboards.create_key_info_keyboard(new_key_id))
+            
+            # Проверяем, что new_key_id не None перед созданием клавиатуры
+            if new_key_id is not None:
+                await message.answer(text=final_text, reply_markup=keyboards.create_key_info_keyboard(new_key_id))
+            else:
+                await message.answer(text=final_text)
 
         except Exception as e:
             logger.error(f"Error creating trial key for user {user_id} on host {host_name}: {e}", exc_info=True)
@@ -1585,11 +1684,12 @@ def get_user_router() -> Router:
             connection_string = details['connection_string']
             expiry_date = datetime.fromisoformat(key_data['expiry_date'])
             created_date = datetime.fromisoformat(key_data['created_date'])
+            status = details.get('status', 'unknown')
             
             all_user_keys = get_user_keys(user_id)
             key_number = next((i + 1 for i, key in enumerate(all_user_keys) if key['key_id'] == key_id_to_show), 0)
             
-            final_text = get_key_info_text(key_number, expiry_date, created_date, connection_string)
+            final_text = get_key_info_text(key_number, expiry_date, created_date, connection_string, status)
             
             await callback.message.edit_text(
                 text=final_text,
@@ -1673,7 +1773,7 @@ def get_user_router() -> Router:
     
     @user_router.callback_query(F.data.startswith("howto_vless"))
     @registration_required
-    async def show_instruction_handler(callback: types.CallbackQuery):
+    async def show_instruction_general_handler(callback: types.CallbackQuery):
         await callback.answer()
 
         await callback.message.edit_text(
@@ -2114,9 +2214,14 @@ def get_user_router() -> Router:
                 email = ""
                 if action == "new":
                     key_number = get_next_key_number(user_id)
-                    # Email теперь только ID пользователя
-                    email = f"{user_id}"
-                    comment = f"user{user_id}-key{key_number}@{host_name.replace(' ', '').lower()}.bot"
+                    try:
+                        from shop_bot.data_manager.database import get_host
+                        host_rec = get_host(host_name)
+                        host_code = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec else host_name.replace(' ', '').lower()
+                    except Exception:
+                        host_code = host_name.replace(' ', '').lower()
+                    email = f"user{user_id}-key{key_number}@{host_code}.bot"
+                    comment = f"{user_id}"
                 elif action == "extend":
                     key_data = get_key_by_id(key_id)
                     if not key_data or key_data['user_id'] != user_id:
@@ -2124,7 +2229,7 @@ def get_user_router() -> Router:
                         await state.clear()
                         return
                     email = key_data['key_email']
-                    comment = key_data.get('connection_string') or ''
+                    comment = f"{user_id}"
                 
                 # Учитываем месяцы, дни и ЧАСЫ тарифа
                 extra_days = int(plan.get('days') or 0) if plan else 0
@@ -2153,7 +2258,7 @@ def get_user_router() -> Router:
                         result['client_uuid'],
                         result['email'],
                         result['expiry_timestamp_ms'],
-                        connection_string=result.get('connection_string'),
+                        connection_string=result.get('connection_string') or "",
                         plan_name=plan['plan_name'],
                         price=0.0
                     )
@@ -2200,10 +2305,14 @@ def get_user_router() -> Router:
                     connection_string=connection_string
                 )
                 
-                await callback.message.edit_text(
-                    text=final_text,
-                    reply_markup=keyboards.create_key_info_keyboard(key_id)
-                )
+                # Проверяем, что key_id не None перед созданием клавиатуры
+                if key_id is not None:
+                    await callback.message.edit_text(
+                        text=final_text,
+                        reply_markup=keyboards.create_key_info_keyboard(key_id)
+                    )
+                else:
+                    await callback.message.edit_text(text=final_text)
                 
                 await state.clear()
                 return
@@ -2450,6 +2559,7 @@ def get_user_router() -> Router:
                     except Exception:
                         host_code = host_name.replace(' ', '').lower()
                     email = f"user{user_id}-key{key_number}@{host_code}.bot"
+                    comment = f"{user_id}"
                 elif action == "extend":
                     key_data = get_key_by_id(key_id)
                     if not key_data or key_data['user_id'] != user_id:
@@ -2457,6 +2567,7 @@ def get_user_router() -> Router:
                         await state.clear()
                         return
                     email = key_data['key_email']
+                    comment = f"{user_id}"
                 
                 months = plan['months']
                 plan_id = plan['plan_id']
@@ -2470,7 +2581,8 @@ def get_user_router() -> Router:
                 result = await xui_api.create_or_update_key_on_host(
                     host_name=host_name,
                     email=email,
-                    days_to_add=days_to_add
+                    days_to_add=days_to_add,
+                    comment=comment
                 )
 
                 if not result:
@@ -2485,7 +2597,7 @@ def get_user_router() -> Router:
                         result['client_uuid'],
                         result['email'],
                         result['expiry_timestamp_ms'],
-                        connection_string=result.get('connection_string'),
+                        connection_string=result.get('connection_string') or "",
                         plan_name=plan['plan_name'],
                         price=0.0
                     )
@@ -2532,10 +2644,14 @@ def get_user_router() -> Router:
                     connection_string=connection_string
                 )
                 
-                await callback.message.edit_text(
-                    text=final_text,
-                    reply_markup=keyboards.create_key_info_keyboard(key_id)
-                )
+                # Проверяем, что key_id не None перед созданием клавиатуры
+                if key_id is not None:
+                    await callback.message.edit_text(
+                        text=final_text,
+                        reply_markup=keyboards.create_key_info_keyboard(key_id)
+                    )
+                else:
+                    await callback.message.edit_text(text=final_text)
                 
                 await state.clear()
                 return
@@ -2822,7 +2938,7 @@ def get_user_router() -> Router:
                     await pre_checkout_query.answer(ok=False, error_message="Транзакция не найдена")
                     return
                 metadata = tx.get('metadata') or {}
-                user_id = int(metadata.get('user_id'))
+                user_id = int(metadata.get('user_id') or 0)
                 # Ожидаемая сумма звезд: ceil(RUB / (RUB/Star))
                 price_rub = Decimal(str(metadata.get('price', 0)))
                 conversion_rate = Decimal(str(get_setting("stars_conversion_rate") or "1.79"))
@@ -2874,14 +2990,14 @@ def get_user_router() -> Router:
                     logger.error(f"Stars: transaction not found by payment_id: {payment_id}")
                     return
                 metadata = tx.get('metadata') or {}
-                user_id = int(metadata.get('user_id'))
+                user_id = int(metadata.get('user_id') or 0)
                 operation = metadata.get('operation')
-                months = int(metadata.get('months')) if metadata.get('months') else 0
+                months = int(metadata.get('months') or 0)
                 price = float(metadata.get('price', 0))
                 action = metadata.get('action')
-                key_id = int(metadata.get('key_id')) if metadata.get('key_id') else 0
+                key_id = int(metadata.get('key_id') or 0)
                 host_name = metadata.get('host_name')
-                plan_id = int(metadata.get('plan_id')) if metadata.get('plan_id') else 0
+                plan_id = int(metadata.get('plan_id') or 0)
                 customer_email = metadata.get('customer_email')
                 # Гарантируем наличие plan_name для таблицы
                 if not metadata.get('plan_name'):
@@ -2928,6 +3044,129 @@ def get_user_router() -> Router:
             logger.error(f"Error in successful payment handler: {e}", exc_info=True)
             await message.answer("❌ Произошла ошибка при обработке платежа. Обратитесь в поддержку.")
 
+    # Обработчики для сброса триала
+    @user_router.callback_query(F.data == "admin_reset_trial")
+    @registration_required
+    async def admin_reset_trial_handler(callback: types.CallbackQuery, state: FSMContext):
+        """Обработчик для начала процесса сброса триала"""
+        await callback.answer()
+        
+        # Проверяем права администратора
+        user_id = callback.from_user.id
+        is_admin = str(user_id) == ADMIN_ID
+        
+        if not is_admin:
+            await callback.message.answer("❌ У вас нет прав для выполнения этой операции.")
+            return
+        
+        text = (
+            "🔄 <b>Сброс триала пользователя</b>\n\n"
+            "Эта функция полностью сбрасывает всю информацию о триале пользователя, "
+            "будто он никогда не использовал пробный период.\n\n"
+            "Введите Telegram ID пользователя:"
+        )
+        
+        await callback.message.edit_text(text, parse_mode='HTML')
+        await state.set_state(TrialResetStates.waiting_for_user_id)
+
+    @user_router.message(TrialResetStates.waiting_for_user_id)
+    @registration_required
+    async def process_trial_reset_user_id(message: types.Message, state: FSMContext):
+        """Обработчик для получения Telegram ID пользователя"""
+        try:
+            user_id_to_reset = int(message.text.strip())
+        except ValueError:
+            await message.answer("❌ Неверный формат ID. Пожалуйста, введите числовой Telegram ID.")
+            return
+        
+        # Проверяем существование пользователя
+        from shop_bot.data_manager.database import get_user
+        user = get_user(user_id_to_reset)
+        
+        if not user:
+            await message.answer(f"❌ Пользователь с ID {user_id_to_reset} не найден.")
+            return
+        
+        username = user.get('username', 'N/A')
+        trial_info = user.get('trial_used', 0)
+        trial_days = user.get('trial_days_given', 0)
+        trial_reuses = user.get('trial_reuses_count', 0)
+        
+        text = (
+            f"🔄 <b>Подтверждение сброса триала</b>\n\n"
+            f"<b>Пользователь:</b> {user_id_to_reset} (@{username})\n"
+            f"<b>Текущий статус триала:</b>\n"
+            f"• Использован: {'Да' if trial_info else 'Нет'}\n"
+            f"• Дней выдано: {trial_days}\n"
+            f"• Повторных использований: {trial_reuses}\n\n"
+            f"⚠️ <b>Внимание!</b> Это действие необратимо.\n"
+            f"После сброса пользователь сможет заново получить пробный период.\n\n"
+            f"Подтвердите операцию:"
+        )
+        
+        # Сохраняем ID пользователя в состоянии
+        await state.update_data(user_id_to_reset=user_id_to_reset)
+        
+        keyboard = keyboards.create_trial_reset_keyboard()
+        await message.answer(text, parse_mode='HTML', reply_markup=keyboard)
+
+    @user_router.callback_query(F.data == "confirm_trial_reset")
+    @registration_required
+    async def confirm_trial_reset_handler(callback: types.CallbackQuery, state: FSMContext):
+        """Обработчик подтверждения сброса триала"""
+        await callback.answer()
+        
+        # Проверяем права администратора
+        user_id = callback.from_user.id
+        is_admin = str(user_id) == ADMIN_ID
+        
+        if not is_admin:
+            await callback.message.answer("❌ У вас нет прав для выполнения этой операции.")
+            await state.clear()
+            return
+        
+        # Получаем данные из состояния
+        state_data = await state.get_data()
+        user_id_to_reset = state_data.get('user_id_to_reset')
+        
+        if not user_id_to_reset:
+            await callback.message.answer("❌ Ошибка: не найден ID пользователя для сброса.")
+            await state.clear()
+            return
+        
+        try:
+            # Выполняем сброс триала
+            from shop_bot.data_manager.database import admin_reset_trial_completely, get_user
+            user = get_user(user_id_to_reset)
+            username = user.get('username', 'N/A') if user else 'N/A'
+            
+            success = admin_reset_trial_completely(user_id_to_reset)
+            
+            if success:
+                text = (
+                    f"✅ <b>Триал успешно сброшен!</b>\n\n"
+                    f"Пользователь {user_id_to_reset} (@{username}) теперь может заново получить пробный период."
+                )
+            else:
+                text = f"❌ Ошибка при сбросе триала для пользователя {user_id_to_reset}."
+                
+        except Exception as e:
+            text = f"❌ Произошла ошибка при сбросе триала: {str(e)}"
+        
+        await callback.message.edit_text(text, parse_mode='HTML')
+        await state.clear()
+
+    @user_router.callback_query(F.data == "cancel_trial_reset")
+    @registration_required
+    async def cancel_trial_reset_handler(callback: types.CallbackQuery, state: FSMContext):
+        """Обработчик отмены сброса триала"""
+        await callback.answer()
+        await state.clear()
+        
+        text = "❌ Сброс триала отменен."
+        keyboard = keyboards.create_admin_panel_keyboard()
+        await callback.message.edit_text(text, reply_markup=keyboard)
+
     return user_router
 
 _user_connectors: Dict[int, TonConnect] = {}
@@ -2946,7 +3185,7 @@ async def _get_ton_connect_instance(user_id: int) -> TonConnect:
         _user_connectors[user_id] = TonConnect(manifest_url=manifest_url)
     return _user_connectors[user_id]
 
-async def _listener_task(connector: TonConnect, user_id: int, transaction_payload: dict, payment_metadata: dict = None, bot_instance = None):
+async def _listener_task(connector: TonConnect, user_id: int, transaction_payload: dict, payment_metadata: dict | None = None, bot_instance = None):
     try:
         wallet_connected = False
         for _ in range(120):
@@ -3104,13 +3343,13 @@ async def notify_admin_of_purchase(bot: Bot, metadata: dict):
     try:
         user_id = metadata.get('user_id')
         months = metadata.get('months')
-        price = float(metadata.get('price'))
+        price = float(metadata.get('price') or 0)
         host_name = metadata.get('host_name')
         plan_id = metadata.get('plan_id')
         payment_method = metadata.get('payment_method', 'Unknown')
         
-        user_info = get_user(user_id)
-        plan_info = get_plan_by_id(plan_id)
+        user_info = get_user(user_id) if user_id else None
+        plan_info = get_plan_by_id(plan_id) if plan_id else None
 
         username = user_info.get('username', 'N/A') if user_info else 'N/A'
         plan_name = plan_info.get('plan_name', f'{months} мес.') if plan_info else f'{months} мес.'
@@ -3168,7 +3407,7 @@ async def _create_heleket_payment_request(user_id: int, price: float, months: in
     
     headers = {
         "merchant": merchant_id,
-        "sign": _generate_heleket_signature(json.dumps(payload), api_key),
+        "sign": _generate_heleket_signature(json.dumps(payload), api_key or ""),
         "Content-Type": "application/json",
     }
     
@@ -3248,7 +3487,7 @@ def get_ton_transaction_url(tx_hash: str) -> str:
     """Создает ссылку на транзакцию в TON Explorer"""
     return f"https://tonscan.org/tx/{tx_hash}"
 
-async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str = None):
+async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | None = None):
     try:
         # Импортируем здесь, чтобы функция была видима при любом пути выполнения
         from shop_bot.data_manager.database import update_transaction_on_payment
@@ -3298,7 +3537,7 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str = No
             from shop_bot.data_manager.database import add_to_user_balance
             payment_id = metadata.get('payment_id')
             if payment_id:
-                update_transaction_on_payment(payment_id, 'paid', price, tx_hash=tx_hash, metadata=metadata)
+                update_transaction_on_payment(payment_id, 'paid', price, tx_hash=tx_hash or "", metadata=metadata)
             add_to_user_balance(user_id, price)
             await bot.send_message(user_id, f"✅ Баланс пополнен на {price:.2f} RUB", reply_markup=keyboards.create_back_to_menu_keyboard())
         except Exception as e:
@@ -3317,21 +3556,15 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str = No
     )
     try:
         email = ""
+        comment = f"{user_id}"
         if action == "new":
             key_number = get_next_key_number(user_id)
             try:
                 from shop_bot.data_manager.database import get_host
-                host_rec = get_host(host_name)
-                host_code = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec else host_name.replace(' ', '').lower()
+                host_rec = get_host(host_name) if host_name else None
+                host_code = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec and host_name else (host_name or "").replace(' ', '').lower()
             except Exception:
-                host_code = host_name.replace(' ', '').lower()
-            email = f"user{user_id}-key{key_number}@{host_code}.bot"
-            try:
-                from shop_bot.data_manager.database import get_host
-                host_rec = get_host(host_name)
-                host_code = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec else host_name.replace(' ', '').lower()
-            except Exception:
-                host_code = host_name.replace(' ', '').lower()
+                host_code = (host_name or "").replace(' ', '').lower()
             email = f"user{user_id}-key{key_number}@{host_code}.bot"
         elif action == "extend":
             key_data = get_key_by_id(key_id)
@@ -3350,10 +3583,15 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str = No
             extra_hours = 24
         traffic_gb = float(plan.get('traffic_gb') or 0) if plan else 0.0
         days_to_add = months * 30 + extra_days + (extra_hours / 24)
+        if not host_name:
+            await processing_message.edit_text("❌ Ошибка: не указан сервер.")
+            return
+            
         result = await xui_api.create_or_update_key_on_host(
             host_name=host_name,
             email=email,
-            days_to_add=days_to_add,
+            days_to_add=int(days_to_add),
+            comment=comment,
             traffic_gb=traffic_gb if traffic_gb > 0 else None
         )
 
@@ -3368,14 +3606,14 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str = No
                 result['client_uuid'], 
                 result['email'], 
                 result['expiry_timestamp_ms'],
-                connection_string=result.get('connection_string'),
-                plan_name=(metadata.get('plan_name') or (plan.get('plan_name') if plan else None)),
-                price=float(metadata.get('price', 0))
+                connection_string=result.get('connection_string') or "",
+                plan_name=(metadata.get('plan_name') or (plan.get('plan_name') if plan else None) or ""),
+                price=float(metadata.get('price') or 0)
             )
         elif action == "extend":
             update_key_info(key_id, result['client_uuid'], result['expiry_timestamp_ms'])
         
-        price = float(metadata.get('price')) 
+        price = float(metadata.get('price') or 0) 
 
         user_data = get_user(user_id)
         referrer_id = user_data.get('referred_by')
@@ -3413,7 +3651,8 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str = No
             # Обогащаем metadata необходимыми полями (включая connection_string и key_id)
             enriched_metadata = dict(metadata)
             try:
-                plan_obj = get_plan_by_id(metadata.get('plan_id'))
+                plan_id_val = metadata.get('plan_id')
+                plan_obj = get_plan_by_id(int(plan_id_val)) if plan_id_val is not None else None
                 plan_name_safe = plan_obj.get('plan_name', 'Unknown') if plan_obj else 'Unknown'
             except Exception:
                 plan_name_safe = 'Unknown'
@@ -3454,7 +3693,7 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str = No
         await bot.send_message(
             chat_id=user_id,
             text=final_text,
-            reply_markup=keyboards.create_key_info_keyboard(key_id),
+            reply_markup=keyboards.create_key_info_keyboard(key_id) if key_id else None,
             parse_mode="HTML"
         )
 
@@ -3469,9 +3708,10 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str = No
             }
             details = await get_key_details_from_host(details_payload)
             if details:
-                update_key_quota(
-                    key_id,
-                    details.get('quota_total_gb'),
+                if key_id:
+                    update_key_quota(
+                        key_id,
+                        details.get('quota_total_gb'),
                     details.get('traffic_down_bytes'),
                     details.get('quota_remaining_bytes')
                 )
@@ -3542,7 +3782,7 @@ async def show_subscription_screen(message: types.Message, state: FSMContext):
     await message.answer(text, reply_markup=keyboard)
     await state.set_state(Onboarding.waiting_for_subscription)
 
-async def process_successful_onboarding(message_or_callback, state: FSMContext):
+async def process_successful_onboarding_v2(message_or_callback, state: FSMContext):
     """Завершает процесс онбординга"""
     if hasattr(message_or_callback, 'answer'):
         await message_or_callback.answer("✅ Спасибо! Доступ предоставлен.")

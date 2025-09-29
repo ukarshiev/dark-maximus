@@ -18,50 +18,6 @@ from shop_bot.data_manager.database import get_host, get_key_by_email, DB_FILE
 
 logger = logging.getLogger(__name__)
 
-def _panel_update_client_quota(host_url: str, username: str, password: str, inbound_id: int, client_uuid: str, email: str, expiry_ms: int, traffic_bytes: int) -> None:
-    """Обновляет клиента через нативный эндпоинт панели, как делает UI (form: id + settings)."""
-    try:
-        base = host_url.rstrip('/')
-        session = requests.Session()
-        # Логин
-        session.post(f"{base}/login", json={"username": username, "password": password}, timeout=10, verify=False)
-        # Пейлоад клиента (минимально достаточный набор полей)
-        now_ms = int(datetime.utcnow().timestamp() * 1000)
-        # В UI разных форков поле ограничения может называться по-разному:
-        # total (bytes) или totalGB (гигабайты). Мы передаём оба: bytes и GB.
-        client_payload = {
-            "id": client_uuid,
-            "flow": "xtls-rprx-vision",
-            "email": email,
-            "limitIp": 0,
-            # Байтный лимит (универсально поддерживается как total)
-            "total": int(traffic_bytes),
-            # Дублируем в гигабайтах для некоторых сборок x-ui, ожидающих GB
-            "totalGB": round(int(traffic_bytes) / (1024 * 1024 * 1024), 2),
-            "expiryTime": int(expiry_ms),
-            "enable": True,
-            "tgId": "",
-            "subId": "",
-            "comment": "",
-            "reset": None,
-            "created_at": now_ms,
-            "updated_at": now_ms,
-        }
-        form = {
-            "id": str(inbound_id),
-            "settings": json.dumps({"clients": [client_payload]}, ensure_ascii=False)
-        }
-        # Обновление
-        url = f"{base}/panel/inbound/updateClient/{client_uuid}"
-        headers = {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest"}
-        session.post(url, data=form, headers=headers, timeout=10, verify=False)
-    except Exception as e:
-        try:
-            from shop_bot.webhook_server.app import logger as app_logger
-            app_logger.error(f"Failed panel updateClient for {email}: {e}")
-        except Exception:
-            logger.error(f"Failed panel updateClient for {email}: {e}")
-
 def login_to_host(host_url: str, username: str, password: str, inbound_id: int) -> tuple[Api | None, Inbound | None]:
     try:
         api = Api(host=host_url, username=username, password=password)
@@ -78,27 +34,140 @@ def login_to_host(host_url: str, username: str, password: str, inbound_id: int) 
         return None, None
 
 def get_connection_string(inbound: Inbound, user_uuid: str, host_url: str, remark: str) -> str | None:
-    if not inbound: return None
-    settings = inbound.stream_settings.reality_settings.get("settings")
-    if not settings: return None
+    if not inbound: 
+        return None
     
-    public_key = settings.get("publicKey")
-    fp = settings.get("fingerprint")
-    server_names = inbound.stream_settings.reality_settings.get("serverNames")
-    short_ids = inbound.stream_settings.reality_settings.get("shortIds")
-    port = inbound.port
+    # Получаем stream_settings с проверкой типа
+    stream_settings = inbound.stream_settings
     
-    if not all([public_key, server_names, short_ids]): return None
+    # Если stream_settings - строка, пытаемся распарсить JSON
+    if isinstance(stream_settings, str):
+        try:
+            stream_settings = json.loads(stream_settings)
+        except (json.JSONDecodeError, TypeError):
+            logger.error(f"Failed to parse stream_settings JSON: {stream_settings}")
+            return None
+    
+    # Проверяем наличие reality_settings
+    if not hasattr(stream_settings, 'reality_settings') and not isinstance(stream_settings, dict):
+        logger.error("stream_settings does not have reality_settings attribute and is not a dict")
+        return None
+    
+    # Получаем reality_settings
+    if hasattr(stream_settings, 'reality_settings'):
+        reality_settings = getattr(stream_settings, 'reality_settings')
+    elif isinstance(stream_settings, dict):
+        reality_settings = stream_settings.get('reality_settings', {})
+    else:
+        logger.error("Cannot access reality_settings from stream_settings")
+        return None
+    
+    # Если reality_settings - строка, пытаемся распарсить JSON
+    if isinstance(reality_settings, str):
+        try:
+            reality_settings = json.loads(reality_settings)
+        except (json.JSONDecodeError, TypeError):
+            logger.error(f"Failed to parse reality_settings JSON: {reality_settings}")
+            return None
+    
+    # Получаем настройки
+    if isinstance(reality_settings, dict):
+        settings = reality_settings.get("settings", {})
+        public_key = settings.get("publicKey")
+        fp = settings.get("fingerprint")
+        server_names = reality_settings.get("serverNames")
+        short_ids = reality_settings.get("shortIds")
+    else:
+        logger.error("reality_settings is not a dict")
+        return None
+    
+    if not all([public_key, server_names, short_ids]): 
+        return None
+    
+    # Проверяем, что server_names и short_ids - это списки
+    if not isinstance(server_names, list) or not isinstance(short_ids, list):
+        logger.error("server_names and short_ids must be lists")
+        return None
+    
+    if not server_names or not short_ids:
+        logger.error("server_names and short_ids cannot be empty")
+        return None
     
     parsed_url = urlparse(host_url)
     short_id = short_ids[0]
     
     connection_string = (
-        f"vless://{user_uuid}@{parsed_url.hostname}:{port}"
+        f"vless://{user_uuid}@{parsed_url.hostname}:{inbound.port}"
         f"?type=tcp&security=reality&pbk={public_key}&fp={fp}&sni={server_names[0]}"
         f"&sid={short_id}&spx=%2F&flow=xtls-rprx-vision#{remark}"
     )
     return connection_string
+
+def update_client_quota_on_host(host_name: str, email: str, traffic_bytes: int) -> bool:
+    """Обновляет квоту трафика клиента на указанном хосте через API панели"""
+    try:
+        host_data = get_host(host_name)
+        if not host_data:
+            logger.error(f"Host '{host_name}' not found in database")
+            return False
+            
+        # Получаем информацию о ключе
+        key_data = get_key_by_email(email)
+        if not key_data:
+            logger.error(f"Key with email '{email}' not found in database")
+            return False
+            
+        # Сначала пробуем нативный API панели
+        success = _panel_update_client_quota(
+            host_url=host_data['host_url'],
+            username=host_data['host_username'],
+            password=host_data['host_pass'],
+            inbound_id=host_data['host_inbound_id'],
+            client_uuid=key_data['xui_client_uuid'],
+            email=email,
+            traffic_bytes=traffic_bytes,
+            expiry_ms=key_data.get('expiry_date', 0),
+            comment=str(key_data['user_id'])
+        )
+        
+        if success:
+            logger.info(f"Successfully updated quota for '{email}' on host '{host_name}' to {traffic_bytes} bytes via panel API")
+            return True
+        
+        # Если API панели не сработал, пробуем через py3xui как fallback
+        logger.warning(f"Panel API failed for '{email}', trying py3xui fallback")
+        
+        api, inbound = login_to_host(
+            host_data['host_url'],
+            host_data['host_username'], 
+            host_data['host_pass'],
+            host_data['host_inbound_id']
+        )
+        
+        if not api or not inbound:
+            logger.error(f"Failed to connect to host '{host_name}' via py3xui")
+            return False
+            
+        # Используем старый метод через py3xui
+        client_uuid, new_expiry_ms = update_or_create_client_on_panel(
+            api, 
+            inbound.id, 
+            email, 
+            days_to_add=0,  # Не изменяем срок действия
+            comment=str(key_data['user_id']),
+            traffic_gb=traffic_bytes / (1024 * 1024 * 1024)  # Конвертируем в гигабайты
+        )
+        
+        if client_uuid:
+            logger.info(f"Successfully updated quota for '{email}' on host '{host_name}' to {traffic_bytes} bytes via py3xui fallback")
+            return True
+        else:
+            logger.error(f"Failed to update quota for '{email}' on host '{host_name}' via both methods")
+            return False
+        
+    except Exception as e:
+        logger.error(f"Error updating quota for '{email}' on host '{host_name}': {e}", exc_info=True)
+        return False
 
 def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days_to_add: int, comment: str | None = None, traffic_gb: float | None = None) -> tuple[str | None, int | None]:
     try:
@@ -150,7 +219,9 @@ def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days
             c.enable = True
             try:
                 if comment is not None:
-                    c.comment = comment
+                    setattr(c, 'comment', comment)
+                else:
+                    setattr(c, 'comment', "")
             except Exception:
                 pass
             before_total = getattr(c, 'total', None)
@@ -161,8 +232,8 @@ def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days
                 except Exception:
                     pass
                 try:
-                    # Для совместимости: некоторые форки трактуют totalGB как гигабайты
-                    setattr(c, 'totalGB', round(int(traffic_bytes) / (1024 * 1024 * 1024), 2))
+                    # totalGB должен быть в байтах, как и total
+                    setattr(c, 'totalGB', int(traffic_bytes))
                 except Exception:
                     pass
             after_total = getattr(c, 'total', None)
@@ -179,12 +250,15 @@ def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days
                 id=client_uuid,
                 email=email,
                 enable=True,
-                flow="xtls-rprx-vision",
-                expiry_time=new_expiry_ms
+                flow="xtls-rprx-vision"
             )
+            # Устанавливаем expiry_time через setattr
+            setattr(new_client, 'expiry_time', new_expiry_ms)
             try:
                 if comment is not None:
                     setattr(new_client, 'comment', comment)
+                else:
+                    setattr(new_client, 'comment', "")
             except Exception:
                 pass
             if traffic_bytes is not None:
@@ -193,7 +267,8 @@ def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days
                 except Exception:
                     pass
                 try:
-                    setattr(new_client, 'totalGB', round(int(traffic_bytes) / (1024 * 1024 * 1024), 2))
+                    # totalGB должен быть в байтах, как и total
+                    setattr(new_client, 'totalGB', int(traffic_bytes))
                 except Exception:
                     pass
             inbound_to_modify.settings.clients.append(new_client)
@@ -206,19 +281,21 @@ def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days
                 id=client_uuid,
                 email=email,
                 enable=True,
-                flow="xtls-rprx-vision",
-                expiry_time=new_expiry_ms
+                flow="xtls-rprx-vision"
             )
+            # Устанавливаем expiry_time через setattr
+            setattr(updated_client, 'expiry_time', new_expiry_ms)
             if traffic_bytes is not None:
                 try:
                     setattr(updated_client, 'total', int(traffic_bytes))  # bytes
                 except Exception:
                     pass
                 try:
-                    setattr(updated_client, 'totalGB', round(int(traffic_bytes) / (1024 * 1024 * 1024), 2))
+                    # totalGB должен быть в байтах, как и total
+                    setattr(updated_client, 'totalGB', int(traffic_bytes))
                 except Exception:
                     pass
-            api.client.update(inbound_id, updated_client)
+            api.client.update(str(inbound_id), updated_client)
             try:
                 from shop_bot.webhook_server.app import logger as app_logger
                 app_logger.info(f"XUI client.update pushed for {email}: total(bytes)={traffic_bytes}")
@@ -240,7 +317,7 @@ def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days
         except Exception:
             pass
 
-        return client_uuid, new_expiry_ms
+        return str(client_uuid) if client_uuid else None, new_expiry_ms
 
     except Exception as e:
         logger.error(f"Error in update_or_create_client_on_panel: {e}", exc_info=True)
@@ -274,17 +351,21 @@ async def create_or_update_key_on_host(host_name: str, email: str, days_to_add: 
     try:
         if traffic_gb is not None:
             traffic_bytes = int(float(traffic_gb) * 1024 * 1024 * 1024)
-            _panel_update_client_quota(host_data['host_url'], host_data['host_username'], host_data['host_pass'], host_data['host_inbound_id'], client_uuid, email, new_expiry_ms, traffic_bytes)
+            if client_uuid and new_expiry_ms:
+                _panel_update_client_quota(host_data['host_url'], host_data['host_username'], host_data['host_pass'], host_data['host_inbound_id'], client_uuid, email, new_expiry_ms, traffic_bytes)
     except Exception:
         pass
     
-    return {
-        "client_uuid": client_uuid,
-        "email": email,
-        "expiry_timestamp_ms": new_expiry_ms,
-        "connection_string": connection_string,
-        "host_name": host_name
-    }
+    if new_expiry_ms:
+        return {
+            "client_uuid": client_uuid,
+            "email": email,
+            "expiry_timestamp_ms": new_expiry_ms,
+            "connection_string": connection_string,
+            "host_name": host_name
+        }
+    else:
+        return None
 
 async def get_key_details_from_host(key_data: dict) -> dict | None:
     host_name = key_data.get('host_name')
@@ -329,6 +410,7 @@ async def get_key_details_from_host(key_data: dict) -> dict | None:
         quota_remaining_bytes = None
         quota_total_gb = None
         traffic_down_bytes = None
+        enabled_status = None
         if target_inbound and target_inbound.settings and target_inbound.settings.clients:
             protocol = getattr(target_inbound, 'protocol', None)
             # Собираем карту статистики по email из clientStats, если доступно
@@ -359,6 +441,8 @@ async def get_key_details_from_host(key_data: dict) -> dict | None:
                     exp_ms = getattr(c, 'expiry_time', None)
                     # created_at / usage start
                     created_at = getattr(c, 'created_at', None) or getattr(c, 'enableDate', None)
+                    # Получаем статус включения
+                    enabled_status = getattr(c, 'enable', None)
                     # traffic quota remaining: сначала пробуем clientStats, затем fallback на settings.clients
                     try:
                         total_limit_bytes = None
@@ -421,20 +505,28 @@ async def get_key_details_from_host(key_data: dict) -> dict | None:
                     active = exp_ms is not None and exp_ms > now_ms
                     if exp_ms is not None:
                         remaining_seconds = max(0, int((exp_ms - now_ms) / 1000))
-                    if is_trial and active:
+                    
+                    # Проверяем, не отозван ли триал (квота = 1 МБ)
+                    is_revoked_trial = False
+                    if quota_total_gb is not None and quota_total_gb <= 0.001:  # 1 МБ = 0.001 ГБ
+                        is_revoked_trial = True
+                    
+                    if is_trial and active and not is_revoked_trial:
                         status = 'trial-active'
                     elif is_trial and not active:
                         status = 'trial-ended'
+                    elif is_trial and is_revoked_trial:
+                        status = 'deactivate'  # Отозванный триал
                     elif not is_trial and active:
                         status = 'pay-active'
                     else:
                         status = 'pay-ended'
                     break
-        return {"connection_string": connection_string, "expiry_timestamp_ms": exp_ms, "status": status, "protocol": protocol, "created_at": created_at, "remaining_seconds": remaining_seconds, "quota_remaining_bytes": quota_remaining_bytes, "quota_total_gb": quota_total_gb, "traffic_down_bytes": traffic_down_bytes}
+        return {"connection_string": connection_string, "expiry_timestamp_ms": exp_ms, "status": status, "protocol": protocol, "created_at": created_at, "remaining_seconds": remaining_seconds, "quota_remaining_bytes": quota_remaining_bytes, "quota_total_gb": quota_total_gb, "traffic_down_bytes": traffic_down_bytes, "enabled": enabled_status}
     except Exception:
         return {"connection_string": connection_string}
 
-async def delete_client_by_uuid(client_uuid: str, client_email: str = None) -> bool:
+async def delete_client_by_uuid(client_uuid: str, client_email: str | None = None) -> bool:
     """Удаляет клиента напрямую по UUID из всех доступных хостов"""
     if not client_uuid or client_uuid == 'Unknown':
         logger.error(f"Cannot delete client: Invalid UUID '{client_uuid}'")
@@ -467,7 +559,7 @@ async def delete_client_by_uuid(client_uuid: str, client_email: str = None) -> b
             
             try:
                 # Пытаемся удалить по UUID
-                api.client.delete(inbound.id, client_uuid)
+                api.client.delete(inbound.id, str(client_uuid))
                 logger.info(f"Successfully deleted client '{client_uuid}' (email: '{client_email or 'Unknown'}') from host '{host_data['host_name']}'")
                 return True
             except Exception as e:
@@ -481,7 +573,7 @@ async def delete_client_by_uuid(client_uuid: str, client_email: str = None) -> b
     logger.warning(f"Client with UUID '{client_uuid}' not found on any host")
     return False
 
-async def delete_client_on_host(host_name: str, client_email: str, client_uuid: str = None) -> bool:
+async def delete_client_on_host(host_name: str, client_email: str, client_uuid: str | None = None) -> bool:
     """Устаревшая функция - используйте delete_client_by_uuid для прямого удаления по UUID"""
     # Если есть UUID, используем новую функцию
     if client_uuid and client_uuid != 'Unknown':
@@ -511,7 +603,7 @@ async def delete_client_on_host(host_name: str, client_email: str, client_uuid: 
         if client_to_delete and client_to_delete.get('xui_client_uuid'):
             # Если клиент найден в базе, удаляем по UUID из базы
             try:
-                api.client.delete(inbound.id, client_to_delete['xui_client_uuid'])
+                api.client.delete(inbound.id, str(client_to_delete['xui_client_uuid']))
                 logger.info(f"Successfully deleted client '{client_to_delete['xui_client_uuid']}' from host '{host_name}' by database UUID.")
                 return True
             except Exception as e:
@@ -527,7 +619,7 @@ async def delete_client_on_host(host_name: str, client_email: str, client_uuid: 
                 if client.email == client_email:
                     # Найден клиент в панели, удаляем его
                     try:
-                        api.client.delete(inbound.id, client.id)
+                        api.client.delete(inbound.id, str(client.id))
                         logger.info(f"Successfully deleted client '{client.id}' (email: '{client_email}') from host '{host_name}' by email search.")
                         return True
                     except Exception as e:
@@ -541,3 +633,274 @@ async def delete_client_on_host(host_name: str, client_email: str, client_uuid: 
     except Exception as e:
         logger.error(f"Failed to delete client '{client_email}' from host '{host_name}': {e}", exc_info=True)
         return False
+
+def _panel_update_client_quota(host_url: str, username: str, password: str, inbound_id: int, client_uuid: str, email: str, traffic_bytes: int, expiry_ms: int, comment: str = "") -> bool:
+    """Обновляет квоту трафика клиента через нативный эндпоинт панели"""
+    try:
+        base = host_url.rstrip('/')
+        session = requests.Session()
+        
+        # Логин
+        login_response = session.post(f"{base}/login", json={"username": username, "password": password}, timeout=10, verify=False)
+        if login_response.status_code != 200:
+            logger.error(f"Failed to login to {base}")
+            return False
+            
+        # Получаем текущие данные inbound
+        get_response = session.get(f"{base}/panel/inbound/get/{inbound_id}", timeout=10, verify=False)
+        if get_response.status_code != 200:
+            logger.error(f"Failed to get inbound data: HTTP {get_response.status_code}")
+            logger.error(f"Response content: {get_response.text[:500]}")
+            return False
+            
+        try:
+            inbound_data = get_response.json()
+        except Exception as e:
+            logger.error(f"Failed to parse JSON response: {e}")
+            logger.error(f"Response content: {get_response.text[:500]}")
+            return False
+            
+        if not inbound_data.get('success'):
+            logger.error(f"Failed to get inbound data: {inbound_data.get('msg', 'Unknown error')}")
+            return False
+            
+        # Находим и обновляем клиента
+        clients = inbound_data.get('obj', {}).get('settings', {}).get('clients', [])
+        updated_clients = []
+        
+        for client in clients:
+            if client.get('id') == client_uuid or client.get('email') == email:
+                # Обновляем только квоту трафика
+                client['total'] = traffic_bytes
+                client['totalGB'] = traffic_bytes  # totalGB тоже в байтах
+                client['updated_at'] = int(datetime.utcnow().timestamp() * 1000)
+                logger.info(f"Updated client {email} quota to {traffic_bytes} bytes")
+            updated_clients.append(client)
+        
+        # Подготавливаем данные для обновления всего inbound
+        obj = inbound_data.get('obj', {})
+        update_data = {
+            "id": str(inbound_id),
+            "userId": "0",
+            "up": str(obj.get('up', 0)),
+            "down": str(obj.get('down', 0)),
+            "total": str(obj.get('total', 0)),
+            "allTime": str(obj.get('allTime', 0)),
+            "remark": obj.get('remark', ''),
+            "enable": str(obj.get('enable', True)),
+            "expiryTime": str(obj.get('expiryTime', 0)),
+            "listen": obj.get('listen', ''),
+            "port": str(obj.get('port', 0)),
+            "protocol": obj.get('protocol', ''),
+            "settings": json.dumps({"clients": updated_clients, "decryption": obj.get('settings', {}).get('decryption', 'none'), "fallbacks": obj.get('settings', {}).get('fallbacks', [])}, ensure_ascii=False),
+            "streamSettings": json.dumps(obj.get('streamSettings', {}), ensure_ascii=False),
+            "sniffing": json.dumps(obj.get('sniffing', {}), ensure_ascii=False),
+            "tag": obj.get('tag', '')
+        }
+        
+        # Добавляем статистику клиентов
+        client_stats = inbound_data.get('obj', {}).get('clientStats', [])
+        for i, client in enumerate(client_stats):
+            for key, value in client.items():
+                update_data[f"clientStats[{i}][{key}]"] = str(value)
+        
+        # Отправляем обновление
+        headers = {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest"}
+        response = session.post(f"{base}/panel/inbound/update/{inbound_id}", data=update_data, headers=headers, timeout=10, verify=False)
+        
+        if response.status_code == 200:
+            try:
+                response_data = response.json()
+                if response_data.get('success'):
+                    logger.info(f"Successfully updated quota for client '{email}' to {traffic_bytes} bytes via panel endpoint")
+                    return True
+                else:
+                    logger.error(f"Failed to update client: {response_data.get('msg', 'Unknown error')}")
+                    return False
+            except ValueError:
+                # Если ответ не JSON, но статус 200, считаем успешным
+                logger.info(f"Successfully updated quota for client '{email}' to {traffic_bytes} bytes via panel endpoint (non-JSON response)")
+                return True
+            except Exception as e:
+                logger.error(f"Failed to parse update response JSON: {e}")
+                logger.error(f"Update response content: {response.text[:500]}")
+                return False
+        else:
+            logger.warning(f"Panel endpoint returned status {response.status_code} for client '{email}'")
+            logger.warning(f"Update response content: {response.text[:500]}")
+            return False
+            
+    except Exception as e:
+        try:
+            from shop_bot.webhook_server.app import logger as app_logger
+            app_logger.error(f"Error in _panel_update_client_quota: {e}", exc_info=True)
+        except Exception:
+            pass
+        return False
+
+def _panel_update_client_enabled_status(host_url: str, username: str, password: str, inbound_id: int, client_uuid: str, email: str, enabled: bool, expiry_ms: int, comment: str = "") -> bool:
+    """Обновляет статус включения/отключения клиента через нативный эндпоинт панели"""
+    try:
+        base = host_url.rstrip('/')
+        session = requests.Session()
+        
+        # Логин
+        login_response = session.post(f"{base}/login", json={"username": username, "password": password}, timeout=10, verify=False)
+        if login_response.status_code != 200:
+            logger.error(f"Failed to login to {base}")
+            return False
+            
+        # Получаем текущие данные inbound
+        get_response = session.get(f"{base}/panel/inbound/get/{inbound_id}", timeout=10, verify=False)
+        if get_response.status_code != 200:
+            logger.error(f"Failed to get inbound data: HTTP {get_response.status_code}")
+            return False
+            
+        inbound_data = get_response.json()
+        if not inbound_data.get('success'):
+            logger.error(f"Failed to get inbound data: {inbound_data.get('msg', 'Unknown error')}")
+            return False
+            
+        # Находим и обновляем клиента
+        clients = inbound_data.get('obj', {}).get('settings', {}).get('clients', [])
+        updated_clients = []
+        
+        for client in clients:
+            if client.get('id') == client_uuid or client.get('email') == email:
+                # Обновляем статус включения
+                client['enable'] = enabled
+                client['updated_at'] = int(datetime.utcnow().timestamp() * 1000)
+                
+                # При отключении ключа устанавливаем expiryTime на текущее время
+                if not enabled:
+                    from datetime import timezone as _tz
+                    now_ms = int(datetime.now(_tz.utc).timestamp() * 1000)
+                    client['expiryTime'] = now_ms
+                
+                logger.info(f"Updated client {email} enabled status to {enabled}")
+            updated_clients.append(client)
+        
+        # Подготавливаем данные для обновления всего inbound
+        obj = inbound_data.get('obj', {})
+        update_data = {
+            "id": str(inbound_id),
+            "userId": "0",
+            "up": str(obj.get('up', 0)),
+            "down": str(obj.get('down', 0)),
+            "total": str(obj.get('total', 0)),
+            "allTime": str(obj.get('allTime', 0)),
+            "remark": obj.get('remark', ''),
+            "enable": str(obj.get('enable', True)),  # Статус inbound остается неизменным
+            "expiryTime": str(obj.get('expiryTime', 0)),
+            "listen": obj.get('listen', ''),
+            "port": str(obj.get('port', 0)),
+            "protocol": obj.get('protocol', ''),
+            "settings": json.dumps({"clients": updated_clients, "decryption": obj.get('settings', {}).get('decryption', 'none'), "fallbacks": obj.get('settings', {}).get('fallbacks', [])}, ensure_ascii=False),
+            "streamSettings": json.dumps(obj.get('streamSettings', {}), ensure_ascii=False),
+            "sniffing": json.dumps(obj.get('sniffing', {}), ensure_ascii=False),
+            "tag": obj.get('tag', '')
+        }
+        
+        # Добавляем статистику клиентов
+        client_stats = inbound_data.get('obj', {}).get('clientStats', [])
+        for i, client in enumerate(client_stats):
+            for key, value in client.items():
+                update_data[f"clientStats[{i}][{key}]"] = str(value)
+        
+        # Отправляем обновление
+        headers = {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest"}
+        response = session.post(f"{base}/panel/inbound/update/{inbound_id}", data=update_data, headers=headers, timeout=10, verify=False)
+        
+        if response.status_code == 200:
+            try:
+                response_data = response.json()
+                if response_data.get('success'):
+                    logger.info(f"Successfully updated enabled status for client '{email}' to {enabled} via panel endpoint")
+                    return True
+                else:
+                    logger.error(f"Failed to update client: {response_data.get('msg', 'Unknown error')}")
+                    return False
+            except ValueError:
+                # Если ответ не JSON, но статус 200, считаем успешным
+                logger.info(f"Successfully updated enabled status for client '{email}' to {enabled} via panel endpoint (non-JSON response)")
+                return True
+        else:
+            logger.warning(f"Panel endpoint returned status {response.status_code} for client '{email}'")
+            return False
+            
+    except Exception as e:
+        try:
+            from shop_bot.webhook_server.app import logger as app_logger
+            app_logger.error(f"Failed panel updateClient enabled status for {email}: {e}")
+        except Exception:
+            logger.error(f"Failed panel updateClient enabled status for {email}: {e}")
+        return False
+
+async def update_client_enabled_status_on_host(host_name: str, client_email: str, enabled: bool) -> bool:
+    """Обновляет статус включения/отключения клиента на указанном хосте"""
+    try:
+        host_data = get_host(host_name)
+        if not host_data:
+            logger.error(f"Host '{host_name}' not found in database.")
+            return False
+        
+        api, inbound = login_to_host(host_data['host_url'], host_data['host_username'], host_data['host_pass'], host_data['host_inbound_id'])
+        if not api or not inbound:
+            logger.error(f"Failed to login to host '{host_name}'.")
+            return False
+        
+        # Получаем данные inbound с клиентами
+        inbound_data = api.inbound.get_by_id(inbound.id)
+        if not inbound_data or not inbound_data.settings.clients:
+            logger.warning(f"No clients found in inbound on host '{host_name}'.")
+            return False
+        
+        # Ищем клиента по email
+        client = None
+        for c in inbound_data.settings.clients:
+            if c.email == client_email:
+                client = c
+                break
+        
+        if not client:
+            logger.warning(f"Client with email '{client_email}' not found on host '{host_name}'.")
+            return False
+        
+        # Обновляем статус включения клиента
+        client.enable = enabled
+        
+        # При отключении ключа устанавливаем expiry_time на текущее время
+        if not enabled:
+            from datetime import timezone as _tz
+            now_ms = int(datetime.now(_tz.utc).timestamp() * 1000)
+            client.expiry_time = now_ms
+        
+        # Сохраняем изменения через inbound
+        api.inbound.update(inbound.id, inbound_data)
+        
+        # Дополнительно используем нативный эндпоинт панели для максимальной совместимости
+        try:
+            panel_success = _panel_update_client_enabled_status(
+                host_data['host_url'], 
+                host_data['host_username'], 
+                host_data['host_pass'], 
+                host_data['host_inbound_id'], 
+                str(client.id), 
+                client_email, 
+                enabled,
+                client.expiry_time
+            )
+            if panel_success:
+                logger.info(f"Successfully updated enabled status for client '{client_email}' via panel endpoint.")
+            else:
+                logger.warning(f"Panel endpoint update failed for '{client_email}', but API updates succeeded.")
+        except Exception as e:
+            logger.warning(f"Panel endpoint update failed for '{client_email}': {e}, but API updates succeeded.")
+        
+        logger.info(f"Successfully updated enabled status for client '{client_email}' on host '{host_name}' to {enabled}.")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to update enabled status for client '{client_email}' on host '{host_name}': {e}", exc_info=True)
+        return False
+

@@ -37,6 +37,7 @@
 						<th>Осталось</th>
 						<th title="Общее&#10;Использовано&#10;Остаток">Трафик</th>
 						<th>Статус</th>
+						<th>Вкл</th>
 						<th>Ключ</th>
 						<th>3x-ui</th>
 					</tr>
@@ -54,6 +55,17 @@
 										<i class="fas fa-sync-alt"></i>
 										<span>Обновить из 3x-ui</span>
 									</button>
+									{% if key.enabled %}
+									<button class="kebab-item" onclick="closeKebabMenu('kebab-key-{{ key.key_id }}'); toggleKeyEnabled({{ key.key_id }}, false)" title="Отключить ключ">
+										<i class="fas fa-toggle-off"></i>
+										<span>Отключить</span>
+									</button>
+									{% else %}
+									<button class="kebab-item" onclick="closeKebabMenu('kebab-key-{{ key.key_id }}'); toggleKeyEnabled({{ key.key_id }}, true)" title="Включить ключ">
+										<i class="fas fa-toggle-on"></i>
+										<span>Включить</span>
+									</button>
+									{% endif %}
 								</div>
 							</div>
 						</td>
@@ -77,10 +89,22 @@
 							</div>
 						</td>
 						<td>{{ key.host_name }}</td>
-						<td>{{ key.plan_name or 'N/A' }}</td>
+						<td>
+							{% if key.is_trial == 1 %}
+								Триал
+							{% else %}
+								{{ key.plan_name or 'N/A' }}
+							{% endif %}
+						</td>
 						<td>{{ key.price or 'N/A' }} RUB</td>
 						<td>{{ key.protocol or 'vless' }}</td>
-						<td>{{ key.is_trial or 0 }}</td>
+						<td>
+							{% if key.is_trial == 1 %}
+								<span class="status-badge status-active">Да</span>
+							{% else %}
+								<span class="status-badge status-banned">Нет</span>
+							{% endif %}
+						</td>
 						<td>
 							{% if key.created_date %}
 								{{ key.created_date.strftime('%Y-%m-%d') }}<br/>{{ key.created_date.strftime('%H:%M:%S') }}
@@ -137,10 +161,17 @@
 						</td>
 						<td>{{ key.status or 'N/A' }}</td>
 						<td>
+							{% if key.enabled %}
+								<span class="status-badge status-active" title="Ключ включен">Вкл</span>
+							{% else %}
+								<span class="status-badge status-banned" title="Ключ отключен">Выкл</span>
+							{% endif %}
+						</td>
+						<td>
 							{% if key.connection_string %}
 								<div class="key-cell">
 									<span class="key-text" title="{{ key.connection_string }}">{{ key.connection_string[:50] }}{% if key.connection_string|length > 50 %}...{% endif %}</span>
-									<button class="copy-btn" data-size="xs" onclick="copyKey({{ key.connection_string|tojson }})" title="Копировать ключ подключения">
+									<button class="copy-btn" data-size="xs" onclick="copyKey('{{ key.connection_string|replace("'", "\\'") }}')" title="Копировать ключ подключения">
 										<i class="fas fa-copy"></i>
 									</button>
 								</div>
@@ -152,7 +183,7 @@
 							{% if key.key_email %}
 								<div class="key-cell">
 									<span class="key-text" title="{{ key.key_email }}">{{ key.key_email }}</span>
-									<button class="copy-btn" data-size="xs" onclick="copyKey({{ key.key_email|tojson }})" title="Копировать email ключа">
+									<button class="copy-btn" data-size="xs" onclick="copyKey('{{ key.key_email|replace("'", "\\'") }}')" title="Копировать email ключа">
 										<i class="fas fa-copy"></i>
 									</button>
 								</div>
@@ -524,29 +555,75 @@ function closeSyncErrorsModal() {
 
 // Функция для копирования ключа
 function copyKey(key) {
-	navigator.clipboard.writeText(key).then(() => {
-		const notification = document.createElement('div');
-		notification.textContent = 'Ключ скопирован!';
-		notification.style.cssText = `
-			position: fixed;
-			top: 20px;
-			right: 20px;
-			background: #28a745;
-			color: white;
-			padding: 10px 20px;
-			border-radius: 5px;
-			z-index: 1000;
-			font-size: 14px;
-		`;
-		document.body.appendChild(notification);
-		
-		setTimeout(() => {
+	// Проверяем доступность Clipboard API
+	if (navigator.clipboard && window.isSecureContext) {
+		// Используем современный Clipboard API
+		navigator.clipboard.writeText(key).then(() => {
+			showCopyNotification('Ключ скопирован!');
+		}).catch(err => {
+			console.error('Ошибка копирования через Clipboard API: ', err);
+			// Fallback к старому методу
+			fallbackCopyTextToClipboard(key);
+		});
+	} else {
+		// Fallback для старых браузеров или небезопасного контекста
+		fallbackCopyTextToClipboard(key);
+	}
+}
+
+// Fallback функция для копирования текста
+function fallbackCopyTextToClipboard(text) {
+	const textArea = document.createElement("textarea");
+	textArea.value = text;
+	
+	// Избегаем прокрутки к элементу
+	textArea.style.top = "0";
+	textArea.style.left = "0";
+	textArea.style.position = "fixed";
+	textArea.style.opacity = "0";
+	
+	document.body.appendChild(textArea);
+	textArea.focus();
+	textArea.select();
+	
+	try {
+		const successful = document.execCommand('copy');
+		if (successful) {
+			showCopyNotification('Ключ скопирован!');
+		} else {
+			showCopyNotification('Не удалось скопировать ключ', 'error');
+		}
+	} catch (err) {
+		console.error('Ошибка fallback копирования: ', err);
+		showCopyNotification('Не удалось скопировать ключ', 'error');
+	}
+	
+	document.body.removeChild(textArea);
+}
+
+// Функция для показа уведомления о копировании
+function showCopyNotification(message, type = 'success') {
+	const notification = document.createElement('div');
+	notification.textContent = message;
+	notification.style.cssText = `
+		position: fixed;
+		top: 20px;
+		right: 20px;
+		background: ${type === 'error' ? '#dc3545' : '#28a745'};
+		color: white;
+		padding: 10px 20px;
+		border-radius: 5px;
+		z-index: 10000;
+		font-size: 14px;
+		box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+	`;
+	document.body.appendChild(notification);
+	
+	setTimeout(() => {
+		if (notification.parentNode) {
 			document.body.removeChild(notification);
-		}, 2000);
-	}).catch(err => {
-		console.error('Ошибка копирования: ', err);
-		alert('Не удалось скопировать ключ');
-	});
+		}
+	}, 2000);
 }
 
 // Функции для работы с меню ключей теперь обрабатываются глобально в script.js
@@ -686,6 +763,55 @@ function executeHostRefresh() {
 	.finally(() => {
 		executeBtn.disabled = false;
 		executeBtn.innerHTML = '<i class="fas fa-sync-alt"></i><span>Выполнить запрос</span>';
+	});
+}
+
+// Функция для переключения статуса включения/отключения ключа
+function toggleKeyEnabled(keyId, enabled) {
+	const action = enabled ? 'включение' : 'отключение';
+	
+	// Показываем подтверждение
+	if (!confirm(`Вы уверены, что хотите ${enabled ? 'включить' : 'отключить'} этот ключ?`)) {
+		return;
+	}
+	
+	// Показываем индикатор загрузки
+	const button = event.target.closest('button');
+	const originalContent = button.innerHTML;
+	button.disabled = true;
+	button.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Обработка...</span>';
+	
+	// Отправляем запрос
+	fetch('/api/toggle-key-enabled', {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			key_id: keyId,
+			enabled: enabled
+		})
+	})
+	.then(response => response.json())
+	.then(data => {
+		if (data.success) {
+			// Показываем уведомление об успехе
+			showCopyNotification(data.message, 'success');
+			// Обновляем страницу через небольшую задержку
+			setTimeout(() => {
+				location.reload();
+			}, 1500);
+		} else {
+			showCopyNotification('Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+			button.disabled = false;
+			button.innerHTML = originalContent;
+		}
+	})
+	.catch(error => {
+		console.error('Ошибка:', error);
+		showCopyNotification('Ошибка соединения при ' + action + ' ключа', 'error');
+		button.disabled = false;
+		button.innerHTML = originalContent;
 	});
 }
 

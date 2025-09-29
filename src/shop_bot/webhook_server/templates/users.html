@@ -7,6 +7,10 @@
 	<i class="fas fa-plus-circle"></i>
 	Пополнить баланс
 </button>
+<button class="button button-warning" data-size="sm" onclick="openTrialResetModal()" title="Сбросить триал пользователя">
+	<i class="fas fa-redo"></i>
+	Сбросить триал
+</button>
 {% endblock %}
 
 {% block content %}
@@ -25,6 +29,7 @@
 					<th>Каналы</th>
 					<th>Ключи</th>
 					<th title="Количество уведомлений, отправленных пользователю">Уведомления</th>
+					<th title="Исп-дней-повтор">Триал</th>
 					<th>Баланс</th>
 					<th>Заработано</th>
 				</tr>
@@ -75,6 +80,14 @@
 									<i class="fas fa-plus-circle"></i>
 									<span>Пополнить баланс</span>
 								</button>
+								{% if user.trial_used %}
+								<form action="{{ url_for('reset_trial_route', user_id=user.telegram_id) }}" method="post" data-confirm="Вы уверены, что хотите разрешить повторное использование триала?">
+									<button type="submit" class="kebab-item" onclick="closeKebabMenu('kebab-user-{{ user.telegram_id }}')" title="Разрешить повторное использование пробного периода">
+										<i class="fas fa-redo"></i>
+										<span>Повторный триал</span>
+									</button>
+								</form>
+								{% endif %}
 							</div>
 						</div>
 					</td>
@@ -118,6 +131,9 @@
                     <td>
                         {{ user.notifications_count or 0 }}
                     </td>
+					<td title="Исп-дней-повтор">
+						{{ (user.trial_used or 0) }}-{{ (user.trial_days_given or 0) }}-{{ (user.trial_reuses_count or 0) }}
+					</td>
 					<td class="user-balance" data-user-id="{{ user.telegram_id }}">
 						{{ hidden_mode and '*** RUB' or ('%0.2f RUB'|format((user.balance or 0))) }}
 					</td>
@@ -158,6 +174,71 @@
 			</button>
 			<button type="button" class="button button-primary" onclick="submitTopupBalance()" title="Сохранить пополнение баланса">
 				Сохранить
+			</button>
+		</div>
+	</div>
+</div>
+
+<!-- Модальное окно для сброса триала -->
+<div id="trialResetModal" class="modal" style="display: none;">
+	<div class="modal-content">
+		<div class="modal-header">
+			<h3>Сбросить триал пользователя</h3>
+			<span class="close" onclick="closeTrialResetModal()" title="Закрыть окно">&times;</span>
+		</div>
+		<div class="modal-body">
+			<div class="form-description">
+				Эта функция полностью сбрасывает всю информацию о триале пользователя, 
+				будто он никогда не использовал пробный период. Пользователь сможет 
+				заново получить триал.
+			</div>
+			
+			<form id="trialResetForm">
+				<div class="form-group">
+					<label for="trialResetUserSearch">Пользователь:</label>
+					<input type="text" id="trialResetUserSearch" placeholder="Введите Telegram ID или username для поиска" title="Введите Telegram ID или username для поиска" oninput="debouncedUserSearch(this.value, 'trialReset')">
+					<div id="trialResetUserSuggestions" class="suggestions"></div>
+					<input type="hidden" id="trialResetSelectedUserId">
+					<div id="trialResetSelectedUserLabel" class="selected-user-label"></div>
+				</div>
+				
+				<div class="form-group">
+					<label class="checkbox-label">
+						<input 
+							type="checkbox" 
+							id="confirmTrialReset" 
+							required
+							title="Подтвердите, что понимаете последствия сброса триала"
+						>
+						<span class="checkbox-text">
+							Я понимаю, что это действие полностью сбросит всю информацию о триале пользователя
+						</span>
+					</label>
+				</div>
+			</form>
+			
+			<div class="info-panel">
+				<h4>Что происходит при сбросе триала:</h4>
+				<ul>
+					<li>Сбрасывается флаг использования триала (trial_used = 0)</li>
+					<li>Обнуляется количество выданных дней триала (trial_days_given = 0)</li>
+					<li>Обнуляется счетчик повторных использований (trial_reuses_count = 0)</li>
+					<li>Пользователь сможет заново получить пробный период</li>
+				</ul>
+				
+				<div class="warning-box">
+					<i class="fas fa-exclamation-triangle"></i>
+					<strong>Внимание:</strong> Это действие необратимо. Убедитесь, что вы выбрали правильного пользователя.
+				</div>
+			</div>
+		</div>
+		<div class="modal-footer">
+			<button type="button" class="button button-secondary" onclick="closeTrialResetModal()" title="Отменить сброс триала">
+				Отменить
+			</button>
+			<button type="button" class="button button-danger" onclick="submitTrialReset()" id="submitTrialResetButton" title="Выполнить сброс триала" disabled>
+				<i class="fas fa-exclamation-triangle"></i>
+				Сбросить триал
 			</button>
 		</div>
 	</div>

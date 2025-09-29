@@ -18,6 +18,7 @@ def get_main_reply_keyboard(is_admin: bool = False) -> ReplyKeyboardMarkup:
     """Возвращает актуальную Reply-клавиатуру без пункта "Главное меню".
     Пункт "Реферальная программа" отображается только при включенной настройке.
     Пункт "Админ-панель" отображается только для администраторов.
+    Пункт "Пробный период" отображается только при включенной настройке.
     """
     rows = []
     # Первая строка: Купить VPN
@@ -29,7 +30,12 @@ def get_main_reply_keyboard(is_admin: bool = False) -> ReplyKeyboardMarkup:
     # Третья строка: Помощь и поддержка
     rows.append([KeyboardButton(text="⁉️ Помощь и поддержка")])
 
-    # Четвертая строка: Админ-панель (только для администраторов)
+    # Четвертая строка: Пробный период (только если включен в настройках)
+    trial_enabled = get_setting("trial_enabled")
+    if trial_enabled == "true":
+        rows.append([KeyboardButton(text="🆓 Пробный период")])
+
+    # Пятая строка: Админ-панель (только для администраторов)
     if is_admin:
         rows.append([KeyboardButton(text="⚙️ Админ-панель")])
 
@@ -116,7 +122,16 @@ def create_admin_panel_keyboard() -> InlineKeyboardMarkup:
     """Создает клавиатуру админ-панели"""
     builder = InlineKeyboardBuilder()
     builder.button(text="📢 Рассылка", callback_data="start_broadcast")
+    builder.button(text="🔄 Сбросить триал", callback_data="admin_reset_trial")
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
+    builder.adjust(1)
+    return builder.as_markup()
+
+def create_trial_reset_keyboard() -> InlineKeyboardMarkup:
+    """Создает клавиатуру для сброса триала"""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="✅ Подтвердить сброс", callback_data="confirm_trial_reset")
+    builder.button(text="❌ Отмена", callback_data="cancel_trial_reset")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -186,11 +201,15 @@ def create_skip_email_keyboard() -> InlineKeyboardMarkup:
     builder.adjust(1)
     return builder.as_markup()
 
-def create_payment_method_keyboard(payment_methods: dict, action: str, key_id: int, user_balance: float | None = None) -> InlineKeyboardMarkup:
+def create_payment_method_keyboard(payment_methods: dict | None, action: str, key_id: int, user_balance: float | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     # Предлагаем оплату с внутреннего баланса первой кнопкой
     balance_suffix = f" {user_balance:.2f} RUB" if isinstance(user_balance, (int, float)) else ""
     builder.button(text=f"💰 С баланса{balance_suffix}", callback_data="pay_balance")
+    
+    # Если payment_methods не передан, используем пустой словарь
+    if payment_methods is None:
+        payment_methods = {}
 
     if payment_methods and payment_methods.get("yookassa"):
         if get_setting("sbp_enabled"):
@@ -232,7 +251,15 @@ def create_keys_management_keyboard(keys: list) -> InlineKeyboardMarkup:
     if keys:
         for i, key in enumerate(keys):
             expiry_date = datetime.fromisoformat(key['expiry_date'])
-            status_icon = "✅" if expiry_date > datetime.now() else "❌"
+            # Используем статус из базы данных, если доступен, иначе определяем по дате
+            status = key.get('status')
+            if status:
+                from shop_bot.config import get_status_icon_and_text
+                status_icon, _ = get_status_icon_and_text(status)
+            else:
+                # Fallback на старую логику, если статус не определен
+                status_icon = "✅" if expiry_date > datetime.now() else "❌"
+            
             host_name = key.get('host_name', 'Неизвестный хост')
             button_text = f"{status_icon} Ключ #{i+1} ({host_name}) (до {expiry_date.strftime('%d.%m.%Y')})"
             builder.button(text=button_text, callback_data=f"show_key_{key['key_id']}")
@@ -243,9 +270,9 @@ def create_keys_management_keyboard(keys: list) -> InlineKeyboardMarkup:
 
 def create_key_info_keyboard(key_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="📑 Скопировать ключ", callback_data=f"copy_key_{key_id}")
-    builder.button(text="📱 Сканировать QR ключа", callback_data=f"show_qr_{key_id}")
     builder.button(text="🔄 Продлить этот ключ", callback_data=f"extend_key_{key_id}")
+    builder.button(text="📑 Скопировать ключ", callback_data=f"copy_key_{key_id}")    
+    builder.button(text="📱 Сканировать QR ключа", callback_data=f"show_qr_{key_id}")
     builder.button(text="❓ Инструкция как пользоваться", callback_data=f"howto_vless_{key_id}")
     builder.button(text="⬅️ Назад к списку ключей", callback_data="manage_keys")
     builder.adjust(1, 2, 1, 1)

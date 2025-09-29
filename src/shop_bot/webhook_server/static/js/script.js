@@ -1,3 +1,76 @@
+// Глобальная функция для копирования текста в буфер обмена
+function copyKey(key) {
+	// Проверяем доступность Clipboard API
+	if (navigator.clipboard && window.isSecureContext) {
+		// Используем современный Clipboard API
+		navigator.clipboard.writeText(key).then(() => {
+			showCopyNotification('Ключ скопирован!');
+		}).catch(err => {
+			console.error('Ошибка копирования через Clipboard API: ', err);
+			// Fallback к старому методу
+			fallbackCopyTextToClipboard(key);
+		});
+	} else {
+		// Fallback для старых браузеров или небезопасного контекста
+		fallbackCopyTextToClipboard(key);
+	}
+}
+
+// Fallback функция для копирования текста
+function fallbackCopyTextToClipboard(text) {
+	const textArea = document.createElement("textarea");
+	textArea.value = text;
+	
+	// Избегаем прокрутки к элементу
+	textArea.style.top = "0";
+	textArea.style.left = "0";
+	textArea.style.position = "fixed";
+	textArea.style.opacity = "0";
+	
+	document.body.appendChild(textArea);
+	textArea.focus();
+	textArea.select();
+	
+	try {
+		const successful = document.execCommand('copy');
+		if (successful) {
+			showCopyNotification('Ключ скопирован!');
+		} else {
+			showCopyNotification('Не удалось скопировать ключ', 'error');
+		}
+	} catch (err) {
+		console.error('Ошибка fallback копирования: ', err);
+		showCopyNotification('Не удалось скопировать ключ', 'error');
+	}
+	
+	document.body.removeChild(textArea);
+}
+
+// Функция для показа уведомления о копировании
+function showCopyNotification(message, type = 'success') {
+	const notification = document.createElement('div');
+	notification.textContent = message;
+	notification.style.cssText = `
+		position: fixed;
+		top: 20px;
+		right: 20px;
+		background: ${type === 'error' ? '#dc3545' : '#28a745'};
+		color: white;
+		padding: 10px 20px;
+		border-radius: 5px;
+		z-index: 10000;
+		font-size: 14px;
+		box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+	`;
+	document.body.appendChild(notification);
+	
+	setTimeout(() => {
+		if (notification.parentNode) {
+			document.body.removeChild(notification);
+		}
+	}, 2000);
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     // Закрытие flash-уведомлений по клику на крестик
     document.body.addEventListener('click', function (event) {
@@ -537,6 +610,7 @@ document.addEventListener('DOMContentLoaded', function () {
 	initializeUsersTableInteractions()
 	initializeTransactionsTableInteractions()
 	initializeTopupBalanceModal()
+	initializeTrialResetModal()
 	
 	// Кебаб-меню теперь закрываются автоматически через CSS при потере hover/focus
 	
@@ -673,6 +747,11 @@ async function searchUsers(query, context) {
         label = document.getElementById('topupSelectedUserLabel')
         selectedId = document.getElementById('topupSelectedUserId')
         input = document.getElementById('topupUserSearch')
+    } else if (context === 'trialReset') {
+        sugg = document.getElementById('trialResetUserSuggestions')
+        label = document.getElementById('trialResetSelectedUserLabel')
+        selectedId = document.getElementById('trialResetSelectedUserId')
+        input = document.getElementById('trialResetUserSearch')
     } else {
         console.error('Неизвестный контекст поиска:', context)
         return
@@ -1138,15 +1217,16 @@ async function loadUserKeys(userId) {
 		if (data.keys && data.keys.length > 0) {
 			data.keys.forEach(key => {
 				const row = document.createElement('tr')
+				const planName = key.is_trial == 1 ? 'Триал' : (key.plan_name || 'N/A')
 				row.innerHTML = `
 					<td>${key.key_id}</td>
 					<td>${key.host_name || 'N/A'}</td>
-					<td>${key.plan_name || 'N/A'}</td>
+					<td>${planName}</td>
 					<td>
 						${key.connection_string ? 
 							`<div class="key-cell">
 								<span class="key-text" title="${key.connection_string}">${key.connection_string.substring(0, 30)}...</span>
-								<button class="copy-btn" onclick="copyKey('${key.connection_string}')" title="Копировать ключ">📋</button>
+								<button class="copy-btn" onclick="copyKey('${key.connection_string.replace(/'/g, "\\'")}')" title="Копировать ключ">📋</button>
 							</div>` : 
 							'-'
 						}
@@ -1562,3 +1642,129 @@ document.addEventListener('click', function(event) {
         });
     }
 });
+
+// Функции для модального окна сброса триала
+function initializeTrialResetModal() {
+    // Закрытие по клику вне окна
+    window.addEventListener('click', function (event) {
+        const modal = document.getElementById('trialResetModal');
+        if (!modal) return;
+        if (event.target === modal) {
+            closeTrialResetModal();
+        }
+    });
+    
+    // Валидация формы
+    const confirmCheckbox = document.getElementById('confirmTrialReset');
+    const submitButton = document.getElementById('submitTrialResetButton');
+    const userSearchInput = document.getElementById('trialResetUserSearch');
+    
+    function validateTrialResetForm() {
+        const selectedUserId = document.getElementById('trialResetSelectedUserId');
+        const isConfirmed = confirmCheckbox && confirmCheckbox.checked;
+        
+        if (selectedUserId && selectedUserId.value && isConfirmed) {
+            submitButton.disabled = false;
+        } else {
+            submitButton.disabled = true;
+        }
+    }
+    
+    // Обработчики событий
+    if (confirmCheckbox) {
+        confirmCheckbox.addEventListener('change', validateTrialResetForm);
+    }
+    if (userSearchInput) {
+        userSearchInput.addEventListener('input', validateTrialResetForm);
+    }
+}
+
+function openTrialResetModal(userId = null, username = null) {
+    const modal = document.getElementById('trialResetModal');
+    if (modal) {
+        // Сброс полей
+        const input = document.getElementById('trialResetUserSearch');
+        const selectedId = document.getElementById('trialResetSelectedUserId');
+        const label = document.getElementById('trialResetSelectedUserLabel');
+        const sugg = document.getElementById('trialResetUserSuggestions');
+        const confirmCheckbox = document.getElementById('confirmTrialReset');
+        const submitButton = document.getElementById('submitTrialResetButton');
+        
+        if (input) input.value = '';
+        if (selectedId) selectedId.value = '';
+        if (label) {
+            label.textContent = '';
+            label.style.display = 'none';
+        }
+        if (sugg) {
+            sugg.innerHTML = '';
+            sugg.style.display = 'none';
+        }
+        if (confirmCheckbox) confirmCheckbox.checked = false;
+        if (submitButton) submitButton.disabled = true;
+        
+        // Если передан userId, заполняем поля
+        if (userId && username) {
+            if (selectedId) selectedId.value = String(userId);
+            if (label) {
+                label.textContent = `Выбрано: ${userId} · @${username}`;
+                label.style.display = 'block';
+            }
+            if (input) input.value = `${userId} · @${username}`;
+        }
+        
+        modal.style.display = 'flex';
+    }
+}
+
+function closeTrialResetModal() {
+    const modal = document.getElementById('trialResetModal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function submitTrialReset() {
+    const userIdEl = document.getElementById('trialResetSelectedUserId');
+    const confirmCheckbox = document.getElementById('confirmTrialReset');
+    const submitButton = document.getElementById('submitTrialResetButton');
+    
+    const userId = userIdEl && userIdEl.value ? parseInt(userIdEl.value) : null;
+    const isConfirmed = confirmCheckbox && confirmCheckbox.checked;
+    
+    if (!userId || !isConfirmed) {
+        alert('Выберите пользователя и подтвердите действие');
+        return;
+    }
+    
+    // Финальное подтверждение
+    if (!confirm(`Вы уверены, что хотите сбросить триал для пользователя ${userId}?\n\nЭто действие необратимо!`)) {
+        return;
+    }
+    
+    try {
+        // Блокируем кнопку отправки
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Выполняется...';
+        
+        const resp = await fetch('/admin/trial-reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ telegram_id: userId })
+        });
+        
+        const data = await resp.json();
+        if (resp.ok) {
+            alert(data.message || 'Триал пользователя успешно сброшен');
+            closeTrialResetModal();
+            // Перезагрузим страницу, чтобы увидеть изменения
+            window.location.reload();
+        } else {
+            alert(data.message || 'Ошибка сброса триала');
+        }
+    } catch (e) {
+        alert('Ошибка сброса триала');
+    } finally {
+        // Восстанавливаем кнопку
+        submitButton.disabled = false;
+        submitButton.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Сбросить триал';
+    }
+}

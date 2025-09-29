@@ -28,14 +28,31 @@ def get_vpn_active_text(days_left, hours_left):
         f"⏳ <b>Осталось:</b> {days_left} д. {hours_left} ч."
     )
 
-def get_key_info_text(key_number, expiry_date, created_date, connection_string):
+def get_status_icon_and_text(status: str) -> tuple[str, str]:
+    """Возвращает иконку и русское название статуса ключа"""
+    status_mapping = {
+        'trial-active': ('✅', 'Пробный активный'),
+        'trial-ended': ('❌', 'Пробный закончился'),
+        'pay-active': ('✅', 'Платный активный'),
+        'pay-ended': ('❌', 'Платный закончился'),
+        'deactivate': ('❌', 'Деактивирован')
+    }
+    
+    icon, text = status_mapping.get(status, ('❓', 'Неизвестный статус'))
+    return icon, text
+
+def get_key_info_text(key_number, expiry_date, created_date, connection_string, status: str | None = None):
     expiry_formatted = expiry_date.strftime('%d.%m.%Y в %H:%M')
     created_formatted = created_date.strftime('%d.%m.%Y в %H:%M')
+    
+    # Определяем иконку и текст статуса
+    status_icon, status_text = get_status_icon_and_text(status) if status else ('❓', 'Статус неизвестен')
     
     return (
         f"<b>🔑 Информация о ключе #{key_number}</b>\n\n"
         f"<b>➕ Приобретён:</b> {created_formatted}\n"
-        f"<b>⏳ Действителен до:</b> {expiry_formatted}\n\n"
+        f"<b>⏳ Действителен до:</b> {expiry_formatted}\n"
+        f"<b>{status_icon} Статус:</b> {status_text}\n\n"
 
         f"                    ⬇️ <b>НИЖЕ ВАШ КЛЮЧ</b> ⬇️\n"
         f"------------------------------------------------------------------------\n"

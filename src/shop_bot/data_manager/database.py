@@ -11,7 +11,15 @@ import json
 
 logger = logging.getLogger(__name__)
 
-PROJECT_ROOT = Path("/app/project")
+# Определяем путь к базе данных в зависимости от окружения
+import os
+if os.path.exists("/app/project"):
+    # Docker окружение
+    PROJECT_ROOT = Path("/app/project")
+else:
+    # Локальная разработка
+    PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+
 DB_FILE = PROJECT_ROOT / "users.db"
 
 def initialize_db():
@@ -21,11 +29,11 @@ def initialize_db():
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS users (
                     telegram_id INTEGER PRIMARY KEY, username TEXT, total_spent REAL DEFAULT 0,
-                    total_months INTEGER DEFAULT 0, trial_used BOOLEAN DEFAULT 0,
-                    agreed_to_terms BOOLEAN DEFAULT 0,
-                    agreed_to_documents BOOLEAN DEFAULT 0,
+                    total_months INTEGER DEFAULT 0, trial_used INTEGER DEFAULT 0,
+                    agreed_to_terms INTEGER DEFAULT 0,
+                    agreed_to_documents INTEGER DEFAULT 0,
                     registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    is_banned BOOLEAN DEFAULT 0,
+                    is_banned INTEGER DEFAULT 0,
                     referred_by INTEGER,
                     referral_balance REAL DEFAULT 0,
                     referral_balance_all REAL DEFAULT 0,
@@ -149,12 +157,65 @@ def initialize_db():
                 "ton_manifest_privacy_url": "https://paris.dark-maximus.com/privacy",
             }
             run_migration()
+            
+            # Создание индексов для оптимизации производительности
+            create_database_indexes(cursor)
+            
             for key, value in default_settings.items():
                 cursor.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", (key, value))
             conn.commit()
             logging.info("Database initialized successfully.")
     except sqlite3.Error as e:
         logging.error(f"Database error on initialization: {e}")
+
+def create_database_indexes(cursor):
+    """Создает индексы для оптимизации производительности базы данных"""
+    try:
+        # Индексы для таблицы users
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_is_banned ON users(is_banned)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_referred_by ON users(referred_by)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_registration_date ON users(registration_date)")
+        
+        # Индексы для таблицы vpn_keys
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_vpn_keys_user_id ON vpn_keys(user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_vpn_keys_key_email ON vpn_keys(key_email)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_vpn_keys_host_name ON vpn_keys(host_name)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_vpn_keys_expiry_date ON vpn_keys(expiry_date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_vpn_keys_is_trial ON vpn_keys(is_trial)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_vpn_keys_status ON vpn_keys(status)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_vpn_keys_enabled ON vpn_keys(enabled)")
+        
+        # Индексы для таблицы transactions
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_transactions_payment_id ON transactions(payment_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_transactions_created_date ON transactions(created_date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_transactions_payment_method ON transactions(payment_method)")
+        
+        # Индексы для таблицы notifications
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_notifications_created_date ON notifications(created_date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_notifications_key_id ON notifications(key_id)")
+        
+        # Индексы для таблицы xui_hosts
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_xui_hosts_host_name ON xui_hosts(host_name)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_xui_hosts_host_code ON xui_hosts(host_code)")
+        
+        # Индексы для таблицы plans
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_plans_host_name ON plans(host_name)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_plans_plan_id ON plans(plan_id)")
+        
+        # Индексы для таблицы support_threads
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_support_threads_user_id ON support_threads(user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_support_threads_thread_id ON support_threads(thread_id)")
+        
+        logging.info("Database indexes created successfully.")
+    except sqlite3.Error as e:
+        logging.error(f"Error creating database indexes: {e}")
 
 def run_migration():
     if not DB_FILE.exists():
@@ -250,6 +311,18 @@ def run_migration():
             logging.info(" -> The column 'created_date' is successfully added.")
         else:
             logging.info(" -> The column 'created_date' already exists.")
+            
+        if 'trial_days_given' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN trial_days_given INTEGER DEFAULT 0")
+            logging.info(" -> The column 'trial_days_given' is successfully added.")
+        else:
+            logging.info(" -> The column 'trial_days_given' already exists.")
+            
+        if 'trial_reuses_count' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN trial_reuses_count INTEGER DEFAULT 0")
+            logging.info(" -> The column 'trial_reuses_count' is successfully added.")
+        else:
+            logging.info(" -> The column 'trial_reuses_count' already exists.")
         
         logging.info("The table 'users' has been successfully updated.")
 
@@ -305,6 +378,12 @@ def run_migration():
             logging.info(" -> The column 'start_date' is successfully added to vpn_keys table.")
         else:
             logging.info(" -> The column 'start_date' already exists in vpn_keys table.")
+            
+        if 'enabled' not in vpn_keys_columns:
+            cursor.execute("ALTER TABLE vpn_keys ADD COLUMN enabled INTEGER DEFAULT 1")
+            logging.info(" -> The column 'enabled' is successfully added to vpn_keys table.")
+        else:
+            logging.info(" -> The column 'enabled' already exists in vpn_keys table.")
         
         logging.info("The table 'vpn_keys' has been successfully updated.")
 
@@ -749,13 +828,14 @@ def add_to_user_balance(user_id: int, amount: float) -> bool:
         logging.error(f"Failed to add {amount} to balance for user {user_id}: {e}")
         return False
 
-def set_terms_agreed(telegram_id: int):
+def set_terms_agreed(telegram_id: int, agreed: bool = True):
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
-            cursor.execute("UPDATE users SET agreed_to_terms = 1 WHERE telegram_id = ?", (telegram_id,))
+            cursor.execute("UPDATE users SET agreed_to_terms = ? WHERE telegram_id = ?", (1 if agreed else 0, telegram_id))
             conn.commit()
-            logging.info(f"User {telegram_id} has agreed to terms.")
+            action = "agreed to" if agreed else "revoked agreement to"
+            logging.info(f"User {telegram_id} has {action} terms.")
     except sqlite3.Error as e:
         logging.error(f"Failed to set terms agreed for user {telegram_id}: {e}")
 
@@ -805,7 +885,9 @@ def get_user_count() -> int:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM users")
-            return cursor.fetchone()[0] or 0
+            result = cursor.fetchone()[0]
+            logging.info(f"User count retrieved: {result}")
+            return result or 0
     except sqlite3.Error as e:
         logging.error(f"Failed to get user count: {e}")
         return 0
@@ -815,7 +897,9 @@ def get_total_keys_count() -> int:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM vpn_keys")
-            return cursor.fetchone()[0] or 0
+            result = cursor.fetchone()[0]
+            logging.info(f"Total keys count retrieved: {result}")
+            return result or 0
     except sqlite3.Error as e:
         logging.error(f"Failed to get total keys count: {e}")
         return 0
@@ -835,10 +919,25 @@ def get_total_notifications_count() -> int:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM notifications")
-            return cursor.fetchone()[0] or 0
+            result = cursor.fetchone()[0]
+            logging.info(f"Total notifications count retrieved: {result}")
+            return result or 0
     except sqlite3.Error as e:
         logging.error(f"Failed to get total notifications count: {e}")
         return 0
+
+def get_total_earned_sum() -> float:
+    """Возвращает общую сумму заработанных средств из успешных транзакций"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT SUM(amount_rub) FROM transactions WHERE status = 'completed'")
+            result = cursor.fetchone()[0]
+            logging.info(f"Total earned sum retrieved: {result}")
+            return result or 0.0
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get total earned sum: {e}")
+        return 0.0
 
 def create_pending_transaction(payment_id: str, user_id: int, amount_rub: float, metadata: dict) -> int:
     try:
@@ -858,7 +957,7 @@ def create_pending_transaction(payment_id: str, user_id: int, amount_rub: float,
         logging.error(f"Failed to create pending transaction: {e}")
         return 0
 
-def create_pending_ton_transaction(payment_id: str, user_id: int, amount_rub: float, amount_ton: float, metadata: dict, payment_link: str = None) -> int:
+def create_pending_ton_transaction(payment_id: str, user_id: int, amount_rub: float, amount_ton: float, metadata: dict, payment_link: str | None = None) -> int:
     """Создает pending транзакцию для TON платежей"""
     try:
         with sqlite3.connect(DB_FILE) as conn:
@@ -917,7 +1016,7 @@ def update_transaction_status(payment_id: str, status: str, tx_hash: str = None)
         logging.error(f"Failed to update transaction status: {e}")
         return False
 
-def update_transaction_on_payment(payment_id: str, status: str, amount_rub: float, tx_hash: str = None, metadata: dict = None) -> bool:
+def update_transaction_on_payment(payment_id: str, status: str, amount_rub: float, tx_hash: str | None = None, metadata: dict | None = None) -> bool:
     """Обновляет транзакцию при успешной оплате"""
     try:
         with sqlite3.connect(DB_FILE) as conn:
@@ -1129,6 +1228,104 @@ def set_trial_used(telegram_id: int):
     except sqlite3.Error as e:
         logging.error(f"Failed to set trial used for user {telegram_id}: {e}")
 
+def set_trial_days_given(telegram_id: int, days: int):
+    """Устанавливает количество дней, выданных по пробному ключу"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET trial_days_given = ? WHERE telegram_id = ?", (days, telegram_id))
+            conn.commit()
+            logging.info(f"Trial days set to {days} for user {telegram_id}.")
+    except sqlite3.Error as e:
+        logging.error(f"Failed to set trial days for user {telegram_id}: {e}")
+
+def increment_trial_reuses(telegram_id: int):
+    """Увеличивает счетчик повторных использований триала"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET trial_reuses_count = trial_reuses_count + 1 WHERE telegram_id = ?", (telegram_id,))
+            conn.commit()
+            logging.info(f"Trial reuses count incremented for user {telegram_id}.")
+    except sqlite3.Error as e:
+        logging.error(f"Failed to increment trial reuses for user {telegram_id}: {e}")
+
+def reset_trial_used(telegram_id: int):
+    """Сбрасывает флаг использования триала (для повторного использования)"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET trial_used = 0 WHERE telegram_id = ?", (telegram_id,))
+            conn.commit()
+            logging.info(f"Trial used flag reset for user {telegram_id}.")
+    except sqlite3.Error as e:
+        logging.error(f"Failed to reset trial used for user {telegram_id}: {e}")
+
+def admin_reset_trial_completely(telegram_id: int):
+    """Полностью сбрасывает всю информацию о триале пользователя (админская функция)"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            
+            # Проверяем текущее состояние перед сбросом
+            cursor.execute("SELECT trial_used, trial_days_given, trial_reuses_count FROM users WHERE telegram_id = ?", (telegram_id,))
+            before_reset = cursor.fetchone()
+            logging.info(f"Before reset for user {telegram_id}: trial_used={before_reset[0] if before_reset else 'None'}, trial_days_given={before_reset[1] if before_reset else 'None'}, trial_reuses_count={before_reset[2] if before_reset else 'None'}")
+            
+            # Сбрасываем все поля связанные с триалом
+            cursor.execute("""
+                UPDATE users 
+                SET trial_used = 0, 
+                    trial_days_given = 0, 
+                    trial_reuses_count = 0 
+                WHERE telegram_id = ?
+            """, (telegram_id,))
+            
+            # Проверяем количество затронутых строк
+            rows_affected = cursor.rowcount
+            logging.info(f"Users table update affected {rows_affected} rows for user {telegram_id}")
+            
+            # Удаляем все триальные ключи пользователя
+            cursor.execute("""
+                DELETE FROM vpn_keys 
+                WHERE user_id = ? AND is_trial = 1
+            """, (telegram_id,))
+            
+            trial_keys_deleted = cursor.rowcount
+            logging.info(f"Deleted {trial_keys_deleted} trial keys for user {telegram_id}")
+            
+            conn.commit()
+            
+            # Проверяем состояние после сброса
+            cursor.execute("SELECT trial_used, trial_days_given, trial_reuses_count FROM users WHERE telegram_id = ?", (telegram_id,))
+            after_reset = cursor.fetchone()
+            logging.info(f"After reset for user {telegram_id}: trial_used={after_reset[0] if after_reset else 'None'}, trial_days_given={after_reset[1] if after_reset else 'None'}, trial_reuses_count={after_reset[2] if after_reset else 'None'}")
+            
+            logging.info(f"Trial completely reset for user {telegram_id} by admin.")
+            return True
+    except sqlite3.Error as e:
+        logging.error(f"Failed to completely reset trial for user {telegram_id}: {e}")
+        return False
+
+def get_trial_info(telegram_id: int) -> dict:
+    """Получает информацию о триале пользователя"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT trial_used, trial_days_given, trial_reuses_count FROM users WHERE telegram_id = ?", (telegram_id,))
+            result = cursor.fetchone()
+            if result:
+                return {
+                    'trial_used': bool(result['trial_used']),
+                    'trial_days_given': result['trial_days_given'] or 0,
+                    'trial_reuses_count': result['trial_reuses_count'] or 0
+                }
+            return {'trial_used': False, 'trial_days_given': 0, 'trial_reuses_count': 0}
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get trial info for user {telegram_id}: {e}")
+        return {'trial_used': False, 'trial_days_given': 0, 'trial_reuses_count': 0}
+
 def add_new_key(user_id: int, host_name: str, xui_client_uuid: str, key_email: str, expiry_timestamp_ms: int, connection_string: str = None, plan_name: str = None, price: float = None, protocol: str = 'vless', is_trial: int = 0):
     try:
         with sqlite3.connect(DB_FILE) as conn:
@@ -1142,9 +1339,13 @@ def add_new_key(user_id: int, host_name: str, xui_client_uuid: str, key_email: s
             now_ms = int(datetime.now(_tz.utc).timestamp() * 1000)
             remaining_seconds = max(0, int((expiry_timestamp_ms - now_ms) / 1000))
             try:
+                # Для триальных ключей устанавливаем дополнительные поля
+                status = "Актив" if is_trial else None
+                enabled = 1
+                
                 cursor.execute(
-                    "INSERT INTO vpn_keys (user_id, host_name, xui_client_uuid, key_email, expiry_date, connection_string, plan_name, price, created_date, protocol, is_trial, remaining_seconds) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (user_id, host_name, xui_client_uuid, key_email, expiry_date, connection_string, plan_name, price, local_now, protocol, is_trial, remaining_seconds)
+                    "INSERT INTO vpn_keys (user_id, host_name, xui_client_uuid, key_email, expiry_date, connection_string, plan_name, price, created_date, protocol, is_trial, remaining_seconds, status, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (user_id, host_name, xui_client_uuid, key_email, expiry_date, connection_string, plan_name, price, local_now, protocol, is_trial, remaining_seconds, status, enabled)
                 )
                 new_key_id = cursor.lastrowid
                 conn.commit()
@@ -1155,9 +1356,13 @@ def add_new_key(user_id: int, host_name: str, xui_client_uuid: str, key_email: s
                 row = cursor.fetchone()
                 if row:
                     key_id = row[0]
+                    # Для триальных ключей обновляем статус и enabled
+                    status = "Актив" if is_trial else None
+                    enabled = 1 if is_trial else None
+                    
                     cursor.execute(
-                        "UPDATE vpn_keys SET xui_client_uuid = ?, expiry_date = ?, remaining_seconds = ?, plan_name = COALESCE(?, plan_name), price = COALESCE(?, price), protocol = ?, is_trial = ? WHERE key_id = ?",
-                        (xui_client_uuid, expiry_date, remaining_seconds, plan_name, price, protocol, is_trial, key_id)
+                        "UPDATE vpn_keys SET xui_client_uuid = ?, expiry_date = ?, remaining_seconds = ?, plan_name = COALESCE(?, plan_name), price = COALESCE(?, price), protocol = ?, is_trial = ?, status = COALESCE(?, status), enabled = COALESCE(?, enabled) WHERE key_id = ?",
+                        (xui_client_uuid, expiry_date, remaining_seconds, plan_name, price, protocol, is_trial, status, enabled, key_id)
                     )
                     # connection_string обновляем, если пришёл
                     if connection_string:
@@ -1266,7 +1471,24 @@ def update_key_status_from_server(key_email: str, xui_client_data):
             cursor = conn.cursor()
             if xui_client_data:
                 expiry_date = datetime.fromtimestamp(xui_client_data.expiry_time / 1000)
-                cursor.execute("UPDATE vpn_keys SET xui_client_uuid = ?, expiry_date = ? WHERE key_email = ?", (xui_client_data.id, expiry_date, key_email))
+                
+                # Определяем статус ключа
+                from datetime import timezone
+                now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+                is_trial = int(xui_client_data.is_trial) if hasattr(xui_client_data, 'is_trial') else 0
+                active = xui_client_data.expiry_time > now_ms
+                
+                if is_trial and active:
+                    status = 'trial-active'
+                elif is_trial and not active:
+                    status = 'trial-ended'
+                elif not is_trial and active:
+                    status = 'pay-active'
+                else:
+                    status = 'pay-ended'
+                
+                cursor.execute("UPDATE vpn_keys SET xui_client_uuid = ?, expiry_date = ?, status = ? WHERE key_email = ?", 
+                             (xui_client_data.id, expiry_date, status, key_email))
             else:
                 cursor.execute("DELETE FROM vpn_keys WHERE key_email = ?", (key_email,))
             conn.commit()
@@ -1572,16 +1794,28 @@ def get_all_users() -> list[dict]:
         with sqlite3.connect(DB_FILE) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
-            # Получаем пользователей с подсчетом уведомлений
+            # Получаем пользователей с подсчетом уведомлений и ключей
             cursor.execute("""
                 SELECT u.*, 
-                       COALESCE(COUNT(n.notification_id), 0) as notifications_count
+                       COALESCE(COUNT(DISTINCT n.notification_id), 0) as notifications_count,
+                       COALESCE(COUNT(DISTINCT vk.key_id), 0) as user_keys_count,
+                       GROUP_CONCAT(DISTINCT vk.key_id) as user_keys
                 FROM users u
                 LEFT JOIN notifications n ON u.telegram_id = n.user_id
-                GROUP BY u.telegram_id
+                LEFT JOIN vpn_keys vk ON u.telegram_id = vk.user_id
+                GROUP BY u.telegram_id, u.trial_days_given, u.trial_reuses_count
                 ORDER BY u.registration_date DESC
             """)
-            return [dict(row) for row in cursor.fetchall()]
+            users = []
+            for row in cursor.fetchall():
+                user_dict = dict(row)
+                # Преобразуем user_keys в список
+                if user_dict.get('user_keys'):
+                    user_dict['user_keys'] = [int(kid) for kid in user_dict['user_keys'].split(',') if kid]
+                else:
+                    user_dict['user_keys'] = []
+                users.append(user_dict)
+            return users
     except sqlite3.Error as e:
         logging.error(f"Failed to get all users: {e}")
         return []
@@ -1648,6 +1882,10 @@ def get_paginated_keys(page: int = 1, per_page: int = 15) -> tuple[list[dict], i
                     vk.quota_remaining_bytes,
                     vk.quota_total_gb,
                     vk.traffic_down_bytes,
+                    vk.is_trial,
+                    vk.protocol,
+                    vk.status,
+                    vk.enabled,
                     (SELECT COUNT(*) FROM vpn_keys vk2 WHERE vk2.user_id = vk.user_id) as user_keys_count
                 FROM vpn_keys vk
                 LEFT JOIN users u ON vk.user_id = u.telegram_id
@@ -1727,6 +1965,69 @@ def update_key_quota(key_id: int, quota_total_gb: float | None, traffic_down_byt
             conn.commit()
     except sqlite3.Error as e:
         logging.error(f"Failed to update quota for key_id={key_id}: {e}")
+
+def update_key_enabled_status(key_id: int, enabled: bool) -> None:
+    """Обновляет статус включения/отключения ключа в базе данных"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("ALTER TABLE vpn_keys ADD COLUMN enabled INTEGER DEFAULT 1")
+            except Exception:
+                pass
+            
+            if not enabled:
+                # При отключении ключа устанавливаем remaining_seconds на 0 (текущее время)
+                from datetime import timezone as _tz
+                now_ms = int(datetime.now(_tz.utc).timestamp() * 1000)
+                remaining_seconds = 0
+                expiry_date = datetime.fromtimestamp(now_ms / 1000)
+                
+                cursor.execute(
+                    "UPDATE vpn_keys SET enabled = ?, remaining_seconds = ?, expiry_date = ? WHERE key_id = ?",
+                    (0, remaining_seconds, expiry_date, key_id)
+                )
+            else:
+                # При включении ключа обновляем только статус
+                cursor.execute(
+                    "UPDATE vpn_keys SET enabled = ? WHERE key_id = ?",
+                    (1, key_id)
+                )
+            conn.commit()
+    except sqlite3.Error as e:
+        logging.error(f"Failed to update enabled status for key_id={key_id}: {e}")
+
+def update_key_status(key_id: int, status: str) -> None:
+    """Обновляет статус ключа в базе данных"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("ALTER TABLE vpn_keys ADD COLUMN status TEXT")
+            except Exception:
+                pass
+            cursor.execute(
+                "UPDATE vpn_keys SET status = ? WHERE key_id = ?",
+                (status, key_id)
+            )
+            conn.commit()
+    except sqlite3.Error as e:
+        logging.error(f"Failed to update status for key_id={key_id}: {e}")
+
+def get_key_enabled_status(key_id: int) -> bool:
+    """Получает статус включения/отключения ключа из базы данных"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT enabled FROM vpn_keys WHERE key_id = ?", (key_id,))
+            row = cursor.fetchone()
+            if row:
+                return bool(row['enabled'])
+            return True  # По умолчанию включен
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get enabled status for key_id={key_id}: {e}")
+        return True
 
 def get_ton_manifest() -> dict:
     """Получить настройки Ton manifest из базы данных"""

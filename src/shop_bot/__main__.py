@@ -11,23 +11,31 @@ import signal
 from shop_bot.webhook_server.app import create_webhook_app
 from shop_bot.data_manager.scheduler import periodic_subscription_check
 from shop_bot.data_manager import database
+from shop_bot.data_manager.backup import initialize_backup_system, shutdown_backup_system
 from shop_bot.bot_controller import BotController
+from shop_bot.utils import setup_logging, app_logger
 
 def main():
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - [%(levelname)s] - %(name)s - (%(filename)s).%(funcName)s(%(lineno)d) - %(message)s"
-    )
-    logger = logging.getLogger(__name__)
+    # Настройка централизованного логирования
+    setup_logging(log_level="INFO", log_dir="logs")
+    logger = app_logger.logger
 
     database.initialize_db()
     logger.info("Database initialization check complete.")
+    
+    # Инициализация системы бэкапов
+    initialize_backup_system()
+    logger.info("Backup system initialized.")
 
     bot_controller = BotController()
     flask_app = create_webhook_app(bot_controller)
     
     async def shutdown(sig: signal.Signals, loop: asyncio.AbstractEventLoop):
         logger.info(f"Received signal: {sig.name}. Shutting down...")
+        
+        # Останавливаем систему бэкапов
+        shutdown_backup_system()
+        
         if bot_controller.get_status()["is_running"]:
             bot_controller.stop()
             await asyncio.sleep(2)

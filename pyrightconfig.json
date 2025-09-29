@@ -4,8 +4,7 @@
     ],
     "exclude": [
         "**/node_modules",
-        "**/__pycache__",
-        "venv"
+        "**/__pycache__"
     ],
     "venvPath": ".",
     "venv": "venv",
@@ -15,5 +14,11 @@
     "autoImportCompletions": true,
     "extraPaths": [
         "src"
-    ]
+    ],
+    "pythonPath": "venv/Scripts/python.exe",
+    "reportMissingImports": "warning",
+    "reportMissingTypeStubs": false,
+    "reportOptionalMemberAccess": "warning",
+    "reportOptionalSubscript": "warning",
+    "reportPrivateImportUsage": "warning"
 }

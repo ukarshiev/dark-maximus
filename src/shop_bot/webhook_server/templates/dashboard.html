@@ -9,25 +9,25 @@ block content %}
 	<div class="stats-grid">
 		<div class="stat-card">
 			<h3>Пользователей</h3>
-			<p class="stat-number">{{ stats.user_count }}</p>
+			<p class="stat-number">{{ stats.user_count or 0 }}</p>
 		</div>
 		<div class="stat-card">
 			<h3>Всего ключей</h3>
-			<p class="stat-number">{{ stats.total_keys }}</p>
+			<p class="stat-number">{{ stats.total_keys or 0 }}</p>
 		</div>
 		<div class="stat-card">
 			<h3>Всего заработано</h3>
 			<p class="stat-number">
-				{{ stats.total_spent | round(2) }} <small>RUB</small>
+				{{ (stats.total_spent or 0) | round(2) }} <small>RUB</small>
 			</p>
 		</div>
 		<div class="stat-card">
 			<h3>Активных хостов</h3>
-			<p class="stat-number">{{ stats.host_count }}</p>
+			<p class="stat-number">{{ stats.host_count or 0 }}</p>
 		</div>
 		<div class="stat-card">
 			<h3>Всего уведомлений</h3>
-			<p class="stat-number">{{ stats.total_notifications }}</p>
+			<p class="stat-number">{{ stats.total_notifications or 0 }}</p>
 		</div>
 	</div>
 </section>

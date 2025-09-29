@@ -121,6 +121,8 @@ block content %}
                         <td>
                             {% if tx.metadata and (tx.metadata.get('operation') == 'topup' or tx.metadata.get('type') == 'balance_topup') %}
                                 -
+                            {% elif tx.metadata and tx.metadata.get('is_trial') == 1 %}
+                                Триал
                             {% else %}
                                 {{ tx.plan_name or 'N/A' }}
                             {% endif %}
@@ -336,7 +338,7 @@ function copyPaymentLink(link) {
             color: white;
             padding: 10px 20px;
             border-radius: 5px;
-            z-index: 1000;
+            z-index: 10000;
             font-size: 14px;
         `;
         document.body.appendChild(notification);
