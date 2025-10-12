@@ -43,14 +43,14 @@ from shop_bot.data_manager.database import (
     update_key_info, set_trial_used, set_terms_agreed, set_documents_agreed, get_setting, get_all_hosts,
     get_plans_for_host, get_plan_by_id, log_transaction, get_referral_count,
     add_to_referral_balance, create_pending_transaction, create_pending_ton_transaction, create_pending_stars_transaction, get_all_users,
-    set_referral_balance, set_referral_balance_all, update_transaction_on_payment,
+    set_referral_balance, set_referral_balance_all, update_transaction_on_payment, update_yookassa_transaction,
     set_subscription_status, revoke_user_consent, set_trial_days_given, increment_trial_reuses, 
-    reset_trial_used, get_trial_info
+    reset_trial_used, get_trial_info, filter_plans_by_display_mode
 )
 
 from shop_bot.config import (
     get_profile_text, get_vpn_active_text, VPN_INACTIVE_TEXT, VPN_NO_DATA_TEXT,
-    get_key_info_text, CHOOSE_PAYMENT_METHOD_MESSAGE, HOWTO_CHOOSE_OS_MESSAGE, get_purchase_success_text,
+    get_key_info_text, CHOOSE_PAYMENT_METHOD_MESSAGE, HOWTO_CHOOSE_OS_MESSAGE, get_purchase_success_text, get_payment_method_message_with_plan,
     VIDEO_INSTRUCTIONS_ENABLED, get_video_instruction_path, has_video_instruction, VIDEO_INSTRUCTIONS_DIR
 )
 
@@ -86,6 +86,7 @@ class Onboarding(StatesGroup):
 class PaymentProcess(StatesGroup):
     waiting_for_email = State()
     waiting_for_payment_method = State()
+    waiting_for_promo_code = State()
 
 class TopupProcess(StatesGroup):
     waiting_for_custom_amount = State()
@@ -462,7 +463,7 @@ def get_user_router() -> Router:
             except (IndexError, ValueError):
                 logger.warning(f"Invalid referral code received: {command.args}")
                 
-        register_user_if_not_exists(user_id, username, referrer_id)
+        register_user_if_not_exists(user_id, username, referrer_id, message.from_user.full_name)
         user_data = get_user(user_id)
 
         # Проверяем, нужно ли принудительно проверить подписку
@@ -660,25 +661,59 @@ def get_user_router() -> Router:
             # Если не удалось отредактировать сообщение, просто отправляем новое
             await callback.message.answer("🏠 <b>Главное меню</b>\n\nВыберите действие:", reply_markup=keyboards.get_main_reply_keyboard(is_admin))
 
+    @user_router.message(F.text == "🛒 Купить")
+    @documents_consent_required
+    @subscription_required
+    async def buy_message_handler(message: types.Message):
+        """Обработчик кнопки 'Купить' - показывает меню выбора услуг"""
+        user_id = message.from_user.id
+        user_db_data = get_user(user_id)
+        trial_used = user_db_data.get('trial_used', 1) if user_db_data else 1
+        user_keys = get_user_keys(user_id)
+        total_keys_count = len(user_keys) if user_keys else 0
+        
+        await message.answer(
+            "Выберите услугу:",
+            reply_markup=keyboards.create_service_selection_keyboard(trial_used, total_keys_count)
+        )
+
     @user_router.message(F.text == "🛒 Купить VPN")
     @documents_consent_required
     @subscription_required
     async def buy_vpn_message_handler(message: types.Message):
+        """Обработчик кнопки 'Купить VPN' - показывает меню выбора услуг (для совместимости со старыми клавиатурами)"""
+        user_id = message.from_user.id
+        user_db_data = get_user(user_id)
+        trial_used = user_db_data.get('trial_used', 1) if user_db_data else 1
+        user_keys = get_user_keys(user_id)
+        total_keys_count = len(user_keys) if user_keys else 0
+        
+        await message.answer(
+            "Выберите услугу:",
+            reply_markup=keyboards.create_service_selection_keyboard(trial_used, total_keys_count)
+        )
+
+    @user_router.callback_query(F.data == "buy_new_vpn")
+    @documents_consent_required
+    @subscription_required
+    async def buy_new_vpn_handler(callback: types.CallbackQuery):
+        """Обработчик кнопки 'Купить новый VPN'"""
+        await callback.answer()
+        user_id = callback.from_user.id
         hosts = get_all_hosts()
         if not hosts:
-            await message.answer("❌ В данный момент нет доступных серверов для покупки.")
+            await callback.message.edit_text("❌ В данный момент нет доступных серверов для покупки.")
             return
-        # Скрываем сервера без настроенных тарифов
+        # Скрываем сервера без доступных тарифов (с учётом режима отображения)
         try:
-            hosts_with_plans = [h for h in hosts if get_plans_for_host(h['host_name'])]
+            hosts_with_plans = [h for h in hosts if filter_plans_by_display_mode(get_plans_for_host(h['host_name']), user_id)]
         except Exception:
             hosts_with_plans = hosts
         if not hosts_with_plans:
-            await message.answer("❌ В данный момент нет доступных серверов для покупки.")
+            await callback.message.edit_text("❌ В данный момент нет доступных серверов для покупки.")
             return
-        user_id = message.from_user.id
         user_keys = get_user_keys(user_id)
-        await message.answer(
+        await callback.message.edit_text(
             "Выберите сервер, на котором хотите приобрести ключ:",
             reply_markup=keyboards.create_host_selection_keyboard(hosts_with_plans, action="new", total_keys_count=len(user_keys) if user_keys else 0)
         )
@@ -688,19 +723,19 @@ def get_user_router() -> Router:
     @subscription_required
     async def buy_vpn_root_handler(callback: types.CallbackQuery):
         await callback.answer()
+        user_id = callback.from_user.id
         hosts = get_all_hosts()
         if not hosts:
             await callback.message.edit_text("❌ В данный момент нет доступных серверов для покупки.")
             return
-        # Скрываем сервера без настроенных тарифов
+        # Скрываем сервера без доступных тарифов (с учётом режима отображения)
         try:
-            hosts_with_plans = [h for h in hosts if get_plans_for_host(h['host_name'])]
+            hosts_with_plans = [h for h in hosts if filter_plans_by_display_mode(get_plans_for_host(h['host_name']), user_id)]
         except Exception:
             hosts_with_plans = hosts
         if not hosts_with_plans:
             await callback.message.edit_text("❌ В данный момент нет доступных серверов для покупки.")
             return
-        user_id = callback.from_user.id
         user_keys = get_user_keys(user_id)
         await callback.message.edit_text(
             "Выберите сервер, на котором хотите приобрести ключ:",
@@ -822,18 +857,192 @@ def get_user_router() -> Router:
             vpn_status_text = get_vpn_active_text(time_left.days, time_left.seconds // 3600)
         elif user_keys: vpn_status_text = VPN_INACTIVE_TEXT
         else: vpn_status_text = VPN_NO_DATA_TEXT
+        trial_used = user_db_data.get('trial_used', 1) if user_db_data else 1
         final_text = get_profile_text(username, balance, total_spent, total_months, vpn_status_text)
-        await message.answer(final_text, reply_markup=keyboards.create_profile_menu_keyboard(total_keys_count=len(user_keys or [])))
+        await message.answer(final_text, reply_markup=keyboards.create_profile_menu_keyboard(total_keys_count=len(user_keys or []), trial_used=trial_used))
 
     @user_router.message(F.text == "🔑 Мои ключи")
     @registration_required
     async def manage_keys_message(message: types.Message):
         user_id = message.from_user.id
         user_keys = get_user_keys(user_id)
+        user_db_data = get_user(user_id)
+        trial_used = user_db_data.get('trial_used', 1) if user_db_data else 1
         await message.answer(
             "Ваши ключи:" if user_keys else "У вас пока нет ключей.",
-            reply_markup=keyboards.create_keys_management_keyboard(user_keys)
+            reply_markup=keyboards.create_keys_management_keyboard(user_keys, trial_used)
         )
+
+    @user_router.callback_query(F.data == "trial_period")
+    @documents_consent_required
+    @subscription_required
+    async def trial_period_callback_handler(callback: types.CallbackQuery):
+        """Обработчик кнопки 'Пробный период' из меню профиля"""
+        await callback.answer()
+        user_id = callback.from_user.id
+        user_db_data = get_user(user_id)
+        
+        # Проверяем, использовал ли пользователь триал и есть ли у него повторные использования
+        trial_used = user_db_data.get('trial_used', 0) if user_db_data else 0
+        trial_reuses_count = user_db_data.get('trial_reuses_count', 0) if user_db_data else 0
+        
+        # Если триал использован и нет повторных использований - запрещаем
+        if trial_used and trial_reuses_count == 0:
+            await callback.message.edit_text("Вы уже использовали бесплатный пробный период.")
+            return
+        
+        # Дополнительная проверка: нет ли активных триальных ключей (только с активным статусом)
+        user_keys = get_user_keys(user_id)
+        active_trial_keys = [key for key in user_keys if key.get('is_trial') == 1 and key.get('remaining_seconds', 0) > 0 and key.get('status') != 'deactivate']
+        if active_trial_keys:
+            await callback.message.edit_text("У вас уже есть активный пробный ключ.")
+            return
+
+        # Получаем список доступных хостов
+        hosts = get_all_hosts()
+        if not hosts:
+            await callback.message.edit_text("❌ В данный момент нет доступных серверов для создания пробного ключа.")
+            return
+
+        # Если только один хост, сразу создаем пробный ключ
+        if len(hosts) == 1:
+            await process_trial_key_creation_callback(callback, hosts[0]['host_name'])
+        else:
+            # Если несколько хостов, показываем выбор
+            await callback.message.edit_text(
+                "Выберите сервер для создания пробного ключа:",
+                reply_markup=keyboards.create_host_selection_keyboard(hosts, action="trial")
+            )
+
+    @user_router.callback_query(F.data == "promo_code")
+    @documents_consent_required
+    @subscription_required
+    async def promo_code_handler(callback: types.CallbackQuery):
+        """Обработчик кнопки 'Промокод'"""
+        await callback.answer()
+        await callback.message.edit_text(
+            "🎫 <b>Промокоды</b>\n\n"
+            "Введите промокод для получения скидки или бонуса.\n\n"
+            "Если у вас есть промокод, отправьте его текстовым сообщением.\n\n"
+            "Пример: <code>HABITAT</code>",
+            reply_markup=keyboards.create_back_to_menu_keyboard()
+        )
+
+    @user_router.callback_query(F.data == "my_promo_codes")
+    @documents_consent_required
+    @subscription_required
+    async def my_promo_codes_handler(callback: types.CallbackQuery):
+        """Обработчик кнопки 'Мои промокоды' в профиле"""
+        await callback.answer()
+        
+        user_id = callback.from_user.id
+        from shop_bot.data_manager.database import get_user_promo_codes
+        
+        # Получаем использованные промокоды пользователя
+        user_promo_codes = get_user_promo_codes(user_id, "shop")
+        
+        if not user_promo_codes:
+            await callback.message.edit_text(
+                "🎫 <b>Применить промокод</b>\n\n"
+                "У вас пока нет использованных промокодов.\n\n"
+                "Чтобы использовать промокод:\n"
+                "1. Введите промокод текстом в чат\n"
+                "2. Следуйте инструкциям для применения\n\n"
+                "Промокоды можно вводить в любое время в чате!",
+                reply_markup=keyboards.create_back_to_menu_keyboard()
+            )
+        else:
+            text = "🎫 <b>Применить промокод</b>\n\n"
+            text += f"Использовано промокодов: <b>{len(user_promo_codes)}</b>\n\n"
+            
+            for i, promo in enumerate(user_promo_codes, 1):
+                text += f"<b>{i}. {promo['code']}</b>\n"
+                text += f"📅 Использован: {promo['used_at'][:10]}\n"
+                
+                # Добавляем описание скидки
+                if promo['discount_amount'] > 0:
+                    text += f"💰 Скидка: {promo['discount_amount']} руб.\n"
+                if promo['discount_percent'] > 0:
+                    text += f"📊 Скидка: {promo['discount_percent']}%\n"
+                if promo['discount_bonus'] > 0:
+                    text += f"🎁 Бонус: {promo['discount_bonus']} руб.\n"
+                
+                if promo['plan_name']:
+                    text += f"🔗 Тариф: {promo['plan_name']}\n"
+                
+                text += "\n"
+            
+            await callback.message.edit_text(
+                text,
+                reply_markup=keyboards.create_user_promo_codes_keyboard(user_promo_codes)
+            )
+
+    @user_router.callback_query(F.data.startswith("remove_promo_"))
+    @documents_consent_required
+    @subscription_required
+    async def remove_promo_code_handler(callback: types.CallbackQuery):
+        """Обработчик удаления применённого промокода"""
+        await callback.answer()
+        
+        # Извлекаем usage_id из callback_data
+        usage_id = int(callback.data.replace("remove_promo_", ""))
+        user_id = callback.from_user.id
+        
+        try:
+            from shop_bot.data_manager.database import remove_user_promo_code_usage, get_user_promo_codes
+            
+            # Удаляем промокод
+            success = remove_user_promo_code_usage(user_id, usage_id, "shop")
+            
+            if success:
+                # Получаем обновленный список промокодов
+                user_promo_codes = get_user_promo_codes(user_id, "shop")
+                
+                if not user_promo_codes:
+                    # Если промокодов больше нет, показываем пустое состояние
+                    await callback.message.edit_text(
+                        "🎫 <b>Применить промокод</b>\n\n"
+                        "✅ Промокод успешно удален!\n\n"
+                        "У вас пока нет использованных промокодов.\n\n"
+                        "Чтобы использовать промокод:\n"
+                        "1. Введите промокод текстом в чат\n"
+                        "2. Следуйте инструкциям для применения\n\n"
+                        "Промокоды можно вводить в любое время в чате!",
+                        reply_markup=keyboards.create_back_to_menu_keyboard()
+                    )
+                else:
+                    # Обновляем список промокодов
+                    text = "🎫 <b>Применить промокод</b>\n\n"
+                    text += f"✅ Промокод успешно удален!\n\n"
+                    text += f"Использовано промокодов: <b>{len(user_promo_codes)}</b>\n\n"
+                    
+                    for i, promo in enumerate(user_promo_codes, 1):
+                        text += f"<b>{i}. {promo['code']}</b>\n"
+                        text += f"📅 Использован: {promo['used_at'][:10]}\n"
+                        
+                        # Добавляем описание скидки
+                        if promo['discount_amount'] > 0:
+                            text += f"💰 Скидка: {promo['discount_amount']} руб.\n"
+                        if promo['discount_percent'] > 0:
+                            text += f"📊 Скидка: {promo['discount_percent']}%\n"
+                        if promo['discount_bonus'] > 0:
+                            text += f"🎁 Бонус: {promo['discount_bonus']} руб.\n"
+                        
+                        if promo['plan_name']:
+                            text += f"🔗 Тариф: {promo['plan_name']}\n"
+                        
+                        text += "\n"
+                    
+                    await callback.message.edit_text(
+                        text,
+                        reply_markup=keyboards.create_user_promo_codes_keyboard(user_promo_codes)
+                    )
+            else:
+                await callback.answer("❌ Не удалось удалить промокод. Попробуйте еще раз.", show_alert=True)
+                
+        except Exception as e:
+            logger.error(f"Error removing promo code: {e}", exc_info=True)
+            await callback.answer("❌ Произошла ошибка при удалении промокода.", show_alert=True)
 
     @user_router.message(F.text == "🆓 Пробный период")
     @documents_consent_required
@@ -982,9 +1191,8 @@ def get_user_router() -> Router:
         channel_url = get_setting("channel_url")
         
         # Получаем домен из настроек или используем дефолтный
-        domain = get_setting("domain")
-        if not domain:
-            domain = "https://your-domain.com"  # Замените на ваш домен
+        from shop_bot.data_manager.database import get_global_domain
+        domain = get_global_domain()
         
         # Генерируем URL для страниц только если домен не localhost
         terms_url = None
@@ -1432,9 +1640,8 @@ def get_user_router() -> Router:
         channel_url = get_setting("channel_url")
         
         # Получаем домен из настроек или используем дефолтный
-        domain = get_setting("domain")
-        if not domain:
-            domain = "https://your-domain.com"  # Замените на ваш домен
+        from shop_bot.data_manager.database import get_global_domain
+        domain = get_global_domain()
         
         # Генерируем URL для страниц только если домен не localhost
         terms_url = None
@@ -1529,9 +1736,11 @@ def get_user_router() -> Router:
         await callback.answer()
         user_id = callback.from_user.id
         user_keys = get_user_keys(user_id)
+        user_db_data = get_user(user_id)
+        trial_used = user_db_data.get('trial_used', 1) if user_db_data else 1
         await callback.message.edit_text(
             "Ваши ключи:" if user_keys else "У вас пока нет ключей.",
-            reply_markup=keyboards.create_keys_management_keyboard(user_keys)
+            reply_markup=keyboards.create_keys_management_keyboard(user_keys, trial_used)
         )
 
     @user_router.callback_query(F.data == "get_trial")
@@ -1590,6 +1799,92 @@ def get_user_router() -> Router:
         host_name = callback.data[len("select_host_trial_"):]
         await process_trial_key_creation(callback.message, host_name)
 
+    async def process_trial_key_creation_callback(callback: types.CallbackQuery, host_name: str):
+        """Callback-версия функции создания пробного ключа"""
+        user_id = callback.from_user.id
+        trial_duration_display = get_setting('trial_duration_days') or "7"
+        await callback.message.edit_text(f"Отлично! Создаю для вас бесплатный ключ на {trial_duration_display} дня на сервере \"{host_name}\"...")
+
+        try:
+            trial_duration = get_setting("trial_duration_days")
+            if trial_duration is None:
+                trial_duration = "7"  # Значение по умолчанию - 7 дней
+            
+            # Получаем host_code для триального ключа
+            try:
+                from shop_bot.data_manager.database import get_host
+                host_rec = get_host(host_name)
+                host_code = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec else host_name.replace(' ', '').lower()
+            except Exception:
+                host_code = host_name.replace(' ', '').lower()
+            
+            key_number = get_next_key_number(user_id)
+            result = await xui_api.create_or_update_key_on_host(
+                host_name=host_name,
+                email=f"user{user_id}-key{key_number}-trial@{host_code}.bot",
+                days_to_add=trial_duration,
+                comment=f"{user_id}",
+                telegram_chat_id=user_id
+            )
+            if not result:
+                await callback.message.edit_text("❌ Не удалось создать пробный ключ. Ошибка на сервере.")
+                return
+
+            # Устанавливаем флаг использования триала
+            set_trial_used(user_id)
+            # Устанавливаем количество дней из админки
+            set_trial_days_given(user_id, int(trial_duration))
+            # Увеличиваем счетчик повторных использований
+            increment_trial_reuses(user_id)
+            
+            # Получаем данные пользователя для формирования subscription
+            user_data = get_user(user_id)
+            username = user_data.get('username', '') if user_data else ''
+            fullname = user_data.get('fullname', '') if user_data else ''
+            subscription = f"{user_id}-{username}".lower().replace('@', '')
+            telegram_chat_id = user_id
+            
+            new_key_id = add_new_key(
+                user_id=user_id,
+                host_name=host_name,
+                xui_client_uuid=result['client_uuid'],
+                key_email=result['email'],
+                expiry_timestamp_ms=result['expiry_timestamp_ms'],
+                connection_string=result.get('connection_string') or "",
+                plan_name="Пробный период",
+                price=0.0,
+                protocol='vless',
+                is_trial=1,
+                subscription=subscription,
+                subscription_link=result.get('subscription_link'),
+                telegram_chat_id=telegram_chat_id,
+                comment=f"Пробный период для пользователя {fullname or username or user_id}"
+            )
+            # Дополнительно сразу сохраним remaining_seconds и expiry_date
+            if new_key_id:
+                try:
+                    from datetime import datetime, timezone
+                    from shop_bot.data_manager.database import update_key_remaining_seconds
+                    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+                    remaining = max(0, int((result['expiry_timestamp_ms'] - now_ms) / 1000))
+                    update_key_remaining_seconds(new_key_id, remaining, datetime.fromtimestamp(result['expiry_timestamp_ms']/1000))
+                except Exception:
+                    pass
+            
+            new_expiry_date = datetime.fromtimestamp(result['expiry_timestamp_ms'] / 1000)
+            subscription_link = result.get('subscription_link')
+            final_text = get_purchase_success_text("готов", get_next_key_number(user_id) -1, new_expiry_date, result['connection_string'], subscription_link, 'key')
+            
+            # Проверяем, что new_key_id не None перед созданием клавиатуры
+            if new_key_id is not None:
+                await callback.message.edit_text(text=final_text, reply_markup=keyboards.create_key_info_keyboard(new_key_id))
+            else:
+                await callback.message.edit_text(text=final_text)
+
+        except Exception as e:
+            logger.error(f"Error creating trial key for user {user_id} on host {host_name}: {e}", exc_info=True)
+            await callback.message.edit_text("❌ Произошла ошибка при создании пробного ключа.")
+
     async def process_trial_key_creation(message: types.Message, host_name: str):
         user_id = message.chat.id
         trial_duration_display = get_setting('trial_duration_days') or "7"
@@ -1612,8 +1907,9 @@ def get_user_router() -> Router:
             result = await xui_api.create_or_update_key_on_host(
                 host_name=host_name,
                 email=f"user{user_id}-key{key_number}-trial@{host_code}.bot",
-                days_to_add=int(trial_duration),
-                comment=f"{user_id}"
+                days_to_add=trial_duration,
+                comment=f"{user_id}",
+                telegram_chat_id=user_id
             )
             if not result:
                 await message.edit_text("❌ Не удалось создать пробный ключ. Ошибка на сервере.")
@@ -1626,6 +1922,13 @@ def get_user_router() -> Router:
             # Увеличиваем счетчик повторных использований
             increment_trial_reuses(user_id)
             
+            # Получаем данные пользователя для формирования subscription
+            user_data = get_user(user_id)
+            username = user_data.get('username', '') if user_data else ''
+            fullname = user_data.get('fullname', '') if user_data else ''
+            subscription = f"{user_id}-{username}".lower().replace('@', '')
+            telegram_chat_id = user_id
+            
             new_key_id = add_new_key(
                 user_id=user_id,
                 host_name=host_name,
@@ -1636,7 +1939,11 @@ def get_user_router() -> Router:
                 plan_name="Пробный период",
                 price=0.0,
                 protocol='vless',
-                is_trial=1
+                is_trial=1,
+                subscription=subscription,
+                subscription_link=result.get('subscription_link'),
+                telegram_chat_id=telegram_chat_id,
+                comment=f"Пробный период для пользователя {fullname or username or user_id}"
             )
             # Дополнительно сразу сохраним remaining_seconds и expiry_date
             if new_key_id:
@@ -1651,7 +1958,8 @@ def get_user_router() -> Router:
             
             await message.delete()
             new_expiry_date = datetime.fromtimestamp(result['expiry_timestamp_ms'] / 1000)
-            final_text = get_purchase_success_text("готов", get_next_key_number(user_id) -1, new_expiry_date, result['connection_string'])
+            subscription_link = result.get('subscription_link')
+            final_text = get_purchase_success_text("готов", get_next_key_number(user_id) -1, new_expiry_date, result['connection_string'], subscription_link, 'key')
             
             # Проверяем, что new_key_id не None перед созданием клавиатуры
             if new_key_id is not None:
@@ -1685,11 +1993,23 @@ def get_user_router() -> Router:
             expiry_date = datetime.fromisoformat(key_data['expiry_date'])
             created_date = datetime.fromisoformat(key_data['created_date'])
             status = details.get('status', 'unknown')
+            subscription_link = details.get('subscription_link') or key_data.get('subscription_link')
             
             all_user_keys = get_user_keys(user_id)
             key_number = next((i + 1 for i, key in enumerate(all_user_keys) if key['key_id'] == key_id_to_show), 0)
             
-            final_text = get_key_info_text(key_number, expiry_date, created_date, connection_string, status)
+            # Получаем provision_mode из тарифа ключа
+            provision_mode = 'key'  # по умолчанию
+            plan_name = key_data.get('plan_name')
+            if plan_name:
+                # Получаем тариф по имени и хосту
+                host_name = key_data.get('host_name')
+                plans = get_plans_for_host(host_name)
+                plan = next((p for p in plans if p.get('plan_name') == plan_name), None)
+                if plan:
+                    provision_mode = plan.get('key_provision_mode', 'key')
+            
+            final_text = get_key_info_text(key_number, expiry_date, created_date, connection_string, status, subscription_link, provision_mode)
             
             await callback.message.edit_text(
                 text=final_text,
@@ -1812,17 +2132,31 @@ def get_user_router() -> Router:
         await callback.answer()
         await _send_instruction_with_video(callback, 'linux', keyboards.create_howto_vless_keyboard)
 
+    
+    @user_router.callback_query(F.data == "back_to_instructions")
+    @registration_required
+    async def back_to_instructions_handler(callback: types.CallbackQuery):
+        """Возврат к выбору типа инструкции"""
+        await callback.answer()
+        
+        await callback.message.edit_text(
+            HOWTO_CHOOSE_OS_MESSAGE,
+            reply_markup=keyboards.create_howto_vless_keyboard(),
+            disable_web_page_preview=True
+        )
+
     @user_router.callback_query(F.data == "buy_new_key")
     @registration_required
     async def buy_new_key_handler(callback: types.CallbackQuery):
         await callback.answer()
+        user_id = callback.from_user.id
         hosts = get_all_hosts()
         if not hosts:
             await callback.message.edit_text("❌ В данный момент нет доступных серверов для покупки.")
             return
-        # Скрываем сервера без настроенных тарифов
+        # Скрываем сервера без доступных тарифов (с учётом режима отображения)
         try:
-            hosts_with_plans = [h for h in hosts if get_plans_for_host(h['host_name'])]
+            hosts_with_plans = [h for h in hosts if filter_plans_by_display_mode(get_plans_for_host(h['host_name']), user_id)]
         except Exception:
             hosts_with_plans = hosts
         if not hosts_with_plans:
@@ -1838,10 +2172,15 @@ def get_user_router() -> Router:
     @registration_required
     async def select_host_for_purchase_handler(callback: types.CallbackQuery):
         await callback.answer()
+        user_id = callback.from_user.id
         host_name = callback.data[len("select_host_new_"):]
         plans = get_plans_for_host(host_name)
+        
+        # Фильтруем тарифы по режиму отображения для данного пользователя
+        plans = filter_plans_by_display_mode(plans, user_id)
+        
         if not plans:
-            await callback.message.edit_text(f"❌ Для сервера \"{host_name}\" не настроены тарифы.")
+            await callback.message.edit_text(f"❌ Для сервера \"{host_name}\" не настроены доступные тарифы.")
             return
         await callback.message.edit_text(
             "Выберите тариф для нового ключа:", 
@@ -1871,10 +2210,14 @@ def get_user_router() -> Router:
             return
 
         plans = get_plans_for_host(host_name)
+        
+        # Фильтруем тарифы по режиму отображения для данного пользователя
+        user_id = callback.from_user.id
+        plans = filter_plans_by_display_mode(plans, user_id)
 
         if not plans:
             await callback.message.edit_text(
-                f"❌ Извините, для сервера \"{host_name}\" в данный момент не настроены тарифы для продления."
+                f"❌ Извините, для сервера \"{host_name}\" в данный момент не настроены доступные тарифы для продления."
             )
             return
 
@@ -1931,10 +2274,25 @@ def get_user_router() -> Router:
             await message.answer(f"✅ Email принят: {message.text}")
 
             data = await state.get_data()
-            from shop_bot.data_manager.database import get_user_balance
+            from shop_bot.data_manager.database import get_user_balance, get_plan_by_id
             user_balance = get_user_balance(message.chat.id)
+            
+            # Получаем информацию о выбранном тарифе
+            plan_id = data.get('plan_id')
+            host_name = data.get('host_name')
+            plan_info = get_plan_by_id(plan_id) if plan_id else None
+            
+            if plan_info:
+                message_text = get_payment_method_message_with_plan(
+                    host_name=host_name,
+                    plan_name=plan_info.get('plan_name', 'Неизвестный тариф'),
+                    price=float(plan_info.get('price', 0))
+                )
+            else:
+                message_text = CHOOSE_PAYMENT_METHOD_MESSAGE
+            
             await message.answer(
-                CHOOSE_PAYMENT_METHOD_MESSAGE,
+                message_text,
                 reply_markup=keyboards.create_payment_method_keyboard(
                     payment_methods=PAYMENT_METHODS,
                     action=data.get('action'),
@@ -1953,10 +2311,25 @@ def get_user_router() -> Router:
         await state.update_data(customer_email=None)
 
         data = await state.get_data()
-        from shop_bot.data_manager.database import get_user_balance
+        from shop_bot.data_manager.database import get_user_balance, get_plan_by_id
         user_balance = get_user_balance(callback.from_user.id)
+        
+        # Получаем информацию о выбранном тарифе
+        plan_id = data.get('plan_id')
+        host_name = data.get('host_name')
+        plan_info = get_plan_by_id(plan_id) if plan_id else None
+        
+        if plan_info:
+            message_text = get_payment_method_message_with_plan(
+                host_name=host_name,
+                plan_name=plan_info.get('plan_name', 'Неизвестный тариф'),
+                price=float(plan_info.get('price', 0))
+            )
+        else:
+            message_text = CHOOSE_PAYMENT_METHOD_MESSAGE
+        
         await callback.message.edit_text(
-            CHOOSE_PAYMENT_METHOD_MESSAGE,
+            message_text,
             reply_markup=keyboards.create_payment_method_keyboard(
                 payment_methods=PAYMENT_METHODS,
                 action=data.get('action'),
@@ -1970,7 +2343,7 @@ def get_user_router() -> Router:
     # ====== Topup flow payments via Stars and TON Connect ======
     @user_router.callback_query(TopupProcess.waiting_for_payment_method, F.data == "topup_pay_stars")
     async def topup_pay_stars(callback: types.CallbackQuery, state: FSMContext):
-        await callback.answer("Создаю счет на пополнение через Stars...")
+        await callback.answer("Подготовка оплаты через Stars...")
         data = await state.get_data()
         user_id = callback.from_user.id
         amount_rub = Decimal(str(data.get('topup_amount', 0)))
@@ -1984,6 +2357,42 @@ def get_user_router() -> Router:
         price_stars = int((amount_rub / conversion_rate).quantize(Decimal("1"), rounding=ROUND_CEILING))
         if price_stars < 1:
             price_stars = 1
+
+        # Сохраняем данные для последующего создания инвойса
+        await state.update_data(
+            topup_amount_stars=price_stars,
+            topup_amount_rub=float(amount_rub),
+            topup_conversion_rate=float(conversion_rate)
+        )
+
+        # Показываем клавиатуру с кнопками оплаты
+        from src.shop_bot.bot.keyboards import create_stars_payment_keyboard
+        keyboard = create_stars_payment_keyboard(price_stars, is_topup=True)
+        
+        text = (
+            f"💳 **Пополнение баланса через Telegram Stars**\n\n"
+            f"💰 Сумма: {amount_rub} RUB\n"
+            f"⭐ К оплате: {price_stars} звезд\n\n"
+            f"Нажмите кнопку ниже для создания счета на оплату."
+        )
+        
+        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+
+    @user_router.callback_query(TopupProcess.waiting_for_payment_method, F.data == "confirm_stars_payment")
+    async def confirm_topup_stars_payment(callback: types.CallbackQuery, state: FSMContext):
+        """Обработчик подтверждения оплаты звездами для пополнения"""
+        await callback.answer("Создаю счет на пополнение через Stars...")
+        data = await state.get_data()
+        user_id = callback.from_user.id
+        
+        amount_rub = data.get('topup_amount_rub', 0)
+        price_stars = data.get('topup_amount_stars', 0)
+        conversion_rate = data.get('topup_conversion_rate', 1.79)
+        
+        if amount_rub <= 0 or price_stars <= 0:
+            await callback.message.edit_text("❌ Некорректные данные для оплаты.")
+            await state.clear()
+            return
 
         try:
             invoice = types.LabeledPrice(label=f"Пополнение баланса", amount=price_stars)
@@ -2022,6 +2431,39 @@ def get_user_router() -> Router:
             logger.error(f"Failed to create Stars topup invoice: {e}", exc_info=True)
             await callback.message.answer("❌ Не удалось создать счет для пополнения звездами. Попробуйте позже.")
             await state.clear()
+
+    @user_router.callback_query(TopupProcess.waiting_for_payment_method, F.data == "topup_stars_payment_failed")
+    async def topup_stars_payment_failed(callback: types.CallbackQuery, state: FSMContext):
+        """Обработчик кнопки 'Не удалось заплатить' для пополнения"""
+        from src.shop_bot.bot.keyboards import create_stars_payment_failed_keyboard
+        
+        text = (
+            "💳 **Возможно вы не смогли заплатить из-за отсутствия валютной карты.**\n\n"
+            "Иногда ваш счет в Telegram может или мог быть привязанным к ранее существовавшим VISA/Master картам.\n\n"
+            "Можно купить звезды по карте РФ через официального \"Premium Bot\""
+        )
+        
+        keyboard = create_stars_payment_failed_keyboard(is_topup=True)
+        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+
+    @user_router.callback_query(TopupProcess.waiting_for_payment_method, F.data == "topup_back_to_payment_methods")
+    @registration_required
+    async def topup_back_to_payment_methods(callback: types.CallbackQuery, state: FSMContext):
+        """Возврат к выбору методов оплаты для пополнения"""
+        await callback.answer()
+        from src.shop_bot.bot.keyboards import create_topup_payment_methods_keyboard
+        
+        data = await state.get_data()
+        amount_rub = data.get('topup_amount', 0)
+        
+        text = (
+            f"💳 **Выберите способ оплаты**\n\n"
+            f"💰 Сумма пополнения: {amount_rub} RUB\n\n"
+            f"Выберите удобный способ оплаты:"
+        )
+        
+        keyboard = create_topup_payment_methods_keyboard()
+        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
 
     @user_router.callback_query(TopupProcess.waiting_for_payment_method, F.data == "topup_pay_tonconnect")
     async def topup_pay_tonconnect(callback: types.CallbackQuery, state: FSMContext):
@@ -2111,7 +2553,14 @@ def get_user_router() -> Router:
         price = Decimal(str(plan['price']))
         final_price = price
         discount_applied = False
-        message_text = CHOOSE_PAYMENT_METHOD_MESSAGE
+        
+        # Базовое сообщение с информацией о тарифе
+        host_name = data.get('host_name', 'Неизвестный хост')
+        message_text = get_payment_method_message_with_plan(
+            host_name=host_name,
+            plan_name=plan.get('plan_name', 'Неизвестный тариф'),
+            price=float(price)
+        )
 
         if user_data.get('referred_by') and user_data.get('total_spent', 0) == 0:
             discount_percentage_str = get_setting("referral_discount") or "0"
@@ -2125,7 +2574,7 @@ def get_user_router() -> Router:
                     f"🎉 Как приглашенному пользователю, на вашу первую покупку предоставляется скидка {discount_percentage_str}%!\n"
                     f"Старая цена: <s>{price:.2f} RUB</s>\n"
                     f"<b>Новая цена: {final_price:.2f} RUB</b>\n\n"
-                ) + CHOOSE_PAYMENT_METHOD_MESSAGE
+                ) + message_text
 
         await state.update_data(final_price=float(final_price))
 
@@ -2142,14 +2591,164 @@ def get_user_router() -> Router:
         )
         await state.set_state(PaymentProcess.waiting_for_payment_method)
         
+    @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "apply_promo_code")
+    async def apply_promo_code_handler(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        await callback.message.edit_text(
+            "🎫 Введите промокод для получения скидки:\n\n"
+            "Промокод должен быть введен точно как указано (с учетом регистра).",
+            reply_markup=keyboards.create_back_to_payment_methods_keyboard()
+        )
+        await state.set_state(PaymentProcess.waiting_for_promo_code)
+
+    @user_router.message(PaymentProcess.waiting_for_promo_code)
+    async def process_promo_code_handler(message: types.Message, state: FSMContext):
+        promo_code = message.text.strip()
+        
+        # Валидируем промокод
+        from shop_bot.data_manager.database import can_user_use_promo_code, get_user_balance
+        user_id = message.from_user.id
+        validation_result = can_user_use_promo_code(user_id, promo_code, "shop")
+        
+        if validation_result['can_use']:
+            # Сохраняем промокод в state
+            await state.update_data(promo_code=promo_code)
+            
+            # Применяем скидку
+            promo_data = validation_result['promo_data']
+            data = await state.get_data()
+            plan_id = data.get('plan_id')
+            plan = get_plan_by_id(plan_id)
+            
+            if plan:
+                base_price = Decimal(str(plan['price']))
+                final_price = base_price
+                
+                # Применяем скидку по сумме
+                if promo_data.get('discount_amount', 0) > 0:
+                    final_price = max(Decimal('0'), base_price - Decimal(str(promo_data['discount_amount'])))
+                
+                # Применяем скидку по проценту
+                if promo_data.get('discount_percent', 0) > 0:
+                    discount_amount = base_price * Decimal(str(promo_data['discount_percent'])) / 100
+                    final_price = max(Decimal('0'), base_price - discount_amount)
+                
+                # Обновляем цену в state
+                await state.update_data(final_price=float(final_price))
+                
+                # ЗАПИСЫВАЕМ ИСПОЛЬЗОВАНИЕ ПРОМОКОДА СРАЗУ ПРИ ПРИМЕНЕНИИ
+                try:
+                    from shop_bot.data_manager.database import record_promo_code_usage
+                    success = record_promo_code_usage(
+                        promo_id=promo_data['promo_id'],
+                        user_id=user_id,
+                        bot="shop",
+                        plan_id=plan_id,
+                        discount_amount=promo_data.get('discount_amount', 0.0),
+                        discount_percent=promo_data.get('discount_percent', 0.0),
+                        discount_bonus=promo_data.get('discount_bonus', 0.0)
+                    )
+                    if success:
+                        logger.info(f"Successfully recorded promo code usage: {promo_code} for user {user_id}")
+                    else:
+                        logger.error(f"Failed to record promo code usage: {promo_code} for user {user_id}")
+                except Exception as e:
+                    logger.error(f"Error recording promo code usage: {e}", exc_info=True)
+                
+                await message.answer(
+                    f"✅ Промокод '{promo_code}' применен!\n\n"
+                    f"💰 Скидка: {base_price - final_price:.2f} RUB\n"
+                    f"💵 Итоговая цена: {final_price:.2f} RUB\n\n"
+                    f"Выберите способ оплаты:",
+                    reply_markup=keyboards.create_payment_method_keyboard(
+                        payment_methods=PAYMENT_METHODS,
+                        action=data.get('action'),
+                        key_id=data.get('key_id'),
+                        user_balance=float(get_user_balance(user_id) or 0)
+                    )
+                )
+                await state.set_state(PaymentProcess.waiting_for_payment_method)
+            else:
+                await message.answer("❌ Ошибка при применении промокода. Попробуйте еще раз.")
+        else:
+            await message.answer(
+                f"❌ {validation_result['message']}\n\n"
+                "Проверьте правильность написания промокода.\n"
+                "Промокод должен быть введен точно как указано (с учетом регистра)."
+            )
+
+    @user_router.callback_query(PaymentProcess.waiting_for_promo_code, F.data == "back_to_payment_methods")
+    async def back_to_payment_methods_handler(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        data = await state.get_data()
+        from shop_bot.data_manager.database import get_user_balance, get_plan_by_id
+        user_balance = get_user_balance(callback.from_user.id)
+        
+        # Получаем информацию о выбранном тарифе
+        plan_id = data.get('plan_id')
+        host_name = data.get('host_name')
+        plan_info = get_plan_by_id(plan_id) if plan_id else None
+        
+        if plan_info:
+            message_text = get_payment_method_message_with_plan(
+                host_name=host_name,
+                plan_name=plan_info.get('plan_name', 'Неизвестный тариф'),
+                price=float(plan_info.get('price', 0))
+            )
+        else:
+            message_text = CHOOSE_PAYMENT_METHOD_MESSAGE
+        
+        await callback.message.edit_text(
+            message_text,
+            reply_markup=keyboards.create_payment_method_keyboard(
+                payment_methods=PAYMENT_METHODS,
+                action=data.get('action'),
+                key_id=data.get('key_id'),
+                user_balance=float(user_balance or 0)
+            )
+        )
+        await state.set_state(PaymentProcess.waiting_for_payment_method)
+
     @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "back_to_email_prompt")
     async def back_to_email_prompt_handler(callback: types.CallbackQuery, state: FSMContext):
+        # Удаляем применённый промокод при отмене покупки
+        data = await state.get_data()
+        promo_code = data.get('promo_code')
+        if promo_code:
+            try:
+                from shop_bot.data_manager.database import get_promo_code_by_code, get_user_promo_codes, remove_user_promo_code_usage
+                promo_data = get_promo_code_by_code(promo_code, "shop")
+                if promo_data:
+                    # Находим usage_id для этого промокода
+                    user_promo_codes = get_user_promo_codes(callback.from_user.id, "shop")
+                    usage_id = None
+                    for promo in user_promo_codes:
+                        if promo['promo_id'] == promo_data['promo_id']:
+                            usage_id = promo['usage_id']
+                            break
+                    
+                    if usage_id:
+                        success = remove_user_promo_code_usage(
+                            user_id=callback.from_user.id,
+                            usage_id=usage_id,
+                            bot="shop"
+                        )
+                        if success:
+                            logger.info(f"Removed promo code usage for cancelled purchase: {promo_code} for user {callback.from_user.id}")
+                        else:
+                            logger.error(f"Failed to remove promo code usage for cancelled purchase: {promo_code} for user {callback.from_user.id}")
+                    else:
+                        logger.warning(f"Usage ID not found for promo code {promo_code} and user {callback.from_user.id}")
+            except Exception as e:
+                logger.error(f"Error removing promo code usage for cancelled purchase: {e}", exc_info=True)
+        
         await callback.message.edit_text(
             "📧 Пожалуйста, введите ваш email.\n\n"
             "Если вы не хотите указывать почту, нажмите кнопку ниже.",
             reply_markup=keyboards.create_skip_email_keyboard()
         )
         await state.set_state(PaymentProcess.waiting_for_email)
+
 
 
     @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "pay_yookassa")
@@ -2175,7 +2774,14 @@ def get_user_router() -> Router:
         base_price = Decimal(str(plan['price']))
         price_rub = base_price
 
-        if user_data.get('referred_by') and user_data.get('total_spent', 0) == 0:
+        # Проверяем, есть ли применённый промокод
+        promo_code = data.get('promo_code')
+        if promo_code:
+            # Используем финальную цену с учетом промокода
+            final_price = data.get('final_price')
+            if final_price is not None:
+                price_rub = Decimal(str(final_price))
+        elif user_data.get('referred_by') and user_data.get('total_spent', 0) == 0:
             discount_percentage_str = get_setting("referral_discount") or "0"
             discount_percentage = Decimal(discount_percentage_str)
             if discount_percentage > 0:
@@ -2239,19 +2845,38 @@ def get_user_router() -> Router:
                 if extra_hours > 24:
                     extra_hours = 24
                 days_to_add = months * 30 + extra_days + (extra_hours / 24)
+                
+                # Для новых ключей формируем subscription заранее
+                subscription = None
+                telegram_chat_id = None
+                if action == "new":
+                    user_data = get_user(user_id)
+                    username = user_data.get('username', '') if user_data else ''
+                    subscription = f"{user_id}-{username}".lower().replace('@', '')
+                    telegram_chat_id = user_id
+                
                 result = await xui_api.create_or_update_key_on_host(
                     host_name=host_name,
                     email=email,
                     days_to_add=days_to_add,
-                    comment=comment
+                    comment=comment,
+                    sub_id=subscription,
+                    telegram_chat_id=telegram_chat_id
                 )
 
                 if not result:
-                    await callback.message.edit_text("❌ Не удалось создать/обновить ключ в панели.")
+                    await callback.message.edit_text(
+                        "❌ Не удалось создать/обновить ключ в панели.\n\n"
+                        "Возможные причины:\n"
+                        "• Временная недоступность сервера\n"
+                        "• Проблемы с сетью\n\n"
+                        "Попробуйте позже или обратитесь в поддержку."
+                    )
                     await state.clear()
                     return
 
                 if action == "new":
+                    
                     key_id = add_new_key(
                         user_id,
                         host_name,
@@ -2260,10 +2885,13 @@ def get_user_router() -> Router:
                         result['expiry_timestamp_ms'],
                         connection_string=result.get('connection_string') or "",
                         plan_name=plan['plan_name'],
-                        price=0.0
+                        price=0.0,
+                        subscription=subscription,
+                        telegram_chat_id=telegram_chat_id,
+                        comment=f"Бесплатный ключ для пользователя {fullname or username or user_id}"
                     )
                 elif action == "extend":
-                    update_key_info(key_id, result['client_uuid'], result['expiry_timestamp_ms'])
+                    update_key_info(key_id, result['client_uuid'], result['expiry_timestamp_ms'], result.get('subscription_link'))
                 
                 # Обновляем статистику
                 update_user_stats(user_id, 0, months)
@@ -2298,11 +2926,28 @@ def get_user_router() -> Router:
                 all_user_keys = get_user_keys(user_id)
                 key_number = next((i + 1 for i, key in enumerate(all_user_keys) if key['key_id'] == key_id), len(all_user_keys))
 
+                # Получаем режим предоставления из тарифа
+                provision_mode = plan.get('key_provision_mode', 'key')
+                subscription_link = None
+                
+                # Если нужна подписка - получаем subscription link
+                if provision_mode in ['subscription', 'both']:
+                    try:
+                        subscription_link = await xui_api.get_client_subscription_link(host_name, email)
+                        if not subscription_link:
+                            logger.warning(f"Failed to get subscription link for {email}, using key-only mode")
+                            provision_mode = 'key'
+                    except Exception as e:
+                        logger.error(f"Error getting subscription link: {e}")
+                        provision_mode = 'key'
+
                 final_text = get_purchase_success_text(
                     action="создан" if action == "new" else "продлен",
                     key_number=key_number,
                     expiry_date=new_expiry_date,
-                    connection_string=connection_string
+                    connection_string=connection_string,
+                    subscription_link=subscription_link,
+                    provision_mode=provision_mode
                 )
                 
                 # Проверяем, что key_id не None перед созданием клавиатуры
@@ -2332,7 +2977,7 @@ def get_user_router() -> Router:
                 receipt = {
                     "customer": {"email": customer_email},
                     "items": [{
-                        "description": f"Подписка на {months} мес.",
+                        "description": "Подписка на сервис",
                         "quantity": "1.00",
                         "amount": {"value": price_str_for_api, "currency": "RUB"},
                         "vat_code": "1"
@@ -2342,18 +2987,33 @@ def get_user_router() -> Router:
                 "amount": {"value": price_str_for_api, "currency": "RUB"},
                 "confirmation": {"type": "redirect", "return_url": f"https://t.me/{TELEGRAM_BOT_USERNAME}"},
                 "capture": True,
-                "description": f"Подписка на {months} мес.",
+                "description": "Подписка на сервис",
                 "metadata": {
                     "user_id": user_id, "months": months, "price": price_float_for_metadata, 
                     "action": action, "key_id": key_id, "host_name": host_name,
                     "plan_id": plan_id, "customer_email": customer_email,
-                    "payment_method": "YooKassa"
+                    "payment_method": "YooKassa", "promo_code": data.get('promo_code')
                 }
             }
             if receipt:
                 payment_payload['receipt'] = receipt
 
             payment = Payment.create(payment_payload, uuid.uuid4())
+            
+            # Создаем транзакцию в базе данных
+            payment_metadata = {
+                "user_id": user_id,
+                "months": months,
+                "price": price_float_for_metadata,
+                "action": action,
+                "key_id": key_id,
+                "host_name": host_name,
+                "plan_id": plan_id,
+                "customer_email": customer_email,
+                "payment_method": "YooKassa",
+                "promo_code": data.get('promo_code')
+            }
+            create_pending_transaction(payment.id, user_id, float(price_rub), payment_metadata)
             
             await state.clear()
             
@@ -2436,7 +3096,7 @@ def get_user_router() -> Router:
                 currency_type="fiat",
                 fiat="RUB",
                 amount=float(price_rub),
-                description=f"Подписка на {months} мес.",
+                description="Подписка на сервис",
                 payload=payload_data,
                 expires_in=3600
             )
@@ -2578,19 +3238,38 @@ def get_user_router() -> Router:
                 if extra_hours > 24:
                     extra_hours = 24
                 days_to_add = months * 30 + extra_days + (extra_hours / 24)
+                
+                # Для новых ключей формируем subscription заранее
+                subscription = None
+                telegram_chat_id = None
+                if action == "new":
+                    user_data = get_user(user_id)
+                    username = user_data.get('username', '') if user_data else ''
+                    subscription = f"{user_id}-{username}".lower().replace('@', '')
+                    telegram_chat_id = user_id
+                
                 result = await xui_api.create_or_update_key_on_host(
                     host_name=host_name,
                     email=email,
                     days_to_add=days_to_add,
-                    comment=comment
+                    comment=comment,
+                    sub_id=subscription,
+                    telegram_chat_id=telegram_chat_id
                 )
 
                 if not result:
-                    await callback.message.edit_text("❌ Не удалось создать/обновить ключ в панели.")
+                    await callback.message.edit_text(
+                        "❌ Не удалось создать/обновить ключ в панели.\n\n"
+                        "Возможные причины:\n"
+                        "• Временная недоступность сервера\n"
+                        "• Проблемы с сетью\n\n"
+                        "Попробуйте позже или обратитесь в поддержку."
+                    )
                     await state.clear()
                     return
 
                 if action == "new":
+                    
                     key_id = add_new_key(
                         user_id,
                         host_name,
@@ -2599,10 +3278,13 @@ def get_user_router() -> Router:
                         result['expiry_timestamp_ms'],
                         connection_string=result.get('connection_string') or "",
                         plan_name=plan['plan_name'],
-                        price=0.0
+                        price=0.0,
+                        subscription=subscription,
+                        telegram_chat_id=telegram_chat_id,
+                        comment=f"Бесплатный ключ для пользователя {fullname or username or user_id}"
                     )
                 elif action == "extend":
-                    update_key_info(key_id, result['client_uuid'], result['expiry_timestamp_ms'])
+                    update_key_info(key_id, result['client_uuid'], result['expiry_timestamp_ms'], result.get('subscription_link'))
                 
                 # Обновляем статистику
                 update_user_stats(user_id, 0, months)
@@ -2637,11 +3319,19 @@ def get_user_router() -> Router:
                 all_user_keys = get_user_keys(user_id)
                 key_number = next((i + 1 for i, key in enumerate(all_user_keys) if key['key_id'] == key_id), len(all_user_keys))
 
+                # Получаем provision_mode из тарифа
+                provision_mode = 'key'  # по умолчанию
+                subscription_link = result.get('subscription_link')
+                if plan:
+                    provision_mode = plan.get('key_provision_mode', 'key')
+
                 final_text = get_purchase_success_text(
                     action="создан" if action == "new" else "продлен",
                     key_number=key_number,
                     expiry_date=new_expiry_date,
-                    connection_string=connection_string
+                    connection_string=connection_string,
+                    subscription_link=subscription_link,
+                    provision_mode=provision_mode
                 )
                 
                 # Проверяем, что key_id не None перед созданием клавиатуры
@@ -2672,7 +3362,7 @@ def get_user_router() -> Router:
             "host_name": data.get('host_name'), "plan_id": data.get('plan_id'),
             "plan_name": plan['plan_name'],  # Добавляем название плана
             "customer_email": data.get('customer_email'), "payment_method": "TON Connect",
-            "payment_id": payment_id  # Добавляем payment_id в metadata
+            "payment_id": payment_id, "promo_code": data.get('promo_code')  # Добавляем payment_id и promo_code в metadata
         }
         # Создаем ссылку для TON Connect (будет обновлена после создания)
         payment_link = f"https://t.me/wallet?attach=wallet&startattach=tonconnect-v__2-id__{payment_id[:8]}-r__--7B--22manifestUrl--22--3A--22https--3A--2F--2Fparis--2Edark--2Dmaximus--2Ecom--2F--2Ewell--2Dknown--2Ftonconnect--2Dmanifest--2Ejson--22--2C--22items--22--3A--5B--7B--22name--22--3A--22ton--5Faddr--22--7D--5D--7D"
@@ -2737,7 +3427,7 @@ def get_user_router() -> Router:
     async def create_stars_invoice_handler(callback: types.CallbackQuery, state: FSMContext):
         logger.info(f"User {callback.from_user.id}: Entered create_stars_invoice_handler.")
         try:
-            await callback.answer("Создаю счет через Stars...")
+            await callback.answer("Подготовка оплаты через Stars...")
             data = await state.get_data()
 
             user_id = callback.from_user.id
@@ -2770,7 +3460,8 @@ def get_user_router() -> Router:
                     "plan_name": plan.get('plan_name'),
                     "customer_email": customer_email,
                     "payment_method": "Stars",
-                    "payment_id": str(uuid.uuid4())
+                    "payment_id": str(uuid.uuid4()),
+                    "promo_code": data.get('promo_code')
                 }
                 await process_successful_payment(callback.bot, metadata)
                 await state.clear()
@@ -2784,19 +3475,71 @@ def get_user_router() -> Router:
             if amount_stars < 1:
                 amount_stars = 1
 
-            invoice_price = types.LabeledPrice(label=f"{plan.get('plan_name', 'Тариф')}", amount=amount_stars)
+            # Сохраняем данные для последующего создания инвойса
+            await state.update_data(
+                stars_amount_stars=amount_stars,
+                stars_price_rub=price_rub,
+                stars_conversion_rate=float(conversion_rate),
+                stars_plan=plan,
+                stars_metadata={
+                    "user_id": user_id,
+                    "months": months,
+                    "action": action,
+                    "key_id": key_id,
+                    "host_name": host_name,
+                    "plan_id": int(plan_id),
+                    "customer_email": customer_email,
+                    "promo_code": data.get('promo_code')
+                }
+            )
+
+            # Показываем клавиатуру с кнопками оплаты
+            from src.shop_bot.bot.keyboards import create_stars_payment_keyboard
+            keyboard = create_stars_payment_keyboard(amount_stars, is_topup=False)
+            
+            text = (
+                f"💳 **Оплата тарифа через Telegram Stars**\n\n"
+                f"📦 Тариф: {plan.get('plan_name', 'Тариф')}\n"
+                f"💰 Сумма: {price_rub} RUB\n"
+                f"⭐ К оплате: {amount_stars} звезд\n\n"
+                f"Нажмите кнопку ниже для создания счета на оплату."
+            )
+            
+            await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+        except Exception as e:
+            logger.error(f"Failed to create Stars purchase invoice: {e}", exc_info=True)
+            try:
+                await callback.message.answer("❌ Не удалось создать счет через Stars. Попробуйте позже или выберите другой способ оплаты.")
+            except Exception:
+                pass
+            await state.clear()
+
+    @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "confirm_stars_payment")
+    async def confirm_stars_payment(callback: types.CallbackQuery, state: FSMContext):
+        """Обработчик подтверждения оплаты звездами для покупки тарифа"""
+        logger.info(f"User {callback.from_user.id}: Confirming Stars payment.")
+        await callback.answer("Создаю счет через Stars...")
+        data = await state.get_data()
+        
+        user_id = callback.from_user.id
+        amount_stars = data.get('stars_amount_stars', 0)
+        price_rub = data.get('stars_price_rub', 0)
+        conversion_rate = data.get('stars_conversion_rate', 1.79)
+        plan = data.get('stars_plan', {})
+        metadata = data.get('stars_metadata', {})
+        
+        if amount_stars <= 0 or price_rub <= 0:
+            await callback.message.edit_text("❌ Некорректные данные для оплаты.")
+            await state.clear()
+            return
+
+        try:
+            invoice_price = types.LabeledPrice(label=f"{plan.get('plan_name', 'Тариф')}", amount=int(price_rub * 100))
 
             payment_id = str(uuid.uuid4())
             payment_metadata = {
-                "user_id": user_id,
-                "months": months,
+                **metadata,
                 "price": float(price_rub),
-                "action": action,
-                "key_id": key_id,
-                "host_name": host_name,
-                "plan_id": int(plan_id),
-                "plan_name": plan.get('plan_name'),
-                "customer_email": customer_email,
                 "payment_method": "Stars",
                 "stars_rate": float(conversion_rate),
                 "chat_id": callback.message.chat.id,
@@ -2830,6 +3573,65 @@ def get_user_router() -> Router:
             except Exception:
                 pass
             await state.clear()
+
+    @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "stars_payment_failed")
+    async def stars_payment_failed(callback: types.CallbackQuery, state: FSMContext):
+        """Обработчик кнопки 'Не удалось заплатить' для покупки тарифа"""
+        from src.shop_bot.bot.keyboards import create_stars_payment_failed_keyboard
+        
+        text = (
+            "💳 **Возможно вы не смогли заплатить из-за отсутствия валютной карты.**\n\n"
+            "Иногда ваш счет в Telegram может или мог быть привязанным к ранее существовавшим VISA/Master картам.\n\n"
+            "Можно купить звезды по карте РФ через официального \"Premium Bot\""
+        )
+        
+        keyboard = create_stars_payment_failed_keyboard(is_topup=False)
+        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+
+    @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "back_to_payment_methods")
+    @registration_required
+    async def back_to_payment_methods(callback: types.CallbackQuery, state: FSMContext):
+        """Возврат к выбору методов оплаты для покупки тарифа"""
+        await callback.answer()
+        data = await state.get_data()
+        
+        # Получаем данные для создания клавиатуры методов оплаты
+        plan_id = data.get('plan_id')
+        action = data.get('action', 'buy')
+        key_id = int(data.get('key_id', 0))
+        host_name = data.get('host_name', '')
+        customer_email = data.get('customer_email', '')
+        
+        plan = get_plan_by_id(plan_id)
+        if not plan:
+            await callback.message.edit_text("❌ Ошибка: Тариф не найден.")
+            await state.clear()
+            return
+        
+        # Получаем пользователя и баланс
+        user = get_user_by_id(callback.from_user.id)
+        user_balance = user.get('balance', 0.0) if user else 0.0
+        
+        # Получаем доступные методы платежа
+        payment_methods = get_available_payment_methods()
+        
+        # Создаем клавиатуру методов оплаты
+        from src.shop_bot.bot.keyboards import create_payment_method_keyboard
+        keyboard = create_payment_method_keyboard(
+            payment_methods=payment_methods,
+            action=action,
+            key_id=key_id,
+            user_balance=user_balance
+        )
+        
+        text = (
+            f"💳 **Выберите способ оплаты**\n\n"
+            f"📦 Тариф: {plan.get('plan_name', 'Тариф')}\n"
+            f"💰 Стоимость: {plan.get('price', 0)} RUB\n\n"
+            f"Выберите удобный способ оплаты:"
+        )
+        
+        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
 
     @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "pay_balance")
     async def pay_with_internal_balance(callback: types.CallbackQuery, state: FSMContext):
@@ -2868,7 +3670,8 @@ def get_user_router() -> Router:
                 "plan_id": plan_id,
                 "customer_email": data.get('customer_email'),
                 "payment_method": "Из баланса",
-                "payment_id": str(uuid.uuid4())
+                "payment_id": str(uuid.uuid4()),
+                "promo_code": data.get('promo_code')
             }
 
             # Логируем транзакцию в БД
@@ -2905,13 +3708,77 @@ def get_user_router() -> Router:
         # После успешной оплаты с баланса не предлагаем альтернативные методы
         return
 
-        @user_router.message(F.text)
-        @registration_required
-        async def unknown_message_handler(message: types.Message):
-            if message.text.startswith('/'):
-                await message.answer("Такой команды не существует. Попробуйте /start.")
+    @user_router.message(F.text)
+    @registration_required
+    async def promo_code_text_handler(message: types.Message):
+        """Обработчик текстовых сообщений для промокодов"""
+        from shop_bot.data_manager.database import validate_promo_code
+        
+        user_id = message.from_user.id
+        text = message.text.strip()
+        
+        # Расширенный список кнопок главного меню и интерфейса
+        interface_buttons = [
+            "🏠 Главное меню", "🛒 Купить", "🛒 Купить VPN", "🛒 Купить новый VPN", 
+            "👤 Мой профиль", "🔑 Мои ключи", "💰Пополнить баланс", "💳 Пополнить баланс",
+            "🤝 Реферальная программа", "❓ Инструкция как пользоваться", 
+            "🆘 Поддержка", "ℹ️ О проекте", "⚙️ Админ-панель", "🆓 Пробный период", 
+            "⁉️ Помощь и поддержка", "➕ Купить новый ключ", "🔄 Продлить ключ"
+        ]
+        
+        # Проверяем, является ли сообщение промокодом (не команда и не кнопка)
+        if not text.startswith('/') and text not in interface_buttons:
+            
+            # Валидируем промокод
+            result = validate_promo_code(text, "shop")
+            
+            if result['valid']:
+                # Промокод найден - ЗАПИСЫВАЕМ ИСПОЛЬЗОВАНИЕ СРАЗУ
+                try:
+                    from shop_bot.data_manager.database import get_promo_code_by_code, record_promo_code_usage
+                    promo_data = get_promo_code_by_code(text, "shop")
+                    if promo_data:
+                        # Записываем использование промокода
+                        success = record_promo_code_usage(
+                            promo_id=promo_data['promo_id'],
+                            user_id=user_id,
+                            bot="shop",
+                            plan_id=promo_data.get('vpn_plan_id'),
+                            discount_amount=promo_data.get('discount_amount', 0.0),
+                            discount_percent=promo_data.get('discount_percent', 0.0),
+                            discount_bonus=promo_data.get('discount_bonus', 0.0)
+                        )
+                        if success:
+                            logger.info(f"Successfully recorded promo code usage via text handler: {text} for user {user_id}")
+                        else:
+                            logger.error(f"Failed to record promo code usage via text handler: {text} for user {user_id}")
+                except Exception as e:
+                    logger.error(f"Error recording promo code usage via text handler: {e}", exc_info=True)
+                
+                # Промокод найден
+                response_text = f"{result['message']}\n\n{result['description']}\n\n"
+                response_text += "💡 <b>Как использовать:</b>\n"
+                response_text += "1. Выберите '🛒 Купить' в главном меню\n"
+                response_text += "2. Выберите '🛒 Купить новый VPN'\n"
+                response_text += "3. При оформлении заказа введите этот промокод\n\n"
+                response_text += "Промокод будет автоматически применен к заказу!"
+                
+                await message.answer(response_text, reply_markup=keyboards.create_back_to_menu_keyboard())
             else:
-                await message.answer("Я не понимаю эту команду. Пожалуйста, используйте кнопки меню.")
+                # Промокод не найден
+                await message.answer(
+                    f"❌ {result['message']}\n\n"
+                    "Проверьте правильность написания промокода.\n"
+                    "Промокод должен быть введен точно как указано (с учетом регистра).",
+                    reply_markup=keyboards.create_back_to_menu_keyboard()
+                )
+            return
+        
+        # Если это не промокод, передаем в общий обработчик
+        if message.text.startswith('/'):
+            await message.answer("Такой команды не существует. Попробуйте /start.")
+        else:
+            await message.answer("Я не понимаю эту команду. Пожалуйста, используйте кнопки меню.")
 
     @user_router.pre_checkout_query()
     async def pre_checkout_handler(pre_checkout_query: types.PreCheckoutQuery):
@@ -3181,7 +4048,8 @@ except Exception:
 
 async def _get_ton_connect_instance(user_id: int) -> TonConnect:
     if user_id not in _user_connectors:
-        manifest_url = 'https://paris.dark-maximus.com/.well-known/tonconnect-manifest.json'
+        from shop_bot.data_manager.database import get_global_domain
+        manifest_url = f'{get_global_domain()}/.well-known/tonconnect-manifest.json'
         _user_connectors[user_id] = TonConnect(manifest_url=manifest_url)
     return _user_connectors[user_id]
 
@@ -3377,7 +4245,8 @@ async def _create_heleket_payment_request(user_id: int, price: float, months: in
     merchant_id = get_setting("heleket_merchant_id")
     api_key = get_setting("heleket_api_key")
     bot_username = get_setting("telegram_bot_username")
-    domain = get_setting("domain")
+    from shop_bot.data_manager.database import get_global_domain
+    domain = get_global_domain()
 
     if not all([merchant_id, api_key, bot_username, domain]):
         logger.error("Heleket Error: Not all required settings are configured.")
@@ -3487,6 +4356,193 @@ def get_ton_transaction_url(tx_hash: str) -> str:
     """Создает ссылку на транзакцию в TON Explorer"""
     return f"https://tonscan.org/tx/{tx_hash}"
 
+async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
+    """Обрабатывает успешный платеж YooKassa с дополнительными данными"""
+    try:
+        # Импортируем здесь, чтобы функция была видима при любом пути выполнения
+        from shop_bot.data_manager.database import update_yookassa_transaction
+        
+        def _to_int(val, default=0):
+            try:
+                if val is None:
+                    return default
+                s = str(val).strip()
+                if s == '' or s.lower() == 'none':
+                    return default
+                return int(s)
+            except Exception:
+                return default
+
+        def _to_float(val, default=0.0):
+            try:
+                if val is None:
+                    return default
+                s = str(val).strip()
+                if s == '' or s.lower() == 'none':
+                    return default
+                return float(s)
+            except Exception:
+                return default
+
+        user_id = _to_int(metadata.get('user_id'))
+        operation = metadata.get('operation')
+        months = _to_int(metadata.get('months'))
+        price = _to_float(metadata.get('price'))
+        action = metadata.get('action')
+        key_id = _to_int(metadata.get('key_id'))
+        host_name = metadata.get('host_name')
+        plan_id = _to_int(metadata.get('plan_id'))
+        customer_email = metadata.get('customer_email')
+        payment_method = metadata.get('payment_method')
+        
+        # Дополнительные данные YooKassa
+        yookassa_payment_id = metadata.get('yookassa_payment_id')
+        rrn = metadata.get('rrn')
+        authorization_code = metadata.get('authorization_code')
+        payment_type = metadata.get('payment_type')
+
+        chat_id_to_delete = metadata.get('chat_id')
+        message_id_to_delete = metadata.get('message_id')
+        
+    except (ValueError, TypeError) as e:
+        logger.error(f"FATAL: Could not parse YooKassa metadata. Error: {e}. Metadata: {metadata}")
+        return
+
+    # Пополнение баланса: отдельная ветка
+    if operation == 'topup':
+        try:
+            from shop_bot.data_manager.database import add_to_user_balance
+            payment_id = metadata.get('payment_id')
+            if payment_id:
+                update_yookassa_transaction(
+                    payment_id, 'paid', price,
+                    yookassa_payment_id, rrn, authorization_code, payment_type,
+                    metadata
+                )
+            add_to_user_balance(user_id, price)
+            await bot.send_message(user_id, f"✅ Баланс пополнен на {price:.2f} RUB", reply_markup=keyboards.create_back_to_menu_keyboard())
+        except Exception as e:
+            logger.error(f"Failed to process YooKassa topup for user {user_id}: {e}", exc_info=True)
+        return
+
+    if chat_id_to_delete and message_id_to_delete:
+        try:
+            await bot.delete_message(chat_id=chat_id_to_delete, message_id=message_id_to_delete)
+        except TelegramBadRequest as e:
+            logger.warning(f"Could not delete payment message: {e}")
+
+    processing_message = await bot.send_message(
+        chat_id=user_id,
+        text=f"✅ Оплата получена! Обрабатываю ваш запрос на сервере \"{host_name}\"..."
+    )
+    try:
+        email = ""
+        comment = f"{user_id}"
+        if action == "new":
+            key_number = get_next_key_number(user_id)
+            try:
+                from shop_bot.data_manager.database import get_host
+                host_rec = get_host(host_name) if host_name else None
+                host_code = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec and host_name else (host_name or "").replace(' ', '').lower()
+            except Exception:
+                host_code = (host_name or "").replace(' ', '').lower()
+            email = f"user{user_id}-key{key_number}@{host_code}.bot"
+        elif action == "extend":
+            key_data = get_key_by_id(key_id)
+            if not key_data or key_data['user_id'] != user_id:
+                await processing_message.edit_text("❌ Ошибка: ключ для продления не найден.")
+                return
+            email = key_data['key_email']
+        
+        # Учитываем дополнительные дни и трафик
+        plan = get_plan_by_id(plan_id)
+        extra_days = int(plan.get('days') or 0) if plan else 0
+        extra_hours = int(plan.get('hours') or 0) if plan else 0
+        if extra_hours < 0:
+            extra_hours = 0
+        if extra_hours > 24:
+            extra_hours = 24
+        traffic_gb = float(plan.get('traffic_gb') or 0) if plan else 0.0
+        days_to_add = months * 30 + extra_days + (extra_hours / 24)
+        if not host_name:
+            await processing_message.edit_text("❌ Ошибка: не указан сервер.")
+            return
+            
+        # Создаем или продлеваем ключ
+        if action == "new":
+            # Получаем данные пользователя для формирования subscription
+            user_data = get_user(user_id)
+            username = user_data.get('username', '') if user_data else ''
+            fullname = user_data.get('fullname', '') if user_data else ''
+            subscription = f"{user_id}-{username}".lower().replace('@', '')
+            telegram_chat_id = user_id
+            
+            # Создаем новый ключ через XUI API с передачей sub_id
+            result = await xui_api.create_or_update_key_on_host(
+                host_name=host_name,
+                email=email,
+                days_to_add=days_to_add,
+                comment=comment,
+                traffic_gb=traffic_gb,
+                sub_id=subscription,
+                telegram_chat_id=telegram_chat_id
+            )
+            if result:
+                
+                # Сохраняем ключ в базу данных
+                key_id = add_new_key(
+                    user_id=user_id,
+                    host_name=host_name,
+                    xui_client_uuid=result['client_uuid'],
+                    key_email=result['email'],
+                    expiry_timestamp_ms=result['expiry_timestamp_ms'],
+                    connection_string=result.get('connection_string') or "",
+                    plan_name=plan.get('plan_name') if plan else None,
+                    price=price,
+                    subscription=subscription,
+                    telegram_chat_id=telegram_chat_id,
+                    comment=f"Ключ для пользователя {fullname or username or user_id}"
+                )
+                if key_id:
+                    # Обновляем статистику пользователя
+                    update_user_stats(user_id, price, months)
+                    
+                    # Обновляем транзакцию с данными YooKassa
+                    payment_id = metadata.get('payment_id')
+                    if payment_id:
+                        update_yookassa_transaction(
+                            payment_id, 'paid', price,
+                            yookassa_payment_id, rrn, authorization_code, payment_type,
+                            metadata
+                        )
+                    
+                    await processing_message.edit_text(get_purchase_success_text(user_id, host_name, email, months))
+            else:
+                await processing_message.edit_text("❌ Ошибка: не удалось создать ключ.")
+        elif action == "extend":
+            # Продлеваем существующий ключ
+            result = update_key_info(key_id, days_to_add, traffic_gb)
+            if result:
+                # Обновляем статистику пользователя
+                update_user_stats(user_id, price, months)
+                
+                # Обновляем транзакцию с данными YooKassa
+                payment_id = metadata.get('payment_id')
+                if payment_id:
+                    update_yookassa_transaction(
+                        payment_id, 'paid', price,
+                        yookassa_payment_id, rrn, authorization_code, payment_type,
+                        metadata
+                    )
+                
+                await processing_message.edit_text(f"✅ Ключ успешно продлен на {months} месяцев!")
+            else:
+                await processing_message.edit_text("❌ Ошибка: не удалось продлить ключ.")
+    except Exception as e:
+        logger.error(f"Failed to process YooKassa payment for user {user_id}: {e}", exc_info=True)
+        await processing_message.edit_text("❌ Произошла ошибка при обработке платежа. Обратитесь в поддержку.")
+
+
 async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | None = None):
     try:
         # Импортируем здесь, чтобы функция была видима при любом пути выполнения
@@ -3586,20 +4642,39 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
         if not host_name:
             await processing_message.edit_text("❌ Ошибка: не указан сервер.")
             return
+        
+        # Для новых ключей формируем subscription заранее
+        subscription = None
+        telegram_chat_id = None
+        if action == "new":
+            user_data = get_user(user_id)
+            username = user_data.get('username', '') if user_data else ''
+            fullname = user_data.get('fullname', '') if user_data else ''
+            subscription = f"{user_id}-{username}".lower().replace('@', '')
+            telegram_chat_id = user_id
             
         result = await xui_api.create_or_update_key_on_host(
             host_name=host_name,
             email=email,
-            days_to_add=int(days_to_add),
+            days_to_add=days_to_add,
             comment=comment,
-            traffic_gb=traffic_gb if traffic_gb > 0 else None
+            traffic_gb=traffic_gb if traffic_gb > 0 else None,
+            sub_id=subscription,
+            telegram_chat_id=telegram_chat_id
         )
 
         if not result:
-            await processing_message.edit_text("❌ Не удалось создать/обновить ключ в панели.")
+            await processing_message.edit_text(
+                "❌ Не удалось создать/обновить ключ в панели.\n\n"
+                "Возможные причины:\n"
+                "• Временная недоступность сервера\n"
+                "• Проблемы с сетью\n\n"
+                "Попробуйте позже или обратитесь в поддержку."
+            )
             return
 
         if action == "new":
+            
             key_id = add_new_key(
                 user_id, 
                 host_name, 
@@ -3608,7 +4683,11 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
                 result['expiry_timestamp_ms'],
                 connection_string=result.get('connection_string') or "",
                 plan_name=(metadata.get('plan_name') or (plan.get('plan_name') if plan else None) or ""),
-                price=float(metadata.get('price') or 0)
+                price=float(metadata.get('price') or 0),
+                subscription=subscription,
+                subscription_link=result.get('subscription_link'),
+                telegram_chat_id=telegram_chat_id,
+                comment=f"Ключ для пользователя {fullname or username or user_id}"
             )
         elif action == "extend":
             update_key_info(key_id, result['client_uuid'], result['expiry_timestamp_ms'])
@@ -3637,6 +4716,13 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
                     logger.warning(f"Could not send referral reward notification to {referrer_id}: {e}")
 
         update_user_stats(user_id, price, months)
+        
+        # Логируем информацию о платеже (промокод уже записан при применении)
+        promo_code = metadata.get('promo_code')
+        logger.info(f"Processing payment for user {user_id}, promo_code: {promo_code}, metadata: {metadata}")
+        
+        if promo_code:
+            logger.info(f"Payment processed with promo code {promo_code} for user {user_id}")
         
         user_info = get_user(user_id)
 
@@ -3678,11 +4764,19 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
         all_user_keys = get_user_keys(user_id)
         key_number = next((i + 1 for i, key in enumerate(all_user_keys) if key['key_id'] == key_id), len(all_user_keys))
 
+        # Получаем provision_mode из тарифа
+        provision_mode = 'key'  # по умолчанию
+        subscription_link = result.get('subscription_link')
+        if plan:
+            provision_mode = plan.get('key_provision_mode', 'key')
+        
         final_text = get_purchase_success_text(
             action="создан" if action == "new" else "продлен",
             key_number=key_number,
             expiry_date=new_expiry_date,
-            connection_string=connection_string
+            connection_string=connection_string,
+            subscription_link=subscription_link,
+            provision_mode=provision_mode
         )
         
         # Добавляем информацию о транзакции, если есть

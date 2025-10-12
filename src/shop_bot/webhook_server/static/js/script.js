@@ -16,6 +16,30 @@ function copyKey(key) {
 	}
 }
 
+// Глобальные функции для работы с кебаб-меню
+function toggleKebabMenu(menuId) {
+	// Закрываем все другие кебаб-меню
+	const allMenus = document.querySelectorAll('.kebab-menu')
+	allMenus.forEach(menu => {
+		if (menu.id !== menuId) {
+			menu.classList.remove('active')
+		}
+	})
+	
+	// Переключаем текущее меню
+	const menu = document.getElementById(menuId)
+	if (menu) {
+		menu.classList.toggle('active')
+	}
+}
+
+function closeKebabMenu(menuId) {
+	const menu = document.getElementById(menuId)
+	if (menu) {
+		menu.classList.remove('active')
+	}
+}
+
 // Fallback функция для копирования текста
 function fallbackCopyTextToClipboard(text) {
 	const textArea = document.createElement("textarea");
@@ -612,14 +636,19 @@ document.addEventListener('DOMContentLoaded', function () {
 	initializeTopupBalanceModal()
 	initializeTrialResetModal()
 	
-	// Кебаб-меню теперь закрываются автоматически через CSS при потере hover/focus
-	
+	// Закрываем все кебаб-меню при клике вне их
+	document.addEventListener('click', function(event) {
+		if (!event.target.closest('.kebab-wrapper')) {
+			const allMenus = document.querySelectorAll('.kebab-menu')
+			allMenus.forEach(menu => {
+				menu.classList.remove('active')
+			})
+		}
+	})
 	
 	// Загружаем заработанную сумму для всех пользователей на странице пользователей
 	loadAllUsersEarned()
 	loadAllUsersBalances()
-	
-	// Кебаб-меню теперь работают на чистом CSS без JavaScript
 })
 
 // Функции для модального окна пользователя
@@ -650,20 +679,32 @@ function initializeCreateNotificationModal() {
 
 // Инициализация действий таблицы пользователей: даблклик и кебаб-меню
 function initializeUsersTableInteractions() {
+    console.log('Initializing users table interactions...')
+    
     // Открытие карточки по дабл-клику по строке
-    document.querySelectorAll('.users-table .user-row').forEach(row => {
-        row.addEventListener('dblclick', () => {
+    const userRows = document.querySelectorAll('.users-table .user-row')
+    console.log('Found user rows:', userRows.length)
+    
+    userRows.forEach(row => {
+        row.addEventListener('dblclick', (e) => {
+            console.log('Double click on user row:', row)
+            e.preventDefault()
+            e.stopPropagation()
+            
             const userId = parseInt(row.getAttribute('data-user-id'))
             const username = row.getAttribute('data-username') || 'N/A'
             const isBanned = (row.getAttribute('data-is-banned') === 'true')
             const keysCount = parseInt(row.getAttribute('data-keys-count') || '0')
+            
+            console.log('Opening user modal for:', { userId, username, isBanned, keysCount })
+            
             if (!isNaN(userId)) {
                 openUserModal(userId, username, isBanned, isNaN(keysCount) ? 0 : keysCount)
             }
         })
     })
 
-    // Кебаб-меню теперь работают на чистом CSS
+    console.log('Users table interactions initialized')
 }
 
 // Хелперы: открытие карточки пользователя и пополнения баланса из кнопки в строке таблицы
@@ -1029,55 +1070,378 @@ function applyHiddenMode() {
 function openUserModal(userId, username, isBanned, keysCount) {
 	currentUserId = userId
 	
-	// Заполняем данные основной информации
+	// Заполняем основную информацию пользователя (будет обновлено при загрузке данных)
 	const modalUserIdEl = document.getElementById('modalUserId')
 	if (modalUserIdEl) {
 		modalUserIdEl.setAttribute('data-original', String(userId))
 		modalUserIdEl.textContent = String(userId)
 	}
-	const modalUsernameEl = document.getElementById('modalUsername')
-	const usernameText = username === 'N/A' ? 'N/A' : '@' + username
-	if (modalUsernameEl) {
-		modalUsernameEl.setAttribute('data-original', usernameText)
-		modalUsernameEl.textContent = usernameText
-	}
+	
 	document.getElementById('modalStatus').innerHTML = isBanned ? 
 		'<span class="status-badge status-banned">Забанен</span>' : 
 		'<span class="status-badge status-active">Активен</span>'
-	document.getElementById('modalKeys').textContent = keysCount + ' шт.'
 	
-	// Показываем/скрываем кнопки в зависимости от статуса
-	const banButton = document.getElementById('banButton')
-	const unbanButton = document.getElementById('unbanButton')
+	// Показываем/скрываем кнопки в кебаб-меню в зависимости от статуса
+	const drawerBanButton = document.getElementById('drawerBanButton')
+	const drawerUnbanButton = document.getElementById('drawerUnbanButton')
+	const drawerRevokeConsentButton = document.getElementById('drawerRevokeConsentButton')
 	
 	if (isBanned) {
-		banButton.style.display = 'none'
-		unbanButton.style.display = 'inline-block'
+		drawerBanButton.style.display = 'none'
+		drawerUnbanButton.style.display = 'block'
 	} else {
-		banButton.style.display = 'inline-block'
-		unbanButton.style.display = 'none'
+		drawerBanButton.style.display = 'block'
+		drawerUnbanButton.style.display = 'none'
 	}
 	
-	// Переключаемся на первую вкладку
-	switchTab('payments')
+	// Проверяем согласие с документами для показа кнопки отзыва
+	// Это будет обновлено после загрузки данных пользователя
 	
-	// Загружаем данные для вкладок
+	// Переключаемся на первую вкладку (userdata)
+	switchTab('userdata')
+	
+	// Загружаем данные для всех вкладок
+	loadUserDetails(userId)
 	loadUserPayments(userId)
 	loadUserKeys(userId)
 	loadUserNotifications(userId)
 	
-	// Применяем скрытый режим к шапке модалки после заполнения
+	// Инициализируем обработчики редактирования после загрузки данных
+	setTimeout(() => {
+		// Тестируем доступность элементов
+		console.log('Testing elements availability:')
+		console.log('FIO display field:', document.querySelector('#detailFio'))
+		console.log('FIO input field:', document.querySelector('#detailFioInput'))
+		console.log('Email display field:', document.querySelector('#detailEmail'))
+		console.log('Email input field:', document.querySelector('#detailEmailInput'))
+		console.log('Edit icons:', document.querySelectorAll('.edit-icon'))
+		
+		initializeEditableFields()
+		
+		// Также добавляем прямые обработчики на display поля
+		const fioDisplayField = document.querySelector('#detailFio')
+		const emailDisplayField = document.querySelector('#detailEmail')
+		
+		if (fioDisplayField) {
+			fioDisplayField.addEventListener('click', (e) => {
+				console.log('Direct FIO display field click handler triggered')
+				e.preventDefault()
+				e.stopPropagation()
+				makeFieldEditable('Fio')
+			})
+		}
+		
+		if (emailDisplayField) {
+			emailDisplayField.addEventListener('click', (e) => {
+				console.log('Direct Email display field click handler triggered')
+				e.preventDefault()
+				e.stopPropagation()
+				makeFieldEditable('Email')
+			})
+		}
+		
+		// Добавляем обработчики на иконки редактирования
+		const editIcons = document.querySelectorAll('.edit-icon')
+		editIcons.forEach(icon => {
+			icon.addEventListener('click', (e) => {
+				console.log('Edit icon click handler triggered')
+				e.preventDefault()
+				e.stopPropagation()
+				
+				const container = icon.closest('.editable-item')
+				if (container) {
+					const displayField = container.querySelector('[id^="detail"]:not([id$="Input"])')
+					if (displayField) {
+						const fieldId = displayField.id
+						if (fieldId === 'detailFio') {
+							makeFieldEditable('Fio')
+						} else if (fieldId === 'detailEmail') {
+							makeFieldEditable('Email')
+						}
+					}
+				}
+			})
+		})
+	}, 100)
+	
+	// Показываем drawer с анимацией
+	const drawer = document.getElementById('userDrawer')
+	drawer.style.display = 'block'
+	// Небольшая задержка для запуска анимации
+	setTimeout(() => {
+		drawer.classList.add('active')
+	}, 10)
+	
+	// Применяем скрытый режим после заполнения
 	if (window.__HIDDEN_MODE__) {
 		applyHiddenMode()
 	}
-    // Показываем модальное окно
-    document.getElementById('userModal').style.display = 'flex'
 }
 
 function closeUserModal() {
-	document.getElementById('userModal').style.display = 'none'
-	currentUserId = null
+	const drawer = document.getElementById('userDrawer')
+	drawer.classList.remove('active')
+	// Ждем завершения анимации перед скрытием
+	setTimeout(() => {
+		drawer.style.display = 'none'
+		currentUserId = null
+	}, 300)
 }
+
+// Закрытие drawer при клике на overlay
+document.addEventListener('DOMContentLoaded', function() {
+	const drawerOverlay = document.getElementById('userDrawer')
+	if (drawerOverlay) {
+		drawerOverlay.addEventListener('click', function(e) {
+			if (e.target === drawerOverlay) {
+				closeUserModal()
+			}
+		})
+	}
+	
+	// Закрытие drawer транзакций при клике на overlay
+	const transactionDrawerOverlay = document.getElementById('transactionDrawer')
+	if (transactionDrawerOverlay) {
+		transactionDrawerOverlay.addEventListener('click', function(e) {
+			if (e.target === transactionDrawerOverlay) {
+				closeTransactionModal()
+			}
+		})
+	}
+})
+
+// ============================================
+// Функции для работы с Transaction Drawer
+// ============================================
+
+let currentTransactionId = null;
+
+function openTransactionModal(transactionId) {
+	currentTransactionId = transactionId;
+	
+	// Показываем drawer
+	const drawer = document.getElementById('transactionDrawer');
+	if (!drawer) {
+		console.error('Transaction drawer not found');
+		return;
+	}
+	
+	drawer.style.display = 'flex';
+	// Небольшая задержка для анимации
+	setTimeout(() => {
+		drawer.classList.add('active');
+	}, 10);
+	
+	// Загружаем данные транзакции
+	loadTransactionDetails(transactionId);
+}
+
+function closeTransactionModal() {
+	const drawer = document.getElementById('transactionDrawer');
+	if (!drawer) return;
+	
+	drawer.classList.remove('active');
+	// Ждем завершения анимации перед скрытием
+	setTimeout(() => {
+		drawer.style.display = 'none';
+		currentTransactionId = null;
+	}, 300);
+}
+
+function loadTransactionDetails(transactionId) {
+	// Показываем индикатор загрузки
+	const detailElements = [
+		'txModalId', 'txModalStatus', 'txModalAmount', 'txModalPaymentMethod',
+		'txDetailId', 'txDetailPaymentId', 'txDetailDate', 'txDetailStatus',
+		'txDetailUserId', 'txDetailUsername', 'txDetailAmountRub', 'txDetailAmountCurrency',
+		'txDetailCurrencyName', 'txDetailPaymentMethod', 'txDetailHash', 'txDetailPaymentLink',
+		'txDetailOperationType', 'txDetailHost', 'txDetailPlan', 'txDetailConnectionString',
+		'txDetailMetadata'
+	];
+	
+	detailElements.forEach(id => {
+		const el = document.getElementById(id);
+		if (el) el.textContent = 'Загрузка...';
+	});
+	
+	// Запрос данных транзакции
+	fetch(`/api/transaction/${transactionId}`)
+		.then(response => {
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`);
+			}
+			return response.json();
+		})
+		.then(data => {
+			if (data.status === 'success' && data.transaction) {
+				populateTransactionDrawer(data.transaction);
+			} else {
+				console.error('Failed to load transaction:', data.message);
+				showErrorInDrawer('Ошибка загрузки данных транзакции');
+			}
+		})
+		.catch(error => {
+			console.error('Error loading transaction:', error);
+			showErrorInDrawer('Ошибка соединения с сервером');
+		});
+}
+
+function populateTransactionDrawer(tx) {
+	// Безопасная функция для установки значения
+	const setValue = (id, value, defaultValue = '—') => {
+		const el = document.getElementById(id);
+		if (el) {
+			el.textContent = value !== null && value !== undefined && value !== '' ? value : defaultValue;
+		}
+	};
+	
+	// Безопасная функция для установки HTML
+	const setHTML = (id, html, defaultValue = '—') => {
+		const el = document.getElementById(id);
+		if (el) {
+			el.innerHTML = html || defaultValue;
+		}
+	};
+	
+	// Парсим metadata если это строка
+	let metadata = tx.metadata;
+	if (typeof metadata === 'string') {
+		try {
+			metadata = JSON.parse(metadata);
+		} catch (e) {
+			console.error('Failed to parse metadata:', e);
+			metadata = {};
+		}
+	}
+	
+	// Заполняем верхнюю часть (закрепленная информация)
+	setValue('txModalId', tx.transaction_id);
+	
+	// Статус с badge
+	let statusBadge = '—';
+	if (tx.status) {
+		const statusClass = tx.status === 'paid' ? 'status-paid' : 
+						   tx.status === 'pending' ? 'status-pending' : 
+						   `status-${tx.status}`;
+		const statusText = tx.status === 'paid' ? 'Оплачено' : 
+						  tx.status === 'pending' ? 'Ожидает' : 
+						  tx.status;
+		statusBadge = `<span class="status-badge ${statusClass}">${statusText}</span>`;
+	}
+	setHTML('txModalStatus', statusBadge);
+	
+	// Сумма
+	let amountText = '—';
+	if (tx.amount_rub !== null && tx.amount_rub !== undefined) {
+		amountText = `${parseFloat(tx.amount_rub).toFixed(2)} RUB`;
+		if (tx.payment_method === 'Stars' && tx.amount_currency) {
+			amountText += ` (${parseInt(tx.amount_currency)}⭐️)`;
+		}
+	}
+	setValue('txModalAmount', amountText);
+	setValue('txModalPaymentMethod', tx.payment_method);
+	
+	// Заполняем детальную информацию
+	// Основное
+	setValue('txDetailId', tx.transaction_id);
+	setValue('txDetailPaymentId', tx.payment_id);
+	
+	// Дата
+	let dateText = '—';
+	if (tx.created_date) {
+		try {
+			const date = new Date(tx.created_date);
+			dateText = date.toLocaleString('ru-RU');
+		} catch (e) {
+			dateText = tx.created_date;
+		}
+	}
+	setValue('txDetailDate', dateText);
+	setHTML('txDetailStatus', statusBadge);
+	
+	// Пользователь
+	setValue('txDetailUserId', tx.user_id);
+	setValue('txDetailUsername', tx.username ? `@${tx.username}` : '—');
+	
+	// Платеж
+	setValue('txDetailAmountRub', tx.amount_rub !== null ? `${parseFloat(tx.amount_rub).toFixed(2)} RUB` : '—');
+	setValue('txDetailAmountCurrency', tx.amount_currency || '—');
+	setValue('txDetailCurrencyName', tx.currency_name || '—');
+	setValue('txDetailPaymentMethod', tx.payment_method);
+	
+	// Хеш транзакции с возможностью копирования
+	if (tx.transaction_hash) {
+		const hashEl = document.getElementById('txDetailHash');
+		if (hashEl) {
+			if (tx.payment_method === 'TON Connect') {
+				hashEl.innerHTML = `<a href="https://tonscan.org/tx/${tx.transaction_hash}" target="_blank" class="transaction-link">${tx.transaction_hash}</a>`;
+			} else {
+				hashEl.textContent = tx.transaction_hash;
+			}
+		}
+	} else {
+		setValue('txDetailHash', '—');
+	}
+	
+	// Ссылка на оплату
+	setValue('txDetailPaymentLink', tx.payment_link);
+	
+	// Детали заказа
+	// Тип операции
+	let operationType = '—';
+	if (metadata) {
+		if (metadata.operation === 'topup' || metadata.type === 'balance_topup') {
+			operationType = 'Зачисление';
+		} else if (metadata.action) {
+			operationType = metadata.action === 'new' ? 'Новый' : 'Продление';
+		}
+	}
+	setValue('txDetailOperationType', operationType);
+	
+	// Хост и план
+	setValue('txDetailHost', metadata?.host_name || '—');
+	
+	let planText = '—';
+	if (metadata && (metadata.operation === 'topup' || metadata.type === 'balance_topup')) {
+		planText = '—';
+	} else if (metadata?.is_trial === 1) {
+		planText = 'Триал';
+	} else {
+		planText = metadata?.plan_name || '—';
+	}
+	setValue('txDetailPlan', planText);
+	
+	// Ключ подключения
+	setValue('txDetailConnectionString', metadata?.connection_string || '—');
+	
+	// Метаданные (JSON)
+	const metadataEl = document.getElementById('txDetailMetadata');
+	if (metadataEl) {
+		if (metadata && Object.keys(metadata).length > 0) {
+			metadataEl.textContent = JSON.stringify(metadata, null, 2);
+		} else {
+			metadataEl.textContent = '—';
+		}
+	}
+}
+
+function showErrorInDrawer(message) {
+	const detailElements = [
+		'txModalId', 'txModalStatus', 'txModalAmount', 'txModalPaymentMethod',
+		'txDetailId', 'txDetailPaymentId', 'txDetailDate', 'txDetailStatus',
+		'txDetailUserId', 'txDetailUsername', 'txDetailAmountRub', 'txDetailAmountCurrency',
+		'txDetailCurrencyName', 'txDetailPaymentMethod', 'txDetailHash', 'txDetailPaymentLink',
+		'txDetailOperationType', 'txDetailHost', 'txDetailPlan', 'txDetailConnectionString',
+		'txDetailMetadata'
+	];
+	
+	detailElements.forEach(id => {
+		const el = document.getElementById(id);
+		if (el) el.textContent = message;
+	});
+}
+
+// ============================================
 
 function banUser() {
 	if (currentUserId && confirm('Вы уверены, что хотите забанить этого пользователя? Он не сможет пользоваться ботом.')) {
@@ -1112,6 +1476,18 @@ function revokeKeys() {
 		form.method = 'POST'
         // Совместить с существующим Flask-роутом /users/revoke/<int:user_id>
         form.action = `/users/revoke/${currentUserId}`
+		
+		document.body.appendChild(form)
+		form.submit()
+	}
+}
+
+function revokeConsent() {
+	if (currentUserId && confirm('Вы уверены, что хотите отозвать согласие этого пользователя с документами?')) {
+		// Создаем форму и отправляем POST запрос
+		const form = document.createElement('form')
+		form.method = 'POST'
+        form.action = `/users/revoke-consent/${currentUserId}`
 		
 		document.body.appendChild(form)
 		form.submit()
@@ -1271,6 +1647,440 @@ async function loadUserNotifications(userId) {
         console.error('Ошибка загрузки уведомлений:', error)
         document.getElementById('modalNotificationsTable').innerHTML = '<tr><td colspan="5" style="text-align: center; color: #dc3545;">Ошибка загрузки</td></tr>'
     }
+}
+
+// Функция для загрузки полных данных пользователя
+async function loadUserDetails(userId) {
+	try {
+		const response = await fetch(`/api/user-details/${userId}`)
+		const data = await response.json()
+		
+		if (data.error) {
+			console.error('Ошибка:', data.error)
+			return
+		}
+		
+		const user = data.user
+		
+		// Обновляем закрепленную информацию
+		const modalFullname = document.getElementById('modalFullname')
+		if (modalFullname) {
+			const fullnameText = user.fullname || 'N/A'
+			modalFullname.setAttribute('data-original', fullnameText)
+			modalFullname.textContent = fullnameText
+		}
+		
+		const modalBalance = document.getElementById('modalBalance')
+		if (modalBalance) {
+			const balanceText = (user.balance || 0).toFixed(2) + ' RUB'
+			modalBalance.setAttribute('data-original', balanceText)
+			modalBalance.textContent = balanceText
+		}
+		
+		const modalEarned = document.getElementById('modalEarned')
+		if (modalEarned) {
+			const earnedText = (user.earned || 0).toFixed(2) + ' RUB'
+			modalEarned.setAttribute('data-original', earnedText)
+			modalEarned.textContent = earnedText
+		}
+		
+		// Заполняем детальную информацию на вкладке "Данные пользователя"
+		document.getElementById('detailUserId').textContent = user.user_id || '—'
+		document.getElementById('detailTelegramId').textContent = user.telegram_id || '—'
+		
+		const usernameEl = document.getElementById('detailUsername')
+		const usernameText = user.username ? '@' + user.username : 'N/A'
+		usernameEl.setAttribute('data-original', usernameText)
+		usernameEl.textContent = usernameText
+		
+		const fullnameEl = document.getElementById('detailFullname')
+		const fullnameDetailText = user.fullname || 'N/A'
+		fullnameEl.setAttribute('data-original', fullnameDetailText)
+		fullnameEl.textContent = fullnameDetailText
+		
+		const fioEl = document.getElementById('detailFio')
+		const fioInputEl = document.getElementById('detailFioInput')
+		const fioText = user.fio || 'N/A'
+		fioEl.setAttribute('data-original', fioText)
+		fioEl.textContent = fioText
+		fioInputEl.value = user.fio || ''
+		
+		const emailEl = document.getElementById('detailEmail')
+		const emailInputEl = document.getElementById('detailEmailInput')
+		const emailText = user.email || 'N/A'
+		emailEl.setAttribute('data-original', emailText)
+		emailEl.textContent = emailText
+		emailInputEl.value = user.email || ''
+		
+		const detailBalance = document.getElementById('detailBalance')
+		const detailBalanceText = (user.balance || 0).toFixed(2) + ' RUB'
+		detailBalance.setAttribute('data-original', detailBalanceText)
+		detailBalance.textContent = detailBalanceText
+		
+		const detailReferralBalance = document.getElementById('detailReferralBalance')
+		const detailReferralBalanceText = (user.referral_balance || 0).toFixed(2) + ' RUB'
+		detailReferralBalance.setAttribute('data-original', detailReferralBalanceText)
+		detailReferralBalance.textContent = detailReferralBalanceText
+		
+		const detailReferralBalanceAll = document.getElementById('detailReferralBalanceAll')
+		const detailReferralBalanceAllText = (user.referral_balance_all || 0).toFixed(2) + ' RUB'
+		detailReferralBalanceAll.setAttribute('data-original', detailReferralBalanceAllText)
+		detailReferralBalanceAll.textContent = detailReferralBalanceAllText
+		
+		const detailTotalSpent = document.getElementById('detailTotalSpent')
+		const detailTotalSpentText = (user.total_spent || 0).toFixed(2) + ' RUB'
+		detailTotalSpent.setAttribute('data-original', detailTotalSpentText)
+		detailTotalSpent.textContent = detailTotalSpentText
+		
+		const detailEarned = document.getElementById('detailEarned')
+		const detailEarnedText = (user.earned || 0).toFixed(2) + ' RUB'
+		detailEarned.setAttribute('data-original', detailEarnedText)
+		detailEarned.textContent = detailEarnedText
+		
+		document.getElementById('detailTotalMonths').textContent = user.total_months || '0'
+		document.getElementById('detailTrialUsed').textContent = user.trial_used ? 'Да' : 'Нет'
+		document.getElementById('detailTrialDaysGiven').textContent = user.trial_days_given || '0'
+		document.getElementById('detailTrialReusesCount').textContent = user.trial_reuses_count || '0'
+		document.getElementById('detailAgreedToTerms').textContent = user.agreed_to_terms ? 'Да' : 'Нет'
+		document.getElementById('detailAgreedToDocuments').textContent = user.agreed_to_documents ? 'Да' : 'Нет'
+		
+		// Показываем/скрываем кнопку отзыва согласия в кебаб-меню
+		const drawerRevokeConsentButton = document.getElementById('drawerRevokeConsentButton')
+		if (user.agreed_to_documents) {
+			drawerRevokeConsentButton.style.display = 'block'
+		} else {
+			drawerRevokeConsentButton.style.display = 'none'
+		}
+		
+		// Статус подписки
+		let subscriptionStatusText = 'Не проверено'
+		if (user.subscription_status === 'subscribed') {
+			subscriptionStatusText = '✅ Подписан'
+		} else if (user.subscription_status === 'not_subscribed') {
+			subscriptionStatusText = '❌ Не подписан'
+		}
+		document.getElementById('detailSubscriptionStatus').textContent = subscriptionStatusText
+		
+		// Дата регистрации
+		const registrationDate = user.registration_date ? new Date(user.registration_date).toLocaleString('ru-RU') : 'N/A'
+		document.getElementById('detailRegistrationDate').textContent = registrationDate
+		
+		document.getElementById('detailIsBanned').innerHTML = user.is_banned ? 
+			'<span class="status-badge status-banned">Да</span>' : 
+			'<span class="status-badge status-active">Нет</span>'
+		
+		document.getElementById('detailReferredBy').textContent = 'N/A'
+		document.getElementById('detailKeysCount').textContent = user.keys_count || '0'
+		document.getElementById('detailNotificationsCount').textContent = user.notifications_count || '0'
+		
+		// Применяем скрытый режим после заполнения
+		if (window.__HIDDEN_MODE__) {
+			applyHiddenMode()
+		}
+	} catch (error) {
+		console.error('Ошибка загрузки данных пользователя:', error)
+	}
+}
+
+// Функции для кебаб-меню в drawer
+function toggleDrawerKebabMenu(menuId) {
+	// Закрываем все другие кебаб-меню
+	const allMenus = document.querySelectorAll('.kebab-menu')
+	allMenus.forEach(menu => {
+		if (menu.id !== menuId) {
+			menu.classList.remove('active')
+		}
+	})
+	
+	// Переключаем текущее меню
+	const menu = document.getElementById(menuId)
+	if (menu) {
+		menu.classList.toggle('active')
+	}
+}
+
+function closeDrawerKebabMenu() {
+	const menu = document.getElementById('drawer-kebab-menu')
+	if (menu) {
+		menu.classList.remove('active')
+	}
+
+}
+
+// Функции для редактирования полей
+function makeFieldEditable(fieldName) {
+	console.log('makeFieldEditable called for:', fieldName)
+	
+	const displayField = document.getElementById(`detail${fieldName}`)
+	const inputField = document.getElementById(`detail${fieldName}Input`)
+	const container = displayField ? displayField.closest('.editable-item') : null
+	
+	console.log('Elements found:', { displayField, inputField, container })
+	
+	if (!displayField || !inputField || !container) {
+		console.error('Required elements not found for field:', fieldName)
+		return
+	}
+	
+	// Сначала выходим из режима редактирования других полей
+	const allEditingFields = document.querySelectorAll('.editable-item.editing')
+	allEditingFields.forEach(item => {
+		const fieldContainer = item
+		const fieldInput = fieldContainer.querySelector('.editable-field')
+		if (fieldInput && fieldInput._keyHandler) {
+			fieldInput.removeEventListener('keydown', fieldInput._keyHandler)
+			fieldInput._keyHandler = null
+		}
+		fieldContainer.classList.remove('editing')
+	})
+	
+	// Переключаем в режим редактирования
+	container.classList.add('editing')
+	console.log('Added editing class to container')
+	
+	// Устанавливаем текущее значение в input
+	const currentValue = displayField.textContent === '—' ? '' : displayField.textContent
+	inputField.value = currentValue
+	inputField.style.display = 'block'
+	
+	console.log('Input field value set to:', currentValue)
+	
+	// Фокусируемся и выделяем текст
+	setTimeout(() => {
+		console.log('Attempting to focus input field')
+		inputField.focus()
+		inputField.select()
+		
+		// Убеждаемся, что каретка видна
+		inputField.setSelectionRange(0, inputField.value.length)
+		
+		// Принудительно показываем каретку
+		inputField.click()
+		inputField.focus()
+		
+		// Дополнительная проверка для браузеров
+		if (document.activeElement !== inputField) {
+			console.log('Input not focused, trying again')
+			inputField.focus()
+		}
+		
+		console.log('Active element:', document.activeElement)
+		console.log('Input field focused:', document.activeElement === inputField)
+	}, 100)
+	
+	// Показываем кнопку сохранения
+	const saveButton = document.getElementById('saveUserButton')
+	if (saveButton) {
+		saveButton.style.display = 'inline-block'
+		console.log('Save button shown')
+	}
+	
+	// Обработчик для сохранения по Enter
+	const handleKeyPress = (e) => {
+		if (e.key === 'Enter') {
+			e.preventDefault()
+			saveUserChanges()
+		} else if (e.key === 'Escape') {
+			e.preventDefault()
+			cancelEdit(fieldName)
+		}
+	}
+	
+	inputField.addEventListener('keydown', handleKeyPress)
+	inputField._keyHandler = handleKeyPress
+}
+
+function cancelEdit(fieldName) {
+	const displayField = document.getElementById(`detail${fieldName}`)
+	const inputField = document.getElementById(`detail${fieldName}Input`)
+	const container = displayField.closest('.editable-item')
+	
+	if (displayField && inputField && container) {
+		// Возвращаем исходное значение
+		const originalValue = displayField.getAttribute('data-original') || '—'
+		inputField.value = originalValue
+		displayField.textContent = originalValue
+		
+		// Переключаем обратно в режим отображения
+		container.classList.remove('editing')
+		
+		// Убираем обработчик событий
+		if (inputField._keyHandler) {
+			inputField.removeEventListener('keydown', inputField._keyHandler)
+			inputField._keyHandler = null
+		}
+		
+		// Скрываем кнопку сохранения если нет других редактируемых полей
+		const editingFields = document.querySelectorAll('.editable-item.editing')
+		if (editingFields.length === 0) {
+			const saveButton = document.getElementById('saveUserButton')
+			if (saveButton) {
+				saveButton.style.display = 'none'
+			}
+		}
+	}
+}
+
+// Функция для инициализации обработчиков редактирования
+function initializeEditableFields() {
+	// Удаляем старые обработчики если есть
+	if (window.editableClickHandler) {
+		document.removeEventListener('click', window.editableClickHandler)
+	}
+	
+	// Создаем новый обработчик
+	window.editableClickHandler = function(e) {
+		// Проверяем, что клик не по input полю
+		if (e.target.classList.contains('editable-field') || e.target.tagName === 'INPUT') {
+			return
+		}
+		
+		// Проверяем, что клик не по кебаб-меню или его элементам
+		if (e.target.closest('.kebab-wrapper') || e.target.closest('.kebab-menu') || e.target.closest('.kebab-btn')) {
+			return
+		}
+		
+		// Проверяем, что клик не по строке таблицы (для открытия карточки пользователя)
+		if (e.target.closest('.user-row')) {
+			return
+		}
+		
+		// Ищем ближайший редактируемый элемент
+		const editableItem = e.target.closest('.editable-item')
+		
+		if (!editableItem) {
+			return
+		}
+		
+		console.log('Found editable item:', editableItem)
+		
+		// Если элемент уже в режиме редактирования - ничего не делаем
+		if (editableItem.classList.contains('editing')) {
+			console.log('Item already in editing mode')
+			return
+		}
+		
+		e.preventDefault()
+		e.stopPropagation()
+		
+		// Определяем тип поля по ID элемента
+		const displayField = editableItem.querySelector('[id^="detail"]:not([id$="Input"])')
+		if (!displayField) {
+			console.log('No display field found')
+			return
+		}
+		
+		const fieldId = displayField.id
+		console.log('Clicked on field:', fieldId)
+		
+		if (fieldId === 'detailFio') {
+			makeFieldEditable('Fio')
+		} else if (fieldId === 'detailEmail') {
+			makeFieldEditable('Email')
+		}
+	}
+	
+	// Добавляем обработчик
+	document.addEventListener('click', window.editableClickHandler, true)
+}
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+	// Закрытие кебаб-меню при клике вне его
+	document.addEventListener('click', function(e) {
+		if (!e.target.closest('.kebab-wrapper')) {
+			closeDrawerKebabMenu()
+		}
+	})
+})
+
+// Функция сохранения изменений пользователя
+async function saveUserChanges() {
+	if (!currentUserId) return
+	
+	const fioInput = document.getElementById('detailFioInput')
+	const emailInput = document.getElementById('detailEmailInput')
+	
+	const changes = {}
+	
+	if (fioInput && fioInput.value !== fioInput.defaultValue) {
+		changes.fio = fioInput.value
+	}
+	
+	if (emailInput && emailInput.value !== emailInput.defaultValue) {
+		changes.email = emailInput.value
+	}
+	
+	if (Object.keys(changes).length === 0) {
+		alert('Нет изменений для сохранения')
+		return
+	}
+	
+	try {
+		const response = await fetch(`/api/update-user/${currentUserId}`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify(changes)
+		})
+		
+		const data = await response.json()
+		
+		if (response.ok) {
+			// Обновляем отображаемые значения
+			const fioField = document.getElementById('detailFio')
+			const emailField = document.getElementById('detailEmail')
+			const fioContainer = fioField?.closest('.editable-item')
+			const emailContainer = emailField?.closest('.editable-item')
+			
+			if (changes.fio !== undefined && fioField) {
+				const newValue = changes.fio || '—'
+				fioField.textContent = newValue
+				fioField.setAttribute('data-original', newValue)
+				fioContainer?.classList.remove('editing')
+				
+				// Убираем обработчик событий
+				const fioInput = document.getElementById('detailFioInput')
+				if (fioInput && fioInput._keyHandler) {
+					fioInput.removeEventListener('keydown', fioInput._keyHandler)
+					fioInput._keyHandler = null
+				}
+			}
+			
+			if (changes.email !== undefined && emailField) {
+				const newValue = changes.email || '—'
+				emailField.textContent = newValue
+				emailField.setAttribute('data-original', newValue)
+				emailContainer?.classList.remove('editing')
+				
+				// Убираем обработчик событий
+				const emailInput = document.getElementById('detailEmailInput')
+				if (emailInput && emailInput._keyHandler) {
+					emailInput.removeEventListener('keydown', emailInput._keyHandler)
+					emailInput._keyHandler = null
+				}
+			}
+			
+			// Скрываем кнопку сохранения
+			const saveButton = document.getElementById('saveUserButton')
+			if (saveButton) {
+				saveButton.style.display = 'none'
+			}
+			
+			alert('Изменения сохранены успешно')
+			
+			// Применяем скрытый режим
+			if (window.__HIDDEN_MODE__) {
+				applyHiddenMode()
+			}
+		} else {
+			alert(data.error || 'Ошибка сохранения изменений')
+		}
+	} catch (error) {
+		console.error('Ошибка сохранения:', error)
+		alert('Ошибка сохранения изменений')
+	}
 }
 
 function copyUsername() {
@@ -1605,43 +2415,7 @@ function refreshCurrentPage() {
     }, 2000);
 }
 
-// Функции для кебаб-меню
-function toggleKebabMenu(menuId) {
-    // Закрываем все открытые меню
-    const allMenus = document.querySelectorAll('.kebab-menu');
-    allMenus.forEach(menu => {
-        if (menu.id !== menuId) {
-            menu.style.display = 'none';
-        }
-    });
-    
-    // Переключаем текущее меню
-    const menu = document.getElementById(menuId);
-    if (menu) {
-        if (menu.style.display === 'none' || menu.style.display === '') {
-            menu.style.display = 'block';
-        } else {
-            menu.style.display = 'none';
-        }
-    }
-}
-
-function closeKebabMenu(menuId) {
-    const menu = document.getElementById(menuId);
-    if (menu) {
-        menu.style.display = 'none';
-    }
-}
-
-// Закрываем все кебаб-меню при клике вне их
-document.addEventListener('click', function(event) {
-    if (!event.target.closest('.kebab-wrapper')) {
-        const allMenus = document.querySelectorAll('.kebab-menu');
-        allMenus.forEach(menu => {
-            menu.style.display = 'none';
-        });
-    }
-});
+// УДАЛЕНО: функции перенесены в глобальную область
 
 // Функции для модального окна сброса триала
 function initializeTrialResetModal() {
@@ -1767,4 +2541,182 @@ async function submitTrialReset() {
         submitButton.disabled = false;
         submitButton.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Сбросить триал';
     }
+}
+
+// Функция переключения режима YooKassa
+function toggleYooKassaMode() {
+    const testModeCheckbox = document.getElementById('yookassa_test_mode');
+    const productionMode = document.getElementById('yookassa_production_mode');
+    const testModeFields = document.getElementById('yookassa_test_mode_fields');
+    
+    if (testModeCheckbox.checked) {
+        // Подсвечиваем тестовый режим как активный
+        productionMode.style.opacity = '0.5';
+        productionMode.style.border = '2px solid #28a745';
+        testModeFields.style.opacity = '1';
+        testModeFields.style.border = '2px solid #28a745';
+    } else {
+        // Подсвечиваем боевой режим как активный
+        productionMode.style.opacity = '1';
+        productionMode.style.border = '2px solid #dc3545';
+        testModeFields.style.opacity = '0.5';
+        testModeFields.style.border = '2px solid #6c757d';
+    }
+}
+
+// ============================================
+// Функции для работы с Key Drawer
+// ============================================
+
+let currentKeyDrawerId = null;
+let currentKeyDrawerUserId = null;
+let currentKeyDrawerEnabled = false;
+
+// Функция для открытия Drawer с деталями ключа
+async function openKeyDrawer(keyId) {
+	currentKeyDrawerId = keyId;
+	
+	try {
+		const response = await fetch(`/api/key/${keyId}`);
+		const data = await response.json();
+		
+		if (!data.key) {
+			alert('Ошибка загрузки данных ключа');
+			return;
+		}
+		
+		const key = data.key;
+		currentKeyDrawerUserId = key.user_id;
+		currentKeyDrawerEnabled = key.enabled;
+		
+		// Показываем drawer
+		const drawer = document.getElementById('keyDrawer');
+		if (!drawer) {
+			console.error('Key drawer not found');
+			return;
+		}
+		
+		drawer.style.display = 'flex';
+		// Небольшая задержка для анимации
+		setTimeout(() => {
+			drawer.classList.add('active');
+		}, 10);
+		
+		// Заполняем данные
+		fillKeyDrawerData(key);
+		
+	} catch (error) {
+		console.error('Ошибка загрузки данных ключа:', error);
+		alert('Ошибка загрузки данных ключа');
+	}
+}
+
+// Функция для заполнения данных в drawer
+function fillKeyDrawerData(key) {
+	// Основная информация
+	document.getElementById('keyModalTelegramId').textContent = key.telegram_id || '—';
+	document.getElementById('keyModalFullName').textContent = key.fullname || '—';
+	document.getElementById('keyModalFio').textContent = key.fio || '—';
+	document.getElementById('keyModalStatus').textContent = key.status || '—';
+	
+	// Данные ключа
+	document.getElementById('keyDetailHost').textContent = key.host_name || '—';
+	document.getElementById('keyDetailPlan').textContent = key.plan_name || '—';
+	document.getElementById('keyDetailPrice').textContent = key.price ? `${key.price} RUB` : '—';
+	document.getElementById('keyDetailStatusInTab').textContent = key.status || '—';
+	document.getElementById('keyDetailProtocol').textContent = key.protocol || '—';
+	document.getElementById('keyDetailEnabled').textContent = key.enabled ? 'Да' : 'Нет';
+	document.getElementById('keyDetailTrial').textContent = key.is_trial ? 'Да' : 'Нет';
+	document.getElementById('keyDetailCreatedDate').textContent = key.created_date ? new Date(key.created_date).toLocaleString() : '—';
+	document.getElementById('keyDetailExpiryDate').textContent = key.expiry_date ? new Date(key.expiry_date).toLocaleString() : '—';
+	
+	// Оставшееся время
+	if (key.remaining_seconds !== null && key.remaining_seconds !== undefined) {
+		const days = Math.floor(key.remaining_seconds / 86400);
+		const hours = Math.floor((key.remaining_seconds % 86400) / 3600);
+		const minutes = Math.floor((key.remaining_seconds % 3600) / 60);
+		document.getElementById('keyDetailRemaining').textContent = `${days}д ${hours}ч ${minutes}м`;
+	} else {
+		document.getElementById('keyDetailRemaining').textContent = '—';
+	}
+	
+	// Новые поля
+	document.getElementById('keyDetailSubscription').textContent = key.subscription || '—';
+	document.getElementById('keyDetailTelegramChatId').textContent = key.telegram_chat_id || '—';
+	document.getElementById('keyDetailComment').textContent = key.comment || '—';
+	
+	// Трафик
+	document.getElementById('keyDetailQuotaTotal').textContent = key.quota_total_gb ? `${key.quota_total_gb} GB` : '∞';
+	document.getElementById('keyDetailTrafficDown').textContent = key.traffic_down_bytes ? `${(key.traffic_down_bytes / 1024 / 1024 / 1024).toFixed(2)} GB` : '0 GB';
+	document.getElementById('keyDetailQuotaRemaining').textContent = key.quota_remaining_bytes ? `${(key.quota_remaining_bytes / 1024 / 1024 / 1024).toFixed(2)} GB` : '∞';
+	
+	// Подключение
+	document.getElementById('keyDetailEmail').textContent = key.key_email || '—';
+	document.getElementById('keyDetailUuid').textContent = key.xui_client_uuid || '—';
+	document.getElementById('keyDetailConnectionString').textContent = key.connection_string || '—';
+	
+	// Обновляем кнопку переключения
+	const toggleBtn = document.getElementById('keyDrawerToggleBtn');
+	const toggleText = document.getElementById('keyDrawerToggleText');
+	if (toggleBtn && toggleText) {
+		toggleBtn.innerHTML = `<i class="fas fa-toggle-${key.enabled ? 'on' : 'off'}"></i>`;
+		toggleText.textContent = key.enabled ? 'Отключить' : 'Включить';
+	}
+}
+
+// Функция для закрытия Key Drawer
+function closeKeyDrawer() {
+	const drawer = document.getElementById('keyDrawer');
+	if (!drawer) return;
+	
+	drawer.classList.remove('active');
+	// Ждем завершения анимации перед скрытием
+	setTimeout(() => {
+		drawer.style.display = 'none';
+	}, 300);
+	
+	currentKeyDrawerId = null;
+	currentKeyDrawerUserId = null;
+	currentKeyDrawerEnabled = false;
+}
+
+// Функция для обновления данных ключа из 3x-ui
+async function keyDrawerRefresh() {
+	if (currentKeyDrawerUserId) {
+		refreshUserKey(currentKeyDrawerUserId);
+		// Перезагружаем данные Drawer после небольшой задержки
+		setTimeout(() => {
+			if (currentKeyDrawerId) {
+				openKeyDrawer(currentKeyDrawerId);
+			}
+		}, 2000);
+	}
+}
+
+// Функция для переключения включения/отключения ключа из Drawer
+function keyDrawerToggle() {
+	if (currentKeyDrawerId) {
+		const newEnabled = !currentKeyDrawerEnabled;
+		toggleKeyEnabled(currentKeyDrawerId, newEnabled);
+		// Перезагружаем данные Drawer после небольшой задержки
+		setTimeout(() => {
+			if (currentKeyDrawerId) {
+				openKeyDrawer(currentKeyDrawerId);
+			}
+		}, 1500);
+	}
+}
+
+// Функция для копирования поля из Drawer ключа
+function copyKeyField(elementId) {
+	const element = document.getElementById(elementId);
+	if (element) {
+		const text = element.textContent;
+		navigator.clipboard.writeText(text).then(() => {
+			showNotification(`Скопировано: ${text.substring(0, 50)}${text.length > 50 ? '...' : ''}`);
+		}).catch(err => {
+			console.error('Ошибка копирования: ', err);
+			showNotification('Ошибка копирования', 'error');
+		});
+	}
 }

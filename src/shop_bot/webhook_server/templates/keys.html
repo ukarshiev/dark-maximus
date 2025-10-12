@@ -38,19 +38,25 @@
 						<th title="Общее&#10;Использовано&#10;Остаток">Трафик</th>
 						<th>Статус</th>
 						<th>Вкл</th>
+						<th title="Ссылка на подписку">Subscription</th>
+						<th title="Ссылка на подписку из 3x-ui">Subscription Link</th>
 						<th>Ключ</th>
 						<th>3x-ui</th>
 					</tr>
 				</thead>
 				<tbody>
 					{% for key in keys %}
-					<tr class="key-row">
+					<tr class="key-row" ondblclick="openKeyDrawer({{ key.key_id }})" style="cursor: pointer;" title="Дважды кликните для открытия деталей ключа">
 						<td>
 							<div class="kebab-wrapper">
 								<button class="kebab-btn" onclick="toggleKebabMenu('kebab-key-{{ key.key_id }}')" title="Действия с ключом">
 									<i class="fas fa-ellipsis-v"></i>
 								</button>
 								<div class="kebab-menu" id="kebab-key-{{ key.key_id }}">
+									<button class="kebab-item" onclick="closeKebabMenu('kebab-key-{{ key.key_id }}'); openKeyDrawer({{ key.key_id }})" title="Открыть детали ключа">
+										<i class="fas fa-eye"></i>
+										<span>Открыть</span>
+									</button>
 									<button class="kebab-item" onclick="closeKebabMenu('kebab-key-{{ key.key_id }}'); refreshUserKey({{ key.user_id }})" title="Обновить из 3x-ui">
 										<i class="fas fa-sync-alt"></i>
 										<span>Обновить из 3x-ui</span>
@@ -165,6 +171,30 @@
 								<span class="status-badge status-active" title="Ключ включен">Вкл</span>
 							{% else %}
 								<span class="status-badge status-banned" title="Ключ отключен">Выкл</span>
+							{% endif %}
+						</td>
+						<td>
+							{% if key.subscription %}
+								<div class="key-cell">
+									<span class="key-text" title="{{ key.subscription }}">{{ key.subscription }}</span>
+									<button class="copy-btn" data-size="xs" onclick="copyKey('{{ key.subscription|replace("'", "\\'") }}')" title="Копировать subscription">
+										<i class="fas fa-copy"></i>
+									</button>
+								</div>
+							{% else %}
+								-
+							{% endif %}
+						</td>
+						<td>
+							{% if key.subscription_link %}
+								<div class="key-cell">
+									<span class="key-text" title="{{ key.subscription_link }}">{{ key.subscription_link[:50] }}{% if key.subscription_link|length > 50 %}...{% endif %}</span>
+									<button class="copy-btn" data-size="xs" onclick="copyKey('{{ key.subscription_link|replace("'", "\\'") }}')" title="Копировать subscription link">
+										<i class="fas fa-copy"></i>
+									</button>
+								</div>
+							{% else %}
+								-
 							{% endif %}
 						</td>
 						<td>
@@ -322,6 +352,8 @@
 		</div>
 	</div>
 </div>
+
+<!-- Старое модальное окно удалено - используется Key Drawer из base.html -->
 
 <script>
 function changePerPage(value) {
@@ -553,88 +585,14 @@ function closeSyncErrorsModal() {
 	}
 }
 
-// Функция для копирования ключа
-function copyKey(key) {
-	// Проверяем доступность Clipboard API
-	if (navigator.clipboard && window.isSecureContext) {
-		// Используем современный Clipboard API
-		navigator.clipboard.writeText(key).then(() => {
-			showCopyNotification('Ключ скопирован!');
-		}).catch(err => {
-			console.error('Ошибка копирования через Clipboard API: ', err);
-			// Fallback к старому методу
-			fallbackCopyTextToClipboard(key);
-		});
-	} else {
-		// Fallback для старых браузеров или небезопасного контекста
-		fallbackCopyTextToClipboard(key);
-	}
-}
-
-// Fallback функция для копирования текста
-function fallbackCopyTextToClipboard(text) {
-	const textArea = document.createElement("textarea");
-	textArea.value = text;
-	
-	// Избегаем прокрутки к элементу
-	textArea.style.top = "0";
-	textArea.style.left = "0";
-	textArea.style.position = "fixed";
-	textArea.style.opacity = "0";
-	
-	document.body.appendChild(textArea);
-	textArea.focus();
-	textArea.select();
-	
-	try {
-		const successful = document.execCommand('copy');
-		if (successful) {
-			showCopyNotification('Ключ скопирован!');
-		} else {
-			showCopyNotification('Не удалось скопировать ключ', 'error');
-		}
-	} catch (err) {
-		console.error('Ошибка fallback копирования: ', err);
-		showCopyNotification('Не удалось скопировать ключ', 'error');
-	}
-	
-	document.body.removeChild(textArea);
-}
-
-// Функция для показа уведомления о копировании
-function showCopyNotification(message, type = 'success') {
-	const notification = document.createElement('div');
-	notification.textContent = message;
-	notification.style.cssText = `
-		position: fixed;
-		top: 20px;
-		right: 20px;
-		background: ${type === 'error' ? '#dc3545' : '#28a745'};
-		color: white;
-		padding: 10px 20px;
-		border-radius: 5px;
-		z-index: 10000;
-		font-size: 14px;
-		box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-	`;
-	document.body.appendChild(notification);
-	
-	setTimeout(() => {
-		if (notification.parentNode) {
-			document.body.removeChild(notification);
-		}
-	}, 2000);
-}
-
-// Функции для работы с меню ключей теперь обрабатываются глобально в script.js
-
-// Закрытие меню при клике вне его теперь обрабатывается глобально в script.js
+// Функции copyKey, showCopyNotification, toggleKebabMenu, closeKebabMenu, openUserModal
+// определены глобально в script.js и доступны на всех страницах
 
 // Функция для обновления ключей конкретного пользователя
 function refreshUserKey(userId) {
 	// Закрываем все меню
-	document.querySelectorAll('.kebab-menu.open').forEach(menu => {
-		menu.classList.remove('open');
+	document.querySelectorAll('.kebab-menu.active').forEach(menu => {
+		menu.classList.remove('active');
 	});
 	
 	// Показываем индикатор загрузки
@@ -817,9 +775,249 @@ function toggleKeyEnabled(keyId, enabled) {
 
 // Закрытие модального окна при клике вне его
 window.onclick = function(event) {
-	const modal = document.getElementById('hostRefreshModal');
-	if (event.target === modal) {
+	const hostModal = document.getElementById('hostRefreshModal');
+	
+	if (event.target === hostModal) {
 		closeHostRefreshModal();
+	}
+}
+
+// Закрытие drawer при клике на overlay
+document.addEventListener('DOMContentLoaded', function() {
+	const keyDrawerOverlay = document.getElementById('keyDrawer');
+	if (keyDrawerOverlay) {
+		keyDrawerOverlay.addEventListener('click', function(e) {
+			// Закрываем только если клик был на overlay, а не на drawer или его содержимом
+			if (e.target === keyDrawerOverlay) {
+				closeKeyDrawer();
+			}
+		});
+	}
+});
+
+// Переопределение openKeyDrawer для специфичной для страницы логики
+// Переменные currentKeyDrawerId, currentKeyDrawerUserId, currentKeyDrawerEnabled определены в script.js
+async function openKeyDrawer(keyId) {
+	window.currentKeyDrawerId = keyId;
+	
+	try {
+		const response = await fetch(`/api/key/${keyId}`);
+		const data = await response.json();
+		
+		if (!data.key) {
+			alert('Ошибка загрузки данных ключа');
+			return;
+		}
+		
+		const key = data.key;
+		window.currentKeyDrawerUserId = key.user_id;
+		window.currentKeyDrawerEnabled = key.enabled;
+		
+		// Заполняем Drawer данными - верхняя закрепленная область (информация о пользователе)
+		document.getElementById('keyModalTelegramId').textContent = key.telegram_id || 'N/A';
+		document.getElementById('keyModalFullName').textContent = key.fullname || 'N/A';
+		document.getElementById('keyModalFio').textContent = key.fio || 'N/A';
+		
+		// Статус
+		document.getElementById('keyModalStatus').innerHTML = key.enabled 
+			? '<span class="status-badge status-active">Активен</span>' 
+			: '<span class="status-badge status-banned">Неактивен</span>';
+		
+		// Вкладка: Основные данные
+		// Группа: Тариф
+		document.getElementById('keyDetailHost').textContent = key.host_name || 'N/A';
+		
+		if (key.is_trial === 1) {
+			document.getElementById('keyDetailPlan').textContent = 'Триал';
+		} else {
+			document.getElementById('keyDetailPlan').textContent = key.plan_name || 'N/A';
+		}
+		
+		document.getElementById('keyDetailPrice').textContent = key.price ? `${key.price} RUB` : 'N/A';
+		
+		// Статус во вкладке
+		document.getElementById('keyDetailStatusInTab').innerHTML = key.enabled 
+			? '<span class="status-badge status-active">Активен</span>' 
+			: '<span class="status-badge status-banned">Неактивен</span>';
+		
+		// Группа: Подписка
+		document.getElementById('keyDetailProtocol').textContent = key.protocol || 'vless';
+		
+		// Включен
+		const enabledSpan = document.getElementById('keyDetailEnabled');
+		if (key.enabled) {
+			enabledSpan.innerHTML = '<span class="status-badge status-active">Вкл</span>';
+		} else {
+			enabledSpan.innerHTML = '<span class="status-badge status-banned">Выкл</span>';
+		}
+		
+		// Триал
+		const trialSpan = document.getElementById('keyDetailTrial');
+		if (key.is_trial === 1) {
+			trialSpan.innerHTML = '<span class="status-badge status-active">Да</span>';
+		} else {
+			trialSpan.innerHTML = '<span class="status-badge status-banned">Нет</span>';
+		}
+		
+		// Даты
+		if (key.created_date) {
+			const createdDate = new Date(key.created_date);
+			document.getElementById('keyDetailCreatedDate').textContent = createdDate.toLocaleString('ru-RU');
+		} else {
+			document.getElementById('keyDetailCreatedDate').textContent = 'N/A';
+		}
+		
+		if (key.expiry_date) {
+			const expiryDate = new Date(key.expiry_date);
+			document.getElementById('keyDetailExpiryDate').textContent = expiryDate.toLocaleString('ru-RU');
+		} else {
+			document.getElementById('keyDetailExpiryDate').textContent = 'N/A';
+		}
+		
+		// Оставшееся время
+		if (key.remaining_seconds !== null && key.remaining_seconds !== undefined) {
+			const days = Math.floor(key.remaining_seconds / 86400);
+			const hours = Math.floor((key.remaining_seconds % 86400) / 3600);
+			let cls = '';
+			if (key.remaining_seconds === 0) {
+				cls = 'rem-red';
+			} else if (key.remaining_seconds <= (1 * 86400 + 24 * 3600)) {
+				cls = 'rem-orange';
+			} else if (key.remaining_seconds <= (3 * 86400 + 24 * 3600)) {
+				cls = 'rem-yellow';
+			} else {
+				cls = 'rem-green';
+			}
+			document.getElementById('keyDetailRemaining').innerHTML = `<span class="${cls}">${days} д ${hours} ч</span>`;
+		} else {
+			document.getElementById('keyDetailRemaining').textContent = 'N/A';
+		}
+		
+		// Группа: Трафик (теперь в той же вкладке "Основные данные")
+		const quotaTotalGb = key.quota_total_gb;
+		const trafficDownBytes = key.traffic_down_bytes || 0;
+		const quotaRemainingBytes = key.quota_remaining_bytes;
+		
+		// Квота всего
+		if (quotaTotalGb !== null && quotaTotalGb !== undefined) {
+			document.getElementById('keyDetailQuotaTotal').textContent = `${quotaTotalGb.toFixed(2)} GB`;
+		} else {
+			document.getElementById('keyDetailQuotaTotal').textContent = '∞';
+		}
+		
+		// Трафик использовано
+		const downMb = trafficDownBytes / (1024 * 1024);
+		if (downMb >= 1024) {
+			document.getElementById('keyDetailTrafficDown').textContent = `${(downMb / 1024).toFixed(2)} GB`;
+		} else {
+			document.getElementById('keyDetailTrafficDown').textContent = `${downMb.toFixed(2)} MB`;
+		}
+		
+		// Квота остаток
+		if (quotaRemainingBytes !== null && quotaRemainingBytes !== undefined) {
+			const remMb = quotaRemainingBytes / (1024 * 1024);
+			if (remMb >= 1024) {
+				document.getElementById('keyDetailQuotaRemaining').textContent = `${(remMb / 1024).toFixed(2)} GB`;
+			} else {
+				document.getElementById('keyDetailQuotaRemaining').textContent = `${remMb.toFixed(2)} MB`;
+			}
+		} else {
+			document.getElementById('keyDetailQuotaRemaining').textContent = '∞';
+		}
+		
+		// Вкладка: Подключение
+		document.getElementById('keyDetailSubscription').textContent = key.subscription || '—';
+		document.getElementById('keyDetailSubscriptionLink').textContent = key.subscription_link || '—';
+		document.getElementById('keyDetailEmail').textContent = key.key_email || 'N/A';
+		document.getElementById('keyDetailUuid').textContent = key.xui_client_uuid || 'N/A';
+		document.getElementById('keyDetailConnectionString').textContent = key.connection_string || 'N/A';
+		document.getElementById('keyDetailTelegramChatId').textContent = key.telegram_chat_id || '—';
+		document.getElementById('keyDetailComment').textContent = key.comment || '—';
+		
+		// Обновляем кнопку переключения в Drawer
+		const drawerToggleText = document.getElementById('keyDrawerToggleText');
+		if (key.enabled) {
+			drawerToggleText.textContent = 'Отключить';
+		} else {
+			drawerToggleText.textContent = 'Включить';
+		}
+		
+		// Показываем Drawer с анимацией
+		const drawer = document.getElementById('keyDrawer');
+		drawer.style.display = 'block';
+		// Небольшая задержка для запуска анимации
+		setTimeout(() => {
+			drawer.classList.add('active');
+		}, 10);
+		
+	} catch (error) {
+		console.error('Ошибка загрузки данных ключа:', error);
+		alert('Ошибка загрузки данных ключа');
+	}
+}
+
+// Функция для закрытия Drawer
+function closeKeyDrawer() {
+	const drawer = document.getElementById('keyDrawer');
+	drawer.classList.remove('active');
+	// Ждем завершения анимации перед скрытием
+	setTimeout(() => {
+		drawer.style.display = 'none';
+	}, 300);
+	
+	window.currentKeyDrawerId = null;
+	window.currentKeyDrawerUserId = null;
+	window.currentKeyDrawerEnabled = false;
+}
+
+// Функция для переключения вкладок в Drawer ключа
+function switchKeyTab(tabName) {
+	// Убираем активный класс со всех кнопок и контента
+	document.querySelectorAll('#keyDrawer .tab-button').forEach(btn => btn.classList.remove('active'));
+	document.querySelectorAll('#keyDrawer .tab-content').forEach(content => content.classList.remove('active'));
+	
+	// Добавляем активный класс к выбранной вкладке
+	event.target.closest('.tab-button').classList.add('active');
+	document.getElementById(`tab-${tabName}`).classList.add('active');
+}
+
+// Функция для обновления ключа из Drawer
+function keyDrawerRefresh() {
+	if (window.currentKeyDrawerUserId) {
+		refreshUserKey(window.currentKeyDrawerUserId);
+		// Перезагружаем данные Drawer после небольшой задержки
+		setTimeout(() => {
+			if (window.currentKeyDrawerId) {
+				openKeyDrawer(window.currentKeyDrawerId);
+			}
+		}, 2000);
+	}
+}
+
+// Функция для переключения включения/отключения ключа из Drawer
+function keyDrawerToggle() {
+	if (window.currentKeyDrawerId) {
+		const newEnabled = !window.currentKeyDrawerEnabled;
+		toggleKeyEnabled(window.currentKeyDrawerId, newEnabled);
+		// Перезагружаем данные Drawer после небольшой задержки
+		setTimeout(() => {
+			if (window.currentKeyDrawerId) {
+				openKeyDrawer(window.currentKeyDrawerId);
+			}
+		}, 1500);
+	}
+}
+
+// Функция для копирования поля из Drawer ключа
+function copyKeyField(elementId) {
+	const element = document.getElementById(elementId);
+	if (element) {
+		const text = element.textContent;
+		if (text && text !== '—' && text !== 'N/A') {
+			copyKey(text);
+		} else {
+			showCopyNotification('Нет данных для копирования', 'error');
+		}
 	}
 }
 </script>

@@ -1,0 +1,1095 @@
+{% extends "base.html" %}
+
+{% block title %}Промокоды - Панель управления{% endblock %}
+
+{% block header_title %}Промокоды{% endblock %}
+
+{% block header_buttons %}
+	<button type="button" class="button button-primary" onclick="openPromoModal()" title="Создать новый промокод">
+		<i class="fas fa-plus"></i>
+		Создать промокод
+	</button>
+{% endblock %}
+
+{% block content %}
+<div class="content-header">
+	<div class="content-title">
+		<h2>Управление промокодами</h2>
+		<p class="content-subtitle">Создание и управление промокодами для ботов</p>
+	</div>
+</div>
+
+<!-- Раздел применённых промокодов пользователя -->
+<div class="user-promo-section" id="userPromoSection" style="display: none;">
+	<div class="user-promo-header">
+		<div class="user-promo-title">
+			<i class="fas fa-user-check"></i>
+			<span>Мои применённые промокоды</span>
+			<span class="user-promo-count" id="userPromoCount">0</span>
+		</div>
+		<div class="user-promo-actions">
+			<button type="button" class="button button-secondary" onclick="refreshUserPromoCodes()" title="Обновить список применённых промокодов">
+				<i class="fas fa-sync-alt"></i>
+				Обновить
+			</button>
+		</div>
+	</div>
+	
+	<div class="user-promo-cards" id="userPromoCards">
+		<div class="user-promo-card loading-card">
+			<div class="promo-card-skeleton">
+				<div class="skeleton-line skeleton-title"></div>
+				<div class="skeleton-line skeleton-subtitle"></div>
+				<div class="skeleton-line skeleton-text"></div>
+				<div class="skeleton-line skeleton-text"></div>
+			</div>
+		</div>
+	</div>
+	
+	<!-- Пустое состояние для применённых промокодов -->
+	<div class="empty-state" id="userEmptyState" style="display: none;">
+		<div class="empty-state-icon">
+			<i class="fas fa-ticket-alt"></i>
+		</div>
+		<div class="empty-state-title">Нет применённых промокодов</div>
+		<div class="empty-state-description">Примените промокод в боте, чтобы он отобразился здесь</div>
+	</div>
+</div>
+
+<!-- Современная карточная система вместо таблицы -->
+<div class="promo-cards-container" id="promoCardsContainer">
+	<div class="promo-cards-header">
+		<div class="promo-cards-title">
+			<i class="fas fa-ticket-alt"></i>
+			<span>Промокоды</span>
+			<span class="promo-count" id="promoCount">0</span>
+		</div>
+		<div class="promo-cards-actions">
+			<button type="button" class="button button-secondary" onclick="refreshPromoCodes()" title="Обновить список промокодов">
+				<i class="fas fa-sync-alt"></i>
+				Обновить
+			</button>
+			<button type="button" class="button button-outline" onclick="toggleViewMode()" title="Переключить вид отображения">
+				<i class="fas fa-th" id="viewModeIcon"></i>
+				<span id="viewModeText">Таблица</span>
+			</button>
+		</div>
+	</div>
+	
+	<!-- Карточный вид (по умолчанию) -->
+	<div class="promo-cards-grid" id="promoCardsGrid">
+		<div class="promo-card loading-card">
+			<div class="promo-card-skeleton">
+				<div class="skeleton-line skeleton-title"></div>
+				<div class="skeleton-line skeleton-subtitle"></div>
+				<div class="skeleton-line skeleton-text"></div>
+				<div class="skeleton-line skeleton-text"></div>
+			</div>
+		</div>
+	</div>
+	
+	<!-- Табличный вид (скрыт по умолчанию) -->
+	<div class="table-container" id="tableContainer" style="display: none;">
+		<div class="table-wrapper">
+			<table class="data-table modern-table" id="promoCodesTable">
+				<thead>
+					<tr>
+						<th>ID</th>
+						<th>Промокод</th>
+						<th>Бот</th>
+						<th>Тариф VPN</th>
+						<th>Скидка (₽)</th>
+						<th>Скидка (%)</th>
+						<th>Использований</th>
+						<th>Статус</th>
+						<th>Создан</th>
+						<th>Действия</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						<td colspan="10" class="text-center">Загрузка...</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+	</div>
+	
+	<!-- Пустое состояние -->
+	<div class="empty-state" id="emptyState" style="display: none;">
+		<div class="empty-state-icon">
+			<i class="fas fa-ticket-alt"></i>
+		</div>
+		<div class="empty-state-title">Промокоды не найдены</div>
+		<div class="empty-state-description">Создайте первый промокод для начала работы</div>
+		<button type="button" class="button button-primary" onclick="openPromoModal()" title="Создать первый промокод">
+			<i class="fas fa-plus"></i>
+			Создать промокод
+		</button>
+	</div>
+</div>
+
+<!-- Модальное окно промокода -->
+<div id="promoModal" class="modal" style="display: none;">
+	<div class="modal-content modal-content--large">
+		<div class="modal-header">
+			<h3 id="promoModalTitle">Создание промокода</h3>
+			<span class="close" onclick="closePromoModal()" title="Закрыть модальное окно">&times;</span>
+		</div>
+		<div class="modal-body">
+			<!-- Основная информация -->
+			<div class="promo-info-section">
+				<div class="promo-info-grid">
+					<div class="form-group">
+						<label for="promoCode">Промокод *</label>
+						<input type="text" id="promoCode" class="form-input" placeholder="Введите промокод" title="Уникальный код промокода">
+					</div>
+					<div class="form-group">
+						<label for="promoBot">Бот *</label>
+						<select id="promoBot" class="form-select" title="Выберите бота для применения промокода">
+							<option value="">Выберите бота</option>
+							<option value="shop">Shop Bot</option>
+							<option value="support">Support Bot</option>
+						</select>
+					</div>
+					<div class="form-group">
+						<label for="promoVpnPlan">Тарифы VPN</label>
+						<select id="promoVpnPlan" class="form-select" multiple size="4" title="Выберите VPN тарифы (удерживайте Ctrl для множественного выбора)">
+							<option value="">Выберите тарифы</option>
+						</select>
+						<small class="form-hint">Удерживайте Ctrl для выбора нескольких тарифов</small>
+					</div>
+					<div class="form-group">
+						<label for="promoTariff">Тарифы</label>
+						<select id="promoTariff" class="form-select" multiple size="4" title="Выберите тарифы (удерживайте Ctrl для множественного выбора)">
+							<option value="">Выберите тарифы</option>
+						</select>
+						<small class="form-hint">Удерживайте Ctrl для выбора нескольких тарифов</small>
+					</div>
+					<div class="form-group">
+						<label for="promoDiscountAmount">Скидка (₽)</label>
+						<input type="number" id="promoDiscountAmount" class="form-input" step="0.01" min="0" placeholder="0.00" title="Сумма скидки в рублях">
+					</div>
+					<div class="form-group">
+						<label for="promoDiscountPercent">Скидка (%)</label>
+						<input type="number" id="promoDiscountPercent" class="form-input" step="0.01" min="0" max="100" placeholder="0.00" title="Процент скидки">
+					</div>
+					<div class="form-group">
+						<label for="promoDiscountBonus">Скидка (бонус)</label>
+						<input type="number" id="promoDiscountBonus" class="form-input" step="0.01" min="0" placeholder="0.00" title="Сумма бонусной скидки">
+					</div>
+					<div class="form-group">
+						<label for="promoUsageLimit">Лимит использований на бота</label>
+						<input type="number" id="promoUsageLimit" class="form-input" min="1" value="1" title="Максимальное количество использований на одного бота">
+					</div>
+					<div class="form-group">
+						<label class="form-checkbox-label">
+							<input type="checkbox" id="promoIsActive" class="form-checkbox" checked title="Активен ли промокод">
+							<span class="checkbox-text">Активный</span>
+						</label>
+					</div>
+				</div>
+			</div>
+
+			<!-- Вкладки -->
+			<div class="modal-tabs">
+				<button class="tab-button active" onclick="switchPromoTab('info')" title="Информация о промокоде">
+					<i class="fas fa-info-circle"></i>
+					Информация
+				</button>
+				<button class="tab-button" onclick="switchPromoTab('usage')" title="История использования промокода">
+					<i class="fas fa-history"></i>
+					Использования
+				</button>
+			</div>
+
+			<!-- Контент вкладок -->
+			<div class="tab-content active" id="tab-info">
+				<div class="promo-details">
+					<div class="info-grid">
+						<div class="info-item">
+							<label>ID:</label>
+							<span id="promoDetailsId">-</span>
+						</div>
+						<div class="info-item">
+							<label>Создан:</label>
+							<span id="promoDetailsCreated">-</span>
+						</div>
+						<div class="info-item">
+							<label>Обновлен:</label>
+							<span id="promoDetailsUpdated">-</span>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="tab-content" id="tab-usage">
+				<div class="modal-table-container">
+					<table class="modal-table">
+						<thead>
+							<tr>
+								<th>Пользователь</th>
+								<th>Username</th>
+								<th>Бот</th>
+								<th>Дата использования</th>
+								<th>План</th>
+							</tr>
+						</thead>
+						<tbody id="promoUsageTable">
+							<tr>
+								<td colspan="5" class="text-center">Загрузка...</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+		</div>
+		<div class="modal-footer">
+			<button type="button" class="button button-secondary" onclick="closePromoModal()" title="Закрыть модальное окно">
+				Закрыть
+			</button>
+			<button type="button" class="button button-danger" id="deletePromoButton" onclick="deletePromoCode()" style="display: none;" title="Удалить промокод">
+				<i class="fas fa-trash"></i>
+				Удалить
+			</button>
+			<button type="button" class="button button-primary" onclick="savePromoCode()" title="Сохранить промокод">
+				<i class="fas fa-save"></i>
+				Сохранить
+			</button>
+		</div>
+	</div>
+</div>
+
+<script>
+let currentPromoId = null;
+let vpnPlans = [];
+let isCardView = true; // По умолчанию карточный вид
+let allPromoCodes = [];
+let userPromoCodes = [];
+let currentUserId = null; // ID пользователя для отображения применённых промокодов
+
+
+// Функция для выполнения fetch запросов
+async function fetchWithCSRF(url, options = {}) {
+	const defaultOptions = {
+		headers: {
+			...options.headers
+		}
+	};
+	
+	return fetch(url, { ...defaultOptions, ...options });
+}
+
+// Загрузка данных при открытии страницы
+document.addEventListener('DOMContentLoaded', function() {
+	loadPromoCodes();
+	loadVpnPlans();
+	loadUserPromoCodes();
+});
+
+// Загрузка промокодов
+async function loadPromoCodes() {
+	try {
+		showLoadingState();
+		const response = await fetchWithCSRF('/api/promo-codes');
+		const data = await response.json();
+		
+		if (data.success) {
+			allPromoCodes = data.promo_codes;
+			updatePromoCount(allPromoCodes.length);
+			
+			if (allPromoCodes.length === 0) {
+				showEmptyState();
+			} else {
+				if (isCardView) {
+					renderPromoCards(allPromoCodes);
+				} else {
+					renderPromoCodesTable(allPromoCodes);
+				}
+			}
+		} else {
+			showNotification('Ошибка загрузки промокодов: ' + data.message, 'error');
+			showEmptyState();
+		}
+	} catch (error) {
+		console.error('Error loading promo codes:', error);
+		showNotification('Ошибка загрузки промокодов', 'error');
+		showEmptyState();
+	}
+}
+
+// Загрузка VPN планов
+async function loadVpnPlans() {
+	try {
+		const response = await fetchWithCSRF('/api/vpn-plans');
+		const data = await response.json();
+		
+		if (data.success) {
+			vpnPlans = data.plans;
+			updateVpnPlansSelect();
+		}
+	} catch (error) {
+		console.error('Error loading VPN plans:', error);
+	}
+}
+
+// Обновление селекта VPN планов
+function updateVpnPlansSelect() {
+	const select = document.getElementById('promoVpnPlan');
+	select.innerHTML = '<option value="">Выберите тариф</option>';
+	
+	vpnPlans.forEach(plan => {
+		const option = document.createElement('option');
+		option.value = plan.plan_id;
+		option.textContent = `${plan.host_name} - ${plan.plan_name}`;
+		select.appendChild(option);
+	});
+}
+
+// Загрузка применённых промокодов пользователя
+async function loadUserPromoCodes() {
+	try {
+		// Получаем ID пользователя из URL параметров или скрываем раздел
+		const urlParams = new URLSearchParams(window.location.search);
+		currentUserId = urlParams.get('user_id');
+		
+		if (!currentUserId) {
+			// Если нет ID пользователя, скрываем раздел
+			document.getElementById('userPromoSection').style.display = 'none';
+			return;
+		}
+		
+		showUserPromoLoadingState();
+		const response = await fetchWithCSRF(`/api/user-promo-codes?user_id=${currentUserId}&bot=shop`);
+		const data = await response.json();
+		
+		if (data.success) {
+			userPromoCodes = data.promo_codes;
+			updateUserPromoCount(userPromoCodes.length);
+			
+			if (userPromoCodes.length === 0) {
+				showUserEmptyState();
+			} else {
+				renderUserPromoCards(userPromoCodes);
+			}
+			// Показываем раздел только если есть ID пользователя
+			document.getElementById('userPromoSection').style.display = 'block';
+		} else {
+			showNotification('Ошибка загрузки применённых промокодов: ' + data.message, 'error');
+			showUserEmptyState();
+		}
+	} catch (error) {
+		console.error('Error loading user promo codes:', error);
+		showNotification('Ошибка загрузки применённых промокодов', 'error');
+		showUserEmptyState();
+	}
+}
+
+// Показать состояние загрузки для применённых промокодов
+function showUserPromoLoadingState() {
+	const cardsContainer = document.getElementById('userPromoCards');
+	const emptyState = document.getElementById('userEmptyState');
+	
+	emptyState.style.display = 'none';
+	cardsContainer.innerHTML = `
+		<div class="user-promo-card loading-card">
+			<div class="promo-card-skeleton">
+				<div class="skeleton-line skeleton-title"></div>
+				<div class="skeleton-line skeleton-subtitle"></div>
+				<div class="skeleton-line skeleton-text"></div>
+				<div class="skeleton-line skeleton-text"></div>
+			</div>
+		</div>
+	`;
+}
+
+// Показать пустое состояние для применённых промокодов
+function showUserEmptyState() {
+	const cardsContainer = document.getElementById('userPromoCards');
+	const emptyState = document.getElementById('userEmptyState');
+	
+	cardsContainer.innerHTML = '';
+	emptyState.style.display = 'flex';
+}
+
+// Обновить счетчик применённых промокодов
+function updateUserPromoCount(count) {
+	document.getElementById('userPromoCount').textContent = count;
+}
+
+// Отрисовка карточек применённых промокодов
+function renderUserPromoCards(promoCodes) {
+	const cardsContainer = document.getElementById('userPromoCards');
+	const emptyState = document.getElementById('userEmptyState');
+	
+	emptyState.style.display = 'none';
+	
+	cardsContainer.innerHTML = promoCodes.map(promo => `
+		<div class="user-promo-card">
+			<div class="user-promo-card-header">
+				<div class="promo-code">
+					<code>${promo.code}</code>
+				</div>
+				<div class="promo-status">
+					<span class="badge badge-success">Применён</span>
+				</div>
+			</div>
+			
+			<div class="user-promo-card-body">
+				<div class="promo-info">
+					<div class="info-row">
+						<span class="info-label">Дата применения:</span>
+						<span class="info-value">${formatDate(promo.used_at)}</span>
+					</div>
+					
+					${promo.host_name ? `
+					<div class="info-row">
+						<span class="info-label">VPN тариф:</span>
+						<span class="info-value">${promo.host_name} - ${promo.plan_name}</span>
+					</div>
+					` : ''}
+					
+					<div class="promo-discounts">
+						${promo.discount_amount ? `
+						<div class="discount-item">
+							<span class="discount-label">Скидка (₽):</span>
+							<span class="discount-value">${promo.discount_amount} ₽</span>
+						</div>
+						` : ''}
+						
+						${promo.discount_percent ? `
+						<div class="discount-item">
+							<span class="discount-label">Скидка (%):</span>
+							<span class="discount-value">${promo.discount_percent}%</span>
+						</div>
+						` : ''}
+						
+						${promo.discount_bonus ? `
+						<div class="discount-item">
+							<span class="discount-label">Бонус:</span>
+							<span class="discount-value">${promo.discount_bonus}</span>
+						</div>
+						` : ''}
+					</div>
+				</div>
+			</div>
+			
+			<div class="user-promo-card-actions">
+				<button class="button button-sm button-danger" onclick="removeUserPromoCode(${promo.promo_id})" title="Удалить промокод из списка">
+					<i class="fas fa-trash"></i>
+					Удалить
+				</button>
+			</div>
+		</div>
+	`).join('');
+}
+
+// Удаление применённого промокода пользователем
+async function removeUserPromoCode(promoId) {
+	if (!confirm('Вы уверены, что хотите удалить этот промокод из вашего списка?')) {
+		return;
+	}
+	
+	try {
+		const response = await fetchWithCSRF(`/api/user-promo-codes/${promoId}`, {
+			method: 'DELETE',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				user_id: currentUserId,
+				bot: 'shop'
+			})
+		});
+		
+		const data = await response.json();
+		
+		if (data.success) {
+			showNotification('Промокод удалён из вашего списка', 'success');
+			loadUserPromoCodes(); // Перезагружаем список
+		} else {
+			showNotification('Ошибка удаления: ' + data.message, 'error');
+		}
+	} catch (error) {
+		console.error('Error removing user promo code:', error);
+		showNotification('Ошибка удаления промокода', 'error');
+	}
+}
+
+// Обновление списка применённых промокодов
+function refreshUserPromoCodes() {
+	loadUserPromoCodes();
+}
+
+// Показать состояние загрузки
+function showLoadingState() {
+	const cardsGrid = document.getElementById('promoCardsGrid');
+	const tableContainer = document.getElementById('tableContainer');
+	const emptyState = document.getElementById('emptyState');
+	
+	emptyState.style.display = 'none';
+	
+	if (isCardView) {
+		cardsGrid.style.display = 'grid';
+		tableContainer.style.display = 'none';
+		cardsGrid.innerHTML = `
+			<div class="promo-card loading-card">
+				<div class="promo-card-skeleton">
+					<div class="skeleton-line skeleton-title"></div>
+					<div class="skeleton-line skeleton-subtitle"></div>
+					<div class="skeleton-line skeleton-text"></div>
+					<div class="skeleton-line skeleton-text"></div>
+				</div>
+			</div>
+		`;
+	} else {
+		cardsGrid.style.display = 'none';
+		tableContainer.style.display = 'block';
+		const tbody = document.querySelector('#promoCodesTable tbody');
+		tbody.innerHTML = '<tr><td colspan="10" class="text-center">Загрузка...</td></tr>';
+	}
+}
+
+// Показать пустое состояние
+function showEmptyState() {
+	const cardsGrid = document.getElementById('promoCardsGrid');
+	const tableContainer = document.getElementById('tableContainer');
+	const emptyState = document.getElementById('emptyState');
+	
+	cardsGrid.style.display = 'none';
+	tableContainer.style.display = 'none';
+	emptyState.style.display = 'flex';
+}
+
+// Обновить счетчик промокодов
+function updatePromoCount(count) {
+	document.getElementById('promoCount').textContent = count;
+}
+
+// Отрисовка карточек промокодов
+function renderPromoCards(promoCodes) {
+	const cardsGrid = document.getElementById('promoCardsGrid');
+	const tableContainer = document.getElementById('tableContainer');
+	const emptyState = document.getElementById('emptyState');
+	
+	emptyState.style.display = 'none';
+	cardsGrid.style.display = 'grid';
+	tableContainer.style.display = 'none';
+	
+	cardsGrid.innerHTML = promoCodes.map(promo => `
+		<div class="promo-card ${promo.is_active ? 'active' : 'inactive'}">
+			<div class="promo-card-header">
+				<div class="promo-code">
+					<code>${promo.code}</code>
+				</div>
+				<div class="promo-status">
+					<span class="badge badge-${promo.is_active ? 'success' : 'danger'}">
+						${promo.is_active ? 'Активен' : 'Неактивен'}
+					</span>
+				</div>
+			</div>
+			
+			<div class="promo-card-body">
+				<div class="promo-info">
+					<div class="info-row">
+						<span class="info-label">Бот:</span>
+						<span class="badge badge-${promo.bot === 'shop' ? 'primary' : 'secondary'}">
+							${promo.bot === 'shop' ? 'Shop' : 'Support'}
+						</span>
+					</div>
+					
+					${promo.host_name ? `
+					<div class="info-row">
+						<span class="info-label">VPN тариф:</span>
+						<span class="info-value">${promo.host_name} - ${promo.plan_name}</span>
+					</div>
+					` : ''}
+					
+					<div class="promo-discounts">
+						${promo.discount_amount ? `
+						<div class="discount-item">
+							<span class="discount-label">Скидка (₽):</span>
+							<span class="discount-value">${promo.discount_amount} ₽</span>
+						</div>
+						` : ''}
+						
+						${promo.discount_percent ? `
+						<div class="discount-item">
+							<span class="discount-label">Скидка (%):</span>
+							<span class="discount-value">${promo.discount_percent}%</span>
+						</div>
+						` : ''}
+						
+						${promo.discount_bonus ? `
+						<div class="discount-item">
+							<span class="discount-label">Бонус:</span>
+							<span class="discount-value">${promo.discount_bonus}</span>
+						</div>
+						` : ''}
+					</div>
+					
+					<div class="promo-stats">
+						<div class="stat-item">
+							<span class="stat-label">Использований:</span>
+							<span class="stat-value ${promo.usage_count > 0 ? 'text-warning' : ''}">${promo.usage_count || 0}</span>
+						</div>
+						<div class="stat-item">
+							<span class="stat-label">Создан:</span>
+							<span class="stat-value">${formatDate(promo.created_at)}</span>
+						</div>
+						${promo.usage_count > 0 ? `
+						<div class="stat-item">
+							<span class="stat-label">Статус:</span>
+							<span class="stat-value text-warning">
+								<i class="fas fa-lock"></i> Заблокирован для удаления
+							</span>
+						</div>
+						` : ''}
+					</div>
+				</div>
+			</div>
+			
+			<div class="promo-card-actions">
+				<button class="button button-sm button-primary" onclick="editPromoCode(${promo.promo_id})" title="Редактировать промокод">
+					<i class="fas fa-edit"></i>
+					Редактировать
+				</button>
+				${promo.usage_count > 0 ? `
+				<button class="button button-sm button-secondary" disabled title="Нельзя удалить использованный промокод">
+					<i class="fas fa-lock"></i>
+					Заблокирован
+				</button>
+				` : `
+				<button class="button button-sm button-danger" onclick="confirmDeletePromoCode(${promo.promo_id})" title="Удалить промокод">
+					<i class="fas fa-trash"></i>
+					Удалить
+				</button>
+				`}
+			</div>
+		</div>
+	`).join('');
+}
+
+// Отрисовка таблицы промокодов
+function renderPromoCodesTable(promoCodes) {
+	const tbody = document.querySelector('#promoCodesTable tbody');
+	const cardsGrid = document.getElementById('promoCardsGrid');
+	const tableContainer = document.getElementById('tableContainer');
+	const emptyState = document.getElementById('emptyState');
+	
+	emptyState.style.display = 'none';
+	cardsGrid.style.display = 'none';
+	tableContainer.style.display = 'block';
+	
+	if (promoCodes.length === 0) {
+		tbody.innerHTML = '<tr><td colspan="10" class="text-center">Промокоды не найдены</td></tr>';
+		return;
+	}
+	
+	tbody.innerHTML = promoCodes.map(promo => `
+		<tr>
+			<td>${promo.promo_id}</td>
+			<td><code>${promo.code}</code></td>
+			<td><span class="badge badge-${promo.bot === 'shop' ? 'primary' : 'secondary'}">${promo.bot === 'shop' ? 'Shop' : 'Support'}</span></td>
+			<td>${promo.host_name ? `${promo.host_name} - ${promo.plan_name}` : '-'}</td>
+			<td>${promo.discount_amount ? promo.discount_amount + ' ₽' : '-'}</td>
+			<td>${promo.discount_percent ? promo.discount_percent + '%' : '-'}</td>
+			<td><span class="badge badge-info">${promo.usage_count || 0}</span></td>
+			<td><span class="badge badge-${promo.is_active ? 'success' : 'danger'}">${promo.is_active ? 'Активен' : 'Неактивен'}</span></td>
+			<td>${formatDate(promo.created_at)}</td>
+			<td>
+				<button class="button button-sm button-primary" onclick="editPromoCode(${promo.promo_id})" title="Редактировать промокод">
+					<i class="fas fa-edit"></i>
+				</button>
+				${promo.usage_count > 0 ? `
+				<button class="button button-sm button-secondary" disabled title="Нельзя удалить использованный промокод">
+					<i class="fas fa-lock"></i>
+				</button>
+				` : `
+				<button class="button button-sm button-danger" onclick="confirmDeletePromoCode(${promo.promo_id})" title="Удалить промокод">
+					<i class="fas fa-trash"></i>
+				</button>
+				`}
+			</td>
+		</tr>
+	`).join('');
+}
+
+// Переключение режима просмотра
+function toggleViewMode() {
+	isCardView = !isCardView;
+	const viewModeIcon = document.getElementById('viewModeIcon');
+	const viewModeText = document.getElementById('viewModeText');
+	
+	if (isCardView) {
+		viewModeIcon.className = 'fas fa-th';
+		viewModeText.textContent = 'Таблица';
+		renderPromoCards(allPromoCodes);
+	} else {
+		viewModeIcon.className = 'fas fa-list';
+		viewModeText.textContent = 'Карточки';
+		renderPromoCodesTable(allPromoCodes);
+	}
+}
+
+// Открытие модального окна для создания промокода
+function openPromoModal() {
+	currentPromoId = null;
+	document.getElementById('promoModalTitle').textContent = 'Создание промокода';
+	document.getElementById('deletePromoButton').style.display = 'none';
+	clearPromoForm();
+	document.getElementById('promoModal').style.display = 'flex';
+}
+
+// Открытие модального окна для редактирования промокода
+async function editPromoCode(promoId) {
+	try {
+		const response = await fetchWithCSRF(`/api/promo-codes/${promoId}`);
+		const data = await response.json();
+		
+		if (data.success) {
+			currentPromoId = promoId;
+			document.getElementById('promoModalTitle').textContent = 'Редактирование промокода';
+			document.getElementById('deletePromoButton').style.display = 'inline-block';
+			populatePromoForm(data.promo_code);
+			loadPromoUsageHistory(promoId);
+			document.getElementById('promoModal').style.display = 'flex';
+		} else {
+			showNotification('Ошибка загрузки промокода: ' + data.message, 'error');
+		}
+	} catch (error) {
+		console.error('Error loading promo code:', error);
+		showNotification('Ошибка загрузки промокода', 'error');
+	}
+}
+
+// Заполнение формы промокода
+function populatePromoForm(promo) {
+	document.getElementById('promoCode').value = promo.code;
+	document.getElementById('promoBot').value = promo.bot;
+	
+	// Обработка мультиселекта VPN планов
+	const vpnPlanSelect = document.getElementById('promoVpnPlan');
+	if (promo.vpn_plan_id) {
+		// Если это массив ID, выбираем все
+		if (Array.isArray(promo.vpn_plan_id)) {
+			Array.from(vpnPlanSelect.options).forEach(option => {
+				option.selected = promo.vpn_plan_id.includes(parseInt(option.value));
+			});
+		} else {
+			// Если это одиночный ID
+			vpnPlanSelect.value = promo.vpn_plan_id;
+		}
+	}
+	
+	// Обработка мультиселекта тарифов
+	const tariffSelect = document.getElementById('promoTariff');
+	if (promo.tariff_code) {
+		// Если это массив кодов, выбираем все
+		if (Array.isArray(promo.tariff_code)) {
+			Array.from(tariffSelect.options).forEach(option => {
+				option.selected = promo.tariff_code.includes(option.value);
+			});
+		} else {
+			// Если это одиночный код
+			tariffSelect.value = promo.tariff_code;
+		}
+	}
+	
+	document.getElementById('promoDiscountAmount').value = promo.discount_amount || '';
+	document.getElementById('promoDiscountPercent').value = promo.discount_percent || '';
+	document.getElementById('promoDiscountBonus').value = promo.discount_bonus || '';
+	document.getElementById('promoUsageLimit').value = promo.usage_limit_per_bot || 1;
+	document.getElementById('promoIsActive').checked = promo.is_active;
+	
+	// Детали
+	document.getElementById('promoDetailsId').textContent = promo.promo_id;
+	document.getElementById('promoDetailsCreated').textContent = formatDate(promo.created_at);
+	document.getElementById('promoDetailsUpdated').textContent = formatDate(promo.updated_at);
+}
+
+// Очистка формы промокода
+function clearPromoForm() {
+	document.getElementById('promoCode').value = '';
+	document.getElementById('promoBot').value = '';
+	
+	// Очищаем мультиселекты
+	Array.from(document.getElementById('promoVpnPlan').options).forEach(option => {
+		option.selected = false;
+	});
+	Array.from(document.getElementById('promoTariff').options).forEach(option => {
+		option.selected = false;
+	});
+	
+	document.getElementById('promoDiscountAmount').value = '';
+	document.getElementById('promoDiscountPercent').value = '';
+	document.getElementById('promoDiscountBonus').value = '';
+	document.getElementById('promoUsageLimit').value = 1;
+	document.getElementById('promoIsActive').checked = true;
+	
+	document.getElementById('promoDetailsId').textContent = '-';
+	document.getElementById('promoDetailsCreated').textContent = '-';
+	document.getElementById('promoDetailsUpdated').textContent = '-';
+}
+
+// Сохранение промокода
+async function savePromoCode() {
+	// Получаем выбранные VPN планы
+	const vpnPlanSelect = document.getElementById('promoVpnPlan');
+	const selectedVpnPlans = Array.from(vpnPlanSelect.selectedOptions)
+		.map(option => parseInt(option.value))
+		.filter(value => !isNaN(value));
+	
+	// Получаем выбранные тарифы
+	const tariffSelect = document.getElementById('promoTariff');
+	const selectedTariffs = Array.from(tariffSelect.selectedOptions)
+		.map(option => option.value)
+		.filter(value => value.trim() !== '');
+	
+	const formData = {
+		code: document.getElementById('promoCode').value.trim(),
+		bot: document.getElementById('promoBot').value,
+		vpn_plan_id: selectedVpnPlans.length > 0 ? selectedVpnPlans : null,
+		tariff_code: selectedTariffs.length > 0 ? selectedTariffs : null,
+		discount_amount: parseFloat(document.getElementById('promoDiscountAmount').value) || 0,
+		discount_percent: parseFloat(document.getElementById('promoDiscountPercent').value) || 0,
+		discount_bonus: parseFloat(document.getElementById('promoDiscountBonus').value) || 0,
+		usage_limit_per_bot: parseInt(document.getElementById('promoUsageLimit').value) || 1,
+		is_active: document.getElementById('promoIsActive').checked
+	};
+	
+	// Валидация
+	if (!formData.code) {
+		showNotification('Введите промокод', 'error');
+		return;
+	}
+	
+	if (!formData.bot) {
+		showNotification('Выберите бота', 'error');
+		return;
+	}
+	
+	try {
+		const url = currentPromoId ? `/api/promo-codes/${currentPromoId}` : '/api/promo-codes';
+		const method = currentPromoId ? 'PUT' : 'POST';
+		
+		console.log('Sending data:', formData);
+		
+		const response = await fetchWithCSRF(url, {
+			method: method,
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify(formData)
+		});
+		
+		console.log('Response status:', response.status);
+		console.log('Response headers:', response.headers);
+		
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error('Error response:', errorText);
+			showNotification(`Ошибка сервера (${response.status}): ${errorText}`, 'error');
+			return;
+		}
+		
+		const data = await response.json();
+		console.log('Response data:', data);
+		
+		if (data.success) {
+			showNotification(currentPromoId ? 'Промокод обновлен' : 'Промокод создан', 'success');
+			closePromoModal();
+			loadPromoCodes();
+		} else {
+			showNotification('Ошибка сохранения: ' + (data.message || 'Неизвестная ошибка'), 'error');
+		}
+	} catch (error) {
+		console.error('Error saving promo code:', error);
+		showNotification('Ошибка сохранения промокода: ' + error.message, 'error');
+	}
+}
+
+// Удаление промокода
+async function deletePromoCode() {
+	if (!currentPromoId) return;
+	
+	// Сначала проверяем, можно ли удалить промокод
+	try {
+		const response = await fetchWithCSRF(`/api/promo-codes/${currentPromoId}/can-delete`);
+		const data = await response.json();
+		
+		if (data.success) {
+			if (!data.can_delete) {
+				showNotification(`Нельзя удалить промокод: он был использован ${data.usage_count} раз(а). Удаление возможно только из панели администратора.`, 'error');
+				return;
+			}
+			
+			if (!confirm('Вы уверены, что хотите удалить этот промокод? Это действие нельзя отменить.')) {
+				return;
+			}
+			
+			// Выполняем удаление
+			const deleteResponse = await fetchWithCSRF(`/api/promo-codes/${currentPromoId}`, {
+				method: 'DELETE'
+			});
+			
+			const deleteData = await deleteResponse.json();
+			
+			if (deleteData.success) {
+				showNotification('Промокод удален', 'success');
+				closePromoModal();
+				loadPromoCodes();
+			} else {
+				showNotification('Ошибка удаления: ' + deleteData.message, 'error');
+			}
+		} else {
+			showNotification('Ошибка проверки возможности удаления: ' + data.message, 'error');
+		}
+	} catch (error) {
+		console.error('Error deleting promo code:', error);
+		showNotification('Ошибка удаления промокода', 'error');
+	}
+}
+
+// Подтверждение удаления промокода
+async function confirmDeletePromoCode(promoId) {
+	// Сначала проверяем, можно ли удалить промокод
+	try {
+		const response = await fetchWithCSRF(`/api/promo-codes/${promoId}/can-delete`);
+		const data = await response.json();
+		
+		if (data.success) {
+			if (!data.can_delete) {
+				showNotification(`Нельзя удалить промокод: он был использован ${data.usage_count} раз(а). Удаление возможно только из панели администратора.`, 'error');
+				return;
+			}
+			
+			if (confirm('Вы уверены, что хотите удалить этот промокод? Это действие нельзя отменить.')) {
+				deletePromoCodeDirect(promoId);
+			}
+		} else {
+			showNotification('Ошибка проверки возможности удаления: ' + data.message, 'error');
+		}
+	} catch (error) {
+		console.error('Error checking deletion possibility:', error);
+		showNotification('Ошибка проверки возможности удаления', 'error');
+	}
+}
+
+// Прямое удаление промокода
+async function deletePromoCodeDirect(promoId) {
+	try {
+		const response = await fetchWithCSRF(`/api/promo-codes/${promoId}`, {
+			method: 'DELETE'
+		});
+		
+		const data = await response.json();
+		
+		if (data.success) {
+			showNotification('Промокод удален', 'success');
+			loadPromoCodes();
+		} else {
+			showNotification('Ошибка удаления: ' + data.message, 'error');
+		}
+	} catch (error) {
+		console.error('Error deleting promo code:', error);
+		showNotification('Ошибка удаления промокода', 'error');
+	}
+}
+
+// Загрузка истории использования промокода
+async function loadPromoUsageHistory(promoId) {
+	try {
+		const response = await fetchWithCSRF(`/api/promo-codes/${promoId}/usage`);
+		const data = await response.json();
+		
+		if (data.success) {
+			renderPromoUsageTable(data.usage_history);
+		}
+	} catch (error) {
+		console.error('Error loading promo usage history:', error);
+	}
+}
+
+// Отрисовка таблицы использования промокода
+function renderPromoUsageTable(usageHistory) {
+	const tbody = document.getElementById('promoUsageTable');
+	
+	if (usageHistory.length === 0) {
+		tbody.innerHTML = '<tr><td colspan="5" class="text-center">Использований не найдено</td></tr>';
+		return;
+	}
+	
+	tbody.innerHTML = usageHistory.map(usage => `
+		<tr>
+			<td>${usage.user_id}</td>
+			<td>${usage.username || '-'}</td>
+			<td><span class="badge badge-${usage.bot === 'shop' ? 'primary' : 'secondary'}">${usage.bot === 'shop' ? 'Shop' : 'Support'}</span></td>
+			<td>${formatDate(usage.used_at)}</td>
+			<td>${usage.plan_name || '-'}</td>
+		</tr>
+	`).join('');
+}
+
+// Переключение вкладок в модальном окне
+function switchPromoTab(tabName) {
+	// Скрыть все вкладки
+	document.querySelectorAll('.tab-content').forEach(tab => {
+		tab.classList.remove('active');
+	});
+	document.querySelectorAll('.tab-button').forEach(button => {
+		button.classList.remove('active');
+	});
+	
+	// Показать выбранную вкладку
+	document.getElementById(`tab-${tabName}`).classList.add('active');
+	event.target.classList.add('active');
+}
+
+// Закрытие модального окна
+function closePromoModal() {
+	document.getElementById('promoModal').style.display = 'none';
+}
+
+// Обновление списка промокодов
+function refreshPromoCodes() {
+	loadPromoCodes();
+}
+
+// Форматирование даты
+function formatDate(dateString) {
+	if (!dateString) return '-';
+	const date = new Date(dateString);
+	return date.toLocaleString('ru-RU');
+}
+
+// Показ уведомлений
+function showNotification(message, type = 'info') {
+	// Используем существующую систему уведомлений
+	const flashDiv = document.createElement('div');
+	flashDiv.className = `flash flash-${type}`;
+	flashDiv.innerHTML = `
+		<span class="flash-message">${message}</span>
+		<button class="flash-close" onclick="this.parentElement.remove()" title="Закрыть уведомление">&times;</button>
+	`;
+	
+	const mainContent = document.querySelector('.main-content');
+	mainContent.insertBefore(flashDiv, mainContent.firstChild);
+	
+	// Автоматическое скрытие через 5 секунд
+	setTimeout(() => {
+		if (flashDiv.parentElement) {
+			flashDiv.remove();
+		}
+	}, 5000);
+}
+
+// Закрытие модального окна при клике вне его
+window.onclick = function(event) {
+	const modal = document.getElementById('promoModal');
+	if (event.target === modal) {
+		closePromoModal();
+	}
+}
+</script>
+{% endblock %}

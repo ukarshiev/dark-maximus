@@ -24,6 +24,8 @@ class RateLimiter:
             'per_hour': 1000,
             'per_day': 10000
         }
+        # Максимальное количество IP для предотвращения утечки памяти
+        self.max_ips = 10000
     
     def is_allowed(self, ip: str, limit_type: str = 'per_minute', limit_value: Optional[int] = None) -> bool:
         """
@@ -38,6 +40,15 @@ class RateLimiter:
             True если запрос разрешен, False если превышен лимит
         """
         try:
+            # Валидация входных данных
+            if not ip or not isinstance(ip, str):
+                logger.warning("Invalid IP address provided to rate limiter")
+                return True
+            
+            # Очистка старых IP для предотвращения утечки памяти
+            if len(self.requests) > self.max_ips:
+                self._cleanup_old_ips()
+            
             # Получаем лимит
             if limit_value is None:
                 limit_value = self.default_limits.get(limit_type, 60)
@@ -71,6 +82,25 @@ class RateLimiter:
             logger.error(f"Error in rate limiter: {e}")
             # В случае ошибки разрешаем запрос
             return True
+    
+    def _cleanup_old_ips(self):
+        """Очищает старые IP адреса для предотвращения утечки памяти"""
+        try:
+            current_time = time.time()
+            # Удаляем IP, которые не использовались более часа
+            cutoff_time = current_time - 3600
+            
+            ips_to_remove = []
+            for ip, request_times in self.requests.items():
+                if not request_times or request_times[-1] < cutoff_time:
+                    ips_to_remove.append(ip)
+            
+            for ip in ips_to_remove:
+                del self.requests[ip]
+                
+            logger.info(f"Cleaned up {len(ips_to_remove)} old IP addresses from rate limiter")
+        except Exception as e:
+            logger.error(f"Error cleaning up old IPs: {e}")
     
     def get_remaining_requests(self, ip: str, limit_type: str = 'per_minute', limit_value: Optional[int] = None) -> int:
         """Возвращает количество оставшихся запросов"""

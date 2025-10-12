@@ -1,4 +1,6 @@
-# База данных {{PROJECT_NAME}}
+# База данных Dark Maximus
+
+**Последнее обновление:** 09.10.2025
 
 ## Оглавление
 - [Обзор](#обзор)
@@ -13,7 +15,7 @@
 
 ## Обзор
 
-Проект {{PROJECT_NAME}} использует SQLite в качестве основной базы данных для хранения:
+Проект Dark Maximus использует SQLite в качестве основной базы данных для хранения:
 - Пользователей и их профилей
 - VPN-ключей и подписок
 - Транзакций и платежей
@@ -71,6 +73,7 @@
 ```sql
 CREATE TABLE users (
     telegram_id INTEGER PRIMARY KEY,           -- ID пользователя в Telegram
+    user_id INTEGER UNIQUE,                    -- Уникальный числовой ID пользователя (начинается с 1000)
     username TEXT,                             -- Имя пользователя
     total_spent REAL DEFAULT 0,                -- Общая сумма потраченных средств
     total_months INTEGER DEFAULT 0,            -- Общее количество месяцев подписки
@@ -87,8 +90,14 @@ CREATE TABLE users (
 
 **Индексы:**
 - `PRIMARY KEY (telegram_id)`
+- `UNIQUE INDEX uk_users_user_id (user_id)`
 - `INDEX idx_users_referred_by (referred_by)`
 - `INDEX idx_users_registration_date (registration_date)`
+
+**Примечания:**
+- `user_id` - уникальный числовой идентификатор, автоматически назначается новым пользователям, начиная с 1000
+- `telegram_id` остается основным ключом для совместимости с Telegram API
+- `user_id` удобен для публичных ссылок и поддержки, так как короче telegram_id
 
 ### 2. vpn_keys - VPN ключи
 Таблица для хранения VPN-ключей пользователей.
@@ -112,7 +121,10 @@ CREATE TABLE vpn_keys (
     start_date TIMESTAMP,                      -- Дата начала действия
     quota_total_gb REAL,                      -- Общий лимит трафика (ГБ)
     traffic_down_bytes INTEGER,                -- Скачано байт
-    quota_remaining_bytes INTEGER              -- Оставшийся трафик (байты)
+    quota_remaining_bytes INTEGER,             -- Оставшийся трафик (байты)
+    subscription TEXT,                         -- Ссылка на подписку (формат: userid-username)
+    telegram_chat_id INTEGER,                  -- Telegram Chat ID пользователя
+    comment TEXT                               -- Комментарий к ключу
 );
 ```
 
@@ -324,6 +336,22 @@ ALTER TABLE vpn_keys ADD COLUMN quota_total_gb REAL;
 ALTER TABLE vpn_keys ADD COLUMN traffic_down_bytes INTEGER;
 ALTER TABLE vpn_keys ADD COLUMN quota_remaining_bytes INTEGER;
 ```
+
+#### v2.5 - Уникальный идентификатор пользователя
+```sql
+-- Добавление user_id для удобной идентификации
+ALTER TABLE users ADD COLUMN user_id INTEGER UNIQUE;
+
+-- Заполнение существующих записей значениями, начиная с 1000
+-- Выполняется автоматически при первом запуске миграции
+UPDATE users SET user_id = (999 + ROW_NUMBER() OVER (ORDER BY registration_date ASC)) 
+WHERE user_id IS NULL;
+```
+
+**Цель миграции:**
+- Добавление короткого числового идентификатора пользователя
+- Автоматическое назначение user_id новым пользователям
+- Удобство для поддержки и публичных ссылок
 
 ### Запуск миграций
 ```python

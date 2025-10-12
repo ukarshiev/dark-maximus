@@ -13,3 +13,7 @@ services:
     volumes:
       - .:/app/project
       - /app/.venv
+      - sessions_data:/app/sessions
+
+volumes:
+  sessions_data:

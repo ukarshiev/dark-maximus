@@ -70,18 +70,25 @@ def main():
             required = ['telegram_bot_token', 'telegram_bot_username', 'admin_telegram_id']
             if all(database.get_setting(k) for k in required):
                 start_res = bot_controller.start_shop_bot()
-                logger.info(f"Autostart ShopBot: {start_res.get('message')}")
+                if start_res.get('status') == 'success':
+                    logger.info(f"Autostart ShopBot: {start_res.get('message')}")
+                else:
+                    logger.error(f"Autostart ShopBot failed: {start_res.get('message')}")
             else:
                 logger.warning("Autostart ShopBot skipped: Telegram settings are incomplete.")
 
             support_enabled = (database.get_setting("support_enabled") == "true")
             if support_enabled and database.get_setting("support_bot_token") and database.get_setting("support_group_id"):
                 start_sup = bot_controller.start_support_bot()
-                logger.info(f"Autostart SupportBot: {start_sup.get('message')}")
+                if start_sup.get('status') == 'success':
+                    logger.info(f"Autostart SupportBot: {start_sup.get('message')}")
+                else:
+                    logger.error(f"Autostart SupportBot failed: {start_sup.get('message')}")
             else:
                 logger.info("Autostart SupportBot skipped or disabled.")
         except Exception as e:
             logger.error(f"Autostart error: {e}", exc_info=True)
+            # Не прерываем работу приложения из-за ошибок автозапуска
             
         logger.info("Application is running. Bots are managed automatically and via web panel.")
         

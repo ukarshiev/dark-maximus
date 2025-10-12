@@ -18,20 +18,107 @@ from shop_bot.data_manager.database import get_host, get_key_by_email, DB_FILE
 
 logger = logging.getLogger(__name__)
 
-def login_to_host(host_url: str, username: str, password: str, inbound_id: int) -> tuple[Api | None, Inbound | None]:
+# Кэш для subURI настроек
+_sub_uri_cache = {}
+
+def get_sub_uri_from_panel(host_url: str, username: str, password: str) -> str | None:
+    """Получает subURI из настроек 3x-ui панели"""
+    cache_key = f"{host_url}:{username}"
+    
+    # Проверяем кэш
+    if cache_key in _sub_uri_cache:
+        return _sub_uri_cache[cache_key]
+    
     try:
-        api = Api(host=host_url, username=username, password=password)
-        api.login()
-        inbounds: List[Inbound] = api.inbound.get_list()
-        target_inbound = next((inbound for inbound in inbounds if inbound.id == inbound_id), None)
+        session = requests.Session()
+        base = host_url.rstrip('/')
         
-        if target_inbound is None:
-            logger.error(f"Inbound with ID '{inbound_id}' not found on host '{host_url}'")
-            return api, None
-        return api, target_inbound
+        # Логин
+        login_response = session.post(f"{base}/login", json={"username": username, "password": password}, timeout=10, verify=False)
+        if login_response.status_code != 200:
+            logger.warning(f"Failed to login to {base} for getting subURI")
+            return None
+        
+        # Получаем настройки подписки
+        settings_response = session.post(f"{base}/panel/setting/all", timeout=10, verify=False)
+        if settings_response.status_code != 200:
+            logger.warning(f"Failed to get settings from {base}")
+            return None
+        
+        settings_data = settings_response.json()
+        if not settings_data.get('success'):
+            logger.warning(f"Settings request was not successful for {base}")
+            return None
+        
+        # Получаем настройки из obj (это словарь, а не массив)
+        obj = settings_data.get('obj', {})
+        
+        # Проверяем, есть ли готовый subURI
+        sub_uri = obj.get('subURI')
+        if sub_uri:
+            # Кэшируем результат
+            _sub_uri_cache[cache_key] = sub_uri
+            logger.info(f"Got subURI from 3x-ui settings: {sub_uri}")
+            return sub_uri
+        
+        # Если subURI пустой, формируем его из других полей
+        sub_port = obj.get('subPort')
+        sub_path = obj.get('subPath', '/sub/')
+        sub_domain = obj.get('subDomain')
+        
+        if not sub_port:
+            logger.warning(f"subPort not found in settings for {base}")
+            return None
+        
+        # Определяем домен
+        if sub_domain:
+            domain = sub_domain
+        else:
+            # Используем домен из host_url
+            parsed_url = urlparse(host_url)
+            domain = parsed_url.hostname
+        
+        # Формируем subURI
+        sub_uri = f"http://{domain}:{sub_port}{sub_path}"
+        
+        # Кэшируем результат
+        _sub_uri_cache[cache_key] = sub_uri
+        logger.info(f"Generated subURI from settings: {sub_uri}")
+        return sub_uri
+        
     except Exception as e:
-        logger.error(f"Login or inbound retrieval failed for host '{host_url}': {e}", exc_info=True)
-        return None, None
+        logger.error(f"Error getting subURI from {base}: {e}")
+        return None
+
+def login_to_host(host_url: str, username: str, password: str, inbound_id: int, max_retries: int = 3) -> tuple[Api | None, Inbound | None]:
+    """Подключение к хосту с механизмом повторных попыток"""
+    import time
+    
+    for attempt in range(max_retries):
+        try:
+            api = Api(host=host_url, username=username, password=password)
+            api.login()
+            inbounds: List[Inbound] = api.inbound.get_list()
+            target_inbound = next((inbound for inbound in inbounds if inbound.id == inbound_id), None)
+            
+            if target_inbound is None:
+                logger.error(f"Inbound with ID '{inbound_id}' not found on host '{host_url}'")
+                return api, None
+                
+            logger.info(f"Successfully connected to host '{host_url}' (attempt {attempt + 1})")
+            return api, target_inbound
+            
+        except Exception as e:
+            logger.warning(f"Login attempt {attempt + 1}/{max_retries} failed for host '{host_url}': {e}")
+            
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt  # Экспоненциальная задержка: 1, 2, 4 секунды
+                logger.info(f"Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+            else:
+                logger.error(f"All {max_retries} login attempts failed for host '{host_url}': {e}", exc_info=True)
+                
+    return None, None
 
 def get_connection_string(inbound: Inbound, user_uuid: str, host_url: str, remark: str) -> str | None:
     if not inbound: 
@@ -169,7 +256,7 @@ def update_client_quota_on_host(host_name: str, email: str, traffic_bytes: int) 
         logger.error(f"Error updating quota for '{email}' on host '{host_name}': {e}", exc_info=True)
         return False
 
-def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days_to_add: int, comment: str | None = None, traffic_gb: float | None = None) -> tuple[str | None, int | None]:
+def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days_to_add: float, comment: str | None = None, traffic_gb: float | None = None, sub_id: str | None = None, telegram_chat_id: int | None = None) -> tuple[str | None, int | None]:
     try:
         inbound_to_modify = api.inbound.get_by_id(inbound_id)
         if not inbound_to_modify:
@@ -184,20 +271,20 @@ def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days
                 client_index = i
                 break
         
-        # Используем UTC+3 для соответствия с ботом
+        # Используем UTC для совместимости с 3x-ui
         from datetime import timezone, timedelta
-        local_tz = timezone(timedelta(hours=3))  # UTC+3 для России
-        local_now = datetime.now(local_tz)
+        utc_tz = timezone.utc
+        utc_now = datetime.now(utc_tz)
         
         if client_index != -1:
             existing_client = inbound_to_modify.settings.clients[client_index]
-            if existing_client.expiry_time > int(local_now.timestamp() * 1000):
-                current_expiry_dt = datetime.fromtimestamp(existing_client.expiry_time / 1000, tz=local_tz)
+            if existing_client.expiry_time > int(utc_now.timestamp() * 1000):
+                current_expiry_dt = datetime.fromtimestamp(existing_client.expiry_time / 1000, tz=utc_tz)
                 new_expiry_dt = current_expiry_dt + timedelta(days=days_to_add)
             else:
-                new_expiry_dt = local_now + timedelta(days=days_to_add)
+                new_expiry_dt = utc_now + timedelta(days=days_to_add)
         else:
-            new_expiry_dt = local_now + timedelta(days=days_to_add)
+            new_expiry_dt = utc_now + timedelta(days=days_to_add)
 
         new_expiry_ms = int(new_expiry_dt.timestamp() * 1000)
 
@@ -224,6 +311,13 @@ def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days
                     setattr(c, 'comment', "")
             except Exception:
                 pass
+            # Обновляем subscription для существующих клиентов
+            if sub_id:
+                try:
+                    setattr(c, 'subId', sub_id)
+                    setattr(c, 'subscription', sub_id)
+                except Exception:
+                    pass
             before_total = getattr(c, 'total', None)
             before_totalGB = getattr(c, 'totalGB', None)
             if traffic_bytes is not None:
@@ -261,6 +355,31 @@ def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days
                     setattr(new_client, 'comment', "")
             except Exception:
                 pass
+            # Устанавливаем subId для поддержки subscription (пробуем разные варианты)
+            if sub_id:
+                try:
+                    setattr(new_client, 'sub_id', sub_id)
+                    setattr(new_client, 'subId', sub_id)
+                    setattr(new_client, 'subscription', sub_id)
+                except Exception:
+                    pass
+            # Устанавливаем telegram_chat_id
+            if telegram_chat_id:
+                try:
+                    setattr(new_client, 'tg_id', telegram_chat_id)
+                    setattr(new_client, 'tgId', telegram_chat_id)
+                except Exception:
+                    pass
+            elif email and 'user' in email:
+                # Fallback: извлекаем user_id из email (user6044240344-key1@host.bot)
+                try:
+                    parts = email.split('@')[0].split('-')
+                    if parts and parts[0].startswith('user'):
+                        user_id = parts[0][4:]  # убираем 'user'
+                        setattr(new_client, 'tg_id', int(user_id))
+                        setattr(new_client, 'tgId', int(user_id))
+                except Exception:
+                    pass
             if traffic_bytes is not None:
                 try:
                     setattr(new_client, 'total', int(traffic_bytes))  # bytes
@@ -285,6 +404,31 @@ def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days
             )
             # Устанавливаем expiry_time через setattr
             setattr(updated_client, 'expiry_time', new_expiry_ms)
+            # Устанавливаем subId для поддержки subscription (пробуем разные варианты)
+            if sub_id:
+                try:
+                    setattr(updated_client, 'sub_id', sub_id)
+                    setattr(updated_client, 'subId', sub_id)
+                    setattr(updated_client, 'subscription', sub_id)
+                except Exception:
+                    pass
+            # Устанавливаем telegram_chat_id
+            if telegram_chat_id:
+                try:
+                    setattr(updated_client, 'tg_id', telegram_chat_id)
+                    setattr(updated_client, 'tgId', telegram_chat_id)
+                except Exception:
+                    pass
+            elif email and 'user' in email:
+                # Fallback: извлекаем user_id из email (user6044240344-key1@host.bot)
+                try:
+                    parts = email.split('@')[0].split('-')
+                    if parts and parts[0].startswith('user'):
+                        user_id = parts[0][4:]  # убираем 'user'
+                        setattr(updated_client, 'tg_id', int(user_id))
+                        setattr(updated_client, 'tgId', int(user_id))
+                except Exception:
+                    pass
             if traffic_bytes is not None:
                 try:
                     setattr(updated_client, 'total', int(traffic_bytes))  # bytes
@@ -323,12 +467,15 @@ def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days
         logger.error(f"Error in update_or_create_client_on_panel: {e}", exc_info=True)
         return None, None
 
-async def create_or_update_key_on_host(host_name: str, email: str, days_to_add: int, comment: str | None = None, traffic_gb: float | None = None) -> Dict | None:
+async def create_or_update_key_on_host(host_name: str, email: str, days_to_add: float, comment: str | None = None, traffic_gb: float | None = None, sub_id: str | None = None, telegram_chat_id: int | None = None) -> Dict | None:
+    logger.info(f"Starting key creation/update process for '{email}' on host '{host_name}' (days: {days_to_add})")
+    
     host_data = get_host(host_name)
     if not host_data:
         logger.error(f"Workflow failed: Host '{host_name}' not found in the database.")
         return None
 
+    logger.info(f"Attempting to connect to host '{host_name}' at {host_data['host_url']}")
     api, inbound = login_to_host(
         host_url=host_data['host_url'],
         username=host_data['host_username'],
@@ -338,13 +485,17 @@ async def create_or_update_key_on_host(host_name: str, email: str, days_to_add: 
     if not api or not inbound:
         logger.error(f"Workflow failed: Could not log in or find inbound on host '{host_name}'.")
         return None
-        
-    client_uuid, new_expiry_ms = update_or_create_client_on_panel(api, inbound.id, email, days_to_add, comment, traffic_gb)
+    
+    logger.info(f"Successfully connected to host '{host_name}', attempting to create/update client '{email}'")
+    client_uuid, new_expiry_ms = update_or_create_client_on_panel(api, inbound.id, email, days_to_add, comment, traffic_gb, sub_id, telegram_chat_id)
     if not client_uuid:
         logger.error(f"Workflow failed: Could not create/update client '{email}' on host '{host_name}'.")
         return None
     
-    connection_string = get_connection_string(inbound, client_uuid, host_data['host_url'], remark=host_name)
+    logger.info(f"Client '{email}' created/updated successfully, generating connection string")
+    # Используем host_code вместо host_name для стабильности ключей
+    host_code = host_data.get('host_code') or host_name
+    connection_string = get_connection_string(inbound, client_uuid, host_data['host_url'], remark=host_code)
     
     logger.info(f"Successfully processed key for '{email}' on host '{host_name}'.")
     # Если задан лимит — продублируем точно как UI
@@ -356,12 +507,23 @@ async def create_or_update_key_on_host(host_name: str, email: str, days_to_add: 
     except Exception:
         pass
     
+    # Получаем subscription_link из 3x-ui настроек
+    subscription_link = None
+    if sub_id:
+        sub_uri = get_sub_uri_from_panel(host_data['host_url'], host_data['host_username'], host_data['host_pass'])
+        if sub_uri:
+            subscription_link = f"{sub_uri}{sub_id}"
+            logger.info(f"Created subscription link: {subscription_link}")
+        else:
+            logger.warning(f"Could not get subURI from panel, subscription link will not be available")
+    
     if new_expiry_ms:
         return {
             "client_uuid": client_uuid,
             "email": email,
             "expiry_timestamp_ms": new_expiry_ms,
             "connection_string": connection_string,
+            "subscription_link": subscription_link,
             "host_name": host_name
         }
     else:
@@ -386,7 +548,9 @@ async def get_key_details_from_host(key_data: dict) -> dict | None:
     )
     if not api or not inbound: return None
 
-    connection_string = get_connection_string(inbound, key_data['xui_client_uuid'], host_db_data['host_url'], remark=host_name)
+    # Используем host_code вместо host_name для стабильности ключей
+    host_code = host_db_data.get('host_code') or host_name
+    connection_string = get_connection_string(inbound, key_data['xui_client_uuid'], host_db_data['host_url'], remark=host_code)
     # Получаем свежий expiry_time клиента из панели
     try:
         target_inbound = api.inbound.get_by_id(host_db_data['host_inbound_id'])
@@ -522,7 +686,50 @@ async def get_key_details_from_host(key_data: dict) -> dict | None:
                     else:
                         status = 'pay-ended'
                     break
-        return {"connection_string": connection_string, "expiry_timestamp_ms": exp_ms, "status": status, "protocol": protocol, "created_at": created_at, "remaining_seconds": remaining_seconds, "quota_remaining_bytes": quota_remaining_bytes, "quota_total_gb": quota_total_gb, "traffic_down_bytes": traffic_down_bytes, "enabled": enabled_status}
+        # Получаем дополнительные поля из клиента (используем правильные поля 3x-ui)
+        subscription = None
+        subscription_link = None
+        telegram_chat_id = None
+        comment = None
+
+        if target_inbound and target_inbound.settings and target_inbound.settings.clients:
+            for c in target_inbound.settings.clients:
+                cid = str(getattr(c, 'id', '') or '')
+                cemail = str(getattr(c, 'email', '') or '')
+                if cid == str(key_data.get('xui_client_uuid')) or (key_data.get('key_email') and cemail == str(key_data.get('key_email'))):
+                    # Используем правильные поля 3x-ui
+                    subscription = getattr(c, 'sub_id', None) or getattr(c, 'subId', None)
+                    telegram_chat_id = getattr(c, 'tg_id', None) or getattr(c, 'tgId', None)
+                    # Пробуем извлечь comment из разных полей
+                    comment = getattr(c, 'comment', None) or getattr(c, 'comments', None) or getattr(c, 'description', None)
+                    
+                    # Получаем subscription link из 3x-ui настроек
+                    if subscription:
+                        sub_uri = get_sub_uri_from_panel(host_db_data['host_url'], host_db_data['host_username'], host_db_data['host_pass'])
+                        if sub_uri:
+                            subscription_link = f"{sub_uri}{subscription}"
+                            logger.debug(f"Created subscription link: {subscription_link}")
+                        else:
+                            logger.warning(f"Could not get subURI from panel for {cemail}")
+                    
+                    break
+        
+        return {
+            "connection_string": connection_string, 
+            "expiry_timestamp_ms": exp_ms, 
+            "status": status, 
+            "protocol": protocol, 
+            "created_at": created_at, 
+            "remaining_seconds": remaining_seconds, 
+            "quota_remaining_bytes": quota_remaining_bytes, 
+            "quota_total_gb": quota_total_gb, 
+            "traffic_down_bytes": traffic_down_bytes, 
+            "enabled": enabled_status,
+            "subscription": subscription,
+            "subscription_link": subscription_link,
+            "telegram_chat_id": telegram_chat_id,
+            "comment": comment
+        }
     except Exception:
         return {"connection_string": connection_string}
 
@@ -570,8 +777,92 @@ async def delete_client_by_uuid(client_uuid: str, client_email: str | None = Non
             logger.warning(f"Error processing host '{host_data['host_name']}': {e}")
             continue
     
-    logger.warning(f"Client with UUID '{client_uuid}' not found on any host")
-    return False
+        logger.warning(f"Client with UUID '{client_uuid}' not found on any host")
+        return False
+
+
+async def update_client_attributes_on_host(host_name: str, email: str, subscription: str = None, telegram_chat_id: int = None, comment: str = None) -> bool:
+    """Обновляет атрибуты клиента (subscription, telegram_chat_id, comment) в 3x-ui панели"""
+    try:
+        host_data = get_host(host_name)
+        if not host_data:
+            logger.error(f"Host '{host_name}' not found in database")
+            return False
+            
+        # Получаем информацию о ключе
+        key_data = get_key_by_email(email)
+        if not key_data:
+            logger.error(f"Key with email '{email}' not found in database")
+            return False
+            
+        # Подключаемся к панели
+        api, inbound = login_to_host(
+            host_url=host_data['host_url'],
+            username=host_data['host_username'],
+            password=host_data['host_pass'],
+            inbound_id=host_data['host_inbound_id']
+        )
+        
+        if not api or not inbound:
+            logger.error(f"Cannot login to host '{host_name}'")
+            return False
+            
+        # Получаем данные inbound
+        inbound_to_modify = api.inbound.get_by_id(inbound.id)
+        if not inbound_to_modify or not inbound_to_modify.settings.clients:
+            logger.error(f"No clients found in inbound {inbound.id}")
+            return False
+            
+        # Находим клиента
+        client_found = False
+        for client in inbound_to_modify.settings.clients:
+            if client.email == email:
+                client_found = True
+                
+                # Обновляем атрибуты (пробуем разные варианты полей для UI)
+                if subscription:
+                    try:
+                        setattr(client, 'sub_id', subscription)
+                        setattr(client, 'subId', subscription)
+                        setattr(client, 'subscription', subscription)
+                    except Exception as e:
+                        logger.warning(f"Failed to set subscription for {email}: {e}")
+                        
+                if telegram_chat_id:
+                    try:
+                        setattr(client, 'tg_id', telegram_chat_id)
+                        setattr(client, 'tgId', telegram_chat_id)
+                        setattr(client, 'telegram_chat_id', telegram_chat_id)
+                        setattr(client, 'telegramChatId', telegram_chat_id)
+                        setattr(client, 'telegram_id', telegram_chat_id)
+                    except Exception as e:
+                        logger.warning(f"Failed to set telegram_chat_id for {email}: {e}")
+                        
+                # Пробуем разные варианты для комментария
+                if comment is not None:
+                    try:
+                        setattr(client, 'comment', comment)
+                        setattr(client, 'comments', comment)
+                        setattr(client, 'description', comment)
+                        setattr(client, 'remark', comment)
+                        setattr(client, 'label', comment)
+                    except Exception as e:
+                        logger.warning(f"Failed to set comment for {email}: {e}")
+                        
+                break
+                
+        if not client_found:
+            logger.error(f"Client '{email}' not found on host '{host_name}'")
+            return False
+            
+        # Обновляем inbound
+        api.inbound.update(inbound.id, inbound_to_modify)
+        logger.info(f"Successfully updated client attributes for '{email}' on host '{host_name}'")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to update client attributes for '{email}' on host '{host_name}': {e}")
+        return False
 
 async def delete_client_on_host(host_name: str, client_email: str, client_uuid: str | None = None) -> bool:
     """Устаревшая функция - используйте delete_client_by_uuid для прямого удаления по UUID"""
@@ -903,4 +1194,103 @@ async def update_client_enabled_status_on_host(host_name: str, client_email: str
     except Exception as e:
         logger.error(f"Failed to update enabled status for client '{client_email}' on host '{host_name}': {e}", exc_info=True)
         return False
+
+def get_subscription_settings(host_url: str, username: str, password: str) -> dict | None:
+    """Получает настройки подписки (subscription) из панели 3x-ui"""
+    try:
+        base = host_url.rstrip('/')
+        session = requests.Session()
+        
+        # Логин
+        login_response = session.post(f"{base}/login", json={"username": username, "password": password}, timeout=10, verify=False)
+        if login_response.status_code != 200:
+            logger.error(f"Failed to login to {base} to get subscription settings")
+            return None
+        
+        # Получаем настройки панели через API
+        # В 3x-ui настройки подписки хранятся в /panel/setting
+        settings_response = session.post(f"{base}/panel/setting/all", timeout=10, verify=False)
+        if settings_response.status_code != 200:
+            logger.error(f"Failed to get settings from {base}: HTTP {settings_response.status_code}")
+            return None
+        
+        try:
+            settings_data = settings_response.json()
+            if not settings_data.get('success'):
+                logger.error(f"Failed to get settings: {settings_data.get('msg', 'Unknown error')}")
+                return None
+            
+            obj = settings_data.get('obj', {})
+            sub_uri = obj.get('subURI', '')
+            sub_json_uri = obj.get('subJsonURI', '')
+            
+            return {
+                'subURI': sub_uri,
+                'subJsonURI': sub_json_uri
+            }
+        except Exception as e:
+            logger.error(f"Failed to parse settings response: {e}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Error getting subscription settings from {host_url}: {e}", exc_info=True)
+        return None
+
+async def get_client_subscription_link(host_name: str, client_email: str) -> str | None:
+    """Получает subscription link для клиента по email"""
+    try:
+        host_data = get_host(host_name)
+        if not host_data:
+            logger.error(f"Host '{host_name}' not found in database")
+            return None
+        
+        api, inbound = login_to_host(
+            host_data['host_url'],
+            host_data['host_username'],
+            host_data['host_pass'],
+            host_data['host_inbound_id']
+        )
+        
+        if not api or not inbound:
+            logger.error(f"Failed to login to host '{host_name}'")
+            return None
+        
+        # Получаем данные inbound с клиентами
+        inbound_data = api.inbound.get_by_id(inbound.id)
+        if not inbound_data or not inbound_data.settings.clients:
+            logger.warning(f"No clients found in inbound on host '{host_name}'")
+            return None
+        
+        # Ищем клиента по email и получаем его subId
+        client_sub_id = None
+        for client in inbound_data.settings.clients:
+            if client.email == client_email:
+                # subId может быть атрибутом клиента
+                client_sub_id = getattr(client, 'subId', None) or getattr(client, 'sub_id', None)
+                break
+        
+        if not client_sub_id:
+            logger.warning(f"Client '{client_email}' not found or has no subId on host '{host_name}'")
+            return None
+        
+        # Получаем настройки подписки из панели
+        sub_settings = get_subscription_settings(
+            host_data['host_url'],
+            host_data['host_username'],
+            host_data['host_pass']
+        )
+        
+        if not sub_settings or not sub_settings.get('subURI'):
+            logger.error(f"Failed to get subscription settings for host '{host_name}'")
+            return None
+        
+        # Формируем subscription link
+        subscription_link = f"{sub_settings['subURI']}{client_sub_id}"
+        logger.info(f"Generated subscription link for client '{client_email}': {subscription_link}")
+        
+        return subscription_link
+        
+    except Exception as e:
+        logger.error(f"Error getting subscription link for '{client_email}' on host '{host_name}': {e}", exc_info=True)
+        return None
 

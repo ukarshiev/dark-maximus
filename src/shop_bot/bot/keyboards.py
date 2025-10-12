@@ -21,8 +21,8 @@ def get_main_reply_keyboard(is_admin: bool = False) -> ReplyKeyboardMarkup:
     Пункт "Пробный период" отображается только при включенной настройке.
     """
     rows = []
-    # Первая строка: Купить VPN
-    rows.append([KeyboardButton(text="🛒 Купить VPN")])
+    # Первая строка: Купить
+    rows.append([KeyboardButton(text="🛒 Купить")])
 
     # Вторая строка: Профиль и Пополнить баланс
     rows.append([KeyboardButton(text="👤 Мой профиль"), KeyboardButton(text="💰Пополнить баланс")])
@@ -30,10 +30,7 @@ def get_main_reply_keyboard(is_admin: bool = False) -> ReplyKeyboardMarkup:
     # Третья строка: Помощь и поддержка
     rows.append([KeyboardButton(text="⁉️ Помощь и поддержка")])
 
-    # Четвертая строка: Пробный период (только если включен в настройках)
-    trial_enabled = get_setting("trial_enabled")
-    if trial_enabled == "true":
-        rows.append([KeyboardButton(text="🆓 Пробный период")])
+    # Пробный период убран из главного меню
 
     # Пятая строка: Админ-панель (только для администраторов)
     if is_admin:
@@ -53,14 +50,36 @@ def create_buy_root_keyboard(user_keys: list) -> InlineKeyboardMarkup:
     builder.adjust(1)
     return builder.as_markup()
 
-def create_profile_menu_keyboard(total_keys_count: int | None = None) -> InlineKeyboardMarkup:
+def create_profile_menu_keyboard(total_keys_count: int | None = None, trial_used: int = 1) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     keys_suffix = f" [{total_keys_count}] шт." if isinstance(total_keys_count, int) and total_keys_count >= 0 else ""
     builder.button(text=f"🔑 Мои ключи{keys_suffix}", callback_data="manage_keys")
+    
+    # Добавляем пробный период только если он не использован
+    if trial_used == 0:
+        builder.button(text="🆓 Пробный период", callback_data="trial_period")
+    
     builder.button(text="💳 Пополнить баланс", callback_data="topup_root")
+    builder.button(text="🎫 Применить промокод", callback_data="my_promo_codes")
     if get_setting("enable_referrals") == "true":
         builder.button(text="🤝 Реферальная программа", callback_data="show_referral_program")
-    builder.button(text="❌ Отозвать согласие", callback_data="revoke_consent")
+    builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
+    builder.adjust(1)
+    return builder.as_markup()
+
+def create_service_selection_keyboard(trial_used: int = 1, total_keys_count: int = 0) -> InlineKeyboardMarkup:
+    """Создает клавиатуру для выбора услуги"""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🆕 Купить новый VPN", callback_data="buy_new_vpn")
+    
+    # Добавляем кнопку продления только если есть хоть один ключ
+    if total_keys_count > 0:
+        builder.button(text="🔄 Продлить VPN", callback_data="manage_keys")
+    
+    # Добавляем пробный период только если он не использован
+    if trial_used == 0:
+        builder.button(text="🆓 Пробный период VPN", callback_data="trial_period")
+    
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
     builder.adjust(1)
     return builder.as_markup()
@@ -89,12 +108,63 @@ def create_topup_amounts_keyboard() -> InlineKeyboardMarkup:
     builder.adjust(1)
     return builder.as_markup()
 
-def create_topup_payment_methods_keyboard() -> InlineKeyboardMarkup:
+def create_topup_payment_methods_keyboard() -> InlineKeyboardBuilder:
     builder = InlineKeyboardBuilder()
+    
+    # Проверяем доступные методы платежа
+    from src.shop_bot.data_manager.database import get_setting
+    
+    # YooKassa - используем ту же логику, что и в bot_controller
+    yookassa_test_mode = get_setting("yookassa_test_mode") == "true"
+    if yookassa_test_mode:
+        # Тестовый режим - используем тестовые ключи, но если они не работают, используем боевые
+        yookassa_shop_id = get_setting("yookassa_test_shop_id") or get_setting("yookassa_shop_id")
+        yookassa_secret_key = get_setting("yookassa_test_secret_key") or get_setting("yookassa_secret_key")
+    else:
+        # Боевой режим
+        yookassa_shop_id = get_setting("yookassa_shop_id")
+        yookassa_secret_key = get_setting("yookassa_secret_key")
+    
+    yookassa_enabled = bool(yookassa_shop_id and yookassa_secret_key)
+    
+    if yookassa_enabled:
+        if get_setting("sbp_enabled") == "true":
+            builder.button(text="🏦 СБП / Банковская карта", callback_data="topup_pay_yookassa")
+        else:
+            builder.button(text="🏦 Банковская карта", callback_data="topup_pay_yookassa")
+    
     # Оплата через Stars и TON Connect
     builder.button(text="⭐ Telegram Звезды (Stars)", callback_data="topup_pay_stars")
     builder.button(text="🪙 TonCoin (криптовалюта)", callback_data="topup_pay_tonconnect")
     builder.button(text="⬅️ Назад", callback_data="topup_back_to_amounts")
+    builder.adjust(1)
+    return builder.as_markup()
+
+def create_stars_payment_keyboard(amount_stars: int, is_topup: bool = False) -> InlineKeyboardMarkup:
+    """Создает клавиатуру для оплаты звездами с кнопкой 'Не удалось заплатить'"""
+    builder = InlineKeyboardBuilder()
+    
+    # Основная кнопка оплаты
+    builder.button(text=f"Заплатить {amount_stars} ⭐", callback_data="confirm_stars_payment")
+    
+    # Кнопка "Не удалось заплатить"
+    callback_data = "topup_stars_payment_failed" if is_topup else "stars_payment_failed"
+    builder.button(text="Не удалось заплатить", callback_data=callback_data)
+    
+    builder.adjust(1)
+    return builder.as_markup()
+
+def create_stars_payment_failed_keyboard(is_topup: bool = False) -> InlineKeyboardMarkup:
+    """Создает клавиатуру для меню 'Не удалось заплатить'"""
+    builder = InlineKeyboardBuilder()
+    
+    # Кнопка перехода к Premium Bot
+    builder.button(text="Пополнить RUB", url="https://t.me/PremiumBot")
+    
+    # Кнопка "Назад в меню"
+    callback_data = "topup_back_to_payment_methods" if is_topup else "back_to_payment_methods"
+    builder.button(text="Назад в меню", callback_data=callback_data)
+    
     builder.adjust(1)
     return builder.as_markup()
 
@@ -163,9 +233,6 @@ def create_support_keyboard(support_user: str) -> InlineKeyboardMarkup:
 
 def create_host_selection_keyboard(hosts: list, action: str, total_keys_count: int | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    # Кнопка продления — только если есть ключи
-    if total_keys_count:
-        builder.button(text=f"✅🔄 Продлить текущий [{total_keys_count}]", callback_data="manage_keys")
     for host in hosts:
         callback_data = f"select_host_{action}_{host['host_name']}"
         builder.button(text=host['host_name'], callback_data=callback_data)
@@ -201,6 +268,12 @@ def create_skip_email_keyboard() -> InlineKeyboardMarkup:
     builder.adjust(1)
     return builder.as_markup()
 
+def create_back_to_payment_methods_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="⬅️ Назад к способам оплаты", callback_data="back_to_payment_methods")
+    builder.adjust(1)
+    return builder.as_markup()
+
 def create_payment_method_keyboard(payment_methods: dict | None, action: str, key_id: int, user_balance: float | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     # Предлагаем оплату с внутреннего баланса первой кнопкой
@@ -232,6 +305,9 @@ def create_payment_method_keyboard(payment_methods: dict | None, action: str, ke
     if (payment_methods and payment_methods.get("stars")) or stars_enabled_setting:
         builder.button(text="⭐ Telegram Звезды (Stars)", callback_data="pay_stars")
 
+    # Кнопка для применения промокода
+    builder.button(text="🎫 Применить промокод", callback_data="apply_promo_code")
+    
     builder.button(text="⬅️ Назад", callback_data="back_to_email_prompt")
     builder.adjust(1)
     return builder.as_markup()
@@ -246,23 +322,37 @@ def create_payment_keyboard(payment_url: str) -> InlineKeyboardMarkup:
     builder.button(text="Перейти к оплате", url=payment_url)
     return builder.as_markup()
 
-def create_keys_management_keyboard(keys: list) -> InlineKeyboardMarkup:
+def create_keys_management_keyboard(keys: list, trial_used: int = 1) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     if keys:
         for i, key in enumerate(keys):
             expiry_date = datetime.fromisoformat(key['expiry_date'])
-            # Используем статус из базы данных, если доступен, иначе определяем по дате
-            status = key.get('status')
-            if status:
-                from shop_bot.config import get_status_icon_and_text
-                status_icon, _ = get_status_icon_and_text(status)
+            # Убираем timezone info для корректного сравнения
+            if expiry_date.tzinfo is not None:
+                expiry_date = expiry_date.replace(tzinfo=None)
+            
+            # Определяем статус по реальному времени истечения, а не по статусу в БД
+            current_time = datetime.now()
+            is_expired = expiry_date <= current_time
+            
+            if is_expired:
+                status_icon = "❌"
             else:
-                # Fallback на старую логику, если статус не определен
-                status_icon = "✅" if expiry_date > datetime.now() else "❌"
+                # Проверяем, есть ли статус в БД для дополнительной информации
+                status = key.get('status')
+                if status and status in ['deactivate']:
+                    status_icon = "❌"  # Деактивированный ключ
+                else:
+                    status_icon = "✅"
             
             host_name = key.get('host_name', 'Неизвестный хост')
             button_text = f"{status_icon} Ключ #{i+1} ({host_name}) (до {expiry_date.strftime('%d.%m.%Y')})"
             builder.button(text=button_text, callback_data=f"show_key_{key['key_id']}")
+    
+    # Добавляем пробный период только если он не использован
+    if trial_used == 0:
+        builder.button(text="🆓 Пробный период", callback_data="trial_period")
+    
     builder.button(text="➕ Купить новый ключ", callback_data="buy_new_key")
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
     builder.adjust(1)
@@ -289,24 +379,44 @@ def create_qr_keyboard(key_id: int) -> InlineKeyboardMarkup:
 
 def create_howto_vless_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+    builder.button(text="🎬 Видеоинструкции", callback_data="video_instructions_list")
     builder.button(text="📱 Android", callback_data="howto_android")
     builder.button(text="📱 iOS", callback_data="howto_ios")
     builder.button(text="💻 Windows", callback_data="howto_windows")
     builder.button(text="🖥 MacOS", callback_data="howto_macos")
     builder.button(text="🐧 Linux", callback_data="howto_linux")
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
-    builder.adjust(2, 3, 1)
+    builder.adjust(1, 2, 3, 1)
     return builder.as_markup()
 
 def create_howto_vless_keyboard_key(key_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+    builder.button(text="🎬 Видеоинструкции", callback_data="video_instructions_list")
     builder.button(text="📱 Android", callback_data="howto_android")
     builder.button(text="📱 iOS", callback_data="howto_ios")
     builder.button(text="💻 Windows", callback_data="howto_windows")
     builder.button(text="🖥 MacOS", callback_data="howto_macos")
     builder.button(text="🐧 Linux", callback_data="howto_linux")
     builder.button(text="⬅️ Назад к ключу", callback_data=f"show_key_{key_id}")
-    builder.adjust(2, 3, 1)
+    builder.adjust(1, 2, 3, 1)
+    return builder.as_markup()
+
+def create_user_promo_codes_keyboard(user_promo_codes: list) -> InlineKeyboardMarkup:
+    """Создает клавиатуру для управления применёнными промокодами пользователя"""
+    builder = InlineKeyboardBuilder()
+    
+    for promo in user_promo_codes:
+        # Кнопка удаления промокода
+        builder.button(
+            text=f"🗑️ {promo['code']} - удалить", 
+            callback_data=f"remove_promo_{promo['usage_id']}"
+        )
+    
+    # Кнопка "Назад в меню"
+    builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
+    
+    # Настраиваем расположение кнопок (по 1 в ряд)
+    builder.adjust(1)
     return builder.as_markup()
 
 def create_back_to_menu_keyboard() -> InlineKeyboardMarkup:
@@ -369,6 +479,26 @@ def create_subscription_keyboard(channel_url: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="📢 Перейти в канал", url=channel_url)
     builder.button(text="✅ Я подписался", callback_data="check_subscription")
+    builder.adjust(1)
+    return builder.as_markup()
+
+def create_video_instructions_keyboard(videos: list) -> InlineKeyboardMarkup:
+    """Создает клавиатуру со списком видеоинструкций"""
+    from shop_bot.data_manager.database import get_global_domain
+    
+    builder = InlineKeyboardBuilder()
+    
+    # Получаем домен для формирования URL
+    domain = get_global_domain() or "yourdomain.com"
+    
+    for video in videos:
+        video_url = f"https://{domain}/video/player/{video['video_id']}"
+        builder.button(
+            text=f"🎬 {video['title']}", 
+            web_app={"url": video_url}
+        )
+    
+    builder.button(text="⬅️ Назад", callback_data="back_to_instructions")
     builder.adjust(1)
     return builder.as_markup()
 

@@ -212,9 +212,8 @@ async def handle_plan_selection(callback: CallbackQuery, state: FSMContext):
     # Показ способов оплаты
     payment_keyboard = create_payment_methods_keyboard(plan_data)
     await callback.message.edit_text(
-        f"💰 <b>Выбран тариф:</b> {plan_data['plan_name']}\n"
-        f"💵 <b>Цена:</b> {plan_data['price']} RUB\n\n"
-        f"Выберите способ оплаты:",
+        f"Вы выбрали {host_name}: {plan_data['plan_name']} - {plan_data['price']:.0f} RUB\n\n"
+        f"Теперь выберите удобный способ оплаты:",
         reply_markup=payment_keyboard,
         parse_mode="HTML"
     )

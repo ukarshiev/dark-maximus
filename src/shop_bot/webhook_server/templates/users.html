@@ -22,13 +22,15 @@
 			<thead>
 				<tr>
 					<th class="actions-cell">Меню</th>
+					<th title="Уникальный идентификатор пользователя">User ID</th>
+					<th title="Дата регистрации пользователя">Дата регистрации</th>
 					<th>Telegram ID</th>
 					<th>Username</th>
+					<th title="Полное имя из Telegram">Полное имя</th>
+					<th title="ФИО (заполняется вручную)">ФИО</th>
 					<th>Статус</th>
-					<th>Согласие с документами</th>
-					<th>Каналы</th>
-					<th>Ключи</th>
-					<th title="Количество уведомлений, отправленных пользователю">Уведомления</th>
+					<th title="Количество ключей пользователя">🔑</th>
+					<th title="Количество уведомлений, отправленных пользователю">🔔</th>
 					<th title="Исп-дней-повтор">Триал</th>
 					<th>Баланс</th>
 					<th>Заработано</th>
@@ -91,6 +93,26 @@
 							</div>
 						</div>
 					</td>
+					<td data-field="user_id" data-original="{{ user.user_id }}">
+						<div class="cell-inline">
+							<span>{{ user.user_id or 'N/A' }}</span>
+						</div>
+					</td>
+				<td data-field="registration_date" data-original="{{ user.registration_date }}" title="Дата регистрации пользователя">
+					<div class="cell-inline">
+						<span>
+							{% if user.registration_date %}
+								{% if user.registration_date is string %}
+									{{ user.registration_date.split('.')[0] if '.' in user.registration_date else user.registration_date }}
+								{% else %}
+									{{ user.registration_date.strftime('%d.%m.%Y %H:%M') }}
+								{% endif %}
+							{% else %}
+								N/A
+							{% endif %}
+						</span>
+					</div>
+				</td>
 					<td data-field="telegram_id" data-original="{{ user.telegram_id }}">
 						<div class="cell-inline">
 							<span>{{ hidden_mode and '***' or user.telegram_id }}</span>
@@ -101,27 +123,21 @@
                             <span class="username-text">{{ hidden_mode and '@***' or ('@' ~ (user.username or 'N/A')) }}</span>
                         </div>
                     </td>
+					<td data-field="fullname" data-original="{{ user.fullname or '' }}" title="Полное имя из Telegram">
+						<div class="cell-inline">
+							<span>{{ hidden_mode and '***' or (user.fullname or 'N/A') }}</span>
+						</div>
+					</td>
+					<td data-field="fio" data-original="{{ user.fio or '' }}" title="ФИО (заполняется вручную)">
+						<div class="cell-inline">
+							<span>{{ hidden_mode and '***' or (user.fio or 'N/A') }}</span>
+						</div>
+					</td>
 					<td>
 						{% if user.is_banned %}
 						<span class="status-badge status-banned">Забанен</span>
 						{% else %}
 						<span class="status-badge status-active">Активен</span>
-						{% endif %}
-					</td>
-					<td>
-						{% if user.agreed_to_documents %}
-						<span class="status-badge status-active">✅ Согласен</span>
-						{% else %}
-						<span class="status-badge status-banned">❌ Не согласен</span>
-						{% endif %}
-					</td>
-					<td>
-						{% if user.subscription_status == 'subscribed' %}
-						<span class="status-badge status-active">✅ Подписан</span>
-						{% elif user.subscription_status == 'not_subscribed' %}
-						<span class="status-badge status-banned">❌ Не подписан</span>
-						{% else %}
-						<span class="status-badge status-banned">❓ Не проверено</span>
 						{% endif %}
 					</td>
 					<td>

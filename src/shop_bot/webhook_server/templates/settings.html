@@ -115,7 +115,7 @@
 									<i class="fas fa-plug"></i>
 									<span>Проверить соединение</span>
 								</button>
-                                <button type="button" class="kebab-item" onclick="closeKebabMenu('kebab-server-{{ host.host_name }}'); openHostModalData(this)" data-host-name="{{ host.host_name }}" data-host-url="{{ host.host_url }}" data-host-username="{{ host.host_username }}" data-host-inbound-id="{{ host.host_inbound_id }}" data-host-code="{{ host.host_code or (host.host_name|replace(' ', '')|lower) }}" title="Редактировать настройки сервера">
+                                <button type="button" class="kebab-item" onclick="closeKebabMenu('kebab-server-{{ host.host_name }}'); openHostModalData(this)" data-host-name="{{ host.host_name }}" data-host-url="{{ host.host_url }}" data-host-username="{{ host.host_username }}" data-host-inbound-id="{{ host.host_inbound_id }}" data-host-code="{{ host.host_code or '' }}" title="Редактировать настройки сервера">
 									<i class="fas fa-edit"></i>
 									<span>Редактировать</span>
 								</button>
@@ -138,6 +138,7 @@
                                     <th>Срок</th>
                                     <th>Цена</th>
                                     <th>Трафик</th>
+                                    <th>Режим</th>
                                     <th style="width:70px; text-align:right;">Действия</th>
                                 </tr>
                             </thead>
@@ -147,6 +148,8 @@
                                 {% set days = plan.get('days', 0) %}
                                 {% set hours = plan.get('hours', 0) %}
                                 {% set traffic = plan.get('traffic_gb', 0) %}
+                                {% set provision_mode = plan.get('key_provision_mode', 'key') %}
+                                {% set display_mode = plan.get('display_mode', 'all') %}
                                 <tr class="plan-row"
                                     data-plan-id="{{ plan.plan_id }}"
                                     data-plan-name="{{ plan.plan_name }}"
@@ -155,6 +158,8 @@
                                     data-plan-price="{{ plan.price }}"
                                     data-plan-hours="{{ hours }}"
                                     data-plan-traffic="{{ traffic }}"
+                                    data-plan-provision-mode="{{ provision_mode }}"
+                                    data-plan-display-mode="{{ display_mode }}"
                                     data-host-name="{{ host.host_name }}"
                                 >
                                     <td title="Идентификатор тарифа">{{ plan.plan_id }}</td>
@@ -167,6 +172,17 @@
                                     </td>
                                     <td>{{ plan.price|round(0) }} RUB</td>
                                     <td>{{ traffic and (traffic|round(2) ~ ' ГБ') or '∞' }}</td>
+                                    <td title="Режим отображения тарифа">
+                                        {% if display_mode == 'all' %}
+                                            <span style="color: #4CAF50;">👁️ Всем</span>
+                                        {% elif display_mode == 'hidden_all' %}
+                                            <span style="color: #f44336;">🚫 Скрыт</span>
+                                        {% elif display_mode == 'hidden_new' %}
+                                            <span style="color: #ff9800;">🆕 Скрыт у новых</span>
+                                        {% elif display_mode == 'hidden_old' %}
+                                            <span style="color: #2196F3;">👴 Скрыт у старых</span>
+                                        {% endif %}
+                                    </td>
 								<td style="text-align:right; position:relative;">
 								<div class="kebab-wrapper">
 									<button class="kebab-btn" onclick="toggleKebabMenu('kebab-plan-{{ plan.plan_id }}')" title="Действия с тарифом">
@@ -175,7 +191,7 @@
 									<div class="kebab-menu" id="kebab-plan-{{ plan.plan_id }}">
                                             <button type="button" class="kebab-item"
                                                 onclick="closeKebabMenu('kebab-plan-{{ plan.plan_id }}'); openPlanModalData(this)"
-                                                data-plan-id="{{ plan.plan_id }}" data-plan-name="{{ plan.plan_name }}" data-plan-months="{{ months }}" data-plan-days="{{ days }}" data-plan-hours="{{ hours }}" data-plan-price="{{ plan.price }}" data-plan-traffic="{{ traffic }}" data-host-name="{{ host.host_name }}" title="Редактировать тариф">
+                                                data-plan-id="{{ plan.plan_id }}" data-plan-name="{{ plan.plan_name }}" data-plan-months="{{ months }}" data-plan-days="{{ days }}" data-plan-hours="{{ hours }}" data-plan-price="{{ plan.price }}" data-plan-traffic="{{ traffic }}" data-plan-provision-mode="{{ provision_mode }}" data-plan-display-mode="{{ display_mode }}" data-host-name="{{ host.host_name }}" title="Редактировать тариф">
 												<i class="fas fa-edit"></i>
 												<span>Редактировать</span>
 											</button>
@@ -209,6 +225,22 @@
 	<div id="panel-tab" class="settings-tab">
 		<form action="{{ url_for('save_panel_settings') }}" method="post">
 			<section class="settings-section">
+				<h2>Глобальные параметры</h2>
+				<div class="form-group">
+					<label for="global_domain">Домен приложения:</label>
+					<input
+						type="url"
+						id="global_domain"
+						name="global_domain"
+						value="{{ settings.global_domain or '' }}"
+						placeholder="https://your-domain.com"
+						title="Основной домен приложения для всех внешних ссылок"
+					/>
+					<small class="text-muted">Используется для генерации ссылок в боте, TON Connect манифесте и других внешних интеграциях</small>
+				</div>
+			</section>
+			
+			<section class="settings-section">
 				<h2>Настройки Панели</h2>
 				<div class="form-group">
 					<label for="panel_login">Логин для входа в панель:</label>
@@ -218,13 +250,14 @@
 						name="panel_login"
 						value="{{ settings.panel_login or '' }}"
 						required
+						title="Логин для входа в административную панель"
 					/>
 				</div>
 				<div class="form-group password-wrapper">
 					<label for="panel_password"
 						>Новый пароль (оставьте пустым, чтобы не менять):</label
 					>
-					<input type="password" id="panel_password" name="panel_password" />
+					<input type="password" id="panel_password" name="panel_password" title="Новый пароль для входа в панель" />
 					<button type="button" class="toggle-password" title="Показать/скрыть пароль">
 						<i class="fas fa-eye"></i>
 					</button>
@@ -464,7 +497,7 @@
 			<section class="settings-section">
 				<h2>Настройки Платежных Систем</h2>
 				<div class="payment-systems-grid">
-					<!-- Левая колонка -->
+					<!-- Колонка 1 -->
 					<div class="payment-column">
 						<!-- Настройка Telegram Stars -->
 						<div class="payment-system-card">
@@ -486,8 +519,9 @@
 										value="{{ settings.stars_conversion_rate or '1.79' }}"
 										placeholder="1.79"
 										style="flex: 1;"
+										title="Курс конвертации рублей в звезды Telegram"
 									/>
-									<button type="button" onclick="updateStarsRate()" class="button button-small" style="white-space: nowrap;">
+									<button type="button" onclick="updateStarsRate()" class="button button-small" style="white-space: nowrap;" title="Обновить курс до актуального значения">
 										🔄 Обновить
 									</button>
 								</div>
@@ -532,7 +566,7 @@
 										type="url"
 										id="ton_manifest_url"
 										name="ton_manifest_url"
-										value="{{ (settings.domain or 'https://paris.dark-maximus.com') + '/.well-known/tonconnect-manifest.json' }}"
+										value="{{ (settings.global_domain or settings.domain or 'https://paris.dark-maximus.com') + '/.well-known/tonconnect-manifest.json' }}"
 										placeholder="https://example.com/.well-known/tonconnect-manifest.json"
 										readonly
 									/>
@@ -545,40 +579,15 @@
 								</div>
 							</div>
 						</div>
+					</div>
 
+					<!-- Колонка 2 -->
+					<div class="payment-column">
 						<!-- Настройка YooKassa -->
 						<div class="payment-system-card">
 							<h3>Настройка YooKassa</h3>
-							<div class="form-group">
-								<label for="receipt_email">Почта для чеков:</label>
-								<input
-									type="text"
-									id="receipt_email"
-									name="receipt_email"
-									value="{{ settings.receipt_email or '' }}"
-								/>
-							</div>
-							<div class="form-group">
-								<label for="yookassa_shop_id">YooKassa Shop ID:</label>
-								<input
-									type="text"
-									id="yookassa_shop_id"
-									name="yookassa_shop_id"
-									value="{{ settings.yookassa_shop_id or '' }}"
-								/>
-							</div>
-							<div class="form-group password-wrapper">
-								<label for="yookassa_secret_key">YooKassa Secret Key:</label>
-								<input
-									type="password"
-									id="yookassa_secret_key"
-									name="yookassa_secret_key"
-									value="{{ settings.yookassa_secret_key or '' }}"
-								/>
-								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
-									<i class="fas fa-eye"></i>
-								</button>
-							</div>
+							
+							<!-- Общие настройки -->
 							<div class="form-group form-group-checkbox">
 								<input type="hidden" name="sbp_enabled" value="false" />
 								<input type="checkbox" id="sbp_enabled" name="sbp_enabled"
@@ -586,10 +595,139 @@
 								%}>
 								<label for="sbp_enabled">Включить оплату через СБП</label>
 							</div>
+							
+							<!-- Переключатель режима YooKassa -->
+							<div class="form-group form-group-toggle">
+								<div class="toggle-container">
+									<label for="yookassa_test_mode" class="toggle-label-text">
+										<span id="mode-label-text">
+											{% if settings.yookassa_test_mode == 'true' %}
+												Режим: Тестовый
+											{% else %}
+												Режим: Боевой
+											{% endif %}
+										</span>
+									</label>
+									<label class="modern-toggle">
+										<input type="hidden" name="yookassa_test_mode" value="false" />
+										<input type="checkbox" id="yookassa_test_mode" name="yookassa_test_mode"
+										value="true" {% if settings.yookassa_test_mode == 'true' %}checked{% endif
+										%} onchange="toggleYooKassaMode()">
+										<span class="toggle-slider"></span>
+									</label>
+								</div>
+							</div>
+							
+							<div class="form-group">
+								<label for="receipt_email">Почта для чеков:</label>
+								<input
+									type="text"
+									id="receipt_email"
+									name="receipt_email"
+									value="{{ settings.receipt_email or '' }}"
+									title="Email адрес для отправки чеков"
+								/>
+							</div>
+							
+							<!-- Разделитель -->
+							<div class="settings-divider"></div>
+							
+							<!-- Боевые настройки -->
+							<h4 style="color: #e74c3c; margin: 20px 0 15px 0; font-size: 16px;">🔴 Боевые настройки</h4>
+							
+							<div class="form-group">
+								<label for="yookassa_api_url">API URL:</label>
+								<input
+									type="text"
+									id="yookassa_api_url"
+									name="yookassa_api_url"
+									value="{{ settings.yookassa_api_url or 'https://api.yookassa.ru/v3' }}"
+									placeholder="https://api.yookassa.ru/v3"
+									title="Базовый URL API YooKassa для боевого режима"
+								/>
+							</div>
+							
+							<div class="form-group">
+								<input type="checkbox" id="yookassa_verify_ssl" name="yookassa_verify_ssl" value="true" {% if (settings.yookassa_verify_ssl or 'true') == 'true' %}checked{% endif %}>
+								<label for="yookassa_verify_ssl">Проверять SSL сертификаты</label>
+							</div>
+							
+							<div class="form-group">
+								<label for="yookassa_shop_id">Shop ID:</label>
+								<input
+									type="text"
+									id="yookassa_shop_id"
+									name="yookassa_shop_id"
+									value="{{ settings.yookassa_shop_id or '' }}"
+									title="Идентификатор магазина в YooKassa"
+								/>
+							</div>
+							
+							<div class="form-group password-wrapper">
+								<label for="yookassa_secret_key">Secret Key:</label>
+								<input
+									type="password"
+									id="yookassa_secret_key"
+									name="yookassa_secret_key"
+									value="{{ settings.yookassa_secret_key or '' }}"
+									title="Секретный ключ для API YooKassa"
+								/>
+								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+									<i class="fas fa-eye"></i>
+								</button>
+							</div>
+							
+							<!-- Разделитель -->
+							<div class="settings-divider"></div>
+							
+							<!-- Тестовые настройки -->
+							<h4 style="color: #f39c12; margin: 20px 0 15px 0; font-size: 16px;">🧪 Тестовые настройки</h4>
+							
+							<div class="form-group">
+								<label for="yookassa_test_api_url">API URL (тест):</label>
+								<input
+									type="text"
+									id="yookassa_test_api_url"
+									name="yookassa_test_api_url"
+									value="{{ settings.yookassa_test_api_url or 'https://api.test.yookassa.ru/v3' }}"
+									placeholder="https://api.test.yookassa.ru/v3"
+									title="Базовый URL API YooKassa для тестового режима"
+								/>
+							</div>
+							
+							<div class="form-group">
+								<input type="checkbox" id="yookassa_test_verify_ssl" name="yookassa_test_verify_ssl" value="true" {% if (settings.yookassa_test_verify_ssl or 'false') == 'true' %}checked{% endif %}>
+								<label for="yookassa_test_verify_ssl">Проверять SSL сертификаты (тест)</label>
+							</div>
+							
+							<div class="form-group">
+								<label for="yookassa_test_shop_id">Shop ID (тест):</label>
+								<input
+									type="text"
+									id="yookassa_test_shop_id"
+									name="yookassa_test_shop_id"
+									value="{{ settings.yookassa_test_shop_id or '' }}"
+									title="Идентификатор тестового магазина в YooKassa"
+								/>
+							</div>
+							
+							<div class="form-group password-wrapper">
+								<label for="yookassa_test_secret_key">Test Secret Key (тест):</label>
+								<input
+									type="password"
+									id="yookassa_test_secret_key"
+									name="yookassa_test_secret_key"
+									value="{{ settings.yookassa_test_secret_key or '' }}"
+									title="Секретный ключ для тестового API YooKassa"
+								/>
+								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+									<i class="fas fa-eye"></i>
+								</button>
+							</div>
 						</div>
 					</div>
 
-					<!-- Правая колонка -->
+					<!-- Колонка 3 -->
 					<div class="payment-column">
 						<!-- Настройка CryptoBot -->
 						<div class="payment-system-card">
@@ -993,8 +1131,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const price = tr.getAttribute('data-plan-price') || '';
         const traffic = tr.getAttribute('data-plan-traffic') || '';
         const hours = tr.getAttribute('data-plan-hours') || '';
+        const keyProvisionMode = tr.getAttribute('data-plan-provision-mode') || 'key';
         const hostName = tr.getAttribute('data-host-name') || '';
-        openPlanModal(planId, name, months, days, price, traffic, hostName, hours);
+        openPlanModal(planId, name, months, days, price, traffic, hostName, hours, keyProvisionMode);
     });
 });
 
@@ -1032,7 +1171,7 @@ function openHostModal(name='', url='', user='', pass='', inbound='', code=''){
               <div class="form-group"><label>Логин</label><input type="text" name="host_username" value="${user}" required></div>
               <div class="form-group"><label>Пароль</label><input type="password" name="host_pass" value="${pass||''}" required></div>
               <div class="form-group"><label>ID инбаунда</label><input type="number" name="host_inbound_id" value="${inbound}" required></div>
-              <div class="form-group"><label>Код 3x‑ui (стабильный)</label><input type="text" name="host_code" value="${code|| (name||'').replace(/\s+/g,'').toLowerCase()}" placeholder="amsterdam"></div>
+              <div class="form-group"><label>Код 3x‑ui (стабильный)</label><input type="text" name="host_code" value="${code||''}" placeholder="amsterdam"></div>
               <div class="modal-actions">
                 <span></span>
                 <button type="button" class="button button-secondary" onclick="closeModal()" title="Отменить и закрыть">Отмена</button>
@@ -1058,10 +1197,13 @@ function openHostModalData(el){
 }
 
 // Модалка для тарифа (создание/редактирование)
-function openPlanModal(planId, name, months, days, price, traffic, hostName, hours){
+function openPlanModal(planId, name, months, days, price, traffic, hostName, hours, keyProvisionMode, displayMode){
     const isEdit = !!planId;
     const action = isEdit ? `/edit-plan/${planId}` : '/add-plan';
     const hiddenHost = isEdit ? '' : `<input type="hidden" name="host_name" value="${hostName}">`;
+    const provisionMode = keyProvisionMode || 'key';
+    displayMode = displayMode || 'all';
+    
     const html = `
     <div class="modal-backdrop">
       <div class="modal">
@@ -1079,6 +1221,23 @@ function openPlanModal(planId, name, months, days, price, traffic, hostName, hou
               <div class="form-group"><label>Часы</label><input type="number" name="hours" value="${hours||''}" placeholder="0" min="0" max="24" title="Укажите количество часов (0–24)"></div>
               <div class="form-group"><label>Цена (RUB)</label><input type="number" step="0.01" name="price" value="${price||''}" placeholder="0" required title="Введите цену тарифа, в рублях"></div>
               <div class="form-group"><label>Трафик (ГБ)</label><input type="number" step="0.01" name="traffic_gb" value="${traffic||''}" placeholder="0 (безлимит)" title="Введите лимит трафика в ГБ или 0 для безлимита"></div>
+              <div class="form-group">
+                <label title="Выберите что будет предоставляться пользователю при покупке тарифа">Режим предоставления</label>
+                <select name="key_provision_mode" title="Что получит пользователь: ключ, подписка или оба варианта">
+                  <option value="key" ${provisionMode === 'key' ? 'selected' : ''}>Ключ</option>
+                  <option value="subscription" ${provisionMode === 'subscription' ? 'selected' : ''}>Подписка</option>
+                  <option value="both" ${provisionMode === 'both' ? 'selected' : ''}>Ключ + Подписка</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label title="Выберите режим отображения тарифа для разных категорий пользователей">Режим отображения</label>
+                <select name="display_mode" title="Кому показывать этот тариф в боте">
+                  <option value="all" ${displayMode === 'all' ? 'selected' : ''}>Отображать всем</option>
+                  <option value="hidden_all" ${displayMode === 'hidden_all' ? 'selected' : ''}>Скрыть у всех</option>
+                  <option value="hidden_new" ${displayMode === 'hidden_new' ? 'selected' : ''}>Скрыть у новых</option>
+                  <option value="hidden_old" ${displayMode === 'hidden_old' ? 'selected' : ''}>Скрыть у старых</option>
+                </select>
+              </div>
               <div class="modal-actions">
                 <span></span>
                 <button type="button" class="button button-secondary" onclick="closeModal()" title="Отменить и закрыть">Отмена</button>
@@ -1099,6 +1258,12 @@ function deleteHost(hostName){
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = `/delete-host/${hostName}`;
+    
+    // Добавляем CSRF токен
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    form.appendChild(csrfInput);
+    
     document.body.appendChild(form);
     form.submit();
 }
@@ -1109,6 +1274,12 @@ function deletePlan(planId){
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = `/delete-plan/${planId}`;
+    
+    // Добавляем CSRF токен
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    form.appendChild(csrfInput);
+    
     document.body.appendChild(form);
     form.submit();
 }
@@ -1126,10 +1297,12 @@ function openPlanModalData(el){
         const price = el.getAttribute('data-plan-price') || '';
         const traffic = el.getAttribute('data-plan-traffic') || '';
         const hours = el.getAttribute('data-plan-hours') || '';
-        openPlanModal(planId, name, months, days, price, traffic, hostName, hours);
+        const keyProvisionMode = el.getAttribute('data-plan-provision-mode') || 'key';
+        const displayMode = el.getAttribute('data-plan-display-mode') || 'all';
+        openPlanModal(planId, name, months, days, price, traffic, hostName, hours, keyProvisionMode, displayMode);
     } else {
         // Создание нового тарифа
-        openPlanModal(null, '', '', '', '', '', hostName, '');
+        openPlanModal(null, '', '', '', '', '', hostName, '', 'key', 'all');
     }
 }
 
@@ -1680,7 +1853,21 @@ function closeTonManifestEditor() {
     }
 }
 
-
+// Функция переключения режима YooKassa
+function toggleYooKassaMode() {
+    const testModeCheckbox = document.getElementById('yookassa_test_mode');
+    const modeLabelText = document.getElementById('mode-label-text');
+    
+    if (testModeCheckbox.checked) {
+        // Тестовый режим включен
+        modeLabelText.textContent = 'Режим: Тестовый';
+    } else {
+        // Боевой режим включен
+        modeLabelText.textContent = 'Режим: Боевой';
+    }
+    
+    console.log('Режим YooKassa изменен:', testModeCheckbox.checked ? 'Тестовый' : 'Боевой');
+}
 
 </script>
 

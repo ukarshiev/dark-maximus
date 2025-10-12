@@ -19,6 +19,22 @@ from shop_bot.bot.support_handlers import get_support_router
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_YOOKASSA_API_URL = "https://api.yookassa.ru/v3"
+
+
+def _setting_to_bool(value: str | None, default: bool = True) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() not in {"false", "0", "off", "no"}
+
+
+def _safe_strip(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
 class BotController:
     def __init__(self):
         self._loop = None
@@ -89,8 +105,27 @@ class BotController:
 
             self.shop_is_running = True
 
-            yookassa_shop_id = database.get_setting("yookassa_shop_id")
-            yookassa_secret_key = database.get_setting("yookassa_secret_key")
+            # Проверяем режим YooKassa (тестовый или боевой)
+            yookassa_test_mode = database.get_setting("yookassa_test_mode") == "true"
+            
+            # Для YooKassa API нужны реальные ключи в обоих режимах
+            # Тестовый режим = реальные ключи + тестовые данные
+            # Боевой режим = реальные ключи + продакшн данные
+            
+            if yookassa_test_mode:
+                yookassa_shop_id = _safe_strip(database.get_setting("yookassa_test_shop_id")) or _safe_strip(database.get_setting("yookassa_shop_id"))
+                yookassa_secret_key = _safe_strip(database.get_setting("yookassa_test_secret_key")) or _safe_strip(database.get_setting("yookassa_secret_key"))
+                api_url = _safe_strip(database.get_setting("yookassa_test_api_url")) or _safe_strip(database.get_setting("yookassa_api_url")) or DEFAULT_YOOKASSA_API_URL
+                verify_ssl = _setting_to_bool(database.get_setting("yookassa_test_verify_ssl"), True)
+                mode_text = "тестовый"
+            else:
+                yookassa_shop_id = _safe_strip(database.get_setting("yookassa_shop_id"))
+                yookassa_secret_key = _safe_strip(database.get_setting("yookassa_secret_key"))
+                api_url = _safe_strip(database.get_setting("yookassa_api_url")) or DEFAULT_YOOKASSA_API_URL
+                verify_ssl = _setting_to_bool(database.get_setting("yookassa_verify_ssl"), True)
+                mode_text = "боевой"
+
+            # Проверяем, что есть хотя бы один набор ключей
             yookassa_enabled = bool(yookassa_shop_id and yookassa_secret_key)
 
             cryptobot_token = database.get_setting("cryptobot_token")
@@ -107,8 +142,9 @@ class BotController:
             stars_enabled = database.get_setting("stars_enabled") == "true"
 
             if yookassa_enabled:
-                Configuration.account_id = yookassa_shop_id
-                Configuration.secret_key = yookassa_secret_key
+                # Правильная настройка YooKassa через configure()
+                Configuration.configure(account_id=yookassa_shop_id, secret_key=yookassa_secret_key, api_url=api_url, verify=verify_ssl)
+                logger.info(f"YooKassa configured ({mode_text} режим): shop_id={yookassa_shop_id}, api_url={api_url}, verify_ssl={verify_ssl}")
             
             handlers.PAYMENT_METHODS = {
                 "yookassa": yookassa_enabled,

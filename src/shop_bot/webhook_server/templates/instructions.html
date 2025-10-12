@@ -1,28 +1,132 @@
 {% extends "base.html" %} 
 {% block title %}Инструкции{% endblock %}
 {% block header_title %}Инструкции{% endblock %}
+<!-- Cache-buster: v2.54.0-{{ range(1, 10000)|random }} -->
+
+{% block header_buttons %}
+{% if mode == 'video' %}
+<button class="button button-primary" data-size="sm" onclick="openVideoDrawer()" title="Создать новую видеоинструкцию">
+    <i class="fas fa-plus-circle"></i>
+    Создать видео
+</button>
+{% endif %}
+{% endblock %}
+
 {% block content %}
 
+<!-- Навигация по режимам: Текст / Видео -->
+<div class="tab-navigation" style="margin-bottom: 16px;">
+    <a class="nav-button {% if mode=='text' or not mode %}active{% endif %}" 
+       href="{{ url_for('instructions_page', tab='android', mode='text') }}" 
+       title="Текстовые инструкции">
+        <i class="fas fa-file-alt"></i>
+        Текст
+    </a>
+    <a class="nav-button {% if mode=='video' %}active{% endif %}" 
+       href="{{ url_for('instructions_page', tab='video', mode='video') }}" 
+       title="Видеоинструкции">
+        <i class="fas fa-video"></i>
+        Видео
+    </a>
+</div>
 
-<!-- Навигация по подменю -->
+{% if mode == 'video' %}
+<!-- Режим видеоинструкций -->
+<section class="settings-section settings-section--fluid">
+    <h2 style="margin-bottom:16px;">Видеоинструкции</h2>
+    
+    <div class="table-scroll-x">
+        <table class="users-table">
+            <thead>
+                <tr>
+                    <th title="ID видеоинструкции">ID</th>
+                    <th title="Дата и время загрузки">Дата загрузки</th>
+                    <th title="Название видео">Название</th>
+                    <th title="Наличие превью изображения">Превью</th>
+                    <th title="Наличие видеофайла">Видео</th>
+                    <th title="Размер файла в мегабайтах">Размер (MB)</th>
+                    <th title="Ссылка на видеоплеер">Ссылка</th>
+                    <th title="Код для встраивания (iframe)">iframe</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if videos %}
+                {% for video in videos %}
+                <tr class="video-row" data-video-id="{{ video.video_id }}" style="cursor: pointer;" title="Дважды кликните для редактирования">
+                    <td>{{ video.video_id }}</td>
+                    <td>{{ video.created_at }}</td>
+                    <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">
+                        <strong>{{ video.title }}</strong>
+                    </td>
+                    <td class="text-center">
+                        {% if video.poster_filename %}
+                        <i class="fas fa-image" style="color: var(--success-color);" title="Превью загружено"></i>
+                        {% else %}
+                        <i class="fas fa-times" style="color: var(--text-muted);" title="Превью отсутствует"></i>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if video.filename %}
+                        <i class="fas fa-video" style="color: var(--success-color);" title="Видео загружено"></i>
+                        {% else %}
+                        <i class="fas fa-times" style="color: var(--danger-color);" title="Видео отсутствует"></i>
+                        {% endif %}
+                    </td>
+                    <td>{{ "%.2f"|format(video.file_size_mb) if video.file_size_mb else 'N/A' }}</td>
+                    <td style="font-size: 0.85em;">
+                        <code>/video/player/{{ video.video_id }}</code>
+                        <button class="button button-secondary copy-link-btn" data-size="xs" 
+                                data-copy-text="/video/player/{{ video.video_id }}" 
+                                title="Скопировать ссылку">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </td>
+                    <td style="font-size: 0.85em;">
+                        <button class="button button-secondary copy-iframe-btn" data-size="xs" 
+                                data-copy-text="<iframe src='/video/embed/{{ video.video_id }}' width='100%' height='400' frameborder='0' allowfullscreen></iframe>" 
+                                title="Скопировать код iframe">
+                            <i class="fas fa-code"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                <tr>
+                    <td colspan="8" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                        <i class="fas fa-video" style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;"></i>
+                        <p>Видеоинструкции отсутствуют</p>
+                        <p style="font-size: 0.9em;">Нажмите "Создать видео" чтобы добавить первую видеоинструкцию</p>
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- Video Drawer -->
+{% include 'video_drawer.html' %}
+
+{% else %}
+<!-- Навигация по платформам (для текстовых инструкций) -->
 <div class="tab-navigation">
-    <a class="nav-button {% if active_tab=='android' %}active{% endif %}" href="{{ url_for('instructions_page', tab='android') }}" title="Инструкции для Android">
+    <a class="nav-button {% if active_tab=='android' %}active{% endif %}" href="{{ url_for('instructions_page', tab='android', mode='text') }}" title="Инструкции для Android">
         <i class="fas fa-mobile-alt"></i>
         Android
     </a>
-    <a class="nav-button {% if active_tab=='ios' %}active{% endif %}" href="{{ url_for('instructions_page', tab='ios') }}" title="Инструкции для iOS">
+    <a class="nav-button {% if active_tab=='ios' %}active{% endif %}" href="{{ url_for('instructions_page', tab='ios', mode='text') }}" title="Инструкции для iOS">
         <i class="fas fa-mobile-alt"></i>
         iOS
     </a>
-    <a class="nav-button {% if active_tab=='windows' %}active{% endif %}" href="{{ url_for('instructions_page', tab='windows') }}" title="Инструкции для Windows">
+    <a class="nav-button {% if active_tab=='windows' %}active{% endif %}" href="{{ url_for('instructions_page', tab='windows', mode='text') }}" title="Инструкции для Windows">
         <i class="fas fa-laptop"></i>
         Windows
     </a>
-    <a class="nav-button {% if active_tab=='macos' %}active{% endif %}" href="{{ url_for('instructions_page', tab='macos') }}" title="Инструкции для macOS">
+    <a class="nav-button {% if active_tab=='macos' %}active{% endif %}" href="{{ url_for('instructions_page', tab='macos', mode='text') }}" title="Инструкции для macOS">
         <i class="fas fa-desktop"></i>
         MacOS
     </a>
-    <a class="nav-button {% if active_tab=='linux' %}active{% endif %}" href="{{ url_for('instructions_page', tab='linux') }}" title="Инструкции для Linux">
+    <a class="nav-button {% if active_tab=='linux' %}active{% endif %}" href="{{ url_for('instructions_page', tab='linux', mode='text') }}" title="Инструкции для Linux">
         <i class="fas fa-terminal"></i>
         Linux
     </a>
@@ -38,7 +142,7 @@
 				<i class="fas fa-save"></i>
 				Сохранить
 			</button>
-            <a class="button button-secondary" href="{{ url_for('instructions_page', tab=active_tab) }}" data-size="md" title="Отменить изменения">
+            <a class="button button-secondary" href="{{ url_for('instructions_page', tab=active_tab, mode='text') }}" data-size="md" title="Отменить изменения">
 				<i class="fas fa-times"></i>
 				Отмена
 			</a>
@@ -46,7 +150,62 @@
     </form>
 </section>
 
+{% endif %}
 
 {% endblock %}
 
+{% block scripts %}
+<script>
+// Обработка копирования для кнопок в таблице видео
+document.addEventListener('DOMContentLoaded', function() {
+    // Копирование ссылок и iframe кода в таблице
+    document.querySelectorAll('.copy-link-btn, .copy-iframe-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const textToCopy = btn.dataset.copyText;
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                showNotification('Скопировано!', 'success');
+            }).catch(() => {
+                showNotification('Ошибка копирования', 'error');
+            });
+        });
+    });
+    
+    // Двойной клик на строку для редактирования
+    document.querySelectorAll('.video-row').forEach(row => {
+        row.addEventListener('dblclick', () => {
+            const videoId = parseInt(row.dataset.videoId);
+            if (videoId) openVideoDrawer(videoId);
+        });
+    });
+});
 
+// Функция для отображения уведомлений
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.textContent = message;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: var(--${type === 'success' ? 'success-color' : type === 'error' ? 'danger-color' : 'primary-color'});
+        color: #fff;
+        padding: 12px 24px;
+        border-radius: 8px;
+        z-index: 10000;
+        animation: fadeInOut 2s;
+    `;
+    document.body.appendChild(notification);
+    setTimeout(() => notification.remove(), 2000);
+}
+</script>
+
+<style>
+@keyframes fadeInOut {
+    0% { opacity: 0; transform: translateY(-10px); }
+    20% { opacity: 1; transform: translateY(0); }
+    80% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-10px); }
+}
+</style>
+{% endblock %}

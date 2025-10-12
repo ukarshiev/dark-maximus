@@ -81,6 +81,14 @@
 						<span class="nav-text">Ключи</span>
 					</a>
 					<a
+						href="{{ url_for('promo_codes_page') }}"
+						class="nav-link {% if request.endpoint == 'promo_codes_page' %}active{% endif %}"
+						title="Промокоды"
+					>
+						<span class="nav-icon">🎫</span>
+						<span class="nav-text">Промокоды</span>
+					</a>
+					<a
 						href="{{ url_for('notifications_page') }}"
 						class="nav-link {% if request.endpoint == 'notifications_page' %}active{% endif %}"
 						title="Уведомления"
@@ -137,6 +145,13 @@
 							title="Ключи"
 						>
 							<span class="nav-icon">🔑</span>
+						</a>
+						<a
+							href="{{ url_for('promo_codes_page') }}"
+							class="nav-link {% if request.endpoint == 'promo_codes_page' %}active{% endif %}"
+							title="Промокоды"
+						>
+							<span class="nav-icon">🎫</span>
 						</a>
 						<a
 							href="{{ url_for('notifications_page') }}"
@@ -296,14 +311,18 @@
 		</div>
 
 		<!-- Модальное окно пользователя -->
-		<div id="userModal" class="modal" style="display: none;">
-			<div class="modal-content modal-content--large">
-				<div class="modal-header">
+		<!-- User Drawer (Side Sheet) -->
+		<div id="userDrawer" class="drawer-overlay" style="display: none;">
+			<div class="drawer" id="userDrawerPanel">
+				<div class="drawer-header">
 					<h3>Карточка пользователя</h3>
-					<span class="close" onclick="closeUserModal()" title="Закрыть карточку пользователя">&times;</span>
+					<button class="drawer-close" onclick="closeUserModal()" title="Закрыть карточку пользователя">
+						<i class="fas fa-times"></i>
+					</button>
 				</div>
-				<div class="modal-body">
-					<!-- Основная информация -->
+				
+				<div class="drawer-body">
+					<!-- Закрепленная информация о пользователе -->
 					<div class="user-info-section">
 						<div class="user-info-grid">
 							<div class="user-info-item">
@@ -311,23 +330,31 @@
 								<span id="modalUserId" class="user-info-value"></span>
 							</div>
 							<div class="user-info-item">
-								<label>Username:</label>
-								<span id="modalUsername" class="user-info-value"></span>
+								<label>Полное имя:</label>
+								<span id="modalFullname" class="user-info-value"></span>
 							</div>
 							<div class="user-info-item">
 								<label>Статус:</label>
 								<span id="modalStatus" class="user-info-value"></span>
 							</div>
 							<div class="user-info-item">
-								<label>Ключи:</label>
-								<span id="modalKeys" class="user-info-value"></span>
+								<label>Баланс:</label>
+								<span id="modalBalance" class="user-info-value"></span>
+							</div>
+							<div class="user-info-item">
+								<label>Заработано:</label>
+								<span id="modalEarned" class="user-info-value"></span>
 							</div>
 						</div>
 					</div>
 
 					<!-- Вкладки -->
-					<div class="modal-tabs">
-						<button class="tab-button active" onclick="switchTab('payments')" title="Платежи пользователя">
+					<div class="drawer-tabs">
+						<button class="tab-button active" onclick="switchTab('userdata')" title="Данные пользователя">
+							<i class="fas fa-user"></i>
+							Данные пользователя
+						</button>
+						<button class="tab-button" onclick="switchTab('payments')" title="Платежи пользователя">
 							<i class="fas fa-credit-card"></i>
 							Платежи
 						</button>
@@ -342,83 +369,471 @@
 					</div>
 
 					<!-- Контент вкладок -->
-					<div class="tab-content active" id="tab-payments">
-						<div class="modal-table-container">
-							<table class="modal-table">
-								<thead>
-									<tr>
-										<th>Дата</th>
-										<th>Тип</th>
-										<th>Сумма</th>
-										<th>Описание</th>
-									</tr>
-								</thead>
-								<tbody id="modalPaymentsTable">
-									<tr>
-										<td colspan="4" class="text-center">Загрузка...</td>
-									</tr>
-								</tbody>
-							</table>
-						</div>
-					</div>
+					<div class="drawer-tabs-content">
+						<!-- Вкладка: Данные пользователя -->
+						<div class="tab-content active" id="tab-userdata">
+							
+							<!-- Группа: Общее -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-info-circle"></i>
+									<span>Общее</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="Дата регистрации в системе">
+										<label>Дата регистрации:</label>
+										<span id="detailRegistrationDate">—</span>
+									</div>
+									<div class="user-detail-item" title="Статус бана пользователя">
+										<label>Забанен:</label>
+										<span id="detailIsBanned">—</span>
+									</div>
+								</div>
+							</div>
 
-					<div class="tab-content" id="tab-keys">
-						<div class="modal-table-container">
-							<table class="modal-table">
-								<thead>
-									<tr>
-										<th>ID ключа</th>
-										<th>Хост</th>
-										<th>План</th>
-										<th>Ключ</th>
-										<th>Дата</th>
-									</tr>
-								</thead>
-								<tbody id="modalKeysTable">
-									<tr>
-										<td colspan="5" class="text-center">Загрузка...</td>
-									</tr>
-								</tbody>
-							</table>
-						</div>
-					</div>
+							<!-- Группа: Персональные -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-user"></i>
+									<span>Персональные</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="Внутренний идентификатор пользователя">
+										<label>User ID:</label>
+										<span id="detailUserId">—</span>
+									</div>
+									<div class="user-detail-item" title="Идентификатор пользователя в Telegram">
+										<label>Telegram ID:</label>
+										<span id="detailTelegramId">—</span>
+									</div>
+									<div class="user-detail-item" title="Имя пользователя в Telegram">
+										<label>Username:</label>
+										<span id="detailUsername">—</span>
+									</div>
+									<div class="user-detail-item" title="Полное имя из профиля Telegram">
+										<label>Полное имя:</label>
+										<span id="detailFullname">—</span>
+									</div>
+									<div class="user-detail-item editable-item" title="ФИО пользователя (заполняется вручную)">
+										<label>ФИО:</label>
+										<div class="field-container">
+											<input type="text" id="detailFioInput" class="editable-field" placeholder="Введите ФИО" style="display: none;">
+											<span id="detailFio" class="display-field">—</span>
+											<i class="fas fa-edit edit-icon" title="Кликните для редактирования"></i>
+										</div>
+									</div>
+									<div class="user-detail-item editable-item" title="Email пользователя">
+										<label>Email:</label>
+										<div class="field-container">
+											<input type="email" id="detailEmailInput" class="editable-field" placeholder="Введите email" style="display: none;">
+											<span id="detailEmail" class="display-field">—</span>
+											<i class="fas fa-edit edit-icon" title="Кликните для редактирования"></i>
+										</div>
+									</div>
+								</div>
+							</div>
 
-					<div class="tab-content" id="tab-notifications">
-						<div class="modal-table-container">
-							<table class="modal-table">
-								<thead>
-									<tr>
-										<th>Дата</th>
-										<th>Тип</th>
-										<th>Текст</th>
-										<th>Статус</th>
-									</tr>
-								</thead>
-								<tbody id="modalNotificationsTable">
-									<tr>
-										<td colspan="4" class="text-center">Загрузка...</td>
-									</tr>
-								</tbody>
-							</table>
+							<!-- Группа: Финансы -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-wallet"></i>
+									<span>Финансы</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="Текущий баланс пользователя">
+										<label>Баланс:</label>
+										<span id="detailBalance" data-field="balance">—</span>
+									</div>
+									<div class="user-detail-item" title="Общая сумма трат пользователя">
+										<label>Всего потрачено:</label>
+										<span id="detailTotalSpent" data-field="total_spent">—</span>
+									</div>
+									<div class="user-detail-item" title="Сумма заработанная пользователем">
+										<label>Заработано:</label>
+										<span id="detailEarned" data-field="earned">—</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Группа: Сводная -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-chart-line"></i>
+									<span>Сводная</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="Общее количество оплаченных месяцев">
+										<label>Всего месяцев:</label>
+										<span id="detailTotalMonths">—</span>
+									</div>
+									<div class="user-detail-item" title="Количество ключей пользователя">
+										<label>Количество ключей:</label>
+										<span id="detailKeysCount">—</span>
+									</div>
+									<div class="user-detail-item" title="Количество уведомлений пользователя">
+										<label>Количество уведомлений:</label>
+										<span id="detailNotificationsCount">—</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Группа: Триал -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-gift"></i>
+									<span>Триал</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="Использовался ли триальный период">
+										<label>Триал использован:</label>
+										<span id="detailTrialUsed">—</span>
+									</div>
+									<div class="user-detail-item" title="Количество дней триального периода">
+										<label>Дней триала выдано:</label>
+										<span id="detailTrialDaysGiven">—</span>
+									</div>
+									<div class="user-detail-item" title="Количество повторных триалов">
+										<label>Повторных триалов:</label>
+										<span id="detailTrialReusesCount">—</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Группа: Реферальная программа -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-users"></i>
+									<span>Реферальная программа</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="ID пользователя, который пригласил">
+										<label>Реферер (ID):</label>
+										<span id="detailReferredBy">—</span>
+									</div>
+									<div class="user-detail-item" title="Текущий реферальный баланс">
+										<label>Реферальный баланс:</label>
+										<span id="detailReferralBalance" data-field="referral_balance">—</span>
+									</div>
+									<div class="user-detail-item" title="Общая сумма заработанная по реферальной программе">
+										<label>Всего заработано рефералами:</label>
+										<span id="detailReferralBalanceAll" data-field="referral_balance_all">—</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Группа: Правила -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-file-contract"></i>
+									<span>Правила</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="Согласие с условиями использования">
+										<label>Согласие с условиями:</label>
+										<span id="detailAgreedToTerms">—</span>
+									</div>
+									<div class="user-detail-item" title="Согласие с документами сервиса">
+										<label>Согласие с документами:</label>
+										<span id="detailAgreedToDocuments">—</span>
+									</div>
+									<div class="user-detail-item" title="Статус подписки на обязательные каналы">
+										<label>Статус подписки:</label>
+										<span id="detailSubscriptionStatus">—</span>
+									</div>
+								</div>
+							</div>
+
+						</div>
+
+						<!-- Вкладка: Платежи -->
+						<div class="tab-content" id="tab-payments">
+							<div class="drawer-table-container">
+								<table class="drawer-table">
+									<thead>
+										<tr>
+											<th>Дата</th>
+											<th>Тип</th>
+											<th>Сумма</th>
+											<th>Описание</th>
+										</tr>
+									</thead>
+									<tbody id="modalPaymentsTable">
+										<tr>
+											<td colspan="4" class="text-center">Загрузка...</td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
+						</div>
+
+						<!-- Вкладка: Ключи -->
+						<div class="tab-content" id="tab-keys">
+							<div class="drawer-table-container">
+								<table class="drawer-table">
+									<thead>
+										<tr>
+											<th>ID ключа</th>
+											<th>Хост</th>
+											<th>План</th>
+											<th>Ключ</th>
+											<th>Дата</th>
+										</tr>
+									</thead>
+									<tbody id="modalKeysTable">
+										<tr>
+											<td colspan="5" class="text-center">Загрузка...</td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
+						</div>
+
+						<!-- Вкладка: Уведомления -->
+						<div class="tab-content" id="tab-notifications">
+							<div class="drawer-table-container">
+								<table class="drawer-table">
+									<thead>
+										<tr>
+											<th>Дата</th>
+											<th>Тип</th>
+											<th>Текст</th>
+											<th>Статус</th>
+										</tr>
+									</thead>
+									<tbody id="modalNotificationsTable">
+										<tr>
+											<td colspan="4" class="text-center">Загрузка...</td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
 						</div>
 					</div>
 				</div>
-				<div class="modal-footer">
-					<button type="button" class="button button-secondary" onclick="closeUserModal()" title="Закрыть карточку пользователя">
-						Закрыть
-					</button>
-					<button type="button" class="button button-warning" id="banButton" onclick="banUser()" style="display: none;" title="Заблокировать пользователя">
-						<i class="fas fa-lock"></i>
-						Забанить
-					</button>
-					<button type="button" class="button button-success" id="unbanButton" onclick="unbanUser()" style="display: none;" title="Разблокировать пользователя">
-						<i class="fas fa-unlock"></i>
-						Разбанить
-					</button>
+
+				<!-- Footer с кнопками действий -->
+				<div class="drawer-footer">
+					<!-- Левая часть: кебаб-меню и закрыть -->
+					<div class="drawer-footer-left">
+						<!-- Кебаб-меню -->
+						<div class="kebab-wrapper">
+							<button class="kebab-btn" onclick="toggleDrawerKebabMenu('drawer-kebab-menu')" title="Действия с пользователем">
+								<i class="fas fa-ellipsis-v"></i>
+							</button>
+							<div class="kebab-menu" id="drawer-kebab-menu">
+								<button type="button" class="kebab-item" onclick="closeDrawerKebabMenu(); banUser()" id="drawerBanButton" style="display: none;" title="Заблокировать пользователя">
+									<i class="fas fa-lock"></i>
+									<span>Забанить</span>
+								</button>
+								<button type="button" class="kebab-item" onclick="closeDrawerKebabMenu(); unbanUser()" id="drawerUnbanButton" style="display: none;" title="Разблокировать пользователя">
+									<i class="fas fa-unlock"></i>
+									<span>Разбанить</span>
+								</button>
+								<button type="button" class="kebab-item" onclick="closeDrawerKebabMenu(); revokeKeys()" title="Отозвать все ключи пользователя">
+									<i class="fas fa-key"></i>
+									<span>Отозвать ключи</span>
+								</button>
+								<button type="button" class="kebab-item" onclick="closeDrawerKebabMenu(); revokeConsent()" id="drawerRevokeConsentButton" style="display: none;" title="Отозвать согласие пользователя с документами">
+									<i class="fas fa-user-times"></i>
+									<span>Отозвать согласие</span>
+								</button>
+								<button type="button" class="kebab-item" onclick="closeDrawerKebabMenu(); openTopupBalanceModal()" title="Пополнить баланс пользователя">
+									<i class="fas fa-plus-circle"></i>
+									<span>Пополнить баланс</span>
+								</button>
+							</div>
+						</div>
+						
+						<button type="button" class="button button-secondary" onclick="closeUserModal()" title="Закрыть карточку пользователя">
+							Закрыть
+						</button>
+					</div>
+					
+					<!-- Правая часть: сохранить -->
+					<div class="drawer-footer-right">
+						<button type="button" class="button button-primary" id="saveUserButton" onclick="saveUserChanges()" style="display: none;" title="Сохранить изменения пользователя">
+							<i class="fas fa-save"></i>
+							Сохранить
+						</button>
+					</div>
 				</div>
 			</div>
 		</div>
 
+		<!-- Transaction Drawer (Side Sheet) -->
+		<div id="transactionDrawer" class="drawer-overlay" style="display: none;">
+			<div class="drawer" id="transactionDrawerPanel">
+				<div class="drawer-header">
+					<h3>Детали платежа</h3>
+					<button class="drawer-close" onclick="closeTransactionModal()" title="Закрыть детали платежа">
+						<i class="fas fa-times"></i>
+					</button>
+				</div>
+				
+				<div class="drawer-body">
+					<!-- Закрепленная информация о транзакции -->
+					<div class="user-info-section">
+						<div class="user-info-grid">
+							<div class="user-info-item">
+								<label>ID транзакции:</label>
+								<span id="txModalId" class="user-info-value"></span>
+							</div>
+							<div class="user-info-item">
+								<label>Статус:</label>
+								<span id="txModalStatus" class="user-info-value"></span>
+							</div>
+							<div class="user-info-item">
+								<label>Сумма:</label>
+								<span id="txModalAmount" class="user-info-value"></span>
+							</div>
+							<div class="user-info-item">
+								<label>Способ оплаты:</label>
+								<span id="txModalPaymentMethod" class="user-info-value"></span>
+							</div>
+						</div>
+					</div>
+
+					<!-- Контент -->
+					<div class="drawer-tabs-content">
+						<div class="tab-content active">
+							
+							<!-- Группа: Пользователь -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-user"></i>
+									<span>Пользователь</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="ID пользователя">
+										<label>User ID:</label>
+										<span id="txDetailUserId">—</span>
+									</div>
+									<div class="user-detail-item" title="Username пользователя">
+										<label>Username:</label>
+										<span id="txDetailUsername">—</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Группа: Платеж -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-credit-card"></i>
+									<span>Платеж</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="Уникальный ID транзакции">
+										<label>ID транзакции:</label>
+										<span id="txDetailId">—</span>
+									</div>
+									<div class="user-detail-item" title="Дата создания транзакции">
+										<label>Дата создания:</label>
+										<span id="txDetailDate">—</span>
+									</div>
+									<div class="user-detail-item" title="Тип операции">
+										<label>Тип операции:</label>
+										<span id="txDetailOperationType">—</span>
+									</div>
+									<div class="user-detail-item" title="Способ оплаты">
+										<label>Способ оплаты:</label>
+										<span id="txDetailPaymentMethod">—</span>
+									</div>
+									<div class="user-detail-item" title="Сумма в рублях">
+										<label>Сумма (RUB):</label>
+										<span id="txDetailAmountRub">—</span>
+									</div>
+									<div class="user-detail-item" title="Сумма в валюте платежа">
+										<label>Сумма (валюта):</label>
+										<span id="txDetailAmountCurrency">—</span>
+									</div>
+									<div class="user-detail-item" title="Название валюты">
+										<label>Валюта:</label>
+										<span id="txDetailCurrencyName">—</span>
+									</div>
+									<div class="user-detail-item" title="Статус транзакции">
+										<label>Статус:</label>
+										<span id="txDetailStatus">—</span>
+									</div>
+									<div class="user-detail-item" title="ID платежа в платежной системе">
+										<label>ID платежа:</label>
+										<span id="txDetailPaymentId">—</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Группа: Детали платежа -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-receipt"></i>
+									<span>Детали платежа</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="Хеш транзакции">
+										<label>Хеш транзакции:</label>
+										<span id="txDetailHash">—</span>
+									</div>
+									<div class="user-detail-item" title="Ссылка на оплату">
+										<label>Ссылка на оплату:</label>
+										<span id="txDetailPaymentLink">—</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Группа: Детали заказа -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-shopping-cart"></i>
+									<span>Детали заказа</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="Хост сервера">
+										<label>Хост:</label>
+										<span id="txDetailHost">—</span>
+									</div>
+									<div class="user-detail-item" title="Название плана">
+										<label>План:</label>
+										<span id="txDetailPlan">—</span>
+									</div>
+									<div class="user-detail-item" title="Ключ подключения" style="grid-column: 1 / -1;">
+										<label>Ключ:</label>
+										<span id="txDetailConnectionString" style="word-break: break-all; font-size: 12px;">—</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Группа: Метаданные -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-database"></i>
+									<span>Метаданные</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" style="grid-column: 1 / -1;" title="JSON метаданные транзакции">
+										<label>Метаданные (JSON):</label>
+										<pre id="txDetailMetadata" style="padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; max-height: 300px;">—</pre>
+									</div>
+								</div>
+							</div>
+
+						</div>
+					</div>
+				</div>
+				
+				<div class="drawer-footer">
+					<!-- Левая часть: кебаб меню и закрыть -->
+					<div class="drawer-footer-left">
+						<button type="button" class="button button-secondary" onclick="closeTransactionModal()" title="Закрыть детали платежа">
+							Закрыть
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Key Drawer -->
+		{% include 'key_drawer.html' %}
+
 		<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+		{% block scripts %}{% endblock %}
 	</body>
 </html>

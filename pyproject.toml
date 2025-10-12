@@ -1,6 +1,6 @@
 [project]
 name = "dark-maximus"
-version = "2.24.29"
+version = "2.31.10"
 description = "Продвинутый Telegram-бот для автоматической продажи VLESS VPN с улучшенным веб-интерфейсом и аналитикой"
 authors = [
     {name = "Karshie Umid", email = "umid.t.karshiev@gmail.com"}
@@ -24,6 +24,8 @@ classifiers = [
 dependencies = [
     "aiogram==3.21.0",
     "flask==3.1.1",
+    "flask-wtf==1.2.1",
+    "flask-session==0.8.0",
     "py3xui==0.4.0",
     "pyotp==2.9.0",
     "python-dotenv==1.1.1",
@@ -33,7 +35,8 @@ dependencies = [
     "aiohttp==3.12.15",
     "aiohttp-sse-client==0.2.1",
     "pytonconnect==0.3.2",
-    "requests==2.31.0"
+    "requests==2.31.0",
+    "bcrypt==4.1.2"
 ]
 
 [project.optional-dependencies]

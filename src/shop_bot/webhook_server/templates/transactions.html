@@ -41,13 +41,17 @@ block content %}
 				</thead>
 				<tbody>
 					{% for tx in transactions %}
-					<tr class="tx-row">
+					<tr class="tx-row" ondblclick="openTransactionModal({{ tx.transaction_id }})" style="cursor: pointer;" data-tx-id="{{ tx.transaction_id }}">
 						<td class="actions-cell">
 							<div class="kebab-wrapper">
 								<button class="kebab-btn" onclick="toggleKebabMenu('kebab-tx-{{ tx.id }}')" title="Действия с транзакцией">
 									<i class="fas fa-ellipsis-v"></i>
 								</button>
 								<div class="kebab-menu" id="kebab-tx-{{ tx.id }}">
+									<button type="button" class="kebab-item" onclick="closeKebabMenu('kebab-tx-{{ tx.id }}'); openTransactionModal({{ tx.transaction_id }})" title="Открыть детали платежа">
+										<i class="fas fa-eye"></i>
+										<span>Открыть</span>
+									</button>
 									<button type="button" class="kebab-item" onclick="closeKebabMenu('kebab-tx-{{ tx.id }}'); openTopupBalanceModal({{ tx.user_id }}, '{{ tx.username or 'N/A' }}')" title="Пополнить баланс пользователя">
 										<i class="fas fa-plus-circle"></i>
 										<span>Пополнить баланс</span>

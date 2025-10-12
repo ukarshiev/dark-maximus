@@ -28,8 +28,6 @@ share/python-wheels/
 MANIFEST
 
 # PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
 
@@ -85,13 +83,9 @@ ipython_config.py
 .python-version
 
 # pipenv
-#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
-#   However, in case of collaboration, if having platform-specific dependencies or dependencies
-#   having no cross-platform support, pipenv may install dependencies that don't work, or not
-#   install all needed dependencies.
 #Pipfile.lock
 
-# PEP 582; used by e.g. github.com/David-OConnor/pyflow
+# PEP 582
 __pypackages__/
 
 # Celery stuff
@@ -167,93 +161,13 @@ Thumbs.db
 # Backup files
 *.bak
 *.backup
+backups/
 
-# Configuration files with sensitive data
-config.ini
-settings.ini
-secrets.json
-
-# Node.js (if using any frontend build tools)
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Coverage reports
-htmlcov/
-.coverage
-.coverage.*
-
-# Pytest
-.pytest_cache/
-
-# Coverage
-coverage.xml
-*.cover
-.hypothesis/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# pyenv
-.python-version
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# Project specific
-users.db
-*.db
-*.sqlite
-*.sqlite3
-
-# Logs
-*.log
-logs/
-
-# Temporary files
-*.tmp
-*.temp
-temp/
-tmp/
-
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Docker
-.dockerignore
-
-# SSL certificates
-*.pem
-*.key
-*.crt
-*.csr
-
-# Backup files
-*.bak
-*.backup
+# Video files (large files not suitable for Git)
+video_instructions/videos/*.mp4
+video_instructions/videos/*.mov
+video_instructions/videos/*.avi
+video_instructions/videos/*.mkv
 
 # Configuration files with sensitive data
 config.ini

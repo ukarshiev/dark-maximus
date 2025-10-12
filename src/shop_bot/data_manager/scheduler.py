@@ -6,7 +6,7 @@
 import asyncio
 import logging
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import uuid
 import json
@@ -44,21 +44,26 @@ def format_time_left(hours: int) -> str:
 
 async def send_subscription_notification(bot: Bot, user_id: int, key_id: int, time_left_hours: int, expiry_date: datetime):
     try:
+        from datetime import timezone, timedelta
         # Дополнительная проверка: не отправляем уведомления, если время истекло
-        current_time = datetime.now()
-        if expiry_date <= current_time:
+        # Используем UTC для сравнения, т.к. expiry_date хранится в UTC
+        current_time_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+        if expiry_date <= current_time_utc:
             logger.warning(f"Attempted to send expiry notification for already expired key {key_id} (user {user_id}). Skipping.")
             return
         
         # Проверяем, что time_left_hours соответствует реальному времени до истечения
-        actual_time_left = expiry_date - current_time
+        actual_time_left = expiry_date - current_time_utc
         actual_hours_left = int(actual_time_left.total_seconds() / 3600)
         if time_left_hours <= 0 or actual_hours_left <= 0:
             logger.warning(f"Invalid time_left_hours ({time_left_hours}) or actual_hours_left ({actual_hours_left}) for key {key_id}. Skipping notification.")
             return
         
         time_text = format_time_left(time_left_hours)
-        expiry_str = expiry_date.strftime('%d.%m.%Y в %H:%M')
+        # Конвертируем время из UTC в UTC+3 (Moscow) для отображения пользователю
+        moscow_tz = timezone(timedelta(hours=3))
+        expiry_moscow = expiry_date.replace(tzinfo=timezone.utc).astimezone(moscow_tz)
+        expiry_str = expiry_moscow.strftime('%d.%m.%Y в %H:%M')
 
         # Получаем номер ключа для пользователя и имя сервера
         try:
@@ -165,23 +170,92 @@ def _marker_logged(user_id: int, key_id: int, marker_hours: int, notif_type: str
     except Exception:
         return False
 
+async def send_plan_unavailable_notice(bot: Bot, user_id: int, key_id: int, time_left_hours: int, expiry_date: datetime):
+    """Уведомление о недоступности тарифа для автопродления."""
+    try:
+        from datetime import timezone, timedelta
+        # Проверяем, что время не истекло
+        current_time_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+        if expiry_date <= current_time_utc:
+            logger.warning(f"Attempted to send plan unavailable notice for already expired key {key_id} (user {user_id}). Skipping.")
+            return
+        
+        time_text = format_time_left(time_left_hours)
+        # Конвертируем время из UTC в UTC+3 (Moscow) для отображения пользователю
+        moscow_tz = timezone(timedelta(hours=3))
+        expiry_moscow = expiry_date.replace(tzinfo=timezone.utc).astimezone(moscow_tz)
+        expiry_str = expiry_moscow.strftime('%d.%m.%Y в %H:%M')
+
+        # Получаем номер ключа и имя сервера
+        try:
+            from shop_bot.data_manager.database import get_user_keys, get_key_by_id
+            key_data = get_key_by_id(key_id) or {}
+            host_name = key_data.get('host_name', 'Неизвестный сервер')
+            user_keys = get_user_keys(user_id) or []
+            key_number = next((i + 1 for i, k in enumerate(user_keys) if k.get('key_id') == key_id), 0)
+        except Exception:
+            host_name = 'Неизвестный сервер'
+            key_number = 0
+
+        message = (
+            "⚠️ Внимание! Ваш тариф больше не доступен для автопродления.\n\n"
+            f"Ключ #{key_number} ({host_name}) истекает через {time_text}.\n"
+            f"📅 Окончание: {expiry_str}\n\n"
+            "Пожалуйста, выберите новый тариф до истечения срока.\n\n"
+            "Для продления перейдите в меню: 🛒 Купить → 🔄 Продлить ключ"
+        )
+
+        await bot.send_message(chat_id=user_id, text=message)
+
+        # Логируем уведомление в БД
+        try:
+            from shop_bot.data_manager.database import log_notification, get_user
+            user = get_user(user_id)
+            log_notification(
+                user_id=user_id,
+                username=(user or {}).get('username'),
+                notif_type='subscription_plan_unavailable',
+                title=f'Тариф недоступен (через {time_text})',
+                message=message,
+                status='sent',
+                meta={
+                    'key_id': key_id,
+                    'expiry_at': expiry_str,
+                    'time_left_hours': time_left_hours,
+                    'key_number': key_number,
+                    'host_name': host_name
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Failed to log plan unavailable notification: {e}")
+
+        logger.info(f"Sent plan unavailable notice to user {user_id} for key {key_id}, time_left={time_left_hours}h")
+    except Exception as e:
+        logger.error(f"Failed to send plan unavailable notice to user {user_id} for key {key_id}: {e}", exc_info=True)
+
+
 async def send_autorenew_balance_notice(bot: Bot, user_id: int, key_id: int, time_left_hours: int, expiry_date: datetime, balance_val: float):
     try:
+        from datetime import timezone, timedelta
         # Дополнительная проверка: не отправляем уведомления, если время истекло
-        current_time = datetime.now()
-        if expiry_date <= current_time:
+        # Используем UTC для сравнения, т.к. expiry_date хранится в UTC
+        current_time_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+        if expiry_date <= current_time_utc:
             logger.warning(f"Attempted to send autorenew notice for already expired key {key_id} (user {user_id}). Skipping.")
             return
         
         # Проверяем, что time_left_hours соответствует реальному времени до истечения
-        actual_time_left = expiry_date - current_time
+        actual_time_left = expiry_date - current_time_utc
         actual_hours_left = int(actual_time_left.total_seconds() / 3600)
         if time_left_hours <= 0 or actual_hours_left <= 0:
             logger.warning(f"Invalid time_left_hours ({time_left_hours}) or actual_hours_left ({actual_hours_left}) for autorenew notice key {key_id}. Skipping notification.")
             return
         
         time_text = format_time_left(time_left_hours)
-        expiry_str = expiry_date.strftime('%d.%m.%Y в %H:%M')
+        # Конвертируем время из UTC в UTC+3 (Moscow) для отображения пользователю
+        moscow_tz = timezone(timedelta(hours=3))
+        expiry_moscow = expiry_date.replace(tzinfo=timezone.utc).astimezone(moscow_tz)
+        expiry_str = expiry_moscow.strftime('%d.%m.%Y в %H:%M')
 
         # Получаем номер ключа и имя сервера
         try:
@@ -198,7 +272,7 @@ async def send_autorenew_balance_notice(bot: Bot, user_id: int, key_id: int, tim
 
         # Определяем сумму тарифа для продления
         try:
-            _, price_to_renew, _, _ = _get_plan_info_for_key(key_data)
+            _, price_to_renew, _, _, _ = _get_plan_info_for_key(key_data)
         except Exception:
             price_to_renew = float(key_data.get('price') or 0.0)
         price_str = f"{float(price_to_renew or 0):.2f} RUB"
@@ -243,8 +317,12 @@ async def send_autorenew_balance_notice(bot: Bot, user_id: int, key_id: int, tim
     except Exception as e:
         logger.error(f"Error sending autorenew notice to user {user_id}: {e}")
 
-def _get_plan_info_for_key(key: dict) -> tuple[dict | None, float, int, int | None]:
-    """Возвращает (plan_dict, price, months, plan_id) для ключа."""
+def _get_plan_info_for_key(key: dict) -> tuple[dict | None, float, int, int | None, bool]:
+    """Возвращает (plan_dict, price, months, plan_id, is_available) для ключа.
+    
+    is_available = True, если тариф найден и доступен для автопродления
+    is_available = False, если тариф удален или скрыт (hidden_all, hidden_old)
+    """
     try:
         from shop_bot.data_manager.database import get_plans_for_host
         host_name = key.get('host_name')
@@ -252,16 +330,25 @@ def _get_plan_info_for_key(key: dict) -> tuple[dict | None, float, int, int | No
         price_fallback = float(key.get('price') or 0.0)
         plans = get_plans_for_host(host_name) if host_name else []
         matched = next((p for p in plans if (p.get('plan_name') == plan_name)), None)
+        
         if matched:
-            return matched, float(matched.get('price') or 0.0), int(matched.get('months') or 0), int(matched.get('plan_id'))
-        return None, price_fallback, 0, None
+            # Проверяем режим отображения тарифа
+            display_mode = matched.get('display_mode', 'all')
+            # Тариф недоступен, если скрыт для всех или для старых пользователей
+            is_available = display_mode not in ['hidden_all', 'hidden_old']
+            return matched, float(matched.get('price') or 0.0), int(matched.get('months') or 0), int(matched.get('plan_id')), is_available
+        
+        # Тариф не найден - недоступен
+        return None, price_fallback, 0, None, False
     except Exception as e:
         logger.warning(f"Failed to resolve plan for key {key.get('key_id')}: {e}")
-        return None, float(key.get('price') or 0.0), 0, None
+        return None, float(key.get('price') or 0.0), 0, None, False
 
 async def check_expiring_subscriptions(bot: Bot):
+    from datetime import timezone
     logger.info("Scheduler: Checking for expiring subscriptions...")
-    current_time = datetime.now()
+    # Используем UTC для проверки истечения, т.к. все даты в БД хранятся в UTC
+    current_time = datetime.now(timezone.utc).replace(tzinfo=None)
     all_keys = database.get_all_keys()
     
     _cleanup_notified_users(all_keys)
@@ -269,6 +356,9 @@ async def check_expiring_subscriptions(bot: Bot):
     for key in all_keys:
         try:
             expiry_date = datetime.fromisoformat(key['expiry_date'])
+            # Убираем timezone info для совместимости
+            if expiry_date.tzinfo is not None:
+                expiry_date = expiry_date.replace(tzinfo=None)
             time_left = expiry_date - current_time
 
             if time_left.total_seconds() < 0:
@@ -278,16 +368,27 @@ async def check_expiring_subscriptions(bot: Bot):
             user_id = key['user_id']
             key_id = key['key_id']
 
-            # Цена и длительность для продления, баланс пользователя
-            plan_info, price_to_renew, months_to_renew, plan_id = _get_plan_info_for_key(key)
+            # Цена и длительность для продления, баланс пользователя, доступность тарифа
+            plan_info, price_to_renew, months_to_renew, plan_id, is_plan_available = _get_plan_info_for_key(key)
             from shop_bot.data_manager.database import get_user_balance
             user_balance = float(get_user_balance(user_id) or 0.0)
 
             # Catch-up: решаем, что отправлять на каждом маркере
-            # Важно: не отправляем уведомления, если ключ уже истек (total_hours_left <= 0)
-            if total_hours_left > 0:
-                for hours_mark in sorted(NOTIFY_BEFORE_HOURS, reverse=True):
+            # Важно: не отправляем уведомления, если ключ уже истек
+            # Проверяем по секундам, а не по целым часам, чтобы обрабатывать ключи с оставшимся временем < 1 часа
+            if time_left.total_seconds() > 0:
+                # Ищем наименьший подходящий маркер (сортируем по возрастанию: 1, 24, 48, 72)
+                for hours_mark in sorted(NOTIFY_BEFORE_HOURS):
                     if total_hours_left <= hours_mark:
+                        # Проверяем доступность тарифа для автопродления
+                        if not is_plan_available:
+                            # Тариф удален или скрыт - отправляем предупреждение
+                            if not _marker_logged(user_id, key_id, hours_mark, 'subscription_plan_unavailable'):
+                                await send_plan_unavailable_notice(bot, user_id, key_id, hours_mark, expiry_date)
+                                notified_users.setdefault(user_id, {}).setdefault(key_id, set()).add(hours_mark)
+                                break
+                            continue
+                        
                         balance_covers = price_to_renew > 0 and user_balance >= price_to_renew
                         if balance_covers:
                             # Подавляем стандартные уведомления. На 24ч — отправляем новый тип, один раз.
@@ -305,7 +406,7 @@ async def check_expiring_subscriptions(bot: Bot):
                                 break
             else:
                 # Ключ уже истек - не отправляем уведомления об истечении
-                logger.debug(f"Key {key_id} for user {user_id} has already expired ({total_hours_left} hours left). Skipping notifications.")
+                logger.debug(f"Key {key_id} for user {user_id} has already expired ({int(time_left.total_seconds())} seconds left). Skipping notifications.")
 
         except Exception as e:
             logger.error(f"Error processing expiry for key {key.get('key_id')}: {e}")
@@ -318,6 +419,9 @@ async def perform_auto_renewals(bot: Bot):
         for key in all_keys:
             try:
                 expiry_date = datetime.fromisoformat(key['expiry_date'])
+                # Убираем timezone info для совместимости
+                if expiry_date.tzinfo is not None:
+                    expiry_date = expiry_date.replace(tzinfo=None)
             except Exception:
                 continue
 
@@ -328,10 +432,10 @@ async def perform_auto_renewals(bot: Bot):
             user_id = key['user_id']
             key_id = key['key_id']
             host_name = key.get('host_name')
-            plan_info, price_to_renew, months_to_renew, plan_id = _get_plan_info_for_key(key)
+            plan_info, price_to_renew, months_to_renew, plan_id, is_plan_available = _get_plan_info_for_key(key)
 
-            # Требуем валидный план и цену
-            if not plan_info or not months_to_renew or not plan_id or price_to_renew <= 0:
+            # Требуем валидный план, цену и доступность тарифа
+            if not plan_info or not months_to_renew or not plan_id or price_to_renew <= 0 or not is_plan_available:
                 continue
 
             from shop_bot.data_manager.database import get_user_balance, add_to_user_balance, log_transaction, get_user
@@ -418,6 +522,9 @@ async def sync_keys_with_panels():
             for db_key in keys_in_db:
                 key_email = db_key['key_email']
                 expiry_date = datetime.fromisoformat(db_key['expiry_date'])
+                # Убираем timezone info для совместимости
+                if expiry_date.tzinfo is not None:
+                    expiry_date = expiry_date.replace(tzinfo=None)
                 now = datetime.now()
                 if expiry_date < now - timedelta(days=5):
                     logger.info(f"Scheduler: Key '{key_email}' expired more than 5 days ago. Deleting from panel and DB.")
@@ -478,6 +585,10 @@ async def periodic_subscription_check(bot_controller: BotController):
 
     while True:
         try:
+            # Обновляем статус ключей на основе реального времени истечения
+            from shop_bot.data_manager.database import update_keys_status_by_expiry
+            update_keys_status_by_expiry()
+            
             await sync_keys_with_panels()
 
             if bot_controller.get_status().get("shop_bot_running"):

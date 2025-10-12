@@ -13,6 +13,7 @@ from datetime import timedelta
 from functools import wraps
 from math import ceil
 from flask import Flask, request, render_template, redirect, url_for, flash, session, current_app, jsonify
+from flask_wtf.csrf import CSRFProtect
 from pathlib import Path
 
 logging.basicConfig(level=logging.INFO)
@@ -25,15 +26,19 @@ DB_FILE = PROJECT_ROOT / "users.db"
 from shop_bot.modules import xui_api
 from shop_bot.bot import handlers 
 from shop_bot.security import rate_limit, get_client_ip
+from shop_bot.security.validators import InputValidator, ValidationError
 from shop_bot.utils import handle_exceptions
 from shop_bot.data_manager.database import (
     get_all_settings, update_setting, get_all_hosts, get_plans_for_host,
     create_host, delete_host, create_plan, delete_plan, get_user_count,
     get_total_keys_count, get_total_earned_sum, get_total_notifications_count, get_daily_stats_for_charts,
     get_recent_transactions, get_paginated_transactions, get_all_users, get_user_keys,
-    ban_user, unban_user, delete_user_keys, get_setting, find_and_complete_ton_transaction, find_ton_transaction_by_amount,
+    ban_user, unban_user, delete_user_keys, get_setting, get_global_domain, find_and_complete_ton_transaction, find_ton_transaction_by_amount,
     get_paginated_keys, get_plan_by_id, update_plan, get_host, update_host, revoke_user_consent,
-    search_users as db_search_users, add_to_user_balance, log_transaction, get_user, get_notification_by_id
+    search_users as db_search_users, add_to_user_balance, log_transaction, get_user, get_notification_by_id,
+    verify_admin_credentials, hash_password, get_all_promo_codes, create_promo_code, update_promo_code,
+    delete_promo_code, get_promo_code, get_promo_code_usage_history, get_all_plans, can_user_use_promo_code,
+    get_user_promo_codes, validate_promo_code, remove_user_promo_code_usage, can_delete_promo_code
 )
 from shop_bot.data_manager.scheduler import send_subscription_notification
 from shop_bot.ton_monitor import start_ton_monitoring
@@ -44,9 +49,10 @@ ALL_SETTINGS_KEYS = [
     "panel_login", "panel_password", "about_text", "terms_url", "privacy_url",
     "support_user", "support_text", "channel_url", "telegram_bot_token",
     "telegram_bot_username", "admin_telegram_id", "yookassa_shop_id",
-    "yookassa_secret_key", "sbp_enabled", "receipt_email", "cryptobot_token",
+    "yookassa_secret_key", "yookassa_test_mode", "yookassa_test_shop_id", 
+    "yookassa_test_secret_key", "yookassa_api_url", "yookassa_test_api_url", "yookassa_verify_ssl", "yookassa_test_verify_ssl", "sbp_enabled", "receipt_email", "cryptobot_token",
     "stars_enabled", "stars_conversion_rate",
-    "heleket_merchant_id", "heleket_api_key", "domain", "referral_percentage",
+    "heleket_merchant_id", "heleket_api_key", "domain", "global_domain", "referral_percentage",
     "referral_discount", "ton_wallet_address", "tonapi_key", "force_subscription", "trial_enabled", "trial_duration_days", "enable_referrals", "minimum_withdrawal",
     "support_group_id", "support_bot_token", "ton_monitoring_enabled", "hidden_mode", "support_enabled"
 ]
@@ -79,6 +85,23 @@ def create_webhook_app(bot_controller_instance):
     # Безопасное получение секретного ключа из переменных окружения
     import secrets
     flask_app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(32))
+    
+    # Настройка постоянного хранения сессий в файловой системе
+    flask_app.config['SESSION_TYPE'] = 'filesystem'
+    flask_app.config['SESSION_FILE_DIR'] = '/app/sessions'
+    flask_app.config['SESSION_PERMANENT'] = True
+    flask_app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)  # Сессия на 30 дней
+    
+    # Настройка CSRF защиты
+    csrf = CSRFProtect(flask_app)
+    flask_app.config['WTF_CSRF_CHECK_DEFAULT'] = False  # Отключаем по умолчанию
+    flask_app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 час
+    flask_app.config['WTF_CSRF_SSL_STRICT'] = False  # Для разработки
+    
+    # Инициализация файловой сессии
+    from flask_session import Session
+    os.makedirs('/app/sessions', exist_ok=True)
+    Session(flask_app)
 
     @flask_app.context_processor
     def inject_current_year():
@@ -137,9 +160,12 @@ def create_webhook_app(bot_controller_instance):
     def login_page():
         settings = get_all_settings()
         if request.method == 'POST':
-            if request.form.get('username') == settings.get("panel_login") and \
-               request.form.get('password') == settings.get("panel_password"):
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password', '')
+            
+            if verify_admin_credentials(username, password):
                 session['logged_in'] = True
+                session.permanent = True  # Делаем сессию постоянной
                 return redirect(url_for('dashboard_page'))
             else:
                 flash('Неверный логин или пароль', 'danger')
@@ -230,6 +256,64 @@ def create_webhook_app(bot_controller_instance):
             **common_data
         )
 
+    @flask_app.route('/api/transaction/<int:transaction_id>')
+    @login_required
+    def get_transaction_details(transaction_id):
+        """API endpoint для получения детальной информации о транзакции"""
+        try:
+            with sqlite3.connect(DB_FILE) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT 
+                        transaction_id,
+                        payment_id,
+                        user_id,
+                        username,
+                        status,
+                        amount_rub,
+                        amount_currency,
+                        currency_name,
+                        payment_method,
+                        metadata,
+                        transaction_hash,
+                        payment_link,
+                        created_date
+                    FROM transactions
+                    WHERE transaction_id = ?
+                """, (transaction_id,))
+                
+                row = cursor.fetchone()
+                
+                if not row:
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Транзакция не найдена'
+                    }), 404
+                
+                # Преобразуем Row в dict
+                transaction = dict(row)
+                
+                # Парсим metadata если это строка
+                if transaction.get('metadata'):
+                    try:
+                        transaction['metadata'] = json.loads(transaction['metadata'])
+                    except (json.JSONDecodeError, TypeError):
+                        transaction['metadata'] = {}
+                
+                return jsonify({
+                    'status': 'success',
+                    'transaction': transaction
+                })
+                
+        except Exception as e:
+            logging.error(f"Error fetching transaction {transaction_id}: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Ошибка при загрузке данных транзакции'
+            }), 500
+
     @flask_app.route('/notifications')
     @login_required
     def notifications_page():
@@ -288,6 +372,12 @@ def create_webhook_app(bot_controller_instance):
         common_data = get_common_template_data()
         return render_template('users.html', users=users, **common_data)
 
+    @flask_app.route('/promo-codes')
+    @login_required
+    def promo_codes_page():
+        common_data = get_common_template_data()
+        return render_template('promo_codes.html', **common_data)
+
     @flask_app.route('/settings', methods=['GET'])
     @login_required
     def settings_page():
@@ -322,11 +412,14 @@ def create_webhook_app(bot_controller_instance):
     @login_required
     def save_panel_settings():
         """Сохранение настроек панели - v2.1"""
-        panel_keys = ['panel_login']
+        panel_keys = ['panel_login', 'global_domain']
         
         # Пароль отдельно, если указан
         if 'panel_password' in request.form and request.form.get('panel_password'):
-            update_setting('panel_password', request.form.get('panel_password'))
+            new_password = request.form.get('panel_password').strip()
+            if new_password:
+                hashed_password = hash_password(new_password)
+                update_setting('panel_password', hashed_password)
         
         # Обновляем остальные настройки панели
         for key in panel_keys:
@@ -367,11 +460,12 @@ def create_webhook_app(bot_controller_instance):
         """Сохранение настроек платежных систем - v2.1"""
         payment_keys = [
             'receipt_email', 'yookassa_shop_id', 'yookassa_secret_key',
-            'cryptobot_token', 'heleket_merchant_id', 'heleket_api_key', 'domain',
+            'yookassa_test_shop_id', 'yookassa_test_secret_key', 'yookassa_api_url', 'yookassa_test_api_url',
+            'cryptobot_token', 'heleket_merchant_id', 'heleket_api_key', 'domain', 'global_domain',
             'ton_wallet_address', 'tonapi_key', 'stars_conversion_rate'
         ]
         
-        payment_checkboxes = ['sbp_enabled', 'stars_enabled']
+        payment_checkboxes = ['sbp_enabled', 'stars_enabled', 'yookassa_test_mode', 'yookassa_verify_ssl', 'yookassa_test_verify_ssl']
         
         # Обрабатываем чекбоксы
         for checkbox_key in payment_checkboxes:
@@ -445,9 +539,7 @@ def create_webhook_app(bot_controller_instance):
             
             # Генерируем полный URL для доступа к файлу
             # Получаем домен из настроек или используем текущий хост
-            domain = get_setting('domain') or request.host
-            if not domain.startswith('http'):
-                domain = f"https://{domain}"
+            domain = get_global_domain()
             icon_url = f"{domain}/static/icons/{unique_filename}"
             
             # Сохраняем URL в настройках
@@ -508,7 +600,10 @@ def create_webhook_app(bot_controller_instance):
     @login_required
     def legacy_settings():
         if 'panel_password' in request.form and request.form.get('panel_password'):
-            update_setting('panel_password', request.form.get('panel_password'))
+            new_password = request.form.get('panel_password').strip()
+            if new_password:
+                hashed_password = hash_password(new_password)
+                update_setting('panel_password', hashed_password)
 
         for checkbox_key in ['force_subscription', 'sbp_enabled', 'trial_enabled', 'enable_referrals', 'stars_enabled']:
             values = request.form.getlist(checkbox_key)
@@ -843,8 +938,25 @@ def create_webhook_app(bot_controller_instance):
                 )
             return ''
 
-        # Активная вкладка
+        # Активная вкладка и режим (text/video)
         active_tab = request.args.get('tab', 'android')
+        mode = request.args.get('mode', 'text')
+        
+        logger.info(f"Instructions page: tab={active_tab}, mode={mode}")
+        
+        # Если mode='video', показываем видеоинструкции
+        if mode == 'video':
+            from shop_bot.data_manager.database import get_all_video_instructions
+            videos = get_all_video_instructions()
+            logger.info(f"Video mode: found {len(videos)} videos")
+            common_data = get_common_template_data()
+            return render_template(
+                'instructions.html',
+                mode='video',
+                videos=videos,
+                active_tab='video',
+                **common_data
+            )
 
         if request.method == 'POST':
             try:
@@ -878,10 +990,221 @@ def create_webhook_app(bot_controller_instance):
 
         return render_template(
             'instructions.html',
+            mode='text',
             active_tab=active_tab,
             instructions_text=instructions_text,
             **get_common_template_data()
         )
+
+    # ============================================
+    # API для работы с видеоинструкциями
+    # ============================================
+    
+    @flask_app.route('/api/video/<int:video_id>', methods=['GET'])
+    @login_required
+    def get_video_api(video_id):
+        """Получение данных видеоинструкции"""
+        from shop_bot.data_manager.database import get_video_instruction_by_id
+        
+        video = get_video_instruction_by_id(video_id)
+        if video:
+            return jsonify(video), 200
+        return jsonify({'error': 'Video not found'}), 404
+    
+    @flask_app.route('/api/video/create', methods=['POST'])
+    @login_required
+    def create_video_api():
+        """Создание новой видеоинструкции"""
+        from shop_bot.data_manager.database import create_video_instruction
+        from werkzeug.utils import secure_filename
+        import uuid
+        import os
+        
+        try:
+            title = request.form.get('title', '').strip()
+            if not title:
+                return jsonify({'success': False, 'message': 'Название обязательно'}), 400
+            
+            video_file = request.files.get('video')
+            if not video_file:
+                return jsonify({'success': False, 'message': 'Видеофайл обязателен'}), 400
+            
+            # Генерируем уникальное имя файла
+            video_ext = os.path.splitext(secure_filename(video_file.filename))[1]
+            video_filename = f"video_{uuid.uuid4().hex}{video_ext}"
+            
+            # Путь для сохранения
+            video_dir = PROJECT_ROOT / 'video_instructions' / 'videos'
+            video_dir.mkdir(parents=True, exist_ok=True)
+            video_path = video_dir / video_filename
+            
+            # Сохраняем видео
+            video_file.save(str(video_path))
+            
+            # Получаем размер файла
+            file_size_mb = os.path.getsize(video_path) / (1024 * 1024)
+            
+            # Обрабатываем превью, если есть
+            poster_filename = None
+            poster_file = request.files.get('poster')
+            if poster_file and poster_file.filename:
+                poster_ext = os.path.splitext(secure_filename(poster_file.filename))[1]
+                poster_filename = f"poster_{uuid.uuid4().hex}{poster_ext}"
+                poster_dir = PROJECT_ROOT / 'video_instructions' / 'posters'
+                poster_dir.mkdir(parents=True, exist_ok=True)
+                poster_path = poster_dir / poster_filename
+                poster_file.save(str(poster_path))
+            
+            # Создаем запись в БД
+            video_id = create_video_instruction(
+                title=title,
+                filename=video_filename,
+                poster_filename=poster_filename,
+                file_size_mb=file_size_mb
+            )
+            
+            if video_id:
+                return jsonify({'success': True, 'video_id': video_id}), 200
+            else:
+                return jsonify({'success': False, 'message': 'Ошибка создания записи в БД'}), 500
+                
+        except Exception as e:
+            logger.error(f"Error creating video: {e}", exc_info=True)
+            return jsonify({'success': False, 'message': str(e)}), 500
+    
+    @flask_app.route('/api/video/<int:video_id>', methods=['POST'])
+    @login_required
+    def update_video_api(video_id):
+        """Обновление видеоинструкции"""
+        from shop_bot.data_manager.database import (
+            update_video_instruction, 
+            get_video_instruction_by_id
+        )
+        from werkzeug.utils import secure_filename
+        import uuid
+        import os
+        
+        try:
+            video = get_video_instruction_by_id(video_id)
+            if not video:
+                return jsonify({'success': False, 'message': 'Видео не найдено'}), 404
+            
+            title = request.form.get('title', '').strip()
+            if not title:
+                return jsonify({'success': False, 'message': 'Название обязательно'}), 400
+            
+            updates = {'title': title}
+            
+            # Обновляем видео, если загружено новое
+            video_file = request.files.get('video')
+            if video_file and video_file.filename:
+                # Удаляем старый файл
+                if video['filename']:
+                    old_video_path = PROJECT_ROOT / 'video_instructions' / 'videos' / video['filename']
+                    if old_video_path.exists():
+                        old_video_path.unlink()
+                
+                # Сохраняем новый
+                video_ext = os.path.splitext(secure_filename(video_file.filename))[1]
+                video_filename = f"video_{uuid.uuid4().hex}{video_ext}"
+                video_dir = PROJECT_ROOT / 'video_instructions' / 'videos'
+                video_path = video_dir / video_filename
+                video_file.save(str(video_path))
+                
+                file_size_mb = os.path.getsize(video_path) / (1024 * 1024)
+                updates['filename'] = video_filename
+                updates['file_size_mb'] = file_size_mb
+            
+            # Обновляем превью, если загружено новое
+            poster_file = request.files.get('poster')
+            if poster_file and poster_file.filename:
+                # Удаляем старое превью
+                if video['poster_filename']:
+                    old_poster_path = PROJECT_ROOT / 'video_instructions' / 'posters' / video['poster_filename']
+                    if old_poster_path.exists():
+                        old_poster_path.unlink()
+                
+                # Сохраняем новое
+                poster_ext = os.path.splitext(secure_filename(poster_file.filename))[1]
+                poster_filename = f"poster_{uuid.uuid4().hex}{poster_ext}"
+                poster_dir = PROJECT_ROOT / 'video_instructions' / 'posters'
+                poster_path = poster_dir / poster_filename
+                poster_file.save(str(poster_path))
+                
+                updates['poster_filename'] = poster_filename
+            
+            # Обновляем запись в БД
+            success = update_video_instruction(video_id, **updates)
+            
+            if success:
+                return jsonify({'success': True}), 200
+            else:
+                return jsonify({'success': False, 'message': 'Ошибка обновления'}), 500
+                
+        except Exception as e:
+            logger.error(f"Error updating video: {e}", exc_info=True)
+            return jsonify({'success': False, 'message': str(e)}), 500
+    
+    @flask_app.route('/api/video/<int:video_id>', methods=['DELETE'])
+    @login_required
+    def delete_video_api(video_id):
+        """Удаление видеоинструкции"""
+        from shop_bot.data_manager.database import (
+            delete_video_instruction,
+            get_video_instruction_by_id
+        )
+        
+        try:
+            video = get_video_instruction_by_id(video_id)
+            if not video:
+                return jsonify({'success': False, 'message': 'Видео не найдено'}), 404
+            
+            # Удаляем файлы
+            if video['filename']:
+                video_path = PROJECT_ROOT / 'video_instructions' / 'videos' / video['filename']
+                if video_path.exists():
+                    video_path.unlink()
+            
+            if video['poster_filename']:
+                poster_path = PROJECT_ROOT / 'video_instructions' / 'posters' / video['poster_filename']
+                if poster_path.exists():
+                    poster_path.unlink()
+            
+            # Удаляем запись из БД
+            success = delete_video_instruction(video_id)
+            
+            if success:
+                return jsonify({'success': True}), 200
+            else:
+                return jsonify({'success': False, 'message': 'Ошибка удаления из БД'}), 500
+                
+        except Exception as e:
+            logger.error(f"Error deleting video: {e}", exc_info=True)
+            return jsonify({'success': False, 'message': str(e)}), 500
+    
+    @flask_app.route('/video/player/<int:video_id>')
+    def video_player(video_id):
+        """Страница видеоплеера (fullscreen для Telegram WebView)"""
+        from shop_bot.data_manager.database import get_video_instruction_by_id
+        
+        video = get_video_instruction_by_id(video_id)
+        return render_template('video_player.html', video=video)
+    
+    @flask_app.route('/video/embed/<int:video_id>')
+    def video_embed(video_id):
+        """Встраиваемая версия видеоплеера (для iframe)"""
+        from shop_bot.data_manager.database import get_video_instruction_by_id
+        
+        video = get_video_instruction_by_id(video_id)
+        return render_template('video_embed.html', video=video)
+    
+    @flask_app.route('/video_instructions/<path:subpath>')
+    def serve_video_files(subpath):
+        """Отдача статических файлов видео и превью"""
+        from flask import send_from_directory
+        
+        video_instructions_dir = PROJECT_ROOT / 'video_instructions'
+        return send_from_directory(video_instructions_dir, subpath)
 
     @flask_app.route('/users/ban/<int:user_id>', methods=['POST'])
     @login_required
@@ -1051,14 +1374,33 @@ def create_webhook_app(bot_controller_instance):
     @flask_app.route('/add-host', methods=['POST'])
     @login_required
     def add_host_route():
-        create_host(
-            name=request.form['host_name'],
-            url=request.form['host_url'],
-            user=request.form['host_username'],
-            passwd=request.form['host_pass'],
-            inbound=int(request.form['host_inbound_id'])
-        )
-        flash(f"Хост '{request.form['host_name']}' успешно добавлен.", 'success')
+        try:
+            # Валидируем данные хоста
+            host_data = InputValidator.validate_host_data({
+                'host_name': request.form.get('host_name'),
+                'host_url': request.form.get('host_url'),
+                'host_username': request.form.get('host_username'),
+                'host_pass': request.form.get('host_pass'),
+                'host_inbound_id': request.form.get('host_inbound_id')
+            })
+            
+            # Получаем host_code из формы (если не указан, create_host сгенерирует автоматически)
+            host_code = request.form.get('host_code', '').strip()
+            
+            create_host(
+                name=host_data['host_name'],
+                url=host_data['host_url'],
+                user=host_data['host_username'],
+                passwd=host_data['host_pass'],
+                inbound=host_data['host_inbound_id'],
+                host_code=host_code if host_code else None
+            )
+            flash(f"Хост '{host_data['host_name']}' успешно добавлен.", 'success')
+        except ValidationError as e:
+            flash(f"Ошибка валидации: {e}", 'error')
+        except Exception as e:
+            logger.error(f"Error adding host: {e}")
+            flash(f"Ошибка при добавлении хоста: {e}", 'error')
         return redirect(url_for('settings_page', tab='servers'))
 
     @flask_app.route('/check-host', methods=['POST'])
@@ -1091,7 +1433,9 @@ def create_webhook_app(bot_controller_instance):
             user = request.form.get('host_username')
             passwd = request.form.get('host_pass')
             inbound = int(request.form.get('host_inbound_id'))
-            ok = update_host(old_name, new_name, url, user, passwd, inbound)
+            # Получаем host_code из формы (если не указан, update_host сгенерирует автоматически)
+            host_code = request.form.get('host_code', '').strip()
+            ok = update_host(old_name, new_name, url, user, passwd, inbound, host_code if host_code else None)
             if ok:
                 flash('Хост обновлён.', 'success')
             else:
@@ -1111,19 +1455,50 @@ def create_webhook_app(bot_controller_instance):
     @flask_app.route('/add-plan', methods=['POST'])
     @login_required
     def add_plan_route():
-        days_val = int(request.form.get('days', 0) or 0)
-        hours_val = int(request.form.get('hours', 0) or 0)
-        traffic_val = float(request.form.get('traffic_gb', 0) or 0)
-        create_plan(
-            host_name=request.form['host_name'],
-            plan_name=request.form['plan_name'],
-            months=int(request.form.get('months', 0) or 0),
-            price=float(request.form['price']),
-            days=days_val,
-            traffic_gb=traffic_val,
-            hours=hours_val
-        )
-        flash(f"Новый тариф для хоста '{request.form['host_name']}' добавлен.", 'success')
+        try:
+            # Валидируем данные тарифа
+            plan_data = InputValidator.validate_plan_data({
+                'plan_name': request.form.get('plan_name'),
+                'months': request.form.get('months', 0),
+                'days': request.form.get('days', 0),
+                'hours': request.form.get('hours', 0),
+                'price': request.form.get('price'),
+                'traffic_gb': request.form.get('traffic_gb', 0)
+            })
+            
+            # Валидируем имя хоста
+            host_name = InputValidator.validate_string(
+                request.form.get('host_name'), 'host_name', min_length=1, max_length=100
+            )
+            
+            # Получаем режим предоставления ключа
+            key_provision_mode = request.form.get('key_provision_mode', 'key')
+            if key_provision_mode not in ['key', 'subscription', 'both']:
+                key_provision_mode = 'key'
+            
+            # Получаем режим отображения
+            display_mode = request.form.get('display_mode', 'all')
+            if display_mode not in ['all', 'hidden_all', 'hidden_new', 'hidden_old']:
+                display_mode = 'all'
+            
+            create_plan(
+                host_name=host_name,
+                plan_name=plan_data['plan_name'],
+                months=plan_data['months'],
+                price=plan_data['price'],
+                days=plan_data['days'],
+                traffic_gb=plan_data['traffic_gb'],
+                hours=plan_data['hours'],
+                key_provision_mode=key_provision_mode,
+                display_mode=display_mode
+            )
+            flash(f"Новый тариф для хоста '{host_name}' добавлен.", 'success')
+        except ValidationError as e:
+            logger.error(f"Validation error when adding plan: {e}")
+            flash(f"Ошибка валидации: {e}", 'error')
+        except Exception as e:
+            logger.error(f"Error adding plan: {e}")
+            flash(f"Ошибка при добавлении тарифа: {e}", 'error')
         return redirect(url_for('settings_page', tab='servers'))
 
     @flask_app.route('/delete-plan/<int:plan_id>', methods=['POST'])
@@ -1147,7 +1522,18 @@ def create_webhook_app(bot_controller_instance):
         hours = int(request.form.get('hours', plan.get('hours', 0)) or 0)
         price = float(request.form.get('price', plan['price']))
         traffic_gb = float(request.form.get('traffic_gb', plan.get('traffic_gb', 0)) or 0)
-        update_plan(plan_id, plan_name, months, days, price, traffic_gb, hours)
+        
+        # Получаем режим предоставления ключа
+        key_provision_mode = request.form.get('key_provision_mode', plan.get('key_provision_mode', 'key'))
+        if key_provision_mode not in ['key', 'subscription', 'both']:
+            key_provision_mode = 'key'
+        
+        # Получаем режим отображения
+        display_mode = request.form.get('display_mode', plan.get('display_mode', 'all'))
+        if display_mode not in ['all', 'hidden_all', 'hidden_new', 'hidden_old']:
+            display_mode = 'all'
+        
+        update_plan(plan_id, plan_name, months, days, price, traffic_gb, hours, key_provision_mode, display_mode)
         flash("Тариф обновлен.", 'success')
         return redirect(url_for('settings_page', tab='servers'))
 
@@ -1156,10 +1542,29 @@ def create_webhook_app(bot_controller_instance):
         try:
             event_json = request.json
             if event_json.get("event") == "payment.succeeded":
-                metadata = event_json.get("object", {}).get("metadata", {})
+                payment_object = event_json.get("object", {})
+                metadata = payment_object.get("metadata", {})
+                
+                # Извлекаем дополнительные данные YooKassa
+                yookassa_payment_id = payment_object.get("id")
+                authorization_details = payment_object.get("authorization_details", {})
+                rrn = authorization_details.get("rrn")
+                auth_code = authorization_details.get("auth_code")
+                
+                # Получаем способ оплаты
+                payment_method = payment_object.get("payment_method", {})
+                payment_type = payment_method.get("type", "unknown")
+                
+                # Обновляем метаданные с дополнительной информацией
+                metadata.update({
+                    "yookassa_payment_id": yookassa_payment_id,
+                    "rrn": rrn,
+                    "authorization_code": auth_code,
+                    "payment_type": payment_type
+                })
                 
                 bot = _bot_controller.get_bot_instance()
-                payment_processor = handlers.process_successful_payment
+                payment_processor = handlers.process_successful_yookassa_payment
 
                 if metadata and bot is not None and payment_processor is not None:
                     loop = current_app.config.get('EVENT_LOOP')
@@ -1597,6 +2002,26 @@ def create_webhook_app(bot_controller_instance):
                                     "UPDATE vpn_keys SET enabled = ? WHERE key_id = ?",
                                     (1 if details['enabled'] else 0, key['key_id'])
                                 )
+                            if details.get('subscription') is not None:
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET subscription = ? WHERE key_id = ?",
+                                    (details['subscription'], key['key_id'])
+                                )
+                            if details.get('subscription_link') is not None:
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET subscription_link = ? WHERE key_id = ?",
+                                    (details['subscription_link'], key['key_id'])
+                                )
+                            if details.get('telegram_chat_id') is not None:
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET telegram_chat_id = ? WHERE key_id = ?",
+                                    (details['telegram_chat_id'], key['key_id'])
+                                )
+                            if details.get('comment') is not None:
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET comment = ? WHERE key_id = ?",
+                                    (details['comment'], key['key_id'])
+                                )
                             conn.commit()
                             updated += 1
                     else:
@@ -1736,6 +2161,26 @@ def create_webhook_app(bot_controller_instance):
                                 cursor.execute(
                                     "UPDATE vpn_keys SET enabled = ? WHERE key_id = ?",
                                     (1 if details['enabled'] else 0, key['key_id'])
+                                )
+                            if details.get('subscription') is not None:
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET subscription = ? WHERE key_id = ?",
+                                    (details['subscription'], key['key_id'])
+                                )
+                            if details.get('subscription_link') is not None:
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET subscription_link = ? WHERE key_id = ?",
+                                    (details['subscription_link'], key['key_id'])
+                                )
+                            if details.get('telegram_chat_id') is not None:
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET telegram_chat_id = ? WHERE key_id = ?",
+                                    (details['telegram_chat_id'], key['key_id'])
+                                )
+                            if details.get('comment') is not None:
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET comment = ? WHERE key_id = ?",
+                                    (details['comment'], key['key_id'])
                                 )
                             conn.commit()
                             updated_count += 1
@@ -1936,6 +2381,94 @@ def create_webhook_app(bot_controller_instance):
             logger.error(f"Error getting user keys: {e}")
             return {'keys': []}, 500
 
+    @flask_app.route('/api/key/<int:key_id>')
+    @login_required
+    def api_get_key(key_id):
+        """API для получения данных конкретного ключа"""
+        try:
+            with sqlite3.connect(DB_FILE) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                query = """
+                    SELECT 
+                        vk.key_id,
+                        vk.user_id,
+                        u.username,
+                        u.telegram_id,
+                        u.fullname,
+                        u.fio,
+                        vk.host_name,
+                        vk.plan_name,
+                        vk.price,
+                        vk.protocol,
+                        vk.is_trial,
+                        vk.created_date,
+                        vk.expiry_date,
+                        vk.quota_total_gb,
+                        vk.traffic_down_bytes,
+                        vk.quota_remaining_bytes,
+                        vk.status,
+                        vk.enabled,
+                        vk.connection_string,
+                        vk.key_email,
+                        vk.xui_client_uuid,
+                        vk.subscription,
+                        vk.subscription_link,
+                        vk.telegram_chat_id,
+                        vk.comment
+                    FROM vpn_keys vk
+                    LEFT JOIN users u ON vk.user_id = u.telegram_id
+                    WHERE vk.key_id = ?
+                """
+                cursor.execute(query, (key_id,))
+                row = cursor.fetchone()
+                
+                if not row:
+                    return {'error': 'Ключ не найден'}, 404
+                
+                key = dict(row)
+                
+                # Преобразуем даты в строки для JSON
+                if key['created_date']:
+                    if isinstance(key['created_date'], str):
+                        key['created_date'] = key['created_date']
+                    else:
+                        key['created_date'] = key['created_date'].isoformat()
+                
+                if key['expiry_date']:
+                    if isinstance(key['expiry_date'], str):
+                        key['expiry_date'] = key['expiry_date']
+                    else:
+                        key['expiry_date'] = key['expiry_date'].isoformat()
+                
+                # Вычисляем оставшееся время
+                # ВАЖНО: expiry_date хранится в UTC, поэтому для расчета используем UTC+3 (Moscow timezone)
+                if key['expiry_date']:
+                    try:
+                        from datetime import timezone, timedelta
+                        # Парсим expiry_date (всегда в UTC)
+                        expiry = datetime.fromisoformat(key['expiry_date']) if isinstance(key['expiry_date'], str) else key['expiry_date']
+                        # Убедимся, что expiry без timezone info
+                        if expiry.tzinfo is not None:
+                            expiry = expiry.replace(tzinfo=None)
+                        # Текущее время в UTC
+                        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+                        # Рассчитываем оставшееся время
+                        remaining = (expiry - now_utc).total_seconds()
+                        key['remaining_seconds'] = max(0, int(remaining))
+                    except Exception as e:
+                        logger.error(f"Error calculating remaining_seconds for key {key.get('key_id')}: {e}")
+                        key['remaining_seconds'] = None
+                else:
+                    key['remaining_seconds'] = None
+                
+                return {'key': key}
+                
+        except Exception as e:
+            logger.error(f"Error getting key {key_id}: {e}")
+            return {'error': 'Ошибка получения данных ключа'}, 500
+
     @flask_app.route('/api/user-balance/<int:user_id>')
     @login_required
     def api_user_balance(user_id):
@@ -2017,6 +2550,109 @@ def create_webhook_app(bot_controller_instance):
         except Exception as e:
             logger.error(f"Error getting user notifications: {e}")
             return {'notifications': []}, 500
+
+    @flask_app.route('/api/user-details/<int:user_id>')
+    @login_required
+    def api_user_details(user_id):
+        """API для получения полных данных пользователя"""
+        try:
+            with sqlite3.connect(DB_FILE) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                query = """
+                    SELECT 
+                        u.user_id,
+                        u.telegram_id,
+                        u.username,
+                        u.fullname,
+                        u.fio,
+                        u.balance,
+                        u.referral_balance,
+                        u.referral_balance_all,
+                        u.total_spent,
+                        u.total_months,
+                        u.trial_used,
+                        u.trial_days_given,
+                        u.trial_reuses_count,
+                        u.agreed_to_terms,
+                        u.agreed_to_documents,
+                        u.subscription_status,
+                        u.registration_date,
+                        u.is_banned,
+                        u.email,
+                        (SELECT COUNT(*) FROM vpn_keys WHERE user_id = u.telegram_id) as keys_count,
+                        (SELECT COUNT(*) FROM notifications WHERE user_id = u.telegram_id) as notifications_count
+                    FROM users u
+                    WHERE u.telegram_id = ?
+                """
+                cursor.execute(query, (user_id,))
+                row = cursor.fetchone()
+                
+                if not row:
+                    return {'error': 'Пользователь не найден'}, 404
+                
+                user_data = dict(row)
+                
+                # Преобразуем registration_date в строку для JSON
+                if user_data.get('registration_date'):
+                    if isinstance(user_data['registration_date'], str):
+                        user_data['registration_date'] = user_data['registration_date']
+                    else:
+                        user_data['registration_date'] = user_data['registration_date'].isoformat()
+                
+                # Получаем сумму заработанных средств (пока отключено из-за отсутствия колонки referred_by)
+                user_data['earned'] = 0
+                
+                return {'user': user_data}
+                
+        except Exception as e:
+            logger.error(f"Error getting user details: {e}")
+            return {'error': 'Ошибка получения данных пользователя'}, 500
+
+    @flask_app.route('/api/update-user/<int:user_id>', methods=['POST'])
+    @login_required
+    def api_update_user(user_id):
+        """API для обновления данных пользователя"""
+        try:
+            data = request.get_json()
+            if not data:
+                return {'error': 'Нет данных для обновления'}, 400
+            
+            # Разрешенные поля для обновления
+            allowed_fields = ['fio', 'email']
+            update_fields = {}
+            
+            for field in allowed_fields:
+                if field in data:
+                    update_fields[field] = data[field]
+            
+            if not update_fields:
+                return {'error': 'Нет разрешенных полей для обновления'}, 400
+            
+            with sqlite3.connect(DB_FILE) as conn:
+                cursor = conn.cursor()
+                
+                # Проверяем существование пользователя
+                cursor.execute("SELECT telegram_id FROM users WHERE telegram_id = ?", (user_id,))
+                if not cursor.fetchone():
+                    return {'error': 'Пользователь не найден'}, 404
+                
+                # Строим SQL запрос для обновления
+                set_clause = ', '.join([f"{field} = ?" for field in update_fields.keys()])
+                values = list(update_fields.values()) + [user_id]
+                
+                query = f"UPDATE users SET {set_clause} WHERE telegram_id = ?"
+                cursor.execute(query, values)
+                
+                conn.commit()
+                
+                logger.info(f"Updated user {user_id} fields: {list(update_fields.keys())}")
+                return {'message': 'Данные пользователя обновлены успешно'}
+                
+        except Exception as e:
+            logger.error(f"Error updating user {user_id}: {e}")
+            return {'error': 'Ошибка обновления данных пользователя'}, 500
 
 
     @flask_app.route('/users/revoke-consent/<int:user_id>', methods=['POST'])
@@ -2369,6 +3005,26 @@ def create_webhook_app(bot_controller_instance):
                                     "UPDATE vpn_keys SET enabled = ? WHERE key_id = ?",
                                     (1 if details['enabled'] else 0, key['key_id'])
                                 )
+                            if details.get('subscription') is not None:
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET subscription = ? WHERE key_id = ?",
+                                    (details['subscription'], key['key_id'])
+                                )
+                            if details.get('subscription_link') is not None:
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET subscription_link = ? WHERE key_id = ?",
+                                    (details['subscription_link'], key['key_id'])
+                                )
+                            if details.get('telegram_chat_id') is not None:
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET telegram_chat_id = ? WHERE key_id = ?",
+                                    (details['telegram_chat_id'], key['key_id'])
+                                )
+                            if details.get('comment') is not None:
+                                cursor.execute(
+                                    "UPDATE vpn_keys SET comment = ? WHERE key_id = ?",
+                                    (details['comment'], key['key_id'])
+                                )
                             conn.commit()
                             updated += 1
                     else:
@@ -2536,6 +3192,313 @@ def create_webhook_app(bot_controller_instance):
         except Exception as e:
             logger.error(f"Error in toggle_key_enabled: {e}", exc_info=True)
             return jsonify({'success': False, 'error': str(e)}), 500
+
+    # API роуты для промокодов
+    @flask_app.route('/api/promo-codes', methods=['GET'])
+    @login_required
+    def api_get_promo_codes():
+        """Получить все промокоды"""
+        try:
+            promo_codes = get_all_promo_codes()
+            return jsonify({
+                'success': True,
+                'promo_codes': promo_codes
+            })
+        except Exception as e:
+            logger.error(f"Error getting promo codes: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @flask_app.route('/api/promo-codes', methods=['POST'])
+    @login_required
+    def api_create_promo_code():
+        """Создать новый промокод"""
+        try:
+            data = request.get_json()
+            
+            # Валидация обязательных полей
+            if not data.get('code'):
+                return jsonify({'success': False, 'message': 'Промокод обязателен'}), 400
+            
+            if not data.get('bot'):
+                return jsonify({'success': False, 'message': 'Бот обязателен'}), 400
+            
+            # Валидация бота
+            if data.get('bot') not in ['shop', 'support']:
+                return jsonify({'success': False, 'message': 'Неверный тип бота. Допустимые значения: shop, support'}), 400
+            
+            # Валидация vpn_plan_id (может быть массивом или одиночным значением)
+            vpn_plan_id = data.get('vpn_plan_id')
+            if vpn_plan_id is not None:
+                if isinstance(vpn_plan_id, list):
+                    try:
+                        # Преобразуем список в JSON строку для хранения в базе
+                        vpn_plan_id = json.dumps([int(x) for x in vpn_plan_id if x is not None])
+                    except (ValueError, TypeError):
+                        return jsonify({'success': False, 'message': 'Неверный формат VPN планов'}), 400
+                else:
+                    try:
+                        # Одиночное значение сохраняем как есть
+                        vpn_plan_id = int(vpn_plan_id)
+                    except (ValueError, TypeError):
+                        return jsonify({'success': False, 'message': 'Неверный формат VPN плана'}), 400
+            
+            # Создание промокода
+            try:
+                promo_id = create_promo_code(
+                    code=data['code'],
+                    bot=data['bot'],
+                    vpn_plan_id=vpn_plan_id,
+                    tariff_code=data.get('tariff_code'),
+                    discount_amount=data.get('discount_amount', 0),
+                    discount_percent=data.get('discount_percent', 0),
+                    discount_bonus=data.get('discount_bonus', 0),
+                    usage_limit_per_bot=data.get('usage_limit_per_bot', 1),
+                    is_active=data.get('is_active', True)
+                )
+                
+                return jsonify({'success': True, 'message': 'Промокод создан', 'promo_id': promo_id})
+            except ValueError as e:
+                return jsonify({'success': False, 'message': str(e)}), 400
+            except RuntimeError as e:
+                return jsonify({'success': False, 'message': str(e)}), 500
+                
+        except Exception as e:
+            logger.error(f"Error creating promo code: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @flask_app.route('/api/promo-codes/<int:promo_id>', methods=['GET'])
+    @login_required
+    def api_get_promo_code(promo_id):
+        """Получить промокод по ID"""
+        try:
+            promo_code = get_promo_code(promo_id)
+            if promo_code:
+                return jsonify({
+                    'success': True,
+                    'promo_code': promo_code
+                })
+            else:
+                return jsonify({'success': False, 'message': 'Промокод не найден'}), 404
+        except Exception as e:
+            logger.error(f"Error getting promo code: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @flask_app.route('/api/promo-codes/<int:promo_id>', methods=['PUT'])
+    @login_required
+    def api_update_promo_code(promo_id):
+        """Обновить промокод"""
+        try:
+            data = request.get_json()
+            
+            # Валидация обязательных полей
+            if not data.get('code'):
+                return jsonify({'success': False, 'message': 'Промокод обязателен'}), 400
+            
+            if not data.get('bot'):
+                return jsonify({'success': False, 'message': 'Бот обязателен'}), 400
+            
+            # Валидация бота
+            if data.get('bot') not in ['shop', 'support']:
+                return jsonify({'success': False, 'message': 'Неверный тип бота. Допустимые значения: shop, support'}), 400
+            
+            # Валидация vpn_plan_id (может быть массивом или одиночным значением)
+            vpn_plan_id = data.get('vpn_plan_id')
+            if vpn_plan_id is not None:
+                if isinstance(vpn_plan_id, list):
+                    try:
+                        vpn_plan_id = [int(x) for x in vpn_plan_id if x is not None]
+                    except (ValueError, TypeError):
+                        return jsonify({'success': False, 'message': 'Неверный формат VPN планов'}), 400
+                else:
+                    try:
+                        vpn_plan_id = int(vpn_plan_id)
+                    except (ValueError, TypeError):
+                        return jsonify({'success': False, 'message': 'Неверный формат VPN плана'}), 400
+            
+            # Обновление промокода
+            try:
+                success = update_promo_code(
+                    promo_id=promo_id,
+                    code=data['code'],
+                    bot=data['bot'],
+                    vpn_plan_id=vpn_plan_id,
+                    tariff_code=data.get('tariff_code'),
+                    discount_amount=data.get('discount_amount', 0),
+                    discount_percent=data.get('discount_percent', 0),
+                    discount_bonus=data.get('discount_bonus', 0),
+                    usage_limit_per_bot=data.get('usage_limit_per_bot', 1),
+                    is_active=data.get('is_active', True)
+                )
+                
+                if success:
+                    return jsonify({'success': True, 'message': 'Промокод обновлен'})
+                else:
+                    return jsonify({'success': False, 'message': 'Промокод не найден'}), 404
+            except ValueError as e:
+                return jsonify({'success': False, 'message': str(e)}), 400
+            except RuntimeError as e:
+                return jsonify({'success': False, 'message': str(e)}), 500
+                
+        except Exception as e:
+            logger.error(f"Error updating promo code: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @flask_app.route('/api/promo-codes/<int:promo_id>', methods=['DELETE'])
+    @login_required
+    def api_delete_promo_code(promo_id):
+        """Удалить промокод"""
+        try:
+            # Проверяем, можно ли удалить промокод
+            can_delete, usage_count = can_delete_promo_code(promo_id)
+            
+            if not can_delete:
+                return jsonify({
+                    'success': False, 
+                    'message': f'Нельзя удалить промокод: он был использован {usage_count} раз(а). Удаление возможно только из панели администратора.',
+                    'usage_count': usage_count
+                }), 400
+            
+            success = delete_promo_code(promo_id)
+            if success:
+                return jsonify({'success': True, 'message': 'Промокод удален'})
+            else:
+                return jsonify({'success': False, 'message': 'Ошибка удаления промокода'}), 500
+        except Exception as e:
+            logger.error(f"Error deleting promo code: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @flask_app.route('/api/promo-codes/<int:promo_id>/usage', methods=['GET'])
+    @login_required
+    def api_get_promo_code_usage(promo_id):
+        """Получить историю использования промокода"""
+        try:
+            usage_history = get_promo_code_usage_history(promo_id)
+            return jsonify({
+                'success': True,
+                'usage_history': usage_history
+            })
+        except Exception as e:
+            logger.error(f"Error getting promo code usage: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @flask_app.route('/api/promo-codes/<int:promo_id>/can-delete', methods=['GET'])
+    @login_required
+    def api_can_delete_promo_code(promo_id):
+        """Проверить, можно ли удалить промокод"""
+        try:
+            can_delete, usage_count = can_delete_promo_code(promo_id)
+            return jsonify({
+                'success': True, 
+                'can_delete': can_delete, 
+                'usage_count': usage_count
+            })
+        except Exception as e:
+            logger.error(f"Error checking promo code deletion: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @flask_app.route('/api/vpn-plans', methods=['GET'])
+    @login_required
+    def api_get_vpn_plans():
+        """Получить все VPN планы"""
+        try:
+            plans = get_all_plans()
+            return jsonify({
+                'success': True,
+                'plans': plans
+            })
+        except Exception as e:
+            logger.error(f"Error getting VPN plans: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @flask_app.route('/api/validate-promo-code', methods=['POST'])
+    @login_required
+    def api_validate_promo_code():
+        """Валидация промокода для пользователя"""
+        try:
+            data = request.get_json()
+            
+            user_id = data.get('user_id')
+            promo_code = data.get('promo_code')
+            bot = data.get('bot')
+            
+            if not all([user_id, promo_code, bot]):
+                return jsonify({
+                    'success': False, 
+                    'message': 'Необходимы user_id, promo_code и bot'
+                }), 400
+            
+            validation_result = can_user_use_promo_code(user_id, promo_code, bot)
+            
+            return jsonify({
+                'success': True,
+                'can_use': validation_result['can_use'],
+                'message': validation_result['message'],
+                'promo_data': validation_result.get('promo_data')
+            })
+            
+        except Exception as e:
+            logger.error(f"Error validating promo code: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @flask_app.route('/api/user-promo-codes', methods=['GET'])
+    @login_required
+    def api_get_user_promo_codes():
+        """Получить применённые промокоды пользователя"""
+        try:
+            user_id = request.args.get('user_id', type=int)
+            bot = request.args.get('bot', 'shop')
+            
+            if not user_id:
+                return jsonify({
+                    'success': False, 
+                    'message': 'Необходим user_id'
+                }), 400
+            
+            user_promo_codes = get_user_promo_codes(user_id, bot)
+            
+            return jsonify({
+                'success': True,
+                'promo_codes': user_promo_codes
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting user promo codes: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @flask_app.route('/api/user-promo-codes/<int:promo_id>', methods=['DELETE'])
+    @login_required
+    def api_remove_user_promo_code(promo_id):
+        """Удалить применённый промокод пользователем"""
+        try:
+            data = request.get_json()
+            user_id = data.get('user_id')
+            bot = data.get('bot', 'shop')
+            
+            if not user_id:
+                return jsonify({
+                    'success': False, 
+                    'message': 'Необходим user_id'
+                }), 400
+            
+            success = remove_user_promo_code_usage(user_id, promo_id, bot)
+            
+            if success:
+                return jsonify({
+                    'success': True,
+                    'message': 'Промокод удалён из вашего списка'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': 'Промокод не найден или уже удалён'
+                })
+            
+        except Exception as e:
+            logger.error(f"Error removing user promo code: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    # CSRF защита отключена по умолчанию (WTF_CSRF_CHECK_DEFAULT = False)
+    # При необходимости можно включить выборочно через @csrf.protect() для критичных форм
 
     # Запускаем мониторинг сразу
     start_ton_monitoring_task()
