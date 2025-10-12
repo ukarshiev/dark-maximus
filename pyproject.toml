@@ -26,7 +26,7 @@ dependencies = [
     "flask==3.1.1",
     "flask-wtf==1.2.1",
     "flask-session==0.8.0",
-    "py3xui==0.4.0",
+    "py3xui==0.5.1",
     "pyotp==2.9.0",
     "python-dotenv==1.1.1",
     "qrcode[pil]==8.2",
