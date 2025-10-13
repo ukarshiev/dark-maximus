@@ -24,7 +24,7 @@ classifiers = [
 dependencies = [
     "aiogram==3.21.0",
     "flask==3.1.1",
-    "flask-wtf==1.2.1",
+    "flask-wtf==1.2.2",
     "flask-session==0.8.0",
     "py3xui==0.4.0",
     "pyotp==2.9.0",
