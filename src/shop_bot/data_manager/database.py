@@ -1367,6 +1367,31 @@ def run_migration():
         except Exception as e:
             logging.error(f" -> Error migrating promo_codes table: {e}")
 
+        # Миграция настроек бота для логов
+        logging.info("Migrating bot logging settings...")
+        try:
+            # Проверяем существующие настройки
+            cursor.execute("SELECT key FROM bot_settings WHERE key IN ('logging_bot_token', 'logging_bot_username', 'logging_bot_admin_chat_id', 'logging_bot_level')")
+            existing_keys = {row[0] for row in cursor.fetchall()}
+            
+            # Добавляем недостающие настройки
+            new_settings = {
+                'logging_bot_token': '',
+                'logging_bot_username': '',
+                'logging_bot_admin_chat_id': '',
+                'logging_bot_level': 'error'
+            }
+            
+            for key, default_value in new_settings.items():
+                if key not in existing_keys:
+                    cursor.execute("INSERT INTO bot_settings (key, value) VALUES (?, ?)", (key, default_value))
+                    logging.info(f" -> Added setting '{key}' with default value '{default_value}'")
+                else:
+                    logging.info(f" -> Setting '{key}' already exists")
+                    
+        except Exception as e:
+            logging.error(f" -> Error migrating bot logging settings: {e}")
+
         conn.commit()
 
         conn.close()
@@ -2686,7 +2711,11 @@ def add_to_referral_balance(user_id: int, amount: float):
 
             cursor = conn.cursor()
 
+            # Увеличиваем доступный баланс для вывода
             cursor.execute("UPDATE users SET referral_balance = referral_balance + ? WHERE telegram_id = ?", (amount, user_id))
+            
+            # Увеличиваем общую сумму всех заработков (история)
+            cursor.execute("UPDATE users SET referral_balance_all = referral_balance_all + ? WHERE telegram_id = ?", (amount, user_id))
 
             conn.commit()
 

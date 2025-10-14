@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Лог удалённых orphan клиентов{% endblock %}
+{% block header_title %}Лог удалённых orphan клиентов{% endblock %}
+
+{% block header_buttons %}
+<button class="button button-secondary" data-size="sm" onclick="location.reload()" title="Обновить список удалённых клиентов">
+	<i class="fas fa-sync-alt"></i>
+	<span>Обновить</span>
+</button>
+<button class="button button-secondary" data-size="sm" onclick="window.close()" title="Закрыть вкладку">
+	<i class="fas fa-times"></i>
+	<span>Закрыть</span>
+</button>
+{% endblock %}
+
+{% block content %}
+
+<div class="keys-container">
+	<div class="keys-header">
+		<div class="info-banner" style="margin-bottom: 20px;">
+			<i class="fas fa-info-circle"></i>
+			<span>Список всех автоматически удалённых orphan клиентов с панелей XUI. Клиенты удаляются при синхронизации, если они не отслеживаются ботом.</span>
+		</div>
+	</div>
+
+	<section class="keys-section">
+		{% if message %}
+		<div class="info-banner" style="margin-top: 20px;">
+			<i class="fas fa-info-circle"></i>
+			<span>{{ message }}</span>
+		</div>
+		{% elif entries %}
+		<div class="table-container" style="padding-bottom: 80px;">
+			<table class="keys-table">
+				<thead>
+					<tr>
+						<th style="width: 180px;">Дата и время удаления</th>
+						<th style="width: 200px;">Сервер</th>
+						<th style="width: 250px;">Email клиента</th>
+						<th style="width: 350px;">ID клиента</th>
+						<th style="width: 180px;">Дата истечения</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for entry in entries %}
+					<tr class="key-row">
+						<td>
+							<div style="font-size: 0.9em;">
+								<i class="far fa-clock" style="color: var(--text-secondary); margin-right: 6px;"></i>
+								<span>{{ entry.timestamp }}</span>
+							</div>
+						</td>
+						<td>
+							<span class="status-badge status-active">
+								<i class="fas fa-server" style="margin-right: 4px;"></i>
+								{{ entry.host_name }}
+							</span>
+						</td>
+						<td>
+							<code style="font-size: 0.9em; padding: 4px 8px; background: var(--bg-elevated); border-radius: 4px; color: var(--accent-color);">
+								{{ entry.client_email }}
+							</code>
+						</td>
+						<td>
+							<div style="font-family: 'Courier New', monospace; font-size: 0.85em; color: var(--text-secondary); word-break: break-all;">
+								{{ entry.client_id }}
+							</div>
+						</td>
+						<td>
+							{% if entry.expiry_time == "Без срока" %}
+							<span class="status-badge status-banned">
+								<i class="fas fa-infinity" style="margin-right: 4px;"></i>
+								Без срока
+							</span>
+							{% else %}
+							<div style="font-size: 0.9em;">
+								<i class="far fa-calendar" style="color: var(--text-secondary); margin-right: 6px;"></i>
+								<span>{{ entry.expiry_time }}</span>
+							</div>
+							{% endif %}
+						</td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+		
+		<div style="margin-top: 20px; padding: 15px; background: var(--bg-elevated); border-radius: 8px; border: 1px solid var(--border-color);">
+			<div style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary);">
+				<i class="fas fa-info-circle"></i>
+				<span style="font-size: 0.9em;">Всего записей: <strong style="color: var(--light-color);">{{ entries|length }}</strong></span>
+			</div>
+		</div>
+		{% else %}
+		<div class="info-banner" style="margin-top: 20px;">
+			<i class="fas fa-exclamation-triangle"></i>
+			<span>Лог-файл пуст. Удалённые orphan клиенты будут отображаться здесь после первой синхронизации.</span>
+		</div>
+		{% endif %}
+	</section>
+</div>
+
+{% endblock %}
+

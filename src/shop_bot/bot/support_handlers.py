@@ -9,6 +9,7 @@ import json
 from aiogram import Bot, Router, F, types
 from aiogram.filters import CommandStart, Command
 from aiogram.enums import ParseMode
+from aiogram.types import ErrorEvent
 
 from shop_bot.data_manager import database
 
@@ -277,4 +278,34 @@ def get_support_router() -> Router:
                 except Exception as e:
                     logger.error(f"Failed to send message from thread {thread_id} to user {user_id}: {e}")
                     await message.reply("❌ Не удалось доставить сообщение этому пользователю (возможно, он заблокировал бота).")
+    
+    @support_router.error()
+    async def support_router_error_handler(event: ErrorEvent):
+        """Глобальный обработчик ошибок для support_router"""
+        logger.critical(
+            "Critical error in support router caused by %s", 
+            event.exception, 
+            exc_info=True
+        )
+        
+        # Пытаемся определить тип update и отправить сообщение пользователю
+        update = event.update
+        user_id = None
+        
+        try:
+            if update.message:
+                user_id = update.message.from_user.id
+                await update.message.answer(
+                    "⚠️ Произошла ошибка в системе поддержки.\n"
+                    "Попробуйте позже или напишите напрямую администратору."
+                )
+            elif update.callback_query:
+                user_id = update.callback_query.from_user.id
+                await update.callback_query.answer(
+                    "⚠️ Ошибка. Попробуйте позже.",
+                    show_alert=True
+                )
+        except Exception as notification_error:
+            logger.error(f"Failed to send error notification to user {user_id}: {notification_error}")
+    
     return support_router

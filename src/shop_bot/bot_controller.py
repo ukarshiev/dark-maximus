@@ -98,6 +98,7 @@ class BotController:
             }
 
         try:
+            logger.warning("🟢 ShopBot: Запуск бота...")
             self.shop_bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
             self.shop_dp = Dispatcher()
             self.shop_dp.update.middleware(BanMiddleware())
@@ -157,6 +158,7 @@ class BotController:
             handlers.ADMIN_ID = admin_id
 
             self.shop_task = asyncio.run_coroutine_threadsafe(self._start_polling(self.shop_bot, self.shop_dp, "ShopBot"), self._loop)
+            logger.warning("🟢 ShopBot: Бот успешно запущен и работает")
             logger.info("BotController: Start command sent to event loop.")
             return {"status": "success", "message": "Команда на запуск бота отправлена."}
             
@@ -177,6 +179,7 @@ class BotController:
             return {"status": "error", "message": "Токен для Бота-Саппорта и Айди группы не указаны."}
 
         try:
+            logger.warning("🟢 SupportBot: Запуск бота...")
             self.support_bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
             self.support_dp = Dispatcher()
             
@@ -189,6 +192,7 @@ class BotController:
             self.support_task = asyncio.run_coroutine_threadsafe(
                 self._start_polling(self.support_bot, self.support_dp, "SupportBot"), self._loop
             )
+            logger.warning("🟢 SupportBot: Бот успешно запущен и работает")
             return {"status": "success", "message": "Команда на запуск бота отправлена."}
         except Exception as e:
             self.support_bot = None
@@ -203,6 +207,7 @@ class BotController:
         if not self._loop or not self.shop_dp:
             return {"status": "error", "message": "Критическая ошибка: компоненты бота недоступны."}
 
+        logger.warning("🔴 ShopBot: Остановка бота...")
         self.shop_is_running = False
 
         logger.info("BotController: Sending graceful stop signal...")
@@ -217,6 +222,7 @@ class BotController:
         if not self._loop or not self.support_dp:
             return {"status": "error", "message": "Критическая ошибка: компоненты бота недоступны."}
 
+        logger.warning("🔴 SupportBot: Остановка бота...")
         self.support_is_running = False
 
         logger.info("BotController: Sending graceful stop signal...")

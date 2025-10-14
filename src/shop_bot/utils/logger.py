@@ -24,6 +24,9 @@ class StructuredLogger:
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging.INFO)
         
+        # Включаем propagate, чтобы логи передавались в root logger
+        self.logger.propagate = True
+        
         # Очищаем существующие обработчики
         self.logger.handlers.clear()
         

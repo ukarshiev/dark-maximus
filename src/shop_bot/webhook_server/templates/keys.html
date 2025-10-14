@@ -36,11 +36,10 @@
 						<th>Окончание</th>
 						<th>Осталось</th>
 						<th title="Общее&#10;Использовано&#10;Остаток">Трафик</th>
-						<th>Статус</th>
-						<th>Вкл</th>
-						<th title="Ссылка на подписку">Subscription</th>
-						<th title="Ссылка на подписку из 3x-ui">Subscription Link</th>
-						<th>Ключ</th>
+					<th>Статус</th>
+					<th>Вкл</th>
+					<th title="Ссылка на подписку из 3x-ui">Subscription Link</th>
+					<th>Ключ</th>
 						<th>3x-ui</th>
 					</tr>
 				</thead>
@@ -171,18 +170,6 @@
 								<span class="status-badge status-active" title="Ключ включен">Вкл</span>
 							{% else %}
 								<span class="status-badge status-banned" title="Ключ отключен">Выкл</span>
-							{% endif %}
-						</td>
-						<td>
-							{% if key.subscription %}
-								<div class="key-cell">
-									<span class="key-text" title="{{ key.subscription }}">{{ key.subscription }}</span>
-									<button class="copy-btn" data-size="xs" onclick="copyKey('{{ key.subscription|replace("'", "\\'") }}')" title="Копировать subscription">
-										<i class="fas fa-copy"></i>
-									</button>
-								</div>
-							{% else %}
-								-
 							{% endif %}
 						</td>
 						<td>

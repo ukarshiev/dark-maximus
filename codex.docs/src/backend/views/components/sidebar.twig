@@ -1,0 +1,74 @@
+
+<div data-module="sidebar" class="docs-sidebar">
+
+  <div class="docs-sidebar__toggler">
+    {{ svg('menu') }} Table of contents
+  </div>
+
+  <aside class="docs-sidebar__content docs-sidebar__content--invisible">
+    <span class="docs-sidebar__search-wrapper">
+	    <input class="docs-sidebar__search" type="text" placeholder="Search" />
+	  </span>
+    {% for firstLevelPage in menu %}
+      <section class="docs-sidebar__section" data-id="{{firstLevelPage._id}}">
+        <a class="docs-sidebar__section-title-wrapper"
+          href="{{firstLevelPage.uri ? '/' ~ firstLevelPage.uri : '/page/' ~ firstLevelPage._id }}"
+        >
+        <div class="docs-sidebar__section-title {{page is defined and page._id == firstLevelPage._id ? 'docs-sidebar__section-title--active' : ''}}">
+          <span>
+            {{ firstLevelPage.title | striptags }}
+          </span>
+          {% if firstLevelPage.children is not empty %}
+            <button class="docs-sidebar__section-toggler">
+              {{ svg('arrow-up') }}
+            </button>
+          {% endif %}
+        </div>
+        </a>
+        {% if firstLevelPage.children is not empty %}
+          <ul class="docs-sidebar__section-list">
+            {% for child in firstLevelPage.children %}
+              <li>
+                <a
+                  class="docs-sidebar__section-list-item-wrapper"
+                  href="{{ child.uri ? '/' ~ child.uri : '/page/' ~ child._id }}">
+                    <div class="docs-sidebar__section-list-item {{page is defined and toString(page._id) == toString(child._id) ? 'docs-sidebar__section-list-item--active' : ''}}">
+                      <span>{{ child.title | striptags }}</span>
+                    </div>
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </section>
+    {% endfor %}
+
+    <div class="docs-sidebar__useful-links">
+      <h3 class="docs-sidebar__useful-links-title">
+        🔗 Полезные ссылки
+      </h3>
+      <div class="docs-sidebar__useful-links-list">
+        <a href="https://t.me/dark_maximus" target="_blank" rel="noopener noreferrer" 
+           class="docs-sidebar__useful-links-item">
+          <span class="docs-sidebar__useful-links-icon">📢</span>
+          <span class="docs-sidebar__useful-links-text">Telegram канал</span>
+        </a>
+        <a href="https://t.me/maximus_vpn_bot" target="_blank" rel="noopener noreferrer"
+           class="docs-sidebar__useful-links-item">
+          <span class="docs-sidebar__useful-links-icon">🤖</span>
+          <span class="docs-sidebar__useful-links-text">Открыть бота</span>
+        </a>
+        <a href="https://t.me/maximus_support_bot" target="_blank" rel="noopener noreferrer"
+           class="docs-sidebar__useful-links-item">
+          <span class="docs-sidebar__useful-links-icon">🆘</span>
+          <span class="docs-sidebar__useful-links-text">Поддержка</span>
+        </a>
+      </div>
+    </div>
+
+  </aside>
+
+  <div class="docs-sidebar__slider">
+    {{ svg('arrow-left') }}
+  </div>
+</div>

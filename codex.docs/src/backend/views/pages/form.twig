@@ -1,0 +1,73 @@
+{% extends 'layout.twig' %}
+
+{% block body %}
+  <style>
+    .docs-header__menu-add {
+      visibility: hidden;
+    }
+  </style>
+  <section data-module="writing">
+    <textarea name="module-settings" hidden>
+      {
+        "page": {{ page | json_stringify | escape }}
+      }
+    </textarea>
+    <header class="writing-header">
+      <div class="writing-header__inner-container">
+        {% set currentPageId = 0 %}
+        {% if page is not empty %}
+          {% set currentPageId = page._id %}
+        {% endif %}
+        <div class="select-wrapper">
+          {% if parentsChildrenOrdered is not empty %}
+            <label for="parent">Parent Page</label>
+          {% else %}
+            <label for="parent">New Page at the</label>
+          {% endif %}
+          <select id="parent" name="parent">
+            <option value="0">Root</option>
+            {% for _page in pagesAvailableGrouped %}
+              {% if toString(_page._id) != toString(currentPageId) %}
+                <option value="{{ toString(_page._id) }}" {{ page is not empty and toString(page._parent) == toString(_page._id) ? 'selected' : ''}}>
+                  {% if _page._parent != "0" %}
+                    &nbsp;
+                    &nbsp;
+                  {% endif %}
+                  {{ _page.title }}
+                </option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+        {% if parentsChildrenOrdered is not empty %}
+          <div class="select-wrapper">
+            <label for="above">Put Above</label>
+            <select id="above" name="above">
+              <option value="0">—</option>
+              {% for _page in parentsChildrenOrdered %}
+                <option value="{{ toString(_page._id) }}">{{ _page.title }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        {% endif %}
+        {% if page is not empty %}
+          <div class="uri-input-wrapper">
+            <label for="uri-input">Alias</label>
+            <input type="text" id="uri-input" class="uri-input" name="uri-input" placeholder="URI (Optional)" value="{{ page.uri }}">
+          </div>
+        {% endif %}
+      </div>
+    </header>
+    <div class="writing-editor">
+      <div id="editorjs"></div>
+    </div>
+
+    <div class="writing-buttons">
+      {% include 'components/button.twig' with {label: 'Save changes', name: 'js-submit-save', icon: 'check'} %}
+      {% if toString(page._id) is not empty %}
+          {% include 'components/button.twig' with {label: 'Delete doc', name: 'js-submit-remove', icon: 'trash', style: 'warning'} %}
+      {% endif %}
+    </div>
+
+  </section>
+{% endblock %}

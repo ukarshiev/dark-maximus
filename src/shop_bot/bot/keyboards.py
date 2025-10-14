@@ -55,10 +55,6 @@ def create_profile_menu_keyboard(total_keys_count: int | None = None, trial_used
     keys_suffix = f" [{total_keys_count}] шт." if isinstance(total_keys_count, int) and total_keys_count >= 0 else ""
     builder.button(text=f"🔑 Мои ключи{keys_suffix}", callback_data="manage_keys")
     
-    # Добавляем пробный период только если он не использован
-    if trial_used == 0:
-        builder.button(text="🆓 Пробный период", callback_data="trial_period")
-    
     builder.button(text="💳 Пополнить баланс", callback_data="topup_root")
     builder.button(text="🎫 Применить промокод", callback_data="my_promo_codes")
     if get_setting("enable_referrals") == "true":

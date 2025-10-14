@@ -1,0 +1,83 @@
+:root {
+  /**
+   * Allows to dynamically set main column minimun margin left.
+   * Is used for adding extra space for editor controls in page edit mode (otherwise controls overlap sidebar)
+   */
+  --main-col-min-margin-left: 0px;
+}
+
+body {
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-main);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.docs {
+  min-height: calc(100vh - var(--layout-height-header));
+
+  @media (--desktop) {
+    display: flex;
+  }
+
+  &__content {
+    --max-space-between-cols: 160px;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: space-between;
+    padding: var(--layout-padding-vertical) var(--layout-padding-horizontal);
+    flex-grow: 2;
+    word-wrap: break-word;
+
+    @media (--mobile) {
+      width: 100%;
+      flex-basis: 100%;
+    }
+
+    @media (--desktop) {
+      max-width: min(
+        calc(var(--layout-width-main-col) + var(--max-space-between-cols) + var(--layout-sidebar-width)),
+        calc(100% - var(--layout-sidebar-width))
+      );
+      margin-left: max(var(--main-col-min-margin-left), calc(50vw - var(--layout-sidebar-width) - var(--layout-width-main-col) / 2) - var(--layout-padding-horizontal));
+      margin-right: auto;
+      padding: 0;
+    }
+
+    &-inner {
+      max-width: var(--layout-width-main-col);
+      margin: 0 auto;
+      min-width: 0;
+      width: 100%;
+
+      @media (--desktop) {
+        margin-left: 0;
+        padding: var(--layout-padding-vertical) var(--layout-padding-content-horizontal);
+      }
+    }
+  }
+
+  &__aside-right {
+    width: var(--layout-sidebar-width);
+    min-width: 160px;
+    display: none;
+
+    position: sticky;
+    overflow: auto;
+    height: calc(100vh - var(--layout-height-header));
+
+    top: calc(var(--layout-height-header));
+    align-self: flex-start;
+
+    @media (--desktop) {
+      display: block;
+    }
+
+    &:empty {
+      display: none;
+    }
+  }
+
+  &-sidebar {
+    flex-shrink: 0;
+  }
+}

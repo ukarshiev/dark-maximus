@@ -1,0 +1,10 @@
+version: "3.2"
+services:
+  docs:
+    image: ghcr.io/codex-team/codex.docs:v2.0.0-rc.8
+    ports:
+      - "3002:3000"
+    volumes:
+      - ./uploads:/usr/src/app/uploads
+      - ./db:/usr/src/app/db
+      - ./docs-config.local.yaml:/usr/src/app/docs-config.yaml

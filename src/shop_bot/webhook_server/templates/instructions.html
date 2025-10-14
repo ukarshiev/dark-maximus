@@ -136,7 +136,7 @@
     <h2 style="margin-bottom:10px;">Текст инструкции: {{ active_tab|capitalize }}</h2>
     <form method="post">
         <input type="hidden" name="platform" value="{{ active_tab }}" />
-        <textarea name="instructions_content" class="textarea-changelog" spellcheck="false" autocomplete="off" autocapitalize="off" style="background:var(--bg-surface);color:#e9ecef;border:1px solid var(--border-color);min-height:calc(100vh - 260px);width:100%;box-sizing:border-box;font-family:monospace;">{{ instructions_text }}</textarea>
+        <textarea name="instructions_content" class="textarea-changelog" spellcheck="false" autocomplete="off" autocapitalize="off" style="background:var(--bg-surface);color:#e9ecef;border:1px solid var(--border-color);min-height:400px;max-height:600px;height:450px;width:100%;box-sizing:border-box;font-family:monospace;resize:vertical;" title="Введите текст инструкции для выбранной платформы">{{ instructions_text }}</textarea>
         <div style="margin-top: 12px; display: flex; gap: 8px;">
             <button type="submit" class="button button-start" data-size="md" title="Сохранить изменения инструкций">
 				<i class="fas fa-save"></i>

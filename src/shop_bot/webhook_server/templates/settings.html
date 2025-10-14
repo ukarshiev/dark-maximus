@@ -264,6 +264,36 @@
 				</div>
 			</section>
 			
+			<section class="settings-section">
+				<h2>Автоматизация</h2>
+				<div class="form-group">
+					<label class="checkbox-label" for="auto_delete_orphans" title="Автоматически удалять клиентов на панелях, которых нет в базе данных бота">
+						<input
+							type="checkbox"
+							id="auto_delete_orphans"
+							name="auto_delete_orphans"
+							value="true"
+							{% if settings.auto_delete_orphans == 'true' %}checked{% endif %}
+						/>
+						<span>Автоматически удалять orphan clients</span>
+					</label>
+					<small class="text-muted">
+						При включении бот будет автоматически удалять клиентов на панелях XUI, которых нет в базе данных бота. 
+						Работает только с inbound'ами, привязанными к хостам в настройках бота.
+					</small>
+				</div>
+				<div class="form-group mt-3">
+					<a href="{{ url_for('orphan_deletions_log') }}" class="button button-secondary" target="_blank" title="Открыть лог удалённых orphan клиентов">
+						<i class="fas fa-list-alt"></i>
+						Лог удалённых клиентов
+					</a>
+					<small class="text-muted d-block mt-2">
+						<i class="fas fa-info-circle"></i>
+						Просмотр списка всех автоматически удалённых orphan клиентов с панелей XUI.
+					</small>
+				</div>
+			</section>
+			
 			<button type="submit" class="button button-primary" data-size="md" title="Сохранить настройки панели">
 				<i class="fas fa-save"></i>
 				Сохранить настройки панели
@@ -352,6 +382,75 @@
 					name="support_group_id"
 					value="{{ settings.support_group_id or '' }}"
 				/>
+			</div>
+		</section>
+		<section class="settings-section">
+			<h2>Бот для логов</h2>
+			<p class="text-muted" style="margin-bottom: 15px;">
+				Настройте бота для отправки логов ошибок и предупреждений в Telegram.
+				Это поможет быстро отслеживать проблемы в системе без необходимости просмотра файлов логов.
+			</p>
+			<div class="form-group password-wrapper">
+				<label for="logging_bot_token">Токен бота:</label>
+				<input
+					type="password"
+					id="logging_bot_token"
+					name="logging_bot_token"
+					value="{{ settings.logging_bot_token or '' }}"
+					placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
+					title="Токен Telegram бота для отправки логов"
+				/>
+				<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+					<i class="fas fa-eye"></i>
+				</button>
+			</div>
+			<div class="form-group">
+				<label for="logging_bot_username">Username бота (без @):</label>
+				<input
+					type="text"
+					id="logging_bot_username"
+					name="logging_bot_username"
+					value="{{ settings.logging_bot_username or '' }}"
+					placeholder="my_logging_bot"
+					title="Username бота для логов"
+				/>
+			</div>
+			<div class="form-group">
+				<label for="logging_bot_admin_chat_id">Telegram ID Администратора:</label>
+				<input
+					type="text"
+					id="logging_bot_admin_chat_id"
+					name="logging_bot_admin_chat_id"
+					value="{{ settings.logging_bot_admin_chat_id or '' }}"
+					placeholder="123456789"
+					title="ID чата администратора, куда будут отправляться логи"
+				/>
+				<small class="text-muted">Узнать свой ID можно через @userinfobot</small>
+			</div>
+			<div class="form-group">
+				<label for="logging_bot_level">Уровень логов:</label>
+				<select
+					id="logging_bot_level"
+					name="logging_bot_level"
+					title="Выберите уровень логирования"
+				>
+					<option value="none" {% if settings.logging_bot_level == 'none' %}selected{% endif %}>none - Отключено</option>
+					<option value="error" {% if settings.logging_bot_level == 'error' or not settings.logging_bot_level %}selected{% endif %}>error - Только ошибки</option>
+					<option value="warning" {% if settings.logging_bot_level == 'warning' %}selected{% endif %}>warning - Предупреждения и ошибки</option>
+					<option value="all" {% if settings.logging_bot_level == 'all' %}selected{% endif %}>все логи - Все (включая warning и error)</option>
+				</select>
+				<small class="text-muted">
+					• none - бот отключен<br>
+					• error - отправлять только критические ошибки<br>
+					• warning - отправлять предупреждения и ошибки<br>
+					• все логи - отправлять все логи (включая информационные)
+				</small>
+			</div>
+			<div class="form-group" style="margin-top: 20px;">
+				<button type="button" class="button button-secondary" onclick="testLoggingBot()" title="Отправить тестовое сообщение в бота логов">
+					<i class="fas fa-paper-plane"></i>
+					Отправить тестовое сообщение
+				</button>
 			</div>
 		</section>
 		<section class="settings-section">
@@ -1867,6 +1966,51 @@ function toggleYooKassaMode() {
     }
     
     console.log('Режим YooKassa изменен:', testModeCheckbox.checked ? 'Тестовый' : 'Боевой');
+}
+
+// Функция для тестирования бота логов
+async function testLoggingBot() {
+    const token = document.getElementById('logging_bot_token').value;
+    const chatId = document.getElementById('logging_bot_admin_chat_id').value;
+    
+    if (!token || !chatId) {
+        showNotification('Заполните токен бота и ID администратора', 'warning');
+        return;
+    }
+    
+    // Показываем индикатор загрузки
+    const button = event.target.closest('button');
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Отправка...';
+    
+    try {
+        const response = await fetch('/test-logging-bot', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                token: token,
+                chat_id: chatId
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('Тестовое сообщение успешно отправлено! Проверьте Telegram.', 'success');
+        } else {
+            showNotification('Ошибка отправки: ' + (data.message || 'Неизвестная ошибка'), 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка:', error);
+        showNotification('Ошибка при отправке тестового сообщения', 'error');
+    } finally {
+        // Восстанавливаем кнопку
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
 }
 
 </script>

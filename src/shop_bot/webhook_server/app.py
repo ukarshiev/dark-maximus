@@ -195,7 +195,31 @@ def create_webhook_app(bot_controller_instance):
                     project_version = data.get('project', {}).get('version', '')
         except Exception:
             project_version = ""
-        return {"bot_status": bot_status, "all_settings_ok": all_settings_ok, "hidden_mode": hidden_mode_enabled, "project_version": project_version}
+        
+        # Формируем динамические URL-ы для Wiki и базы знаний
+        global_domain = settings.get('global_domain', '')
+        if global_domain:
+            # Убираем слэш в конце если есть
+            global_domain = global_domain.rstrip('/')
+            # Проверяем, есть ли уже протокол
+            if not global_domain.startswith(('http://', 'https://')):
+                global_domain = f'https://{global_domain}'
+            knowledge_base_url = f'{global_domain}:3002'
+        else:
+            # Если домен не настроен, используем localhost
+            knowledge_base_url = 'http://localhost:3002'
+        
+        # Вики всегда использует localhost
+        wiki_url = 'http://localhost:3001'
+        
+        return {
+            "bot_status": bot_status, 
+            "all_settings_ok": all_settings_ok, 
+            "hidden_mode": hidden_mode_enabled, 
+            "project_version": project_version,
+            "wiki_url": wiki_url,
+            "knowledge_base_url": knowledge_base_url
+        }
 
     @flask_app.route('/')
     @login_required
@@ -425,6 +449,10 @@ def create_webhook_app(bot_controller_instance):
         for key in panel_keys:
             update_setting(key, request.form.get(key, ''))
         
+        # Обработка чекбокса auto_delete_orphans
+        auto_delete_orphans = 'true' if 'auto_delete_orphans' in request.form else 'false'
+        update_setting('auto_delete_orphans', auto_delete_orphans)
+        
         flash('Настройки панели успешно сохранены!', 'success')
         return redirect(url_for('settings_page', tab='panel'))
 
@@ -436,7 +464,8 @@ def create_webhook_app(bot_controller_instance):
             'telegram_bot_token', 'telegram_bot_username', 'admin_telegram_id',
             'support_user', 'support_bot_token', 'support_group_id',
             'about_text', 'support_text', 'terms_url', 'privacy_url', 'channel_url',
-            'trial_duration_days', 'minimum_withdrawal', 'referral_percentage', 'referral_discount', 'minimum_topup'
+            'trial_duration_days', 'minimum_withdrawal', 'referral_percentage', 'referral_discount', 'minimum_topup',
+            'logging_bot_token', 'logging_bot_username', 'logging_bot_admin_chat_id', 'logging_bot_level'
         ]
         
         bot_checkboxes = ['force_subscription', 'trial_enabled', 'enable_referrals', 'support_enabled']
@@ -479,6 +508,47 @@ def create_webhook_app(bot_controller_instance):
         
         flash('Настройки платежных систем успешно сохранены!', 'success')
         return redirect(url_for('settings_page', tab='payments'))
+
+    @flask_app.route('/test-logging-bot', methods=['POST'])
+    @login_required
+    def test_logging_bot():
+        """Отправка тестового сообщения в бота логов"""
+        try:
+            data = request.get_json()
+            token = data.get('token')
+            chat_id = data.get('chat_id')
+            
+            if not token or not chat_id:
+                return jsonify({'success': False, 'message': 'Не указаны токен или ID чата'}), 400
+            
+            # Импортируем модуль telegram_logger
+            from shop_bot.utils.telegram_logger import TelegramLoggerHandler
+            
+            # Создаем временный обработчик для тестовой отправки
+            handler = TelegramLoggerHandler(
+                bot_token=token,
+                admin_chat_id=chat_id,
+                log_level='all',
+                enabled=True
+            )
+            
+            # Отправляем тестовое сообщение
+            import asyncio
+            result = asyncio.run(handler.send_test_message(
+                "🧪 <b>Тестовое сообщение от бота логирования</b>\n\n"
+                "✅ Если вы видите это сообщение, значит бот для логов настроен правильно!\n\n"
+                "📋 <b>Информация о настройке:</b>\n"
+                "• Токен бота: Настроен\n"
+                "• ID администратора: Настроен\n"
+                "• Статус: Активен\n\n"
+                "Теперь все ошибки и предупреждения будут приходить в этот чат."
+            ))
+            
+            return jsonify(result)
+            
+        except Exception as e:
+            logger.error(f"Error testing logging bot: {e}")
+            return jsonify({'success': False, 'message': f'Ошибка: {str(e)}'}), 500
 
     @flask_app.route('/save-ton-manifest-settings', methods=['POST'])
     @login_required
@@ -646,6 +716,33 @@ def create_webhook_app(bot_controller_instance):
         result = _bot_controller.stop_support_bot()
         flash(result.get('message', 'An error occurred.'), 'success' if result.get('status') == 'success' else 'danger')
         return redirect(request.referrer or url_for('dashboard_page'))
+
+    @flask_app.route('/orphan-deletions-log')
+    @login_required
+    def orphan_deletions_log():
+        """Просмотр лог-файла удалённых orphan клиентов."""
+        log_file = PROJECT_ROOT / "logs" / "orphan_deletions.log"
+        
+        if not log_file.exists():
+            return render_template('orphan_deletions_log.html', entries=[], message="Лог-файл пока пуст.")
+        
+        try:
+            entries = []
+            with open(log_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if line.strip():
+                        try:
+                            entry = json.loads(line)
+                            entries.append(entry)
+                        except json.JSONDecodeError:
+                            continue
+            
+            # Сортируем по дате (новые сверху)
+            entries.reverse()
+            
+            return render_template('orphan_deletions_log.html', entries=entries)
+        except Exception as e:
+            return render_template('orphan_deletions_log.html', entries=[], message=f"Ошибка при чтении лог-файла: {str(e)}")
 
     @flask_app.route('/toggle-hidden-mode', methods=['POST'])
     @login_required
@@ -995,6 +1092,227 @@ def create_webhook_app(bot_controller_instance):
             instructions_text=instructions_text,
             **get_common_template_data()
         )
+
+    # ============================================
+    # Редактор Wiki (docs/user-docs/)
+    # ============================================
+    
+    @flask_app.route('/wiki-editor', methods=['GET'])
+    @login_required
+    def wiki_editor_page():
+        """Список всех Wiki страниц для редактирования"""
+        from pathlib import Path as _Path
+        import os
+        
+        wiki_dir = PROJECT_ROOT / 'docs' / 'user-docs'
+        
+        def scan_wiki_files(directory, base_path=''):
+            """Рекурсивное сканирование markdown файлов"""
+            files = []
+            try:
+                for item in sorted(directory.iterdir()):
+                    rel_path = os.path.join(base_path, item.name)
+                    
+                    if item.is_file() and item.suffix == '.md':
+                        # Пропускаем служебные файлы
+                        if item.name in ['WIKI-README.md', '_sidebar.md']:
+                            continue
+                        
+                        # Читаем первую строку для получения заголовка
+                        try:
+                            with open(item, 'r', encoding='utf-8') as f:
+                                first_line = f.readline().strip()
+                                title = first_line.lstrip('#').strip() if first_line.startswith('#') else item.stem
+                        except:
+                            title = item.stem
+                        
+                        files.append({
+                            'path': rel_path,
+                            'name': item.name,
+                            'title': title,
+                            'size': item.stat().st_size,
+                            'modified': datetime.fromtimestamp(item.stat().st_mtime).strftime('%d.%m.%Y %H:%M')
+                        })
+                    
+                    elif item.is_dir() and not item.name.startswith('.'):
+                        # Рекурсивно сканируем подпапки
+                        files.extend(scan_wiki_files(item, rel_path))
+            except Exception as e:
+                logger.error(f"Error scanning wiki directory: {e}")
+            
+            return files
+        
+        wiki_files = scan_wiki_files(wiki_dir)
+        
+        return render_template(
+            'wiki_editor.html',
+            wiki_files=wiki_files,
+            **get_common_template_data()
+        )
+    
+    @flask_app.route('/wiki-editor/edit', methods=['GET', 'POST'])
+    @login_required
+    def wiki_editor_edit():
+        """Редактирование конкретной Wiki страницы"""
+        from pathlib import Path as _Path
+        import os
+        
+        wiki_dir = PROJECT_ROOT / 'docs' / 'user-docs'
+        file_path_param = request.args.get('file', request.form.get('file', ''))
+        
+        if not file_path_param:
+            flash('Не указан файл для редактирования', 'danger')
+            return redirect(url_for('wiki_editor_page'))
+        
+        # Защита от path traversal
+        file_path_param = file_path_param.replace('..', '').strip('/')
+        full_path = wiki_dir / file_path_param
+        
+        # Проверяем что файл в пределах wiki_dir
+        try:
+            full_path = full_path.resolve()
+            wiki_dir_resolved = wiki_dir.resolve()
+            if not str(full_path).startswith(str(wiki_dir_resolved)):
+                flash('Недопустимый путь к файлу', 'danger')
+                return redirect(url_for('wiki_editor_page'))
+        except Exception as e:
+            logger.error(f"Path resolution error: {e}")
+            flash('Ошибка обработки пути', 'danger')
+            return redirect(url_for('wiki_editor_page'))
+        
+        if request.method == 'POST':
+            try:
+                new_content = request.form.get('content', '')
+                
+                # Сохраняем содержимое
+                with open(full_path, 'w', encoding='utf-8') as f:
+                    f.write(new_content)
+                
+                flash(f'Файл "{file_path_param}" успешно сохранён!', 'success')
+                return redirect(url_for('wiki_editor_page'))
+            except Exception as e:
+                logger.error(f"Failed to save wiki file: {e}")
+                flash('Не удалось сохранить изменения', 'danger')
+        
+        # GET: читаем содержимое файла
+        content = ''
+        if full_path.exists():
+            try:
+                with open(full_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+            except Exception as e:
+                logger.error(f"Failed to read wiki file: {e}")
+                flash('Не удалось прочитать файл', 'danger')
+                return redirect(url_for('wiki_editor_page'))
+        else:
+            flash('Файл не найден', 'danger')
+            return redirect(url_for('wiki_editor_page'))
+        
+        return render_template(
+            'wiki_editor_edit.html',
+            file_path=file_path_param,
+            file_name=os.path.basename(file_path_param),
+            content=content,
+            **get_common_template_data()
+        )
+    
+    @flask_app.route('/wiki-editor/create', methods=['POST'])
+    @login_required
+    def wiki_create_page():
+        """Создание новой Wiki страницы"""
+        import os
+        import re
+        
+        wiki_dir = PROJECT_ROOT / 'docs' / 'user-docs'
+        
+        try:
+            title = request.form.get('title', '').strip()
+            filename = request.form.get('filename', '').strip()
+            folder = request.form.get('folder', '').strip()
+            
+            if not title:
+                flash('Название страницы обязательно', 'danger')
+                return redirect(url_for('wiki_editor_page'))
+            
+            if not filename:
+                flash('Имя файла обязательно', 'danger')
+                return redirect(url_for('wiki_editor_page'))
+            
+            # Очистка и валидация имени файла
+            filename = re.sub(r'[^a-zA-Z0-9_-]', '', filename.replace('.md', ''))
+            if not filename:
+                flash('Некорректное имя файла', 'danger')
+                return redirect(url_for('wiki_editor_page'))
+            
+            filename = filename + '.md'
+            
+            # Определяем путь
+            if folder:
+                folder = folder.strip('/').replace('..', '')
+                target_dir = wiki_dir / folder
+                target_dir.mkdir(parents=True, exist_ok=True)
+                file_path = target_dir / filename
+                rel_path = os.path.join(folder, filename)
+            else:
+                file_path = wiki_dir / filename
+                rel_path = filename
+            
+            # Проверяем что файл не существует
+            if file_path.exists():
+                flash(f'Файл "{filename}" уже существует', 'warning')
+                return redirect(url_for('wiki_editor_page'))
+            
+            # Создаём файл с базовым содержимым
+            initial_content = f"# {title}\n\n"
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(initial_content)
+            
+            flash(f'Страница "{title}" успешно создана!', 'success')
+            return redirect(url_for('wiki_editor_edit', file=rel_path))
+            
+        except Exception as e:
+            logger.error(f"Failed to create wiki page: {e}")
+            flash('Не удалось создать страницу', 'danger')
+            return redirect(url_for('wiki_editor_page'))
+    
+    @flask_app.route('/wiki-editor/delete', methods=['POST'])
+    @login_required
+    def wiki_delete_page():
+        """Удаление Wiki страницы"""
+        import os
+        
+        wiki_dir = PROJECT_ROOT / 'docs' / 'user-docs'
+        file_path_param = request.form.get('file', '').replace('..', '').strip('/')
+        
+        if not file_path_param:
+            flash('Не указан файл для удаления', 'danger')
+            return redirect(url_for('wiki_editor_page'))
+        
+        full_path = wiki_dir / file_path_param
+        
+        try:
+            full_path = full_path.resolve()
+            wiki_dir_resolved = wiki_dir.resolve()
+            if not str(full_path).startswith(str(wiki_dir_resolved)):
+                flash('Недопустимый путь к файлу', 'danger')
+                return redirect(url_for('wiki_editor_page'))
+            
+            if full_path.exists():
+                # Запрещаем удаление важных файлов
+                if full_path.name in ['README.md', 'index.html', '_sidebar.md']:
+                    flash(f'Файл "{full_path.name}" нельзя удалить', 'warning')
+                    return redirect(url_for('wiki_editor_page'))
+                
+                os.remove(full_path)
+                flash(f'Файл "{file_path_param}" успешно удалён', 'success')
+            else:
+                flash('Файл не найден', 'warning')
+                
+        except Exception as e:
+            logger.error(f"Failed to delete wiki file: {e}")
+            flash('Не удалось удалить файл', 'danger')
+        
+        return redirect(url_for('wiki_editor_page'))
 
     # ============================================
     # API для работы с видеоинструкциями

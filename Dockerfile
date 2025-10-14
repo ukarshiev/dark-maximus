@@ -20,4 +20,9 @@ COPY . /app/project/
 COPY --from=assets-builder /build/static/css/tw.css /app/project/src/shop_bot/webhook_server/static/css/tw.css
 WORKDIR /app/project
 RUN pip install --no-cache-dir -e .
+# Развертывание админской документации
+RUN if [ -f "setup-admin-docs.sh" ]; then \
+    chmod +x setup-admin-docs.sh && \
+    bash setup-admin-docs.sh; \
+    fi
 CMD ["python3", "-m", "shop_bot"]

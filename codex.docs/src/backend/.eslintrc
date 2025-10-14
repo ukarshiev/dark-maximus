@@ -1,0 +1,24 @@
+{
+  "extends": [
+    "codex/ts"
+  ],
+  "plugins": [
+    "chai-friendly"
+  ],
+  "env": {
+    "mocha": true,
+    "node": true
+  },
+  "rules": {
+    "no-unused-expressions": 1,
+    "chai-friendly/no-unused-expressions": 2,
+    "@typescript-eslint/ban-types": 1,
+    "@typescript-eslint/no-magic-numbers": 0,
+    "@typescript-eslint/no-explicit-any": 1
+  },
+  "parser": "@typescript-eslint/parser",
+  "globals": {
+    "fetch": true,
+    "alert": true
+  }
+}

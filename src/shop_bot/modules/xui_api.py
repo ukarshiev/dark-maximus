@@ -770,15 +770,21 @@ async def delete_client_by_uuid(client_uuid: str, client_email: str | None = Non
                 logger.info(f"Successfully deleted client '{client_uuid}' (email: '{client_email or 'Unknown'}') from host '{host_data['host_name']}'")
                 return True
             except Exception as e:
-                logger.debug(f"Client '{client_uuid}' not found on host '{host_data['host_name']}': {e}")
-                continue
+                error_msg = str(e)
+                # Проверяем, является ли это ошибкой "клиент уже удален"
+                if "no client remained" in error_msg.lower() or "client not found" in error_msg.lower():
+                    logger.debug(f"Client '{client_uuid}' already deleted from host '{host_data['host_name']}'")
+                    continue
+                else:
+                    logger.debug(f"Client '{client_uuid}' not found on host '{host_data['host_name']}': {e}")
+                    continue
                 
         except Exception as e:
             logger.warning(f"Error processing host '{host_data['host_name']}': {e}")
             continue
     
-        logger.warning(f"Client with UUID '{client_uuid}' not found on any host")
-        return False
+    logger.warning(f"Client with UUID '{client_uuid}' not found on any host")
+    return False
 
 
 async def update_client_attributes_on_host(host_name: str, email: str, subscription: str = None, telegram_chat_id: int = None, comment: str = None) -> bool:
@@ -865,12 +871,11 @@ async def update_client_attributes_on_host(host_name: str, email: str, subscript
         return False
 
 async def delete_client_on_host(host_name: str, client_email: str, client_uuid: str | None = None) -> bool:
-    """Устаревшая функция - используйте delete_client_by_uuid для прямого удаления по UUID"""
+    """Удаляет клиента на указанном хосте по email или UUID"""
     # Если есть UUID, используем новую функцию
     if client_uuid and client_uuid != 'Unknown':
         return await delete_client_by_uuid(client_uuid, client_email)
     
-    # Иначе используем старую логику
     host_data = get_host(host_name)
     if not host_data:
         logger.error(f"Cannot delete client: Host '{host_name}' not found.")
@@ -891,35 +896,37 @@ async def delete_client_on_host(host_name: str, client_email: str, client_uuid: 
         # Ищем в базе данных
         client_to_delete = get_key_by_email(client_email)
         
-        if client_to_delete and client_to_delete.get('xui_client_uuid'):
-            # Если клиент найден в базе, удаляем по UUID из базы
-            try:
-                api.client.delete(inbound.id, str(client_to_delete['xui_client_uuid']))
-                logger.info(f"Successfully deleted client '{client_to_delete['xui_client_uuid']}' from host '{host_name}' by database UUID.")
-                return True
-            except Exception as e:
-                logger.warning(f"Failed to delete client '{client_to_delete['xui_client_uuid']}' by database UUID: {e}. Trying email search.")
-        
-        # Если удаление по UUID не удалось, ищем по email в 3x-ui панели
-        logger.info(f"Searching client by email '{client_email}' in 3x-ui panel.")
-        
-        # Получаем список всех клиентов в inbound
+        # Получаем список всех клиентов на панели
         inbound_data = api.inbound.get_by_id(inbound.id)
-        if inbound_data and inbound_data.settings.clients:
-            for client in inbound_data.settings.clients:
-                if client.email == client_email:
-                    # Найден клиент в панели, удаляем его
-                    try:
-                        api.client.delete(inbound.id, str(client.id))
-                        logger.info(f"Successfully deleted client '{client.id}' (email: '{client_email}') from host '{host_name}' by email search.")
-                        return True
-                    except Exception as e:
-                        logger.error(f"Failed to delete client '{client.id}' by email search: {e}")
-                        continue
+        if not inbound_data or not inbound_data.settings.clients:
+            logger.warning(f"No clients found on host '{host_name}'. Client '{client_email}' already deleted or never existed.")
+            return True
         
-        # Клиент не найден ни в базе, ни в панели
-        logger.warning(f"Client with email '{client_email}' not found on host '{host_name}' (already deleted or never existed).")
-        return True
+        # Проверяем, есть ли клиент на панели
+        client_on_panel = None
+        for client in inbound_data.settings.clients:
+            if client.email == client_email:
+                client_on_panel = client
+                break
+        
+        if not client_on_panel:
+            logger.info(f"Client '{client_email}' not found on host '{host_name}' (already deleted or never existed).")
+            return True
+        
+        # Клиент найден на панели, удаляем его
+        try:
+            api.client.delete(inbound.id, str(client_on_panel.id))
+            logger.info(f"Successfully deleted client '{client_on_panel.id}' (email: '{client_email}') from host '{host_name}'.")
+            return True
+        except Exception as e:
+            error_msg = str(e)
+            # Проверяем, является ли это ошибкой "клиент уже удален"
+            if "no client remained" in error_msg.lower() or "client not found" in error_msg.lower():
+                logger.info(f"Client '{client_email}' already deleted from host '{host_name}' (no longer exists on panel).")
+                return True
+            else:
+                logger.error(f"Failed to delete client '{client_on_panel.id}' from host '{host_name}': {e}")
+                return False
             
     except Exception as e:
         logger.error(f"Failed to delete client '{client_email}' from host '{host_name}': {e}", exc_info=True)

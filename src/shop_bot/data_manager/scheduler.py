@@ -5,6 +5,7 @@
 
 import asyncio
 import logging
+import os
 
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -24,6 +25,41 @@ NOTIFY_BEFORE_HOURS = {72, 48, 24, 1}
 notified_users = {}
 
 logger = logging.getLogger(__name__)
+
+# Путь к лог-файлу удалённых orphan клиентов
+ORPHAN_DELETION_LOG = database.PROJECT_ROOT / "logs" / "orphan_deletions.log"
+
+def log_orphan_deletion(host_name: str, client_email: str, client_id: str, expiry_time: int):
+    """Записывает информацию об удалённом orphan клиенте в лог-файл."""
+    try:
+        # Создаём директорию logs, если её нет
+        os.makedirs(database.PROJECT_ROOT / "logs", exist_ok=True)
+        
+        # Форматируем дату истечения
+        if expiry_time > 0:
+            expiry_dt = datetime.fromtimestamp(expiry_time / 1000)
+            expiry_str = expiry_dt.strftime('%Y-%m-%d %H:%M:%S')
+        else:
+            expiry_str = "Без срока"
+        
+        # Текущая дата и время
+        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Формируем запись
+        log_entry = {
+            'timestamp': now_str,
+            'host_name': host_name,
+            'client_email': client_email,
+            'client_id': client_id,
+            'expiry_time': expiry_str
+        }
+        
+        # Записываем в файл
+        with open(ORPHAN_DELETION_LOG, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+            
+    except Exception as e:
+        logger.error(f"Failed to log orphan deletion: {e}")
 
 def format_time_left(hours: int) -> str:
     if hours >= 24:
@@ -495,6 +531,7 @@ async def sync_keys_with_panels():
         return
 
     orphan_summary: list[tuple[str, int]] = []
+    orphan_summary_with_errors: list[tuple[str, int]] = []
     auto_delete = (database.get_setting("auto_delete_orphans") == "true")
 
     for host in all_hosts:
@@ -556,26 +593,63 @@ async def sync_keys_with_panels():
             if clients_on_server:
                 count_orphans = len(clients_on_server)
                 orphan_summary.append((host_name, count_orphans))
-                # Логируем кратко список до 5 шт. для наглядности
-                sample = list(clients_on_server.keys())[:5]
-                logger.warning(f"Scheduler: Found {count_orphans} orphan clients on host '{host_name}'. Sample: {sample}")
+                
+                # Логируем информацию о orphan clients
+                logger.warning(f"Scheduler: Found {count_orphans} orphan client(s) on host '{host_name}'")
+                
+                # Логируем первые 5 orphan clients для диагностики
+                sample_orphans = list(clients_on_server.items())[:5]
+                for orphan_email, orphan_client in sample_orphans:
+                    logger.info(f"Scheduler: Orphan client - Email: {orphan_email}, ID: {orphan_client.id}, Expiry: {orphan_client.expiry_time}")
+                
+                if count_orphans > 5:
+                    logger.info(f"Scheduler: ... and {count_orphans - 5} more orphan client(s)")
+                
                 # Опциональное автоудаление осиротевших клиентов с панели
                 if auto_delete:
                     deleted = 0
+                    failed = 0
+                    logger.info(f"Scheduler: Starting auto-deletion of {count_orphans} orphan client(s) on '{host_name}'...")
+                    
                     for orphan_email in list(clients_on_server.keys()):
                         try:
-                            await xui_api.delete_client_on_host(host_name, orphan_email)
-                            deleted += 1
+                            result = await xui_api.delete_client_on_host(host_name, orphan_email)
+                            if result:
+                                deleted += 1
+                                logger.info(f"Scheduler: ✅ Successfully deleted orphan client '{orphan_email}' on '{host_name}'.")
+                                # Логируем удаление в файл
+                                orphan_client = clients_on_server[orphan_email]
+                                log_orphan_deletion(
+                                    host_name=host_name,
+                                    client_email=orphan_email,
+                                    client_id=orphan_client.id,
+                                    expiry_time=orphan_client.expiry_time
+                                )
+                            else:
+                                # Клиент не был найден (уже удален или не существует)
+                                deleted += 1
+                                logger.debug(f"Scheduler: ℹ️ Orphan client '{orphan_email}' on '{host_name}' already deleted or not found.")
                         except Exception as de:
-                            logger.error(f"Scheduler: Failed to auto-delete orphan '{orphan_email}' on '{host_name}': {de}")
+                            failed += 1
+                            logger.error(f"Scheduler: ❌ Failed to auto-delete orphan '{orphan_email}' on '{host_name}': {de}")
+                    
                     total_affected_records += deleted
-                    logger.info(f"Scheduler: Auto-deleted {deleted} orphan clients on host '{host_name}'.")
+                    logger.info(f"Scheduler: ✅ Auto-deletion complete on '{host_name}': {deleted} deleted, {failed} failed.")
+                    
+                    # Если были ошибки при удалении, добавляем в список для предупреждения
+                    if failed > 0:
+                        orphan_summary_with_errors.append((host_name, failed))
+                else:
+                    # Если автоудаление выключено, добавляем в список для предупреждения
+                    logger.warning(f"Scheduler: ⚠️ Auto-deletion is disabled. {count_orphans} orphan client(s) will NOT be deleted.")
+                    orphan_summary_with_errors.append((host_name, count_orphans))
 
         except Exception as e:
             logger.error(f"Scheduler: An unexpected error occurred while processing host '{host_name}': {e}", exc_info=True)
             
-    if orphan_summary:
-        summary_str = ", ".join([f"{hn}:{cnt}" for hn, cnt in orphan_summary])
+    # Выводим предупреждение только если автоудаление выключено или были ошибки
+    if orphan_summary_with_errors:
+        summary_str = ", ".join([f"{hn}:{cnt}" for hn, cnt in orphan_summary_with_errors])
         logger.warning(f"Scheduler: Orphan summary -> {summary_str}")
     logger.info(f"Scheduler: Sync with XUI panels finished. Total records affected: {total_affected_records}.")
 

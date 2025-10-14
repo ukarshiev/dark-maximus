@@ -44,10 +44,26 @@ if [ -f "$NGINX_CONF_FILE" ]; then
     echo -e "\n${CYAN}Шаг 2: Пересборка и перезапуск Docker-контейнеров...${NC}"
     sudo docker-compose down --remove-orphans && sudo docker-compose up -d --build
     
+    echo -e "\n${CYAN}Шаг 3: Обновление админской документации...${NC}"
+    if [ -f "setup-admin-docs.sh" ]; then
+        chmod +x setup-admin-docs.sh
+        bash setup-admin-docs.sh
+        echo -e "${GREEN}✔ Админская документация обновлена.${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Скрипт setup-admin-docs.sh не найден, пропускаем...${NC}"
+    fi
+    
     echo -e "\n\n${GREEN}==============================================${NC}"
     echo -e "${GREEN}      🎉 Обновление успешно завершено! 🎉      ${NC}"
     echo -e "${GREEN}==============================================${NC}"
     echo -e "\nБот был обновлен до последней версии и перезапущен."
+    echo -e "\n${GREEN}📖 Админская документация доступна по адресу:${NC}"
+    echo -e "  - ${YELLOW}http://localhost:3001/admin/installation${NC}"
+    echo -e "  - ${YELLOW}http://localhost:3001/admin/quickstart${NC}"
+    echo -e "  - ${YELLOW}http://localhost:3001/admin/guide${NC}"
+    echo -e "  - ${YELLOW}http://localhost:3001/admin/security${NC}"
+    echo -e "  - ${YELLOW}http://localhost:3001/admin/api${NC}"
+    echo -e "\n"
 
     exit 0
 fi
@@ -172,6 +188,15 @@ if [ "$(sudo docker-compose ps -q)" ]; then
 fi
 sudo docker-compose up -d --build
 
+echo -e "\n${CYAN}Шаг 6: Развертывание админской документации...${NC}"
+if [ -f "setup-admin-docs.sh" ]; then
+    chmod +x setup-admin-docs.sh
+    bash setup-admin-docs.sh
+    echo -e "${GREEN}✔ Админская документация развернута.${NC}"
+else
+    echo -e "${YELLOW}⚠️  Скрипт setup-admin-docs.sh не найден, пропускаем...${NC}"
+fi
+
 echo -e "\n\n${GREEN}=====================================================${NC}"
 echo -e "${GREEN}      🎉 Установка и запуск успешно завершены! 🎉      ${NC}"
 echo -e "${GREEN}=====================================================${NC}"
@@ -186,4 +211,10 @@ echo -e "2. На странице 'Настройки' введите ваш Tel
 echo -e "3. Нажмите 'Сохранить' и затем 'Запустить Бота'."
 echo -e "\n${CYAN}Не забудьте указать URL для вебхуков в YooKassa:${NC}"
 echo -e "  - ${YELLOW}https://${DOMAIN}:${YOOKASSA_PORT}/yookassa-webhook${NC}"
+echo -e "\n${GREEN}📖 Админская документация доступна по адресу:${NC}"
+echo -e "  - ${YELLOW}https://${DOMAIN}:${YOOKASSA_PORT}/admin/installation${NC}"
+echo -e "  - ${YELLOW}https://${DOMAIN}:${YOOKASSA_PORT}/admin/quickstart${NC}"
+echo -e "  - ${YELLOW}https://${DOMAIN}:${YOOKASSA_PORT}/admin/guide${NC}"
+echo -e "  - ${YELLOW}https://${DOMAIN}:${YOOKASSA_PORT}/admin/security${NC}"
+echo -e "  - ${YELLOW}https://${DOMAIN}:${YOOKASSA_PORT}/admin/api${NC}"
 echo -e "\n"

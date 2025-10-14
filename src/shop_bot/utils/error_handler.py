@@ -41,11 +41,40 @@ class ErrorHandler:
     def _handle_telegram_error(self, error: TelegramBadRequest, context: str = "") -> Dict[str, Any]:
         """Обработка ошибок Telegram API"""
         logger.error(f"Telegram API error in {context}: {error}")
+        
+        error_message = str(error)
+        user_message = 'Ошибка при работе с Telegram API'
+        
+        # Парсим специфичные ошибки Telegram
+        if "can't parse entities" in error_message:
+            user_message = 'Ошибка форматирования сообщения: некорректные HTML-теги или специальные символы'
+        elif "message is too long" in error_message:
+            user_message = 'Сообщение слишком длинное. Максимум 4096 символов'
+        elif "chat not found" in error_message:
+            user_message = 'Чат не найден. Пользователь не запускал бота'
+        elif "user is deactivated" in error_message:
+            user_message = 'Пользователь деактивирован'
+        elif "bot was blocked by the user" in error_message:
+            user_message = 'Пользователь заблокировал бота'
+        elif "message to edit not found" in error_message:
+            user_message = 'Сообщение для редактирования не найдено'
+        elif "message to delete not found" in error_message:
+            user_message = 'Сообщение для удаления не найдено'
+        elif "message_id_invalid" in error_message:
+            user_message = 'Неверный ID сообщения'
+        elif "file is too big" in error_message:
+            user_message = 'Файл слишком большой'
+        elif "unsupported start tag" in error_message:
+            user_message = f'Неподдерживаемый HTML-тег в сообщении'
+        elif "bad request" in error_message.lower():
+            user_message = 'Некорректный запрос к Telegram API'
+        
         return {
             'error': 'Telegram API error',
-            'message': 'Ошибка при работе с Telegram API',
+            'message': user_message,
             'code': 'TELEGRAM_ERROR',
-            'status_code': 502
+            'status_code': 502,
+            'original_error': error_message
         }
     
     def _handle_network_error(self, error: TelegramNetworkError, context: str = "") -> Dict[str, Any]:

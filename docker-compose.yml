@@ -15,5 +15,30 @@ services:
       - /app/.venv
       - sessions_data:/app/sessions
 
+  docs:
+    image: nginx:alpine
+    restart: unless-stopped
+    container_name: dark-maximus-docs
+    ports:
+      - '3001:80'
+    volumes:
+      - ./docs/user-docs:/usr/share/nginx/html/docs:ro
+      - ./docs/nginx-docs.conf:/etc/nginx/conf.d/default.conf:ro
+
+  codex-docs:
+    image: ghcr.io/codex-team/codex.docs:v2.0.0-rc.8
+    restart: unless-stopped
+    container_name: dark-maximus-codex-docs
+    ports:
+      - '3002:3000'
+    volumes:
+      - codex_uploads:/usr/src/app/uploads
+      - codex_db:/usr/src/app/db
+      - ./codex.docs/docs-config.yaml:/usr/src/app/docs-config.yaml:ro
+      - ./codex.docs/dist:/usr/src/app/dist:ro
+      - ./codex.docs/public:/usr/src/app/public:ro
+
 volumes:
   sessions_data:
+  codex_uploads:
+  codex_db:

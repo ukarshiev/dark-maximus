@@ -1,0 +1,24 @@
+.diff {
+  display: inline-block;
+  width: 100%;
+
+  &--added {
+    color: #70b979;
+    background-color: #25f84d21;
+
+    &::before {
+      content: '+';
+      opacity: 0.8;
+    }
+  }
+
+  &--removed {
+    color: #f1acaf;
+    background-color: #95000069;
+
+    &::before {
+      content: '-';
+      opacity: 0.8;
+    }
+  }
+}

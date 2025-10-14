@@ -28,7 +28,7 @@ from pytonconnect.exceptions import UserRejectsError
 
 from aiogram import Bot, Router, F, types, html
 from aiogram.filters import Command, CommandObject, CommandStart, StateFilter
-from aiogram.types import BufferedInputFile, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import BufferedInputFile, InlineKeyboardMarkup, InlineKeyboardButton, ErrorEvent
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -65,6 +65,40 @@ logger = logging.getLogger(__name__)
 admin_router = Router()
 user_router = Router()
 
+# Добавляем обработчик ошибок для admin_router
+@admin_router.error()
+async def admin_router_error_handler(event: ErrorEvent):
+    """Глобальный обработчик ошибок для admin_router"""
+    logger.critical(
+        "Critical error in admin router caused by %s", 
+        event.exception, 
+        exc_info=True
+    )
+    
+    # Пытаемся определить тип update и отправить сообщение администратору
+    update = event.update
+    admin_id = None
+    
+    try:
+        if update.message:
+            admin_id = update.message.from_user.id
+            # Админу показываем больше деталей
+            error_details = f"{type(event.exception).__name__}: {str(event.exception)}"
+            await update.message.answer(
+                f"⚠️ <b>Ошибка администратора:</b>\n\n"
+                f"<code>{error_details}</code>\n\n"
+                f"Проверьте логи для подробностей.",
+                parse_mode="HTML"
+            )
+        elif update.callback_query:
+            admin_id = update.callback_query.from_user.id
+            await update.callback_query.answer(
+                "⚠️ Ошибка. Проверьте логи для подробностей.",
+                show_alert=True
+            )
+    except Exception as notification_error:
+        logger.error(f"Failed to send error notification to admin {admin_id}: {notification_error}")
+
 def get_admin_id() -> int | None:
     """Безопасно получает ID администратора"""
     admin_id_str = get_setting("admin_telegram_id")
@@ -100,7 +134,12 @@ class Broadcast(StatesGroup):
     waiting_for_confirmation = State()
 
 class WithdrawStates(StatesGroup):
+    waiting_for_payment_method = State()
+    waiting_for_bank = State()
     waiting_for_details = State()
+
+class DeclineWithdrawStates(StatesGroup):
+    waiting_for_decline_reason = State()
 
 class TrialResetStates(StatesGroup):
     waiting_for_user_id = State()
@@ -846,7 +885,7 @@ def get_user_router() -> Router:
             return
         username = html.bold(user_db_data.get('username', 'Пользователь'))
         total_spent, total_months = user_db_data.get('total_spent', 0), user_db_data.get('total_months', 0)
-        from shop_bot.data_manager.database import get_user_balance
+        from shop_bot.data_manager.database import get_user_balance, get_setting
         balance = get_user_balance(user_id)
         now = datetime.now()
         active_keys = [key for key in user_keys if datetime.fromisoformat(key['expiry_date']) > now]
@@ -858,7 +897,20 @@ def get_user_router() -> Router:
         elif user_keys: vpn_status_text = VPN_INACTIVE_TEXT
         else: vpn_status_text = VPN_NO_DATA_TEXT
         trial_used = user_db_data.get('trial_used', 1) if user_db_data else 1
-        final_text = get_profile_text(username, balance, total_spent, total_months, vpn_status_text)
+        
+        # Получаем реферальный баланс и проверяем, включена ли реферальная система
+        referral_balance = user_db_data.get('referral_balance', 0)
+        show_referral = get_setting("enable_referrals") == "true"
+        
+        # Формируем реферальную ссылку и получаем процент вознаграждения
+        referral_link = None
+        referral_percentage = None
+        if show_referral:
+            bot_username = (await message.bot.get_me()).username
+            referral_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
+            referral_percentage = get_setting("referral_percentage") or "10"
+        
+        final_text = get_profile_text(username, balance, total_spent, total_months, vpn_status_text, referral_balance, show_referral, referral_link, referral_percentage)
         await message.answer(final_text, reply_markup=keyboards.create_profile_menu_keyboard(total_keys_count=len(user_keys or []), trial_used=trial_used))
 
     @user_router.message(F.text == "🔑 Мои ключи")
@@ -1093,17 +1145,20 @@ def get_user_router() -> Router:
         referral_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
         referral_count = get_referral_count(user_id)
         balance = user_data.get('referral_balance', 0) if user_data else 0
+        from shop_bot.data_manager.database import get_setting
+        min_withdraw = get_setting("minimum_withdrawal") or "100"
         text = (
             "🤝 <b>Реферальная программа</b>\n\n"
-            "Приглашайте друзей и получайте вознаграждение с <b>каждой</b> их покупки!\n\n"
+            f"🗣 Приглашай друзей и получайте 10% от их расходов, которые затем ты сможешь вывести на свой счет! Вывод доступен от {min_withdraw} RUB\n\n"
             f"<b>Ваша реферальная ссылка:</b>\n<code>{referral_link}</code>\n\n"
             f"<b>Приглашено пользователей:</b> {referral_count}\n"
             f"<b>Ваш баланс:</b> {balance:.2f} RUB"
         )
         builder = InlineKeyboardBuilder()
         if balance >= 100:
-            builder.button(text="💸 Оставить заявку на вывод", callback_data="withdraw_request")
+            builder.button(text="💸 Оставить заявку на вывод средств", callback_data="withdraw_request")
         builder.button(text="⬅️ Назад", callback_data="back_to_main_menu")
+        builder.adjust(1)
         await message.answer(text, reply_markup=builder.as_markup())
 
     @user_router.message(F.text == "❓ Инструкция как пользоваться")
@@ -1242,7 +1297,7 @@ def get_user_router() -> Router:
             return
         username = html.bold(user_db_data.get('username', 'Пользователь'))
         total_spent, total_months = user_db_data.get('total_spent', 0), user_db_data.get('total_months', 0)
-        from shop_bot.data_manager.database import get_user_balance
+        from shop_bot.data_manager.database import get_user_balance, get_setting
         balance = get_user_balance(user_id)
         now = datetime.now()
         active_keys = [key for key in user_keys if datetime.fromisoformat(key['expiry_date']) > now]
@@ -1253,7 +1308,20 @@ def get_user_router() -> Router:
             vpn_status_text = get_vpn_active_text(time_left.days, time_left.seconds // 3600)
         elif user_keys: vpn_status_text = VPN_INACTIVE_TEXT
         else: vpn_status_text = VPN_NO_DATA_TEXT
-        final_text = get_profile_text(username, balance, total_spent, total_months, vpn_status_text)
+        
+        # Получаем реферальный баланс и проверяем, включена ли реферальная система
+        referral_balance = user_db_data.get('referral_balance', 0)
+        show_referral = get_setting("enable_referrals") == "true"
+        
+        # Формируем реферальную ссылку и получаем процент вознаграждения
+        referral_link = None
+        referral_percentage = None
+        if show_referral:
+            bot_username = (await callback.bot.get_me()).username
+            referral_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
+            referral_percentage = get_setting("referral_percentage") or "10"
+        
+        final_text = get_profile_text(username, balance, total_spent, total_months, vpn_status_text, referral_balance, show_referral, referral_link, referral_percentage)
         await callback.message.edit_text(final_text, reply_markup=keyboards.create_profile_menu_keyboard(total_keys_count=len(user_keys or [])))
 
     @user_router.callback_query(F.data == "start_broadcast")
@@ -1430,10 +1498,12 @@ def get_user_router() -> Router:
         referral_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
         referral_count = get_referral_count(user_id)
         balance = user_data.get('referral_balance', 0)
+        from shop_bot.data_manager.database import get_setting
+        min_withdraw = get_setting("minimum_withdrawal") or "100"
 
         text = (
             "🤝 <b>Реферальная программа</b>\n\n"
-            "Приглашайте друзей и получайте вознаграждение с <b>каждой</b> их покупки!\n\n"
+            f"🗣 Приглашай друзей и получайте 10% от их расходов, которые затем ты сможешь вывести на свой счет! Вывод доступен от {min_withdraw} RUB\n\n"
             f"<b>Ваша реферальная ссылка:</b>\n<code>{referral_link}</code>\n\n"
             f"<b>Приглашено пользователей:</b> {referral_count}\n"
             f"<b>Ваш баланс:</b> {balance:.2f} RUB"
@@ -1441,8 +1511,9 @@ def get_user_router() -> Router:
 
         builder = InlineKeyboardBuilder()
         if balance >= 100:
-            builder.button(text="💸 Оставить заявку на вывод", callback_data="withdraw_request")
+            builder.button(text="💸 Оставить заявку на вывод средств", callback_data="withdraw_request")
         builder.button(text="⬅️ Назад", callback_data="back_to_main_menu")
+        builder.adjust(1)
         await callback.message.edit_text(
             text, reply_markup=builder.as_markup()
         )
@@ -1451,9 +1522,119 @@ def get_user_router() -> Router:
     @registration_required
     async def withdraw_request_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
+        
+        # Создаем клавиатуру для выбора способа вывода
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="📱 По номеру телефона (Рекомендуемый)", callback_data="withdraw_method_phone")
+            ],
+            [
+                InlineKeyboardButton(text="💳 По номеру банковской карты", callback_data="withdraw_method_card")
+            ],
+            [
+                InlineKeyboardButton(text="⬅️ Назад", callback_data="show_referral_program")
+            ]
+        ])
+        
         await callback.message.edit_text(
-            "Пожалуйста, отправьте ваши реквизиты для вывода (номер карты или номер телефона и банк):"
+            "💸 <b>Вывод реферальных средств</b>\n\n"
+            "Выберите способ вывода средств:",
+            reply_markup=keyboard,
+            parse_mode="HTML"
         )
+        await state.set_state(WithdrawStates.waiting_for_payment_method)
+
+    @user_router.callback_query(WithdrawStates.waiting_for_payment_method, F.data.in_(["withdraw_method_phone", "withdraw_method_card"]))
+    @registration_required
+    async def withdraw_method_handler(callback: types.CallbackQuery, state: FSMContext):
+        """Обработчик выбора способа вывода"""
+        await callback.answer()
+        
+        method = "phone" if callback.data == "withdraw_method_phone" else "card"
+        method_text = "по номеру телефона" if method == "phone" else "по номеру банковской карты"
+        
+        # Сохраняем способ вывода в состоянии
+        await state.update_data(withdrawal_method=method, withdrawal_method_text=method_text)
+        
+        # Если выбран телефон - показываем выбор банка
+        if method == "phone":
+            text = (
+                "🏦 <b>Выбор банка для перевода</b>\n\n"
+                "Выберите банк, на который будет произведен перевод.\n\n"
+                "💡 <i>Комиссия банка (до 50 рублей) оплачивается нами.</i>"
+            )
+            
+            # Создаем клавиатуру с популярными банками
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="🏦 Сбербанк", callback_data="bank_sberbank")
+                ],
+                [
+                    InlineKeyboardButton(text="🏦 ВТБ", callback_data="bank_vtb")
+                ],
+                [
+                    InlineKeyboardButton(text="🏦 Альфа-Банк", callback_data="bank_alfabank")
+                ],
+                [
+                    InlineKeyboardButton(text="🏦 Тинькофф", callback_data="bank_tinkoff")
+                ],
+                [
+                    InlineKeyboardButton(text="🏦 Газпромбанк", callback_data="bank_gazprombank")
+                ],
+                [
+                    InlineKeyboardButton(text="🏦 Райффайзенбанк", callback_data="bank_raiffeisenbank")
+                ],
+                [
+                    InlineKeyboardButton(text="🏦 Другой банк", callback_data="bank_other")
+                ],
+                [
+                    InlineKeyboardButton(text="⬅️ Назад", callback_data="withdraw_request")
+                ]
+            ])
+            
+            await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+            await state.set_state(WithdrawStates.waiting_for_bank)
+        else:
+            # Для карты сразу просим ввести реквизиты
+            text = (
+                "💳 <b>Вывод по номеру банковской карты</b>\n\n"
+                "Пожалуйста, отправьте номер банковской карты для перевода.\n\n"
+                "Формат: XXXX XXXX XXXX XXXX"
+            )
+            await callback.message.edit_text(text, parse_mode="HTML")
+            await state.set_state(WithdrawStates.waiting_for_details)
+
+    @user_router.callback_query(WithdrawStates.waiting_for_bank, F.data.startswith("bank_"))
+    @registration_required
+    async def withdraw_bank_handler(callback: types.CallbackQuery, state: FSMContext):
+        """Обработчик выбора банка"""
+        await callback.answer()
+        
+        # Получаем название банка из callback_data
+        bank_key = callback.data.replace("bank_", "")
+        bank_names = {
+            "sberbank": "Сбербанк",
+            "vtb": "ВТБ",
+            "alfabank": "Альфа-Банк",
+            "tinkoff": "Тинькофф",
+            "gazprombank": "Газпромбанк",
+            "raiffeisenbank": "Райффайзенбанк",
+            "other": "Другой банк"
+        }
+        bank_name = bank_names.get(bank_key, "Неизвестный банк")
+        
+        # Сохраняем выбранный банк в состоянии
+        await state.update_data(bank_name=bank_name)
+        
+        # Просим ввести номер телефона
+        text = (
+            "📱 <b>Ввод номера телефона</b>\n\n"
+            f"Выбран банк: <b>{bank_name}</b>\n\n"
+            "Пожалуйста, отправьте номер телефона для перевода.\n\n"
+            "Формат: +7XXXXXXXXXX"
+        )
+        
+        await callback.message.edit_text(text, parse_mode="HTML")
         await state.set_state(WithdrawStates.waiting_for_details)
 
     @user_router.message(WithdrawStates.waiting_for_details)
@@ -1468,58 +1649,389 @@ def get_user_router() -> Router:
             await state.clear()
             return
 
+        # Получаем способ вывода и банк из состояния
+        data = await state.get_data()
+        method = data.get('withdrawal_method', 'unknown')
+        method_text = data.get('withdrawal_method_text', 'не указан')
+        bank_name = data.get('bank_name', '')
+
         admin_id = get_admin_id()
         if not admin_id:
             await message.answer("❌ Администратор не настроен.")
             await state.clear()
             return
-        text = (
-            f"💸 <b>Заявка на вывод реферальных средств</b>\n"
-            f"👤 Пользователь: @{user.get('username', 'N/A')} (ID: <code>{user_id}</code>)\n"
-            f"💰 Сумма: <b>{balance:.2f} RUB</b>\n"
-            f"📄 Реквизиты: <code>{details}</code>\n\n"
-            f"/approve_withdraw_{user_id} /decline_withdraw_{user_id}"
-        )
+        from html import escape
+        
+        username = user.get('username', 'N/A')
+        # Экранируем все специальные символы для HTML
+        username_safe = escape(username)
+        details_safe = escape(details)
+        
+        # Определяем иконку в зависимости от способа вывода
+        method_icon = "📱" if method == "phone" else "💳"
+        
+        # Формируем текст заявки
+        if method == "phone" and bank_name:
+            # Для телефона показываем банк и номер телефона
+            text = (
+                f"💸 <b>Заявка на вывод реферальных средств</b>\n"
+                f"👤 Пользователь: @{username_safe} (ID: <code>{user_id}</code>)\n"
+                f"💰 Сумма: <b>{balance:.2f} RUB</b>\n"
+                f"{method_icon} Способ вывода: <b>{method_text}</b>\n"
+                f"🏦 Банк: <b>{bank_name}</b>\n"
+                f"📱 Номер телефона: <code>{details_safe}</code>"
+            )
+        else:
+            # Для карты показываем только номер карты
+            text = (
+                f"💸 <b>Заявка на вывод реферальных средств</b>\n"
+                f"👤 Пользователь: @{username_safe} (ID: <code>{user_id}</code>)\n"
+                f"💰 Сумма: <b>{balance:.2f} RUB</b>\n"
+                f"{method_icon} Способ вывода: <b>{method_text}</b>\n"
+                f"💳 Номер карты: <code>{details_safe}</code>"
+            )
+        
+        # Создаем клавиатуру с кнопками
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ Одобрить", callback_data=f"approve_withdraw_{user_id}"),
+                InlineKeyboardButton(text="❌ Отклонить", callback_data=f"decline_withdraw_{user_id}")
+            ]
+        ])
+        
         await message.answer("Ваша заявка отправлена администратору. Ожидайте ответа.")
-        await message.bot.send_message(admin_id, text, parse_mode="HTML")
+        
+        try:
+            await message.bot.send_message(admin_id, text, parse_mode="HTML", reply_markup=keyboard)
+        except TelegramBadRequest as e:
+            error_msg = str(e)
+            if "can't parse entities" in error_msg or "unsupported start tag" in error_msg:
+                logger.error(f"HTML parsing error in withdraw request: {e}")
+                # Отправляем без форматирования, если есть ошибка парсинга
+                if method == "phone" and bank_name:
+                    text_plain = (
+                        f"💸 Заявка на вывод реферальных средств\n"
+                        f"👤 Пользователь: @{username} (ID: {user_id})\n"
+                        f"💰 Сумма: {balance:.2f} RUB\n"
+                        f"{method_icon} Способ вывода: {method_text}\n"
+                        f"🏦 Банк: {bank_name}\n"
+                        f"📱 Номер телефона: {details}"
+                    )
+                else:
+                    text_plain = (
+                        f"💸 Заявка на вывод реферальных средств\n"
+                        f"👤 Пользователь: @{username} (ID: {user_id})\n"
+                        f"💰 Сумма: {balance:.2f} RUB\n"
+                        f"{method_icon} Способ вывода: {method_text}\n"
+                        f"💳 Номер карты: {details}"
+                    )
+                await message.bot.send_message(admin_id, text_plain, reply_markup=keyboard)
+            else:
+                raise
+        except Exception as e:
+            logger.error(f"Failed to send withdraw request to admin: {e}", exc_info=True)
+            await message.answer("❌ Не удалось отправить заявку администратору. Попробуйте позже.")
+            await state.clear()
+            return
+        
         await state.clear()
 
     @user_router.message(Command(commands=["approve_withdraw"]))
-    async def approve_withdraw_handler(message: types.Message):
+    async def approve_withdraw_handler(message: types.Message, command: CommandObject):
         admin_id = get_admin_id()
         if not admin_id or message.from_user.id != admin_id:
             return
         try:
-            user_id = int(message.text.split("_")[-1])
+            # Извлекаем user_id из аргументов команды
+            if not command.args:
+                await message.answer("❌ Укажите ID пользователя: /approve_withdraw <user_id>")
+                return
+            
+            user_id = int(command.args.strip())
             user = get_user(user_id)
             balance = user.get('referral_balance', 0)
             if balance < 100:
-                await message.answer("Баланс пользователя менее 100 руб.")
+                await message.answer("❌ Баланс пользователя менее 100 руб.")
                 return
             set_referral_balance(user_id, 0)
-            set_referral_balance_all(user_id, 0)
+            # referral_balance_all НЕ обнуляем - это история всех заработков
             await message.answer(f"✅ Выплата {balance:.2f} RUB пользователю {user_id} подтверждена.")
             await message.bot.send_message(
                 user_id,
                 f"✅ Ваша заявка на вывод {balance:.2f} RUB одобрена. Деньги будут переведены в ближайшее время."
             )
+        except ValueError:
+            await message.answer("❌ Неверный формат ID пользователя. Используйте: /approve_withdraw <user_id>")
         except Exception as e:
-            await message.answer(f"Ошибка: {e}")
+            await message.answer(f"❌ Ошибка: {e}")
 
     @user_router.message(Command(commands=["decline_withdraw"]))
-    async def decline_withdraw_handler(message: types.Message):
+    async def decline_withdraw_handler(message: types.Message, command: CommandObject):
         admin_id = get_admin_id()
         if not admin_id or message.from_user.id != admin_id:
             return
         try:
-            user_id = int(message.text.split("_")[-1])
+            # Извлекаем user_id из аргументов команды
+            if not command.args:
+                await message.answer("❌ Укажите ID пользователя: /decline_withdraw <user_id>")
+                return
+            
+            user_id = int(command.args.strip())
             await message.answer(f"❌ Заявка пользователя {user_id} отклонена.")
             await message.bot.send_message(
                 user_id,
                 "❌ Ваша заявка на вывод отклонена. Проверьте корректность реквизитов и попробуйте снова."
             )
+        except ValueError:
+            await message.answer("❌ Неверный формат ID пользователя. Используйте: /decline_withdraw <user_id>")
         except Exception as e:
-            await message.answer(f"Ошибка: {e}")
+            await message.answer(f"❌ Ошибка: {e}")
+
+    @user_router.callback_query(F.data.startswith("approve_withdraw_"))
+    async def approve_withdraw_callback(callback: types.CallbackQuery):
+        """Обработчик кнопки одобрения вывода"""
+        admin_id = get_admin_id()
+        if not admin_id or callback.from_user.id != admin_id:
+            await callback.answer("❌ У вас нет прав.", show_alert=True)
+            return
+        
+        try:
+            # Извлекаем user_id из callback_data
+            user_id = int(callback.data.split("_")[-1])
+            user = get_user(user_id)
+            balance = user.get('referral_balance', 0)
+            
+            if balance < 100:
+                await callback.answer("❌ Баланс пользователя менее 100 руб.", show_alert=True)
+                return
+            
+            set_referral_balance(user_id, 0)
+            
+            # Обновляем сообщение с заявкой
+            await callback.message.edit_text(
+                f"✅ <b>Заявка одобрена</b>\n"
+                f"👤 Пользователь: {user.get('username', 'N/A')} (ID: <code>{user_id}</code>)\n"
+                f"💰 Выплачено: <b>{balance:.2f} RUB</b>",
+                parse_mode="HTML"
+            )
+            
+            # Уведомляем пользователя
+            try:
+                await callback.bot.send_message(
+                    user_id,
+                    f"✅ Ваша заявка на вывод {balance:.2f} RUB одобрена. Деньги будут переведены в ближайшее время."
+                )
+            except Exception as e:
+                logger.error(f"Failed to notify user {user_id}: {e}")
+            
+            await callback.answer("✅ Выплата подтверждена", show_alert=True)
+            
+        except ValueError:
+            await callback.answer("❌ Неверный формат ID пользователя", show_alert=True)
+        except Exception as e:
+            logger.error(f"Error approving withdraw: {e}", exc_info=True)
+            await callback.answer(f"❌ Ошибка: {e}", show_alert=True)
+
+    @user_router.callback_query(F.data.startswith("decline_withdraw_"))
+    async def decline_withdraw_callback(callback: types.CallbackQuery, state: FSMContext):
+        """Обработчик кнопки отклонения вывода"""
+        admin_id = get_admin_id()
+        if not admin_id or callback.from_user.id != admin_id:
+            await callback.answer("❌ У вас нет прав.", show_alert=True)
+            return
+        
+        try:
+            # Извлекаем user_id из callback_data
+            user_id = int(callback.data.split("_")[-1])
+            user = get_user(user_id)
+            
+            # Извлекаем данные заявки из текста сообщения
+            message_text = callback.message.text or callback.message.caption or ""
+            
+            # Парсим данные из сообщения
+            username_match = re.search(r'👤 Пользователь: @?([^\s]+)', message_text)
+            amount_match = re.search(r'💰 Сумма: ([0-9.]+) RUB', message_text)
+            method_match = re.search(r'📱 Способ вывода: ([^\n]+)', message_text)
+            bank_match = re.search(r'🏦 Банк: ([^\n]+)', message_text)
+            phone_match = re.search(r'📱 Номер телефона: ([^\n]+)', message_text)
+            card_match = re.search(r'💳 Номер карты: ([^\n]+)', message_text)
+            
+            username = username_match.group(1) if username_match else user.get('username', 'N/A')
+            amount = amount_match.group(1) if amount_match else "0.00"
+            method_text = method_match.group(1).strip() if method_match else "не указан"
+            bank_name = bank_match.group(1).strip() if bank_match else None
+            phone = phone_match.group(1).strip() if phone_match else None
+            card = card_match.group(1).strip() if card_match else None
+            
+            # Определяем способ вывода
+            method_icon = "📱" if phone else "💳"
+            details = phone if phone else card
+            
+            # Сохраняем все данные в состоянии
+            await state.update_data(
+                decline_user_id=user_id,
+                decline_message_id=callback.message.message_id,
+                decline_username=username,
+                decline_amount=amount,
+                decline_method_text=method_text,
+                decline_bank_name=bank_name,
+                decline_details=details,
+                decline_method_icon=method_icon
+            )
+            
+            # Формируем текст с полными данными заявки
+            request_text = (
+                f"📝 <b>Укажите причину отклонения заявки</b>\n\n"
+                f"<b>Данные заявки пользователя:</b>\n"
+                f"👤 Пользователь: @{username}\n"
+                f"💰 Сумма: {amount} RUB\n"
+                f"{method_icon} Способ вывода: {method_text}"
+            )
+            
+            if bank_name:
+                request_text += f"\n🏦 Банк: {bank_name}"
+            
+            if phone:
+                request_text += f"\n📱 Номер телефона: {phone}"
+            elif card:
+                request_text += f"\n💳 Номер карты: {card}"
+            
+            request_text += "\n\n📝 <b>Напишите причину отклонения заявки</b>\n"
+            request_text += "💡 Вы можете отправить текст или фото с подписью (например, скриншот ошибки)."
+            request_text += "\nЭто сообщение будет отправлено пользователю."
+            
+            # Запрашиваем причину отклонения
+            await callback.message.edit_text(
+                request_text,
+                parse_mode="HTML"
+            )
+            
+            await state.set_state(DeclineWithdrawStates.waiting_for_decline_reason)
+            await callback.answer("Введите причину отклонения", show_alert=False)
+            
+        except ValueError:
+            await callback.answer("❌ Неверный формат ID пользователя", show_alert=True)
+        except Exception as e:
+            logger.error(f"Error declining withdraw: {e}", exc_info=True)
+            await callback.answer(f"❌ Ошибка: {e}", show_alert=True)
+
+    @user_router.message(DeclineWithdrawStates.waiting_for_decline_reason)
+    async def decline_withdraw_reason_handler(message: types.Message, state: FSMContext):
+        """Обработчик получения причины отклонения заявки (поддерживает текст и фото)"""
+        admin_id = get_admin_id()
+        if not admin_id or message.from_user.id != admin_id:
+            return
+        
+        try:
+            # Получаем данные из состояния
+            data = await state.get_data()
+            user_id = data.get('decline_user_id')
+            message_id = data.get('decline_message_id')
+            
+            # Проверяем наличие user_id
+            if not user_id:
+                logger.error(f"Failed to get decline_user_id from state. Data: {data}")
+                await message.answer("❌ Ошибка: не удалось получить данные заявки. Попробуйте отклонить заявку снова.")
+                await state.clear()
+                return
+            
+            # Получаем текст причины (может быть в тексте сообщения или в подписи к фото)
+            reason = message.text or message.caption or ""
+            
+            if not reason:
+                await message.answer("❌ Пожалуйста, укажите причину отклонения текстом или с подписью к фото.")
+                return
+            
+            user = get_user(user_id)
+            if not user:
+                await message.answer("❌ Пользователь не найден")
+                await state.clear()
+                return
+            
+            # Получаем данные заявки из состояния
+            username = data.get('decline_username', user.get('username', 'N/A'))
+            amount = data.get('decline_amount', '0.00')
+            method_text = data.get('decline_method_text', 'не указан')
+            bank_name = data.get('decline_bank_name')
+            details = data.get('decline_details')
+            method_icon = data.get('decline_method_icon', '💳')
+            
+            # Формируем сообщение для пользователя с полными данными заявки
+            user_message = (
+                f"❌ <b>Ваша заявка на вывод отклонена</b>\n\n"
+                f"<b>Данные вашей заявки:</b>\n"
+                f"👤 Пользователь: @{username}\n"
+                f"💰 Сумма: {amount} RUB\n"
+                f"{method_icon} Способ вывода: {method_text}"
+            )
+            
+            if bank_name:
+                user_message += f"\n🏦 Банк: {bank_name}"
+            
+            if details:
+                if method_icon == "📱":
+                    user_message += f"\n📱 Номер телефона: {details}"
+                else:
+                    user_message += f"\n💳 Номер карты: {details}"
+            
+            user_message += f"\n\n⚠️ <b>Причина:</b> {reason}\n\n"
+            user_message += "Пожалуйста, проверьте корректность реквизитов и попробуйте снова."
+            
+            # Отправляем сообщение пользователю с причиной отклонения
+            try:
+                # Если есть фото, отправляем фото с текстом
+                if message.photo:
+                    # Получаем фото наибольшего размера
+                    photo = message.photo[-1]
+                    await message.bot.send_photo(
+                        user_id,
+                        photo.file_id,
+                        caption=user_message,
+                        parse_mode="HTML"
+                    )
+                else:
+                    # Отправляем только текст
+                    await message.bot.send_message(
+                        user_id,
+                        user_message,
+                        parse_mode="HTML"
+                    )
+            except Exception as e:
+                logger.error(f"Failed to notify user {user_id}: {e}")
+                await message.answer(f"❌ Не удалось отправить уведомление пользователю: {e}")
+                await state.clear()
+                return
+            
+            # Обновляем сообщение с заявкой
+            try:
+                decline_status = f"📝 <b>Причина:</b> {reason}"
+                if message.photo:
+                    decline_status += " (со скриншотом)"
+                
+                await message.bot.edit_message_text(
+                    f"❌ <b>Заявка отклонена</b>\n"
+                    f"👤 Пользователь: {username} (ID: <code>{user_id}</code>)\n\n"
+                    f"{decline_status}",
+                    chat_id=admin_id,
+                    message_id=message_id,
+                    parse_mode="HTML"
+                )
+            except Exception as e:
+                logger.error(f"Failed to edit message: {e}")
+            
+            # Отправляем подтверждение админу
+            confirmation_text = f"✅ Заявка пользователя {username} (ID: {user_id}) отклонена.\nПричина отправлена пользователю."
+            if message.photo:
+                confirmation_text += " (вместе со скриншотом)"
+            
+            await message.answer(confirmation_text)
+            
+            await state.clear()
+            
+        except Exception as e:
+            logger.error(f"Error processing decline reason: {e}", exc_info=True)
+            await message.answer(f"❌ Ошибка: {e}")
+            await state.clear()
 
     @user_router.message(Command(commands=["upload_video"]))
     async def upload_video_handler(message: types.Message):
@@ -2091,7 +2603,7 @@ def get_user_router() -> Router:
             disable_web_page_preview=True
         )
     
-    @user_router.callback_query(F.data.startswith("howto_vless"))
+    @user_router.callback_query(F.data == "howto_vless")
     @registration_required
     async def show_instruction_general_handler(callback: types.CallbackQuery):
         await callback.answer()
@@ -3710,7 +4222,7 @@ def get_user_router() -> Router:
 
     @user_router.message(F.text)
     @registration_required
-    async def promo_code_text_handler(message: types.Message):
+    async def promo_code_text_handler(message: types.Message, state: FSMContext):
         """Обработчик текстовых сообщений для промокодов"""
         from shop_bot.data_manager.database import validate_promo_code
         
@@ -3726,8 +4238,38 @@ def get_user_router() -> Router:
             "⁉️ Помощь и поддержка", "➕ Купить новый ключ", "🔄 Продлить ключ"
         ]
         
-        # Проверяем, является ли сообщение промокодом (не команда и не кнопка)
-        if not text.startswith('/') and text not in interface_buttons:
+        # Проверяем, является ли сообщение промокодом
+        # Промокод должен быть:
+        # 1. Не командой (не начинается с /)
+        # 2. Не кнопкой интерфейса
+        # 3. Иметь длину от 3 до 20 символов
+        # 4. Содержать только буквы, цифры и специальные символы промокодов
+        # 5. НЕ содержать пробелы
+        # 6. НЕ быть обычными словами (исключения для известных промокодов)
+        is_command = text.startswith('/')
+        is_interface_button = text in interface_buttons
+        
+        # Исключаем обычные русские слова, которые точно не промокоды
+        common_russian_words = {
+            'долбаёб', 'привет', 'пока', 'спасибо', 'пожалуйста', 'хорошо', 'плохо',
+            'да', 'нет', 'может', 'быть', 'это', 'тот', 'эта', 'то', 'как', 'что',
+            'где', 'когда', 'почему', 'зачем', 'кто', 'чей', 'какой', 'какая'
+        }
+        
+        is_common_word = text.lower() in common_russian_words
+        
+        # Проверяем формат промокода: только буквы, цифры и специальные символы, без пробелов
+        has_spaces = ' ' in text
+        is_promo_format = (
+            len(text) >= 3 and len(text) <= 20 and 
+            not has_spaces and  # Промокоды не содержат пробелов
+            not is_common_word and  # Исключаем обычные слова
+            text.replace('_', '').replace('-', '').replace('%', '').replace('₽', '').replace('Р', '').isalnum() and
+            any(c.isalnum() for c in text)
+        )
+        
+        # Обрабатываем как промокод только если это соответствует формату промокода
+        if not is_command and not is_interface_button and is_promo_format:
             
             # Валидируем промокод
             result = validate_promo_code(text, "shop")
@@ -3765,7 +4307,7 @@ def get_user_router() -> Router:
                 
                 await message.answer(response_text, reply_markup=keyboards.create_back_to_menu_keyboard())
             else:
-                # Промокод не найден
+                # Промокод не найден - показываем сообщение только если это действительно похоже на промокод
                 await message.answer(
                     f"❌ {result['message']}\n\n"
                     "Проверьте правильность написания промокода.\n"
@@ -3778,7 +4320,9 @@ def get_user_router() -> Router:
         if message.text.startswith('/'):
             await message.answer("Такой команды не существует. Попробуйте /start.")
         else:
-            await message.answer("Я не понимаю эту команду. Пожалуйста, используйте кнопки меню.")
+            # Для обычных сообщений не показываем ошибку промокода
+            # Просто игнорируем или показываем общее сообщение
+            pass
 
     @user_router.pre_checkout_query()
     async def pre_checkout_handler(pre_checkout_query: types.PreCheckoutQuery):
@@ -4033,6 +4577,35 @@ def get_user_router() -> Router:
         text = "❌ Сброс триала отменен."
         keyboard = keyboards.create_admin_panel_keyboard()
         await callback.message.edit_text(text, reply_markup=keyboard)
+
+    @user_router.error()
+    async def user_router_error_handler(event: ErrorEvent):
+        """Глобальный обработчик ошибок для user_router"""
+        logger.critical(
+            "Critical error in user router caused by %s", 
+            event.exception, 
+            exc_info=True
+        )
+        
+        # Пытаемся определить тип update и отправить сообщение пользователю
+        update = event.update
+        user_id = None
+        
+        try:
+            if update.message:
+                user_id = update.message.from_user.id
+                await update.message.answer(
+                    "⚠️ Произошла ошибка при обработке вашего запроса.\n"
+                    "Попробуйте позже или обратитесь в поддержку."
+                )
+            elif update.callback_query:
+                user_id = update.callback_query.from_user.id
+                await update.callback_query.answer(
+                    "⚠️ Произошла ошибка. Попробуйте позже или обратитесь в поддержку.",
+                    show_alert=True
+                )
+        except Exception as notification_error:
+            logger.error(f"Failed to send error notification to user {user_id}: {notification_error}")
 
     return user_router
 
@@ -4706,10 +5279,11 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
                 add_to_referral_balance(referrer_id, float(reward))
                 
                 try:
-                    referrer_username = user_data.get('username', 'пользователь')
+                    # Получаем данные покупателя для отображения в сообщении
+                    buyer_username = user_data.get('username', 'пользователь')
                     await bot.send_message(
                         referrer_id,
-                        f"🎉 Ваш реферал @{referrer_username} совершил покупку на сумму {price:.2f} RUB!\n"
+                        f"🎉 Ваш реферал @{buyer_username} совершил покупку на сумму {price:.2f} RUB!\n"
                         f"💰 На ваш баланс начислено вознаграждение: {reward:.2f} RUB."
                     )
                 except Exception as e:

@@ -1,0 +1,461 @@
+{% extends "base.html" %}
+{% block title %}Редактирование: {{ file_name }}{% endblock %}
+{% block header_title %}📝 Редактирование Wiki{% endblock %}
+
+{% block header_buttons %}
+<a href="{{ url_for('wiki_editor_page') }}" class="button button-secondary" data-size="sm" title="Вернуться к списку страниц">
+    <i class="fas fa-arrow-left"></i>
+    Назад к списку
+</a>
+{% endblock %}
+
+{% block content %}
+
+<style>
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
+
+<!-- Подключаем Editor.js - минимальная версия для быстрой загрузки -->
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@2.10.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/codex.editor.header@2.1.0/dist/bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/list@1.9.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/code@2.8.2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/inline-code@1.5.1"></script>
+
+<form method="post" enctype="multipart/form-data" id="wikiForm">
+    <section class="settings-section">
+        <h2 style="margin-bottom: 12px;">{{ file_name }}</h2>
+        <p style="margin-bottom: 16px; color: var(--text-muted); font-family: monospace; font-size: 0.9em;">
+            Путь: {{ file_path }}
+        </p>
+        
+        <input type="hidden" name="file" value="{{ file_path }}">
+        <input type="hidden" name="content" id="markdownContent">
+        
+        <!-- Спиннер загрузки -->
+        <div id="loading-spinner" style="display:flex; align-items:center; justify-content:center; background:var(--bg-surface);border:1px solid var(--border-color);border-radius:8px;padding:40px;min-height:calc(100vh - 340px);">
+            <div style="text-align:center;">
+                <div style="width:40px;height:40px;border:4px solid var(--border-color);border-top:4px solid var(--primary-color);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px;"></div>
+                <p style="color:var(--text-muted);margin:0;">Загрузка редактора...</p>
+            </div>
+        </div>
+        
+        <!-- Editor.js контейнер -->
+        <div id="editorjs" style="display:none;background:var(--bg-surface);border:1px solid var(--border-color);border-radius:8px;padding:20px;min-height:calc(100vh - 340px);"></div>
+        
+        <!-- Резервный простой редактор (скрыт по умолчанию) -->
+        <div id="fallback-editor" style="display:none;">
+            <textarea 
+                id="simple-editor"
+                style="background:var(--bg-surface);color:#e9ecef;border:1px solid var(--border-color);min-height:calc(100vh - 340px);width:100%;box-sizing:border-box;font-family:'Courier New', Courier, monospace;font-size:14px;line-height:1.6;padding:16px;border-radius:8px;"
+                placeholder="Введите текст в формате Markdown..."
+                title="Простой редактор Markdown"
+            >{{ content }}</textarea>
+        </div>
+        
+        <!-- Скрытое поле с оригинальным Markdown для парсинга -->
+        <textarea id="originalMarkdown" style="display:none;">{{ content }}</textarea>
+        
+        <div style="margin-top: 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <button type="button" class="button button-start" data-size="md" id="saveBtn" title="Сохранить изменения">
+                <i class="fas fa-save"></i>
+                Сохранить
+            </button>
+            <a href="{{ url_for('wiki_editor_page') }}" class="button button-secondary" data-size="md" title="Отменить и вернуться">
+                <i class="fas fa-times"></i>
+                Отмена
+            </a>
+            <button type="button" class="button button-secondary" data-size="md" id="previewBtn" title="Предпросмотр в новой вкладке">
+                <i class="fas fa-eye"></i>
+                Предпросмотр
+            </button>
+        </div>
+    </section>
+</form>
+
+<!-- Подсказки по Editor.js -->
+<section class="settings-section">
+    <h3 style="margin-bottom: 12px;">💡 Как использовать Editor.js</h3>
+    <div style="line-height: 1.8; color: var(--text-muted);">
+        <p style="margin-bottom: 12px;"><strong>Нажмите Tab или щёлкните + слева</strong> чтобы открыть меню блоков:</p>
+        <ul style="margin-left: 20px;">
+            <li>📝 <strong>Paragraph</strong> - обычный текст</li>
+            <li>🔤 <strong>Header</strong> - заголовки (H1, H2, H3)</li>
+            <li>📋 <strong>List</strong> - списки (маркированные и нумерованные)</li>
+            <li>💻 <strong>Code</strong> - блоки кода</li>
+            <li>📊 <strong>Table</strong> - таблицы</li>
+            <li>💬 <strong>Quote</strong> - цитаты</li>
+            <li>⚠️ <strong>Warning</strong> - предупреждения</li>
+            <li>➖ <strong>Delimiter</strong> - разделитель</li>
+        </ul>
+        <p style="margin-top: 12px;"><strong>Форматирование текста:</strong> выделите текст и используйте всплывающую панель</p>
+        <p><strong>Горячие клавиши:</strong> Ctrl+S (сохранить), Ctrl+E (предпросмотр)</p>
+    </div>
+</section>
+
+<script>
+let editor;
+
+// Простой парсер Markdown -> Editor.js blocks
+function parseMarkdownToBlocks(markdown) {
+    const lines = markdown.split('\n');
+    const blocks = [];
+    let currentBlock = null;
+    let inCodeBlock = false;
+    let codeContent = [];
+    let inList = false;
+    let listItems = [];
+    let listType = 'unordered';
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // Код блок
+        if (line.startsWith('```')) {
+            if (inCodeBlock) {
+                blocks.push({
+                    type: 'code',
+                    data: { code: codeContent.join('\n') }
+                });
+                codeContent = [];
+                inCodeBlock = false;
+            } else {
+                inCodeBlock = true;
+            }
+            continue;
+        }
+        
+        if (inCodeBlock) {
+            codeContent.push(line);
+            continue;
+        }
+        
+        // Заголовки
+        if (line.match(/^#{1,3}\s/)) {
+            if (inList) {
+                blocks.push({ type: 'list', data: { style: listType, items: listItems } });
+                listItems = [];
+                inList = false;
+            }
+            const level = line.match(/^(#{1,3})/)[1].length;
+            const text = line.replace(/^#{1,3}\s/, '').trim();
+            blocks.push({
+                type: 'header',
+                data: { text: text, level: level }
+            });
+            continue;
+        }
+        
+        // Списки
+        if (line.match(/^[-*]\s/) || line.match(/^\d+\.\s/)) {
+            const isOrdered = line.match(/^\d+\.\s/);
+            const text = line.replace(/^[-*]\s|^\d+\.\s/, '').trim();
+            
+            if (!inList) {
+                inList = true;
+                listType = isOrdered ? 'ordered' : 'unordered';
+            }
+            
+            listItems.push(text);
+            continue;
+        } else if (inList && line.trim() === '') {
+            blocks.push({
+                type: 'list',
+                data: { style: listType, items: listItems }
+            });
+            listItems = [];
+            inList = false;
+            continue;
+        }
+        
+        // Цитаты
+        if (line.startsWith('> ')) {
+            blocks.push({
+                type: 'quote',
+                data: { text: line.replace(/^>\s/, ''), caption: '' }
+            });
+            continue;
+        }
+        
+        // Разделитель
+        if (line.match(/^---+$/)) {
+            blocks.push({ type: 'delimiter', data: {} });
+            continue;
+        }
+        
+        // Обычный параграф
+        if (line.trim()) {
+            blocks.push({
+                type: 'paragraph',
+                data: { text: line.trim() }
+            });
+        }
+    }
+    
+    // Закрываем незавершённый список
+    if (inList) {
+        blocks.push({
+            type: 'list',
+            data: { style: listType, items: listItems }
+        });
+    }
+    
+    return blocks.length > 0 ? blocks : [{ type: 'paragraph', data: { text: '' } }];
+}
+
+// Конвертер Editor.js blocks -> Markdown
+function blocksToMarkdown(blocks) {
+    let markdown = '';
+    
+    blocks.forEach((block, index) => {
+        switch (block.type) {
+            case 'header':
+                const hashes = '#'.repeat(block.data.level);
+                markdown += `${hashes} ${block.data.text}\n\n`;
+                break;
+            
+            case 'paragraph':
+                markdown += `${block.data.text}\n\n`;
+                break;
+            
+            case 'list':
+                block.data.items.forEach((item, i) => {
+                    const prefix = block.data.style === 'ordered' ? `${i + 1}. ` : '- ';
+                    markdown += `${prefix}${item}\n`;
+                });
+                markdown += '\n';
+                break;
+            
+            case 'code':
+                markdown += `\`\`\`\n${block.data.code}\n\`\`\`\n\n`;
+                break;
+            
+            case 'quote':
+                markdown += `> ${block.data.text}\n\n`;
+                break;
+            
+            case 'delimiter':
+                markdown += `---\n\n`;
+                break;
+            
+            case 'warning':
+                markdown += `!> ${block.data.title}\n${block.data.message}\n\n`;
+                break;
+            
+            case 'table':
+                // Простая таблица
+                if (block.data.content && block.data.content.length > 0) {
+                    const headers = block.data.content[0];
+                    markdown += '| ' + headers.join(' | ') + ' |\n';
+                    markdown += '|' + headers.map(() => '---').join('|') + '|\n';
+                    for (let i = 1; i < block.data.content.length; i++) {
+                        markdown += '| ' + block.data.content[i].join(' | ') + ' |\n';
+                    }
+                    markdown += '\n';
+                }
+                break;
+            
+            default:
+                // Пропускаем неизвестные блоки
+                break;
+        }
+    });
+    
+    return markdown.trim();
+}
+
+// Инициализация Editor.js
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Начинаем инициализацию Editor.js...');
+    
+    // Функция для скрытия спиннера
+    function hideSpinner() {
+        document.getElementById('loading-spinner').style.display = 'none';
+    }
+    
+    // Функция для переключения на резервный редактор
+    function switchToFallbackEditor() {
+        console.log('🔄 Переключаемся на резервный редактор...');
+        
+        // Скрываем спиннер и показываем резервный редактор
+        hideSpinner();
+        document.getElementById('editorjs').style.display = 'none';
+        document.getElementById('fallback-editor').style.display = 'block';
+        
+        // Настраиваем кнопку сохранения для простого редактора
+        document.getElementById('saveBtn').addEventListener('click', function() {
+            const content = document.getElementById('simple-editor').value;
+            document.getElementById('markdownContent').value = content;
+            document.getElementById('wikiForm').submit();
+        });
+        
+        // Настраиваем кнопку предпросмотра для простого редактора
+        document.getElementById('previewBtn').addEventListener('click', function() {
+            const wikiUrl = 'http://localhost:3001';
+            console.log('🔍 Открываем предпросмотр Wiki:', wikiUrl);
+            
+            // Проверяем доступность Wiki сервера
+            fetch(wikiUrl)
+                .then(response => {
+                    if (response.ok) {
+                        console.log('✅ Wiki сервер доступен');
+                        window.open(wikiUrl, '_blank');
+                    } else {
+                        console.warn('⚠️ Wiki сервер недоступен, статус:', response.status);
+                        alert('Wiki сервер недоступен. Убедитесь, что контейнер docs запущен (docker compose up -d docs)');
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Ошибка подключения к Wiki серверу:', error);
+                    alert('Не удалось подключиться к Wiki серверу. Убедитесь, что контейнер docs запущен (docker compose up -d docs)');
+                });
+        });
+        
+        console.log('✅ Резервный редактор активирован');
+    }
+    
+    // Ждём загрузки всех скриптов
+    setTimeout(function() {
+        try {
+            console.log('🔍 Проверяем доступность Editor.js...');
+            console.log('window.EditorJS:', typeof window.EditorJS);
+            console.log('window.Header:', typeof window.Header);
+            console.log('window.List:', typeof window.List);
+            
+            // Проверяем что все плагины загружены
+            if (typeof EditorJS === 'undefined') {
+                console.error('❌ EditorJS не загружен!');
+                console.log('🔍 Доступные глобальные переменные:', Object.keys(window).filter(key => key.includes('Editor') || key.includes('Header') || key.includes('List')));
+                switchToFallbackEditor();
+                return;
+            }
+            
+            if (typeof Header === 'undefined') {
+                console.error('❌ Header плагин не загружен!');
+                alert('Ошибка загрузки Header плагина. Обновите страницу.');
+                return;
+            }
+            
+            if (typeof List === 'undefined') {
+                console.error('❌ List плагин не загружен!');
+                alert('Ошибка загрузки List плагина. Обновите страницу.');
+                return;
+            }
+            
+            console.log('✅ Все плагины Editor.js загружены успешно');
+            
+            const originalMarkdown = document.getElementById('originalMarkdown').value;
+            const initialBlocks = parseMarkdownToBlocks(originalMarkdown);
+            
+            editor = new EditorJS({
+                holder: 'editorjs',
+                tools: {
+                    header: {
+                        class: Header,
+                        inlineToolbar: true,
+                        config: {
+                            placeholder: 'Введите заголовок',
+                            levels: [1, 2, 3],
+                            defaultLevel: 2
+                        }
+                    },
+                    list: {
+                        class: List,
+                        inlineToolbar: true,
+                        config: {
+                            defaultStyle: 'unordered'
+                        }
+                    },
+                    code: Code,
+                    inlineCode: {
+                        class: InlineCode,
+                        shortcut: 'CMD+SHIFT+M'
+                    }
+                },
+                data: {
+                    blocks: initialBlocks
+                },
+                placeholder: 'Начните писать или нажмите + для выбора блока...',
+                onReady: () => {
+                    console.log('✅ Editor.js готов к работе!');
+                }
+            });
+            
+            // Используем isReady для проверки готовности
+            editor.isReady
+                .then(() => {
+                    console.log('✅ Editor.js полностью инициализирован');
+                    // Скрываем спиннер и показываем редактор
+                    hideSpinner();
+                    document.getElementById('editorjs').style.display = 'block';
+                })
+                .catch((reason) => {
+                    console.error('❌ Editor.js инициализация не удалась:', reason);
+                    switchToFallbackEditor();
+                });
+            
+            // Кнопка сохранения
+            document.getElementById('saveBtn').addEventListener('click', async function() {
+                try {
+                    const outputData = await editor.save();
+                    const markdown = blocksToMarkdown(outputData.blocks);
+                    document.getElementById('markdownContent').value = markdown;
+                    document.getElementById('wikiForm').submit();
+                } catch (error) {
+                    console.error('Ошибка сохранения:', error);
+                    alert('Ошибка при сохранении. Проверьте консоль.');
+                }
+            });
+            
+            // Предпросмотр
+            document.getElementById('previewBtn').addEventListener('click', function() {
+                const wikiUrl = 'http://localhost:3001';
+                console.log('🔍 Открываем предпросмотр Wiki:', wikiUrl);
+                
+                // Проверяем доступность Wiki сервера
+                fetch(wikiUrl)
+                    .then(response => {
+                        if (response.ok) {
+                            console.log('✅ Wiki сервер доступен');
+                            window.open(wikiUrl, '_blank');
+                        } else {
+                            console.warn('⚠️ Wiki сервер недоступен, статус:', response.status);
+                            alert('Wiki сервер недоступен. Убедитесь, что контейнер docs запущен (docker compose up -d docs)');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('❌ Ошибка подключения к Wiki серверу:', error);
+                        alert('Не удалось подключиться к Wiki серверу. Убедитесь, что контейнер docs запущен (docker compose up -d docs)');
+                    });
+            });
+            
+            // Горячие клавиши
+            document.addEventListener('keydown', function(e) {
+                // Ctrl+S или Cmd+S - сохранить
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    document.getElementById('saveBtn').click();
+                }
+                
+                // Ctrl+E или Cmd+E - предпросмотр
+                if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
+                    e.preventDefault();
+                    document.getElementById('previewBtn').click();
+                }
+            });
+            
+            console.log('✨ Editor.js готов!\n💡 Горячие клавиши:\n- Ctrl+S (Cmd+S) - Сохранить\n- Ctrl+E (Cmd+E) - Предпросмотр\n- Tab - Открыть меню блоков');
+            
+        } catch (error) {
+            console.error('❌ Критическая ошибка инициализации:', error);
+            alert('Критическая ошибка инициализации редактора. Проверьте консоль.');
+        }
+    }, 5000); // Ждём 5 секунд для загрузки всех скриптов
+});
+</script>
+
+{% endblock %}
+
