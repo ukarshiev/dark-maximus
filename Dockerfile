@@ -1,4 +1,4 @@
-FROM node:20-alpine AS assets-builder
+FROM node:24-alpine AS assets-builder
 WORKDIR /build
 COPY package*.json ./
 RUN npm install --no-audit --no-fund
