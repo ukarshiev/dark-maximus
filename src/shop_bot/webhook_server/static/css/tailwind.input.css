@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Базовые утилиты-слои под проект (кастомные компоненты при необходимости) */
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition-colors;
+  }
+  .btn-primary {
+    @apply btn bg-blue-600 text-white hover:bg-blue-700;
+  }
+  .btn-secondary {
+    @apply btn bg-gray-100 text-gray-900 hover:bg-gray-200;
+  }
+  .modal-panel {
+    @apply w-full max-w-5xl rounded-xl bg-white shadow-2xl ring-1 ring-black/5 dark:bg-zinc-900;
+  }
+  .table-default {
+    @apply w-full border-separate border-spacing-0 text-left text-sm;
+  }
+  .table-default thead th {
+    @apply sticky top-0 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-600;
+  }
+  .table-default tbody td {
+    @apply border-t border-gray-200 px-4 py-2 align-middle;
+  }
+}
+
+

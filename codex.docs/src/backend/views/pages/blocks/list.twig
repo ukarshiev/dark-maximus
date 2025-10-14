@@ -1,0 +1,13 @@
+{% set tag = 'ul' %}
+
+{% if style == 'ordered' %}
+  {% set tag = 'ol' %}
+{% endif %}
+
+<{{ tag }} class="block-list block-list--{{ style }}">
+  {% for item in items %}
+    <li>
+      {{ item }}
+    </li>
+  {% endfor %}
+</{{ tag }}>

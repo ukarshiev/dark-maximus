@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="ru">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>{% block title %}Панель управления Ботом{% endblock %}</title>
+		<link
+			rel="stylesheet"
+			href="{{ url_for('static', filename='css/style.css', v=project_version or '1') }}?t=20241221"
+		/>
+		<link
+			rel="stylesheet"
+			href="{{ url_for('static', filename='css/tw.css', v=project_version or '1') }}"
+		/>
+		<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+		<!-- Font Awesome Icons -->
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+	</head>
+	<body>
+		<!-- Закрепленная панель в head -->
+		<header class="header-panel">
+			<div class="header-panel-left">
+				<button class="header-burger" id="headerBurger" title="Открыть меню">
+					<span></span>
+					<span></span>
+					<span></span>
+				</button>
+				<div class="header-title">{% block header_title %}Панель управления{% endblock %}</div>
+			</div>
+			<div class="header-panel-right">
+				{% block header_buttons %}{% endblock %}
+			</div>
+		</header>
+		
+		<div class="container">
+			<!-- Боковое меню -->
+			<aside class="sidebar" id="sidebar">
+				<!-- Header бокового меню -->
+				<div class="menu-items-header">
+					<button class="sidebar-burger" id="sidebarBurger" title="Скрыть боковое меню">
+						<span></span>
+						<span></span>
+						<span></span>
+					</button>
+					<div class="sidebar-logo">
+						<img src="{{ url_for('static', filename='logo.svg') }}" alt="Логотип" class="logo-img">
+					</div>
+				</div>
+				
+				<nav class="sidebar-nav">
+					<a
+						href="{{ url_for('dashboard_page') }}"
+						class="nav-link {% if request.endpoint == 'dashboard_page' %}active{% endif %}"
+						title="Главная"
+					>
+						<span class="nav-icon">🏠</span>
+						<span class="nav-text">Главная</span>
+					</a>
+					<a
+						href="{{ url_for('users_page') }}"
+						class="nav-link {% if request.endpoint == 'users_page' %}active{% endif %}"
+						title="Пользователи"
+					>
+						<span class="nav-icon">👥</span>
+						<span class="nav-text">Пользователи</span>
+					</a>
+					<a
+						href="{{ url_for('transactions_page') }}"
+						class="nav-link {% if request.endpoint == 'transactions_page' %}active{% endif %}"
+						title="Платежи"
+					>
+						<span class="nav-icon">💳</span>
+						<span class="nav-text">Платежи</span>
+					</a>
+					<a
+						href="{{ url_for('keys_page') }}"
+						class="nav-link {% if request.endpoint == 'keys_page' %}active{% endif %}"
+						title="Ключи"
+					>
+						<span class="nav-icon">🔑</span>
+						<span class="nav-text">Ключи</span>
+					</a>
+					<a
+						href="{{ url_for('promo_codes_page') }}"
+						class="nav-link {% if request.endpoint == 'promo_codes_page' %}active{% endif %}"
+						title="Промокоды"
+					>
+						<span class="nav-icon">🎫</span>
+						<span class="nav-text">Промокоды</span>
+					</a>
+					<a
+						href="{{ url_for('notifications_page') }}"
+						class="nav-link {% if request.endpoint == 'notifications_page' %}active{% endif %}"
+						title="Уведомления"
+					>
+						<span class="nav-icon">🔔</span>
+						<span class="nav-text">Уведомления</span>
+					</a>
+					<a
+						href="{{ url_for('instructions_page') }}"
+						class="nav-link {% if request.endpoint == 'instructions_page' %}active{% endif %}"
+						title="Инструкции"
+					>
+						<span class="nav-icon">📙</span>
+						<span class="nav-text">Инструкции</span>
+					</a>
+					<a
+						href="{{ url_for('wiki_editor_page') }}"
+						class="nav-link {% if request.endpoint in ['wiki_editor_page', 'wiki_editor_edit'] %}active{% endif %}"
+						title="Wiki редактор"
+					>
+						<span class="nav-icon">📚</span>
+						<span class="nav-text">Wiki редактор</span>
+					</a>
+					<a
+						href="{{ url_for('settings_page') }}"
+						class="nav-link {% if request.endpoint == 'settings_page' %}active{% endif %}"
+						title="Настройки"
+					>
+						<span class="nav-icon">⚙️</span>
+						<span class="nav-text">Настройки</span>
+					</a>
+				</nav>
+
+				<!-- Свернутое меню с иконками -->
+				<nav class="sidebar-nav sidebar-nav-collapsed" style="display: none;">
+					<!-- Основная навигация -->
+					<div class="sidebar-nav-main">
+						<a
+							href="{{ url_for('dashboard_page') }}"
+							class="nav-link {% if request.endpoint == 'dashboard_page' %}active{% endif %}"
+							title="Главная"
+						>
+							<span class="nav-icon">🏠</span>
+						</a>
+						<a
+							href="{{ url_for('users_page') }}"
+							class="nav-link {% if request.endpoint == 'users_page' %}active{% endif %}"
+							title="Пользователи"
+						>
+							<span class="nav-icon">👥</span>
+						</a>
+						<a
+							href="{{ url_for('transactions_page') }}"
+							class="nav-link {% if request.endpoint == 'transactions_page' %}active{% endif %}"
+							title="Платежи"
+						>
+							<span class="nav-icon">💳</span>
+						</a>
+						<a
+							href="{{ url_for('keys_page') }}"
+							class="nav-link {% if request.endpoint == 'keys_page' %}active{% endif %}"
+							title="Ключи"
+						>
+							<span class="nav-icon">🔑</span>
+						</a>
+						<a
+							href="{{ url_for('promo_codes_page') }}"
+							class="nav-link {% if request.endpoint == 'promo_codes_page' %}active{% endif %}"
+							title="Промокоды"
+						>
+							<span class="nav-icon">🎫</span>
+						</a>
+						<a
+							href="{{ url_for('notifications_page') }}"
+							class="nav-link {% if request.endpoint == 'notifications_page' %}active{% endif %}"
+							title="Уведомления"
+						>
+							<span class="nav-icon">🔔</span>
+						</a>
+						<a
+							href="{{ url_for('instructions_page') }}"
+							class="nav-link {% if request.endpoint == 'instructions_page' %}active{% endif %}"
+							title="Инструкции"
+						>
+							<span class="nav-icon">📙</span>
+						</a>
+						<a
+							href="{{ url_for('wiki_editor_page') }}"
+							class="nav-link {% if request.endpoint in ['wiki_editor_page', 'wiki_editor_edit'] %}active{% endif %}"
+							title="Wiki редактор"
+						>
+							<span class="nav-icon">📚</span>
+						</a>
+						<a
+							href="{{ url_for('settings_page') }}"
+							class="nav-link {% if request.endpoint == 'settings_page' %}active{% endif %}"
+							title="Настройки"
+						>
+							<span class="nav-icon">⚙️</span>
+						</a>
+					</div>
+					
+					<!-- Кнопки управления (внизу) -->
+					<div class="sidebar-nav-controls">
+						<!-- Скрытый режим -->
+						<div class="nav-link nav-toggle" title="Скрытый режим">
+							<label class="bot-toggle">
+								<input type="checkbox" 
+									   class="bot-checkbox"
+									   id="hiddenModeToggleCollapsed"
+									   {% if hidden_mode %}checked{% endif %}>
+								<span class="toggle-slider"></span>
+							</label>
+						</div>
+						<!-- Бот витрина -->
+						<div class="nav-link nav-toggle" title="Бот витрина">
+							<label class="bot-toggle">
+								<input type="checkbox" 
+									   class="bot-checkbox" 
+									   data-bot="shop"
+									   {% if bot_status.shop_bot_running %}checked{% endif %}>
+								<span class="toggle-slider"></span>
+							</label>
+						</div>
+						<!-- Бот поддержки -->
+						<div class="nav-link nav-toggle" title="Бот поддержки">
+							<label class="bot-toggle">
+								<input type="checkbox" 
+									   class="bot-checkbox" 
+									   data-bot="support"
+									   {% if bot_status.support_bot_running %}checked{% endif %}>
+								<span class="toggle-slider"></span>
+							</label>
+						</div>
+						<!-- Версия -->
+						<a
+							href="{{ url_for('dev_page') }}"
+							class="nav-link"
+							title="Версия: {{ project_version or 'N/A' }}"
+						>
+							<i class="fas fa-server"></i>
+						</a>
+						<!-- Выйти -->
+						<form action="{{ url_for('logout_page') }}" method="post" class="nav-link-form">
+							<button type="submit" class="nav-link nav-button" title="Выйти из панели">
+								<i class="fas fa-sign-out-alt"></i>
+							</button>
+						</form>
+					</div>
+				</nav>
+
+				<!-- Управление ботами -->
+				<div class="bot-controls">
+					<div class="bot-control">
+						<div class="bot-status">
+							<div class="bot-label-row">
+								<span class="bot-label">Скрытый режим:</span>
+								<label class="bot-toggle">
+									<input type="checkbox" 
+										   class="bot-checkbox"
+										   id="hiddenModeToggle"
+										   {% if hidden_mode %}checked{% endif %}>
+									<span class="toggle-slider"></span>
+								</label>
+								<span id="hiddenModeStatus" class="bot-status-text {% if hidden_mode %}status-running{% else %}status-stopped{% endif %}">
+									{% if hidden_mode %}ON{% else %}OFF{% endif %}
+								</span>
+							</div>
+						</div>
+					</div>
+					<div class="bot-control">
+						<div class="bot-status">
+							<div class="bot-label-row">
+								<span class="bot-label">Бот магазина</span>
+                                <label class="bot-toggle">
+                                    <input type="checkbox" 
+                                           class="bot-checkbox" 
+                                           data-bot="shop"
+                                           {% if bot_status.shop_bot_running %}checked{% endif %}>
+                                    <span class="toggle-slider"></span>
+                                </label>
+								<span class="bot-status-text {% if bot_status.shop_bot_running %}status-running{% else %}status-stopped{% endif %}">
+									{% if bot_status.shop_bot_running %}ON{% else %}OFF{% endif %}
+								</span>
+							</div>
+						</div>
+					</div>
+
+					<div class="bot-control">
+						<div class="bot-status">
+							<div class="bot-label-row">
+								<span class="bot-label">Бот поддержка:</span>
+								<label class="bot-toggle">
+									<input type="checkbox" 
+										   class="bot-checkbox" 
+										   data-bot="support"
+										   {% if bot_status.support_bot_running %}checked{% endif %}>
+									<span class="toggle-slider"></span>
+								</label>
+								<span class="bot-status-text {% if bot_status.support_bot_running %}status-running{% else %}status-stopped{% endif %}">
+									{% if bot_status.support_bot_running %}ON{% else %}OFF{% endif %}
+								</span>
+							</div>
+						</div>
+					</div>
+
+				<div class="version-block">
+					<a href="{{ url_for('dev_page') }}" class="version-info" style="text-decoration: none;" title="Версия: {{ project_version or 'N/A' }}">
+						<div class="version-text">Версия: {{ project_version or 'N/A' }}</div>
+					</a>
+				</div>
+
+				<div class="user-session-controls">
+					<form action="{{ url_for('logout_page') }}" method="post" class="logout-form">
+						<button type="submit" class="button button-logout" data-size="sm" title="Выйти из панели">
+							<i class="fas fa-sign-out-alt"></i>
+							Выйти
+						</button>
+					</form>
+				</div>
+			</aside>
+
+			<!-- Основной контент -->
+			<main class="main-content">
+				{% with messages = get_flashed_messages(with_categories=true) %} {% if
+				messages %} {% for category, message in messages %}
+				<div class="flash flash-{{ category }}">
+					<span class="flash-message">{{ message }}</span>
+					<button class="flash-close" aria-label="Закрыть уведомление" title="Закрыть уведомление">&times;</button>
+				</div>
+				{% endfor %} {% endif %} {% endwith %}
+
+				{% block content %}{% endblock %}
+			</main>
+		</div>
+
+		<!-- Модальное окно пользователя -->
+		<!-- User Drawer (Side Sheet) -->
+		<div id="userDrawer" class="drawer-overlay" style="display: none;">
+			<div class="drawer" id="userDrawerPanel">
+				<div class="drawer-header">
+					<h3>Карточка пользователя</h3>
+					<button class="drawer-close" onclick="closeUserModal()" title="Закрыть карточку пользователя">
+						<i class="fas fa-times"></i>
+					</button>
+				</div>
+				
+				<div class="drawer-body">
+					<!-- Закрепленная информация о пользователе -->
+					<div class="user-info-section">
+						<div class="user-info-grid">
+							<div class="user-info-item">
+								<label>Telegram ID:</label>
+								<span id="modalUserId" class="user-info-value"></span>
+							</div>
+							<div class="user-info-item">
+								<label>Полное имя:</label>
+								<span id="modalFullname" class="user-info-value"></span>
+							</div>
+							<div class="user-info-item">
+								<label>Статус:</label>
+								<span id="modalStatus" class="user-info-value"></span>
+							</div>
+							<div class="user-info-item">
+								<label>Баланс:</label>
+								<span id="modalBalance" class="user-info-value"></span>
+							</div>
+							<div class="user-info-item">
+								<label>Заработано:</label>
+								<span id="modalEarned" class="user-info-value"></span>
+							</div>
+						</div>
+					</div>
+
+					<!-- Вкладки -->
+					<div class="drawer-tabs">
+						<button class="tab-button active" onclick="switchTab('userdata')" title="Данные пользователя">
+							<i class="fas fa-user"></i>
+							Данные пользователя
+						</button>
+						<button class="tab-button" onclick="switchTab('payments')" title="Платежи пользователя">
+							<i class="fas fa-credit-card"></i>
+							Платежи
+						</button>
+						<button class="tab-button" onclick="switchTab('keys')" title="Ключи пользователя">
+							<i class="fas fa-key"></i>
+							Ключи
+						</button>
+						<button class="tab-button" onclick="switchTab('notifications')" title="Уведомления пользователя">
+							<i class="fas fa-bell"></i>
+							Уведомления
+						</button>
+					</div>
+
+					<!-- Контент вкладок -->
+					<div class="drawer-tabs-content">
+						<!-- Вкладка: Данные пользователя -->
+						<div class="tab-content active" id="tab-userdata">
+							
+							<!-- Группа: Общее -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-info-circle"></i>
+									<span>Общее</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="Дата регистрации в системе">
+										<label>Дата регистрации:</label>
+										<span id="detailRegistrationDate">—</span>
+									</div>
+									<div class="user-detail-item" title="Статус бана пользователя">
+										<label>Забанен:</label>
+										<span id="detailIsBanned">—</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Группа: Персональные -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-user"></i>
+									<span>Персональные</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="Внутренний идентификатор пользователя">
+										<label>User ID:</label>
+										<span id="detailUserId">—</span>
+									</div>
+									<div class="user-detail-item" title="Идентификатор пользователя в Telegram">
+										<label>Telegram ID:</label>
+										<span id="detailTelegramId">—</span>
+									</div>
+									<div class="user-detail-item" title="Имя пользователя в Telegram">
+										<label>Username:</label>
+										<span id="detailUsername">—</span>
+									</div>
+									<div class="user-detail-item" title="Полное имя из профиля Telegram">
+										<label>Полное имя:</label>
+										<span id="detailFullname">—</span>
+									</div>
+									<div class="user-detail-item editable-item" title="ФИО пользователя (заполняется вручную)">
+										<label>ФИО:</label>
+										<div class="field-container">
+											<input type="text" id="detailFioInput" class="editable-field" placeholder="Введите ФИО" style="display: none;">
+											<span id="detailFio" class="display-field">—</span>
+											<i class="fas fa-edit edit-icon" title="Кликните для редактирования"></i>
+										</div>
+									</div>
+									<div class="user-detail-item editable-item" title="Email пользователя">
+										<label>Email:</label>
+										<div class="field-container">
+											<input type="email" id="detailEmailInput" class="editable-field" placeholder="Введите email" style="display: none;">
+											<span id="detailEmail" class="display-field">—</span>
+											<i class="fas fa-edit edit-icon" title="Кликните для редактирования"></i>
+										</div>
+									</div>
+								</div>
+							</div>
+
+							<!-- Группа: Финансы -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-wallet"></i>
+									<span>Финансы</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="Текущий баланс пользователя">
+										<label>Баланс:</label>
+										<span id="detailBalance" data-field="balance">—</span>
+									</div>
+									<div class="user-detail-item" title="Общая сумма трат пользователя">
+										<label>Всего потрачено:</label>
+										<span id="detailTotalSpent" data-field="total_spent">—</span>
+									</div>
+									<div class="user-detail-item" title="Сумма заработанная пользователем">
+										<label>Заработано:</label>
+										<span id="detailEarned" data-field="earned">—</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Группа: Сводная -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-chart-line"></i>
+									<span>Сводная</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="Общее количество оплаченных месяцев">
+										<label>Всего месяцев:</label>
+										<span id="detailTotalMonths">—</span>
+									</div>
+									<div class="user-detail-item" title="Количество ключей пользователя">
+										<label>Количество ключей:</label>
+										<span id="detailKeysCount">—</span>
+									</div>
+									<div class="user-detail-item" title="Количество уведомлений пользователя">
+										<label>Количество уведомлений:</label>
+										<span id="detailNotificationsCount">—</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Группа: Триал -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-gift"></i>
+									<span>Триал</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="Использовался ли триальный период">
+										<label>Триал использован:</label>
+										<span id="detailTrialUsed">—</span>
+									</div>
+									<div class="user-detail-item" title="Количество дней триального периода">
+										<label>Дней триала выдано:</label>
+										<span id="detailTrialDaysGiven">—</span>
+									</div>
+									<div class="user-detail-item" title="Количество повторных триалов">
+										<label>Повторных триалов:</label>
+										<span id="detailTrialReusesCount">—</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Группа: Реферальная программа -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-users"></i>
+									<span>Реферальная программа</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="ID пользователя, который пригласил">
+										<label>Реферер (ID):</label>
+										<span id="detailReferredBy">—</span>
+									</div>
+									<div class="user-detail-item" title="Текущий реферальный баланс">
+										<label>Реферальный баланс:</label>
+										<span id="detailReferralBalance" data-field="referral_balance">—</span>
+									</div>
+									<div class="user-detail-item" title="Общая сумма заработанная по реферальной программе">
+										<label>Всего заработано рефералами:</label>
+										<span id="detailReferralBalanceAll" data-field="referral_balance_all">—</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Группа: Правила -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-file-contract"></i>
+									<span>Правила</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="Согласие с условиями использования">
+										<label>Согласие с условиями:</label>
+										<span id="detailAgreedToTerms">—</span>
+									</div>
+									<div class="user-detail-item" title="Согласие с документами сервиса">
+										<label>Согласие с документами:</label>
+										<span id="detailAgreedToDocuments">—</span>
+									</div>
+									<div class="user-detail-item" title="Статус подписки на обязательные каналы">
+										<label>Статус подписки:</label>
+										<span id="detailSubscriptionStatus">—</span>
+									</div>
+								</div>
+							</div>
+
+						</div>
+
+						<!-- Вкладка: Платежи -->
+						<div class="tab-content" id="tab-payments">
+							<div class="drawer-table-container">
+								<table class="drawer-table">
+									<thead>
+										<tr>
+											<th>Дата</th>
+											<th>Тип</th>
+											<th>Сумма</th>
+											<th>Описание</th>
+										</tr>
+									</thead>
+									<tbody id="modalPaymentsTable">
+										<tr>
+											<td colspan="4" class="text-center">Загрузка...</td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
+						</div>
+
+						<!-- Вкладка: Ключи -->
+						<div class="tab-content" id="tab-keys">
+							<div class="drawer-table-container">
+								<table class="drawer-table">
+									<thead>
+										<tr>
+											<th>ID ключа</th>
+											<th>Хост</th>
+											<th>План</th>
+											<th>Ключ</th>
+											<th>Дата</th>
+										</tr>
+									</thead>
+									<tbody id="modalKeysTable">
+										<tr>
+											<td colspan="5" class="text-center">Загрузка...</td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
+						</div>
+
+						<!-- Вкладка: Уведомления -->
+						<div class="tab-content" id="tab-notifications">
+							<div class="drawer-table-container">
+								<table class="drawer-table">
+									<thead>
+										<tr>
+											<th>Дата</th>
+											<th>Тип</th>
+											<th>Текст</th>
+											<th>Статус</th>
+										</tr>
+									</thead>
+									<tbody id="modalNotificationsTable">
+										<tr>
+											<td colspan="4" class="text-center">Загрузка...</td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Footer с кнопками действий -->
+				<div class="drawer-footer">
+					<!-- Левая часть: кебаб-меню и закрыть -->
+					<div class="drawer-footer-left">
+						<!-- Кебаб-меню -->
+						<div class="kebab-wrapper">
+							<button class="kebab-btn" onclick="toggleDrawerKebabMenu('drawer-kebab-menu')" title="Действия с пользователем">
+								<i class="fas fa-ellipsis-v"></i>
+							</button>
+							<div class="kebab-menu" id="drawer-kebab-menu">
+								<button type="button" class="kebab-item" onclick="closeDrawerKebabMenu(); banUser()" id="drawerBanButton" style="display: none;" title="Заблокировать пользователя">
+									<i class="fas fa-lock"></i>
+									<span>Забанить</span>
+								</button>
+								<button type="button" class="kebab-item" onclick="closeDrawerKebabMenu(); unbanUser()" id="drawerUnbanButton" style="display: none;" title="Разблокировать пользователя">
+									<i class="fas fa-unlock"></i>
+									<span>Разбанить</span>
+								</button>
+								<button type="button" class="kebab-item" onclick="closeDrawerKebabMenu(); revokeKeys()" title="Отозвать все ключи пользователя">
+									<i class="fas fa-key"></i>
+									<span>Отозвать ключи</span>
+								</button>
+								<button type="button" class="kebab-item" onclick="closeDrawerKebabMenu(); revokeConsent()" id="drawerRevokeConsentButton" style="display: none;" title="Отозвать согласие пользователя с документами">
+									<i class="fas fa-user-times"></i>
+									<span>Отозвать согласие</span>
+								</button>
+								<button type="button" class="kebab-item" onclick="closeDrawerKebabMenu(); openTopupBalanceModal()" title="Пополнить баланс пользователя">
+									<i class="fas fa-plus-circle"></i>
+									<span>Пополнить баланс</span>
+								</button>
+							</div>
+						</div>
+						
+						<button type="button" class="button button-secondary" onclick="closeUserModal()" title="Закрыть карточку пользователя">
+							Закрыть
+						</button>
+					</div>
+					
+					<!-- Правая часть: сохранить -->
+					<div class="drawer-footer-right">
+						<button type="button" class="button button-primary" id="saveUserButton" onclick="saveUserChanges()" style="display: none;" title="Сохранить изменения пользователя">
+							<i class="fas fa-save"></i>
+							Сохранить
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Transaction Drawer (Side Sheet) -->
+		<div id="transactionDrawer" class="drawer-overlay" style="display: none;">
+			<div class="drawer" id="transactionDrawerPanel">
+				<div class="drawer-header">
+					<h3>Детали платежа</h3>
+					<button class="drawer-close" onclick="closeTransactionModal()" title="Закрыть детали платежа">
+						<i class="fas fa-times"></i>
+					</button>
+				</div>
+				
+				<div class="drawer-body">
+					<!-- Закрепленная информация о транзакции -->
+					<div class="user-info-section">
+						<div class="user-info-grid">
+							<div class="user-info-item">
+								<label>ID транзакции:</label>
+								<span id="txModalId" class="user-info-value"></span>
+							</div>
+							<div class="user-info-item">
+								<label>Статус:</label>
+								<span id="txModalStatus" class="user-info-value"></span>
+							</div>
+							<div class="user-info-item">
+								<label>Сумма:</label>
+								<span id="txModalAmount" class="user-info-value"></span>
+							</div>
+							<div class="user-info-item">
+								<label>Способ оплаты:</label>
+								<span id="txModalPaymentMethod" class="user-info-value"></span>
+							</div>
+						</div>
+					</div>
+
+					<!-- Контент -->
+					<div class="drawer-tabs-content">
+						<div class="tab-content active">
+							
+							<!-- Группа: Пользователь -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-user"></i>
+									<span>Пользователь</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="ID пользователя">
+										<label>User ID:</label>
+										<span id="txDetailUserId">—</span>
+									</div>
+									<div class="user-detail-item" title="Username пользователя">
+										<label>Username:</label>
+										<span id="txDetailUsername">—</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Группа: Платеж -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-credit-card"></i>
+									<span>Платеж</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="Уникальный ID транзакции">
+										<label>ID транзакции:</label>
+										<span id="txDetailId">—</span>
+									</div>
+									<div class="user-detail-item" title="Дата создания транзакции">
+										<label>Дата создания:</label>
+										<span id="txDetailDate">—</span>
+									</div>
+									<div class="user-detail-item" title="Тип операции">
+										<label>Тип операции:</label>
+										<span id="txDetailOperationType">—</span>
+									</div>
+									<div class="user-detail-item" title="Способ оплаты">
+										<label>Способ оплаты:</label>
+										<span id="txDetailPaymentMethod">—</span>
+									</div>
+									<div class="user-detail-item" title="Сумма в рублях">
+										<label>Сумма (RUB):</label>
+										<span id="txDetailAmountRub">—</span>
+									</div>
+									<div class="user-detail-item" title="Сумма в валюте платежа">
+										<label>Сумма (валюта):</label>
+										<span id="txDetailAmountCurrency">—</span>
+									</div>
+									<div class="user-detail-item" title="Название валюты">
+										<label>Валюта:</label>
+										<span id="txDetailCurrencyName">—</span>
+									</div>
+									<div class="user-detail-item" title="Статус транзакции">
+										<label>Статус:</label>
+										<span id="txDetailStatus">—</span>
+									</div>
+									<div class="user-detail-item" title="ID платежа в платежной системе">
+										<label>ID платежа:</label>
+										<span id="txDetailPaymentId">—</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Группа: Детали платежа -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-receipt"></i>
+									<span>Детали платежа</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="Хеш транзакции">
+										<label>Хеш транзакции:</label>
+										<span id="txDetailHash">—</span>
+									</div>
+									<div class="user-detail-item" title="Ссылка на оплату">
+										<label>Ссылка на оплату:</label>
+										<span id="txDetailPaymentLink">—</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Группа: Детали заказа -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-shopping-cart"></i>
+									<span>Детали заказа</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" title="Хост сервера">
+										<label>Хост:</label>
+										<span id="txDetailHost">—</span>
+									</div>
+									<div class="user-detail-item" title="Название плана">
+										<label>План:</label>
+										<span id="txDetailPlan">—</span>
+									</div>
+									<div class="user-detail-item" title="Ключ подключения" style="grid-column: 1 / -1;">
+										<label>Ключ:</label>
+										<span id="txDetailConnectionString" style="word-break: break-all; font-size: 12px;">—</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Группа: Метаданные -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-database"></i>
+									<span>Метаданные</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" style="grid-column: 1 / -1;" title="JSON метаданные транзакции">
+										<label>Метаданные (JSON):</label>
+										<pre id="txDetailMetadata" style="padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; max-height: 300px;">—</pre>
+									</div>
+								</div>
+							</div>
+
+						</div>
+					</div>
+				</div>
+				
+				<div class="drawer-footer">
+					<!-- Левая часть: кебаб меню и закрыть -->
+					<div class="drawer-footer-left">
+						<button type="button" class="button button-secondary" onclick="closeTransactionModal()" title="Закрыть детали платежа">
+							Закрыть
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Key Drawer -->
+		{% include 'key_drawer.html' %}
+
+		<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+		{% block scripts %}{% endblock %}
+	</body>
+</html>

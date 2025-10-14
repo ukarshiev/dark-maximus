@@ -1,0 +1,16 @@
+{
+  "name": "dark-maximus-assets",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Сборка фронтенд-ассетов (Tailwind CSS) для Dark Maximus",
+  "scripts": {
+    "build:css": "tailwindcss -i src/shop_bot/webhook_server/static/css/tailwind.input.css -o src/shop_bot/webhook_server/static/css/tw.css --minify",
+    "dev:css": "tailwindcss -i src/shop_bot/webhook_server/static/css/tailwind.input.css -o src/shop_bot/webhook_server/static/css/tw.css --watch"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.10"
+  }
+}
+

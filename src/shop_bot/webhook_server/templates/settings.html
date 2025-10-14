@@ -1,0 +1,2023 @@
+{% extends "base.html" %} 
+{% block title %}Настройки Бота и Хостов{% endblock %}
+{% block header_title %}Настройки{% endblock %}
+{% block content %}
+
+
+<!-- Навигация по подменю -->
+    <div class="tab-navigation">
+    	<button class="nav-button active" onclick="showTab('servers', this)" title="Настройки серверов">
+			<i class="fas fa-server"></i>
+			Серверы
+		</button>
+    	<button class="nav-button" onclick="showTab('panel', this)" title="Настройки панели">
+			<i class="fas fa-cog"></i>
+			Панель
+		</button>
+    	<button class="nav-button" onclick="showTab('bot', this)" title="Настройки бота">
+			<i class="fas fa-robot"></i>
+			Бот
+		</button>
+    	<button class="nav-button" onclick="showTab('payments', this)" title="Платежные системы">
+			<i class="fas fa-credit-card"></i>
+			Платежные системы
+		</button>
+    </div>
+
+<div class="settings-container">
+	
+	<!-- Вкладка "Серверы" -->
+	<div id="servers-tab" class="settings-tab active">
+		<section class="settings-section">
+			<div class="host-header section-top">
+				<h2>Управление серверами</h2>
+				<div class="host-actions">
+					<button type="button" class="button button-primary" data-size="md" title="Добавить новый сервер" onclick="openHostModal()">
+						<i class="fas fa-plus"></i>
+						Добавить сервер
+					</button>
+				</div>
+			</div>
+			<form action="{{ url_for('add_host_route') }}" method="post" style="display:none" id="hiddenAddHostForm">
+				<div class="form-group">
+					<label for="host_name">Название хоста:</label>
+					<input
+						type="text"
+						id="host_name"
+						name="host_name"
+						required
+						maxlength="26"
+					/>
+				</div>
+				<div class="form-group">
+					<label for="host_url">URL панели XUI:</label>
+					<input
+						type="url"
+						id="host_url"
+						name="host_url"
+						placeholder="http://123.45.67.89:54321"
+						required
+					/>
+				</div>
+				<div class="form-group">
+					<label for="host_username">Логин XUI:</label>
+					<input
+						type="text"
+						id="host_username"
+						name="host_username"
+						required
+					/>
+				</div>
+				<div class="form-group password-wrapper">
+					<label for="host_pass">Пароль XUI:</label>
+					<input type="password" id="host_pass" name="host_pass" required />
+					<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+						<i class="fas fa-eye"></i>
+					</button>
+				</div>
+                <div class="form-group">
+					<label for="host_inbound_id">ID входящего подключения:</label>
+					<input
+						type="number"
+						id="host_inbound_id"
+						name="host_inbound_id"
+						required
+					/>
+				</div>
+                <div class="form-group">
+                    <label for="host_code">Код 3x-ui (стабильный, для email):</label>
+                    <input type="text" id="host_code" name="host_code" placeholder="например: amsterdam" />
+                    <small class="text-muted">Используется в адресе email ключа вместо названия. Можно менять название хоста без последствий.</small>
+                </div>
+				<button type="submit" class="button button-primary" data-size="md" title="Добавить новый сервер">
+					<i class="fas fa-plus"></i>
+					Добавить
+				</button>
+			</form>
+
+			{% if hosts %}
+			<div class="servers-grid">
+			{% for host in hosts %}
+			<div class="host-card">
+                <div class="host-header">
+                    <h3>{{ host.host_name }}</h3>
+					<div class="host-actions">
+						<button class="button button-primary button-small" type="button" data-size="sm" title="Создать новый тариф" onclick="openPlanModalData(this)" data-host-name="{{ host.host_name }}">
+							<i class="fas fa-plus"></i>
+							Создать тариф
+						</button>
+						<div class="kebab-wrapper">
+							<button class="kebab-btn" onclick="toggleKebabMenu('kebab-server-{{ host.host_name }}')" title="Действия с сервером">
+								<i class="fas fa-ellipsis-v"></i>
+							</button>
+							<div class="kebab-menu" id="kebab-server-{{ host.host_name }}">
+								<button type="button" class="kebab-item" onclick="closeKebabMenu('kebab-server-{{ host.host_name }}'); checkHost('{{ host.host_name }}')" title="Проверить соединение с сервером">
+									<i class="fas fa-plug"></i>
+									<span>Проверить соединение</span>
+								</button>
+                                <button type="button" class="kebab-item" onclick="closeKebabMenu('kebab-server-{{ host.host_name }}'); openHostModalData(this)" data-host-name="{{ host.host_name }}" data-host-url="{{ host.host_url }}" data-host-username="{{ host.host_username }}" data-host-inbound-id="{{ host.host_inbound_id }}" data-host-code="{{ host.host_code or '' }}" title="Редактировать настройки сервера">
+									<i class="fas fa-edit"></i>
+									<span>Редактировать</span>
+								</button>
+								<button type="button" class="kebab-item danger" onclick="closeKebabMenu('kebab-server-{{ host.host_name }}'); deleteHost('{{ host.host_name }}')" title="Удалить сервер">
+									<i class="fas fa-trash"></i>
+									<span>Удалить</span>
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="plans-section">
+                    {% if host.plans %}
+                    <div class="plans-table-wrap">
+                        <table class="plans-table" data-host-name="{{ host.host_name }}">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Название</th>
+                                    <th>Срок</th>
+                                    <th>Цена</th>
+                                    <th>Трафик</th>
+                                    <th>Режим</th>
+                                    <th style="width:70px; text-align:right;">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for plan in host.plans %}
+                                {% set months = plan.get('months', 0) %}
+                                {% set days = plan.get('days', 0) %}
+                                {% set hours = plan.get('hours', 0) %}
+                                {% set traffic = plan.get('traffic_gb', 0) %}
+                                {% set provision_mode = plan.get('key_provision_mode', 'key') %}
+                                {% set display_mode = plan.get('display_mode', 'all') %}
+                                <tr class="plan-row"
+                                    data-plan-id="{{ plan.plan_id }}"
+                                    data-plan-name="{{ plan.plan_name }}"
+                                    data-plan-months="{{ months }}"
+                                    data-plan-days="{{ days }}"
+                                    data-plan-price="{{ plan.price }}"
+                                    data-plan-hours="{{ hours }}"
+                                    data-plan-traffic="{{ traffic }}"
+                                    data-plan-provision-mode="{{ provision_mode }}"
+                                    data-plan-display-mode="{{ display_mode }}"
+                                    data-host-name="{{ host.host_name }}"
+                                >
+                                    <td title="Идентификатор тарифа">{{ plan.plan_id }}</td>
+                                    <td>{{ plan.plan_name }}</td>
+                                    <td>
+                                        {% if months and months|int > 0 %}{{ months }} мес{% endif %}
+                                        {% if days and days|int > 0 %}{% if months and months|int > 0 %} · {% endif %}{{ days }} дн{% endif %}
+                                        {% if hours and hours|int > 0 %}{% if (months and months|int > 0) or (days and days|int > 0) %} · {% endif %}{{ hours }} ч{% endif %}
+                                        {% if (not months or months|int == 0) and (not days or days|int == 0) and (not hours or hours|int == 0) %}—{% endif %}
+                                    </td>
+                                    <td>{{ plan.price|round(0) }} RUB</td>
+                                    <td>{{ traffic and (traffic|round(2) ~ ' ГБ') or '∞' }}</td>
+                                    <td title="Режим отображения тарифа">
+                                        {% if display_mode == 'all' %}
+                                            <span style="color: #4CAF50;">👁️ Всем</span>
+                                        {% elif display_mode == 'hidden_all' %}
+                                            <span style="color: #f44336;">🚫 Скрыт</span>
+                                        {% elif display_mode == 'hidden_new' %}
+                                            <span style="color: #ff9800;">🆕 Скрыт у новых</span>
+                                        {% elif display_mode == 'hidden_old' %}
+                                            <span style="color: #2196F3;">👴 Скрыт у старых</span>
+                                        {% endif %}
+                                    </td>
+								<td style="text-align:right; position:relative;">
+								<div class="kebab-wrapper">
+									<button class="kebab-btn" onclick="toggleKebabMenu('kebab-plan-{{ plan.plan_id }}')" title="Действия с тарифом">
+										<i class="fas fa-ellipsis-v"></i>
+									</button>
+									<div class="kebab-menu" id="kebab-plan-{{ plan.plan_id }}">
+                                            <button type="button" class="kebab-item"
+                                                onclick="closeKebabMenu('kebab-plan-{{ plan.plan_id }}'); openPlanModalData(this)"
+                                                data-plan-id="{{ plan.plan_id }}" data-plan-name="{{ plan.plan_name }}" data-plan-months="{{ months }}" data-plan-days="{{ days }}" data-plan-hours="{{ hours }}" data-plan-price="{{ plan.price }}" data-plan-traffic="{{ traffic }}" data-plan-provision-mode="{{ provision_mode }}" data-plan-display-mode="{{ display_mode }}" data-host-name="{{ host.host_name }}" title="Редактировать тариф">
+												<i class="fas fa-edit"></i>
+												<span>Редактировать</span>
+											</button>
+											<button type="button" class="kebab-item danger" onclick="closeKebabMenu('kebab-plan-{{ plan.plan_id }}'); deletePlan('{{ plan.plan_id }}')" title="Удалить тариф">
+												<i class="fas fa-trash"></i>
+												<span>Удалить</span>
+											</button>
+										</div>
+									</div>
+								</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p>Тарифы не добавлены.</p>
+                    {% endif %}
+                    <h5 style="display:none">Добавить новый тариф:</h5>
+				</div>
+			</div>
+			{% endfor %}
+			</div>
+			{% else %}
+			<p>Хосты еще не добавлены.</p>
+			{% endif %}
+		</section>
+	</div>
+
+	<!-- Вкладка "Панель" -->
+	<div id="panel-tab" class="settings-tab">
+		<form action="{{ url_for('save_panel_settings') }}" method="post">
+			<section class="settings-section">
+				<h2>Глобальные параметры</h2>
+				<div class="form-group">
+					<label for="global_domain">Домен приложения:</label>
+					<input
+						type="url"
+						id="global_domain"
+						name="global_domain"
+						value="{{ settings.global_domain or '' }}"
+						placeholder="https://your-domain.com"
+						title="Основной домен приложения для всех внешних ссылок"
+					/>
+					<small class="text-muted">Используется для генерации ссылок в боте, TON Connect манифесте и других внешних интеграциях</small>
+				</div>
+			</section>
+			
+			<section class="settings-section">
+				<h2>Настройки Панели</h2>
+				<div class="form-group">
+					<label for="panel_login">Логин для входа в панель:</label>
+					<input
+						type="text"
+						id="panel_login"
+						name="panel_login"
+						value="{{ settings.panel_login or '' }}"
+						required
+						title="Логин для входа в административную панель"
+					/>
+				</div>
+				<div class="form-group password-wrapper">
+					<label for="panel_password"
+						>Новый пароль (оставьте пустым, чтобы не менять):</label
+					>
+					<input type="password" id="panel_password" name="panel_password" title="Новый пароль для входа в панель" />
+					<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+						<i class="fas fa-eye"></i>
+					</button>
+				</div>
+			</section>
+			
+			<section class="settings-section">
+				<h2>Автоматизация</h2>
+				<div class="form-group">
+					<label class="checkbox-label" for="auto_delete_orphans" title="Автоматически удалять клиентов на панелях, которых нет в базе данных бота">
+						<input
+							type="checkbox"
+							id="auto_delete_orphans"
+							name="auto_delete_orphans"
+							value="true"
+							{% if settings.auto_delete_orphans == 'true' %}checked{% endif %}
+						/>
+						<span>Автоматически удалять orphan clients</span>
+					</label>
+					<small class="text-muted">
+						При включении бот будет автоматически удалять клиентов на панелях XUI, которых нет в базе данных бота. 
+						Работает только с inbound'ами, привязанными к хостам в настройках бота.
+					</small>
+				</div>
+				<div class="form-group mt-3">
+					<a href="{{ url_for('orphan_deletions_log') }}" class="button button-secondary" target="_blank" title="Открыть лог удалённых orphan клиентов">
+						<i class="fas fa-list-alt"></i>
+						Лог удалённых клиентов
+					</a>
+					<small class="text-muted d-block mt-2">
+						<i class="fas fa-info-circle"></i>
+						Просмотр списка всех автоматически удалённых orphan клиентов с панелей XUI.
+					</small>
+				</div>
+			</section>
+			
+			<button type="submit" class="button button-primary" data-size="md" title="Сохранить настройки панели">
+				<i class="fas fa-save"></i>
+				Сохранить настройки панели
+			</button>
+		</form>
+	</div>
+
+	<!-- Вкладка "Бот" -->
+	<div id="bot-tab" class="settings-tab">
+		<form action="{{ url_for('save_bot_settings') }}" method="post">
+		<section class="settings-section">
+			<h2>Бот магазина</h2>
+			<div class="form-group password-wrapper">
+				<label for="telegram_bot_token">Токен бота:</label>
+				<input
+					type="password"
+					id="telegram_bot_token"
+					name="telegram_bot_token"
+					value="{{ settings.telegram_bot_token or '' }}"
+					required
+				/>
+				<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+					<i class="fas fa-eye"></i>
+				</button>
+			</div>
+			<div class="form-group">
+				<label for="telegram_bot_username">Username бота (без @):</label>
+				<input
+					type="text"
+					id="telegram_bot_username"
+					name="telegram_bot_username"
+					value="{{ hidden_mode and '' or (settings.telegram_bot_username or '') }}"
+					required
+				/>
+			</div>
+			<div class="form-group">
+				<label for="admin_telegram_id">Telegram ID Администратора:</label>
+				<input
+					type="text"
+					id="admin_telegram_id"
+					name="admin_telegram_id"
+					value="{{ hidden_mode and '' or (settings.admin_telegram_id or '') }}"
+					required
+				/>
+			</div>
+		</section>
+		<section class="settings-section">
+			<h2>Бот поддержки</h2>
+            <div class="form-group form-group-checkbox">
+                <input type="hidden" name="support_enabled" value="false" />
+                <input type="checkbox" id="support_enabled" name="support_enabled" value="true" {% if settings.support_enabled == 'true' %}checked{% endif %}>
+                <label for="support_enabled">Включить бота поддержки</label>
+            </div>
+			<div class="form-group">
+				<label for="support_user">URL поддержки или Бота-Саппорта:</label>
+				<input
+					type="text"
+					id="support_user"
+					name="support_user"
+					value="{{ settings.support_user or '' }}"
+					placeholder="@username или https://t.me/username"
+				/>
+			</div>
+			<div class="form-group password-wrapper">
+				<label for="support_bot_token"
+					>Токен Support-бота (если используется):</label
+				>
+				<input
+					type="password"
+					id="support_bot_token"
+					name="support_bot_token"
+					value="{{ settings.support_bot_token or '' }}"
+				/>
+				<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+					<i class="fas fa-eye"></i>
+				</button>
+			</div>
+			<div class="form-group">
+				<label for="support_group_id"
+					>ID Группы поддержки (должна быть включена функция форума
+					(Topics)):</label
+				>
+				<input
+					type="text"
+					id="support_group_id"
+					name="support_group_id"
+					value="{{ settings.support_group_id or '' }}"
+				/>
+			</div>
+		</section>
+		<section class="settings-section">
+			<h2>Бот для логов</h2>
+			<p class="text-muted" style="margin-bottom: 15px;">
+				Настройте бота для отправки логов ошибок и предупреждений в Telegram.
+				Это поможет быстро отслеживать проблемы в системе без необходимости просмотра файлов логов.
+			</p>
+			<div class="form-group password-wrapper">
+				<label for="logging_bot_token">Токен бота:</label>
+				<input
+					type="password"
+					id="logging_bot_token"
+					name="logging_bot_token"
+					value="{{ settings.logging_bot_token or '' }}"
+					placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
+					title="Токен Telegram бота для отправки логов"
+				/>
+				<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+					<i class="fas fa-eye"></i>
+				</button>
+			</div>
+			<div class="form-group">
+				<label for="logging_bot_username">Username бота (без @):</label>
+				<input
+					type="text"
+					id="logging_bot_username"
+					name="logging_bot_username"
+					value="{{ settings.logging_bot_username or '' }}"
+					placeholder="my_logging_bot"
+					title="Username бота для логов"
+				/>
+			</div>
+			<div class="form-group">
+				<label for="logging_bot_admin_chat_id">Telegram ID Администратора:</label>
+				<input
+					type="text"
+					id="logging_bot_admin_chat_id"
+					name="logging_bot_admin_chat_id"
+					value="{{ settings.logging_bot_admin_chat_id or '' }}"
+					placeholder="123456789"
+					title="ID чата администратора, куда будут отправляться логи"
+				/>
+				<small class="text-muted">Узнать свой ID можно через @userinfobot</small>
+			</div>
+			<div class="form-group">
+				<label for="logging_bot_level">Уровень логов:</label>
+				<select
+					id="logging_bot_level"
+					name="logging_bot_level"
+					title="Выберите уровень логирования"
+				>
+					<option value="none" {% if settings.logging_bot_level == 'none' %}selected{% endif %}>none - Отключено</option>
+					<option value="error" {% if settings.logging_bot_level == 'error' or not settings.logging_bot_level %}selected{% endif %}>error - Только ошибки</option>
+					<option value="warning" {% if settings.logging_bot_level == 'warning' %}selected{% endif %}>warning - Предупреждения и ошибки</option>
+					<option value="all" {% if settings.logging_bot_level == 'all' %}selected{% endif %}>все логи - Все (включая warning и error)</option>
+				</select>
+				<small class="text-muted">
+					• none - бот отключен<br>
+					• error - отправлять только критические ошибки<br>
+					• warning - отправлять предупреждения и ошибки<br>
+					• все логи - отправлять все логи (включая информационные)
+				</small>
+			</div>
+			<div class="form-group" style="margin-top: 20px;">
+				<button type="button" class="button button-secondary" onclick="testLoggingBot()" title="Отправить тестовое сообщение в бота логов">
+					<i class="fas fa-paper-plane"></i>
+					Отправить тестовое сообщение
+				</button>
+			</div>
+		</section>
+		<section class="settings-section">
+			<h2>Настройки Контента</h2>
+			<div class="form-group">
+				<div class="form-group-header">
+					<label for="about_content">О проекте</label>
+					<button type="button" class="button button-primary button-small button-icon" onclick="openContentModalWithAutoSave('about_content', 'Текст О проекте', 'textarea')" title="Редактировать текст о проекте">
+						<i class="fas fa-edit"></i>
+					</button>
+				</div>
+				<textarea id="about_content" name="about_content" class="textarea-small" rows="3" placeholder="Введите текст о проекте" readonly>{{ about_content or '' }}</textarea>
+			</div>
+			<div class="form-group">
+				<div class="form-group-header">
+					<label for="support_content">Помощь и поддержка</label>
+					<button type="button" class="button button-primary button-small button-icon" onclick="openContentModalWithAutoSave('support_content', 'Текст в разделе Поддержка', 'textarea')" title="Редактировать текст поддержки">
+						<i class="fas fa-edit"></i>
+					</button>
+				</div>
+				<textarea id="support_content" name="support_content" class="textarea-small" rows="3" placeholder="Введите текст поддержки" readonly>{{ support_content or '' }}</textarea>
+			</div>
+			<div class="form-group">
+				<label for="terms_content">Условия использования</label>
+				<div class="content-field-wrapper">
+					<input type="url" id="terms_content" name="terms_content" value="{{ terms_content or '' }}" placeholder="https://example.com/terms" readonly>
+				<button type="button" class="button button-primary button-small button-icon" onclick="openHtmlEditor('terms')" title="Редактировать HTML страницы условий использования">
+					<i class="fas fa-code"></i>
+				</button>
+				</div>
+			</div>
+			<div class="form-group">
+				<label for="privacy_content">Политика конфиденциальности</label>
+				<div class="content-field-wrapper">
+					<input type="url" id="privacy_content" name="privacy_content" value="{{ privacy_content or '' }}" placeholder="https://example.com/privacy" readonly>
+				<button type="button" class="button button-primary button-small button-icon" onclick="openHtmlEditor('privacy')" title="Редактировать HTML страницы политики конфиденциальности">
+					<i class="fas fa-code"></i>
+				</button>
+				</div>
+			</div>
+			<div class="form-group">
+				<label for="channel_url"
+					>Telegram-канал</label
+				>
+				<input
+					type="url"
+					id="channel_url"
+					name="channel_url"
+					value="{{ settings.channel_url or '' }}"
+				/>
+			</div>
+			<div class="form-group form-group-checkbox">
+				<input type="hidden" name="force_subscription" value="false" />
+				<input type="checkbox" id="force_subscription"
+				name="force_subscription" value="true" {% if
+				settings.force_subscription == 'true' %}checked{% endif %}>
+				<label for="force_subscription"
+					>Требовать обязательную подписку на канал</label
+				>
+			</div>
+		</section>
+		<section class="settings-section">
+			<h2>Платежи в боте</h2>
+			<div class="form-group">
+				<label for="minimum_topup">Минимальная сумма пополнения (RUB):</label>
+				<input type="number" step="1" id="minimum_topup" name="minimum_topup" value="{{ settings.minimum_topup or '50' }}" />
+				<small class="text-muted">Эта сумма используется в проверке "Ввести другую сумму".</small>
+			</div>
+		</section>
+		<section class="settings-section">
+			<h2>Настройки Пробного периода</h2>
+			<div class="form-group form-group-checkbox">
+				<input type="hidden" name="trial_enabled" value="false" />
+				<input type="checkbox" id="trial_enabled" name="trial_enabled"
+				value="true" {% if settings.trial_enabled == 'true' %}checked{% endif
+				%}>
+				<label for="trial_enabled">Включить пробный период</label>
+			</div>
+			<div class="form-group">
+				<label for="trial_duration_days"
+					>Длительность пробного периода (в днях):</label
+				>
+				<input
+					type="number"
+					id="trial_duration_days"
+					name="trial_duration_days"
+					value="{{ settings.trial_duration_days or '3' }}"
+				/>
+			</div>
+		</section>
+		<section class="settings-section">
+			<h2>Настройки Реферальной программы</h2>
+			<div class="form-group form-group-checkbox">
+				<input type="hidden" name="enable_referrals" value="false" />
+				<input type="checkbox" id="enable_referrals" name="enable_referrals"
+				value="true" {% if settings.enable_referrals == 'true' %}checked{%
+				endif %}>
+				<label for="enable_referrals">Включить реферальную систему</label>
+			</div>
+			<div class="form-group">
+				<label for="minimum_withdrawal">Минимальная сумма для вывода:</label>
+				<input
+					type="number"
+					id="minimum_withdrawal"
+					name="minimum_withdrawal"
+					value="{{ settings.minimum_withdrawal or '10' }}"
+				/>
+			</div>
+			<div class="form-group">
+				<label for="referral_percentage"
+					>Процент вознаграждения пригласившему (%):</label
+				>
+				<input
+					type="number"
+					id="referral_percentage"
+					name="referral_percentage"
+					value="{{ settings.referral_percentage or '10' }}"
+				/>
+			</div>
+			<div class="form-group">
+				<label for="referral_discount"
+					>Скидка для нового пользователя на первую покупку (%):</label
+				>
+				<input
+					type="number"
+					id="referral_discount"
+					name="referral_discount"
+					value="{{ settings.referral_discount or '5' }}"
+				/>
+			</div>
+		</section>
+			
+			<button type="submit" class="button button-primary" data-size="md" title="Сохранить настройки бота">
+				<i class="fas fa-save"></i>
+				Сохранить настройки бота
+			</button>
+		</form>
+	</div>
+
+	<!-- Вкладка "Платежные системы" -->
+	<div id="payments-tab" class="settings-tab">
+		<form action="{{ url_for('save_payment_settings') }}" method="post">
+			<section class="settings-section">
+				<h2>Настройки Платежных Систем</h2>
+				<div class="payment-systems-grid">
+					<!-- Колонка 1 -->
+					<div class="payment-column">
+						<!-- Настройка Telegram Stars -->
+						<div class="payment-system-card">
+							<h3>Настройка Telegram Stars</h3>
+							<div class="form-group form-group-checkbox">
+								<input type="hidden" name="stars_enabled" value="false" />
+								<input type="checkbox" id="stars_enabled" name="stars_enabled"
+								value="true" {% if settings.stars_enabled == 'true' %}checked{% endif %}>
+								<label for="stars_enabled">Включить оплату звездами Telegram</label>
+							</div>
+							<div class="form-group">
+								<label for="stars_conversion_rate">Курс конвертации (рублей за 1 звезду):</label>
+								<div style="display: flex; gap: 10px; align-items: center;">
+									<input
+										type="number"
+										step="0.01"
+										id="stars_conversion_rate"
+										name="stars_conversion_rate"
+										value="{{ settings.stars_conversion_rate or '1.79' }}"
+										placeholder="1.79"
+										style="flex: 1;"
+										title="Курс конвертации рублей в звезды Telegram"
+									/>
+									<button type="button" onclick="updateStarsRate()" class="button button-small" style="white-space: nowrap;" title="Обновить курс до актуального значения">
+										🔄 Обновить
+									</button>
+								</div>
+								<small class="text-muted">
+									💡 <strong>Как рассчитать:</strong><br>
+									• Посмотрите курс в Telegram: 100 звезд = 179 рублей<br>
+									• Значит 1 звезда = 1.79 рублей<br>
+									• Этот курс используется для корректной статистики и отчетности<br>
+									• Кнопка "Обновить" установит примерный курс (1.79)
+								</small>
+							</div>
+						</div>
+
+						<!-- Настройка TonConnect -->
+						<div class="payment-system-card">
+							<h3>Настройка TonConnect</h3>
+							<div class="form-group">
+								<label for="ton_wallet_address">Ton Wallet:</label>
+								<input
+									type="text"
+									id="ton_wallet_address"
+									name="ton_wallet_address"
+									value="{{ settings.ton_wallet_address or '' }}"
+								/>
+							</div>
+							<div class="form-group password-wrapper">
+								<label for="tonapi_key">TonAPI Key:</label>
+								<input
+									type="password"
+									id="tonapi_key"
+									name="tonapi_key"
+									value="{{ settings.tonapi_key or '' }}"
+								/>
+								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+									<i class="fas fa-eye"></i>
+								</button>
+							</div>
+							<div class="form-group">
+								<label for="ton_manifest_url">Ton manifest:</label>
+								<div class="content-field-wrapper">
+									<input
+										type="url"
+										id="ton_manifest_url"
+										name="ton_manifest_url"
+										value="{{ (settings.global_domain or settings.domain or 'https://paris.dark-maximus.com') + '/.well-known/tonconnect-manifest.json' }}"
+										placeholder="https://example.com/.well-known/tonconnect-manifest.json"
+										readonly
+									/>
+									<button type="button" class="button button-primary button-small button-icon" onclick="openTonManifest()" title="Перейти к манифесту TON Connect">
+										<i class="fas fa-external-link-alt"></i>
+									</button>
+									<button type="button" class="button button-primary button-small button-icon" onclick="openTonManifestEditor()" title="Редактировать манифест TON Connect">
+										<i class="fas fa-edit"></i>
+									</button>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- Колонка 2 -->
+					<div class="payment-column">
+						<!-- Настройка YooKassa -->
+						<div class="payment-system-card">
+							<h3>Настройка YooKassa</h3>
+							
+							<!-- Общие настройки -->
+							<div class="form-group form-group-checkbox">
+								<input type="hidden" name="sbp_enabled" value="false" />
+								<input type="checkbox" id="sbp_enabled" name="sbp_enabled"
+								value="true" {% if settings.sbp_enabled == 'true' %}checked{% endif
+								%}>
+								<label for="sbp_enabled">Включить оплату через СБП</label>
+							</div>
+							
+							<!-- Переключатель режима YooKassa -->
+							<div class="form-group form-group-toggle">
+								<div class="toggle-container">
+									<label for="yookassa_test_mode" class="toggle-label-text">
+										<span id="mode-label-text">
+											{% if settings.yookassa_test_mode == 'true' %}
+												Режим: Тестовый
+											{% else %}
+												Режим: Боевой
+											{% endif %}
+										</span>
+									</label>
+									<label class="modern-toggle">
+										<input type="hidden" name="yookassa_test_mode" value="false" />
+										<input type="checkbox" id="yookassa_test_mode" name="yookassa_test_mode"
+										value="true" {% if settings.yookassa_test_mode == 'true' %}checked{% endif
+										%} onchange="toggleYooKassaMode()">
+										<span class="toggle-slider"></span>
+									</label>
+								</div>
+							</div>
+							
+							<div class="form-group">
+								<label for="receipt_email">Почта для чеков:</label>
+								<input
+									type="text"
+									id="receipt_email"
+									name="receipt_email"
+									value="{{ settings.receipt_email or '' }}"
+									title="Email адрес для отправки чеков"
+								/>
+							</div>
+							
+							<!-- Разделитель -->
+							<div class="settings-divider"></div>
+							
+							<!-- Боевые настройки -->
+							<h4 style="color: #e74c3c; margin: 20px 0 15px 0; font-size: 16px;">🔴 Боевые настройки</h4>
+							
+							<div class="form-group">
+								<label for="yookassa_api_url">API URL:</label>
+								<input
+									type="text"
+									id="yookassa_api_url"
+									name="yookassa_api_url"
+									value="{{ settings.yookassa_api_url or 'https://api.yookassa.ru/v3' }}"
+									placeholder="https://api.yookassa.ru/v3"
+									title="Базовый URL API YooKassa для боевого режима"
+								/>
+							</div>
+							
+							<div class="form-group">
+								<input type="checkbox" id="yookassa_verify_ssl" name="yookassa_verify_ssl" value="true" {% if (settings.yookassa_verify_ssl or 'true') == 'true' %}checked{% endif %}>
+								<label for="yookassa_verify_ssl">Проверять SSL сертификаты</label>
+							</div>
+							
+							<div class="form-group">
+								<label for="yookassa_shop_id">Shop ID:</label>
+								<input
+									type="text"
+									id="yookassa_shop_id"
+									name="yookassa_shop_id"
+									value="{{ settings.yookassa_shop_id or '' }}"
+									title="Идентификатор магазина в YooKassa"
+								/>
+							</div>
+							
+							<div class="form-group password-wrapper">
+								<label for="yookassa_secret_key">Secret Key:</label>
+								<input
+									type="password"
+									id="yookassa_secret_key"
+									name="yookassa_secret_key"
+									value="{{ settings.yookassa_secret_key or '' }}"
+									title="Секретный ключ для API YooKassa"
+								/>
+								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+									<i class="fas fa-eye"></i>
+								</button>
+							</div>
+							
+							<!-- Разделитель -->
+							<div class="settings-divider"></div>
+							
+							<!-- Тестовые настройки -->
+							<h4 style="color: #f39c12; margin: 20px 0 15px 0; font-size: 16px;">🧪 Тестовые настройки</h4>
+							
+							<div class="form-group">
+								<label for="yookassa_test_api_url">API URL (тест):</label>
+								<input
+									type="text"
+									id="yookassa_test_api_url"
+									name="yookassa_test_api_url"
+									value="{{ settings.yookassa_test_api_url or 'https://api.test.yookassa.ru/v3' }}"
+									placeholder="https://api.test.yookassa.ru/v3"
+									title="Базовый URL API YooKassa для тестового режима"
+								/>
+							</div>
+							
+							<div class="form-group">
+								<input type="checkbox" id="yookassa_test_verify_ssl" name="yookassa_test_verify_ssl" value="true" {% if (settings.yookassa_test_verify_ssl or 'false') == 'true' %}checked{% endif %}>
+								<label for="yookassa_test_verify_ssl">Проверять SSL сертификаты (тест)</label>
+							</div>
+							
+							<div class="form-group">
+								<label for="yookassa_test_shop_id">Shop ID (тест):</label>
+								<input
+									type="text"
+									id="yookassa_test_shop_id"
+									name="yookassa_test_shop_id"
+									value="{{ settings.yookassa_test_shop_id or '' }}"
+									title="Идентификатор тестового магазина в YooKassa"
+								/>
+							</div>
+							
+							<div class="form-group password-wrapper">
+								<label for="yookassa_test_secret_key">Test Secret Key (тест):</label>
+								<input
+									type="password"
+									id="yookassa_test_secret_key"
+									name="yookassa_test_secret_key"
+									value="{{ settings.yookassa_test_secret_key or '' }}"
+									title="Секретный ключ для тестового API YooKassa"
+								/>
+								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+									<i class="fas fa-eye"></i>
+								</button>
+							</div>
+						</div>
+					</div>
+
+					<!-- Колонка 3 -->
+					<div class="payment-column">
+						<!-- Настройка CryptoBot -->
+						<div class="payment-system-card">
+							<h3>Настройка CryptoBot</h3>
+							<div class="form-group password-wrapper">
+								<label for="cryptobot_token">CryptoBot Token:</label>
+								<input
+									type="password"
+									id="cryptobot_token"
+									name="cryptobot_token"
+									value="{{ settings.cryptobot_token or '' }}"
+								/>
+								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+									<i class="fas fa-eye"></i>
+								</button>
+							</div>
+						</div>
+
+						<!-- Настройка Heleket -->
+						<div class="payment-system-card">
+							<h3>Настройка Heleket</h3>
+							<div class="form-group">
+								<label for="heleket_merchant_id">Heleket Merchant ID:</label>
+								<input
+									type="text"
+									id="heleket_merchant_id"
+									name="heleket_merchant_id"
+									value="{{ settings.heleket_merchant_id or '' }}"
+								/>
+							</div>
+							<div class="form-group password-wrapper">
+								<label for="heleket_api_key">Heleket API Key:</label>
+								<input
+									type="password"
+									id="heleket_api_key"
+									name="heleket_api_key"
+									value="{{ settings.heleket_api_key or '' }}"
+								/>
+								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+									<i class="fas fa-eye"></i>
+								</button>
+							</div>
+							<div class="form-group">
+								<label for="domain">Ваш домен (например, my-shop.com):</label>
+								<input
+									type="text"
+									id="domain"
+									name="domain"
+									value="{{ settings.domain or '' }}"
+								/>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			
+			<button type="submit" class="button button-primary">
+				Сохранить настройки платежных систем
+			</button>
+		</form>
+	</div>
+
+</div>
+
+<style>
+
+/* Стили для вкладок */
+.settings-tab {
+    display: none;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.settings-tab.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Settings Dark Theme v2.2 - Added tab navigation & moved content settings */
+/* Адаптация контейнера настроек */
+.settings-container {
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 10px;
+    color: #ffffff;
+}
+
+/* Центрирование содержимого секции Серверы и расширение ширины для 2 колонок */
+#servers-tab > section.settings-section {
+    width: clamp(600px, 90vw, 1500px);
+    min-width: 600px;
+    max-width: 1500px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.settings-section {
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    color: #ffffff;
+}
+
+/* Сетка серверов: две колонки по 700px, центрирование одиночного элемента */
+.servers-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+}
+
+.servers-grid .host-card {
+    flex: 0 1 700px;
+    width: 700px;
+    max-width: 100%;
+    margin: 0;
+}
+
+/* Стили для кнопок в темной теме */
+.settings-container .button {
+    background: var(--primary-color);
+    color: #ffffff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.3s ease;
+}
+
+.settings-container .button:hover {
+    background: var(--primary-hover);
+}
+
+.settings-container .button-small {
+    padding: 8px 16px;
+    font-size: 14px;
+}
+
+.settings-container .button-primary {
+    background: #28a745;
+}
+
+.settings-container .button-primary:hover {
+    background: #1e7e34;
+}
+
+.settings-container .button-danger {
+    background: #dc3545;
+}
+
+.settings-container .button-danger:hover {
+    background: #c82333;
+}
+
+.host-header{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+}
+.host-actions{ display:flex; gap:8px; padding:10px;}
+.button-icon{ width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; padding:0; }
+
+/* Серые кнопки (Отмена) */
+/* Отмена: используем глобальные стили .button.button-secondary */
+
+/* Таблица тарифов */
+.plans-table-wrap { overflow-x: visible; }
+@media (max-width: 900px) { .plans-table-wrap { overflow-x: auto; } }
+.plans-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.plans-table th, .plans-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #3a4147;
+    text-align: left;
+}
+.plans-table thead th { background: #32383f; position: sticky; top: 0; }
+.plans-table tbody tr:hover { background: #363c43; cursor: pointer; }
+
+/* Футер модалки с тремя кнопками */
+.modal-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 8px;
+}
+.modal-actions .button { flex: 1; }
+
+@media (max-width: 600px) {
+    .modal-actions { flex-direction: column; }
+    .modal-actions .button { width: 100%; }
+}
+
+/* Стили для полей ввода в темной теме */
+.settings-container input,
+.settings-container textarea,
+.settings-container select {
+    background: #3a4147;
+    color: #ffffff;
+    border: 1px solid #4a5058;
+    border-radius: 4px;
+    padding: 8px 12px;
+}
+
+.settings-container input:focus,
+.settings-container textarea:focus,
+.settings-container select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 135, 113, 0.25);
+}
+
+/* Стили для лейблов */
+.settings-container label {
+    color: #ffffff;
+    font-weight: 500;
+}
+
+/* Стили для подсказок */
+.settings-container .text-muted {
+    color: #bdc3c7 !important;
+}
+
+/* ---- Custom overrides for servers tab controls ---- */
+/* Kebab buttons only in main host header (not in plans table) */
+.servers-grid .host-card > .host-header .kebab-btn{
+    background: #282b30 !important;
+}
+
+/* "Создать тариф" button styles */
+.servers-grid .host-card > .host-header .host-actions .button-primary.button-small{
+    background: #008771 !important;
+}
+.servers-grid .host-card > .host-header .host-actions .button-primary.button-small:hover{
+    background: #006e5e !important;
+}
+
+/* "Добавить сервер" button styles */
+.host-header.section-top .host-actions .button-primary{
+    background: #008771 !important;
+}
+.host-header.section-top .host-actions .button-primary:hover{
+    background: #006e5e !important;
+}
+
+/* Стили для поля с кнопками (content-field-wrapper) */
+.content-field-wrapper {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.content-field-wrapper input {
+    flex: 1;
+}
+
+.content-field-wrapper .button-small {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Стили для заголовка группы с кнопкой */
+.form-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.form-group-header label {
+    margin-bottom: 0;
+}
+
+/* Стили для textarea с кодом */
+.textarea-code {
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.4;
+    background: #2d3748;
+    color: #e2e8f0;
+    border: 1px solid #4a5568;
+    border-radius: 6px;
+    padding: 12px;
+    resize: vertical;
+}
+
+.textarea-code:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(0, 135, 113, 0.25);
+}
+
+/* Стили для модального окна большого размера */
+.modal-large {
+    width: 90% !important;
+    max-width: 1200px !important;
+    max-height: 90vh !important;
+}
+
+/* Стили для form-actions */
+.form-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #4a5568;
+}
+
+/* Стили для form-help */
+.form-help {
+    color: #a0aec0;
+    font-size: 13px;
+    margin-top: 8px;
+    display: block;
+}
+
+.form-help a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.form-help a:hover {
+    text-decoration: underline;
+}
+
+</style>
+
+<script>
+// ===== Kebab menu styles теперь находятся в style.css =====
+
+    function showTab(tabName, el) {
+    // Скрыть все вкладки
+    const tabs = document.querySelectorAll('.settings-tab');
+    tabs.forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Убрать активность со всех кнопок
+    const buttons = document.querySelectorAll('.nav-button');
+    buttons.forEach(button => {
+        button.classList.remove('active');
+    });
+    
+    // Показать выбранную вкладку
+    document.getElementById(tabName + '-tab').classList.add('active');
+    
+    // Активировать соответствующую кнопку
+    if (el) { 
+        el.classList.add('active'); 
+    } else {
+        // Если кнопка не передана, найдем её по tabName
+        const targetButton = Array.from(document.querySelectorAll('.nav-button'))
+            .find(btn => (btn.getAttribute('onclick') || '').includes("'" + tabName + "'"));
+        if (targetButton) {
+            targetButton.classList.add('active');
+        }
+    }
+    
+    // Сохраняем активную вкладку в URL
+    const url = new URL(window.location);
+    url.searchParams.set('tab', tabName);
+    window.history.replaceState({}, '', url);
+}
+
+function updateStarsRate() {
+    // Устанавливаем примерный курс на основе данных из Telegram
+    document.getElementById('stars_conversion_rate').value = '1.79';
+    
+    // Показываем уведомление
+    alert('Курс обновлен до 1.79 рублей за 1 звезду.\n\nЭто примерный курс на основе:\n100 звезд = 179 рублей\n\nДля точного курса проверьте актуальные цены в Telegram.');
+}
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    // Получаем активную вкладку из URL параметров или используем переданную с сервера
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlTab = urlParams.get('tab');
+    const serverTab = '{{ active_tab or "servers" }}';
+    const currentActiveTab = urlTab || serverTab;
+    
+    // Показываем активную вкладку
+    showTab(currentActiveTab);
+
+    // Kebab toggling теперь обрабатывается глобально в script.js
+
+    // Делегирование dblclick по строкам тарифов
+    document.body.addEventListener('dblclick', function(e){
+        const tr = e.target.closest('tr.plan-row');
+        if (!tr) return;
+        const planId = tr.getAttribute('data-plan-id');
+        const name = tr.getAttribute('data-plan-name') || '';
+        const months = tr.getAttribute('data-plan-months') || '';
+        const days = tr.getAttribute('data-plan-days') || '';
+        const price = tr.getAttribute('data-plan-price') || '';
+        const traffic = tr.getAttribute('data-plan-traffic') || '';
+        const hours = tr.getAttribute('data-plan-hours') || '';
+        const keyProvisionMode = tr.getAttribute('data-plan-provision-mode') || 'key';
+        const hostName = tr.getAttribute('data-host-name') || '';
+        openPlanModal(planId, name, months, days, price, traffic, hostName, hours, keyProvisionMode);
+    });
+});
+
+// Проверка соединения с хостом
+async function checkHost(hostName, btn){
+    try{
+        if(btn){ btn.disabled = true; btn.textContent = 'Проверка...'; }
+        const form = new FormData();
+        form.append('host_name', hostName);
+        const res = await fetch('/check-host', {method:'POST', body: form});
+        const data = await res.json();
+        alert((data.status==='success'?'✅ ':'❌ ') + (data.message || ''));
+    }catch(e){
+        alert('❌ Ошибка проверки');
+    }finally{
+        if(btn){ btn.disabled = false; btn.textContent = '🔌 Проверить'; }
+    }
+}
+
+// Модалка для хоста (создание/редактирование)
+function openHostModal(name='', url='', user='', pass='', inbound='', code=''){
+    const html = `
+    <div class="modal-backdrop">
+      <div class="modal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>${name? 'Редактировать хост' : 'Добавить хост'}</h3>
+            <span class="close" onclick="closeModal()">&times;</span>
+          </div>
+          <div class="modal-body">
+            <form method="post" action="${name? '/edit-host' : '/add-host'}">
+              ${name? `<input type="hidden" name="old_host_name" value="${name}">` : ''}
+              <div class="form-group"><label>Название</label><input type="text" name="host_name" value="${name}" required></div>
+              <div class="form-group"><label>URL панели XUI</label><input type="url" name="host_url" value="${url}" placeholder="https://host:port/secret" required></div>
+              <div class="form-group"><label>Логин</label><input type="text" name="host_username" value="${user}" required></div>
+              <div class="form-group"><label>Пароль</label><input type="password" name="host_pass" value="${pass||''}" required></div>
+              <div class="form-group"><label>ID инбаунда</label><input type="number" name="host_inbound_id" value="${inbound}" required></div>
+              <div class="form-group"><label>Код 3x‑ui (стабильный)</label><input type="text" name="host_code" value="${code||''}" placeholder="amsterdam"></div>
+              <div class="modal-actions">
+                <span></span>
+                <button type="button" class="button button-secondary" onclick="closeModal()" title="Отменить и закрыть">Отмена</button>
+                <button type="submit" class="button button-primary">Сохранить</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    showModal(html);
+}
+
+// Обработчик для безопасного извлечения данных из data-* и открытия модалки хоста
+function openHostModalData(el){
+    if(!el) return;
+    const name = el.getAttribute('data-host-name') || '';
+    const url = el.getAttribute('data-host-url') || '';
+    const user = el.getAttribute('data-host-username') || '';
+    const inbound = el.getAttribute('data-host-inbound-id') || '';
+    const code = el.getAttribute('data-host-code') || '';
+    openHostModal(name, url, user, '', inbound, code);
+}
+
+// Модалка для тарифа (создание/редактирование)
+function openPlanModal(planId, name, months, days, price, traffic, hostName, hours, keyProvisionMode, displayMode){
+    const isEdit = !!planId;
+    const action = isEdit ? `/edit-plan/${planId}` : '/add-plan';
+    const hiddenHost = isEdit ? '' : `<input type="hidden" name="host_name" value="${hostName}">`;
+    const provisionMode = keyProvisionMode || 'key';
+    displayMode = displayMode || 'all';
+    
+    const html = `
+    <div class="modal-backdrop">
+      <div class="modal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>${isEdit? 'Редактировать тариф' : 'Добавить тариф'}</h3>
+            <span class="close" onclick="closeModal()">&times;</span>
+          </div>
+          <div class="modal-body">
+            <form method="post" action="${action}">
+              ${hiddenHost}
+              <div class="form-group"><label>Название</label><input type="text" name="plan_name" value="${name||''}" placeholder="Напр. Базовый" required title="Введите название тарифа"></div>
+              <div class="form-group"><label>Месяцы</label><input type="number" name="months" value="${months||''}" placeholder="0" title="Укажите количество месяцев"></div>
+              <div class="form-group"><label>Дни</label><input type="number" name="days" value="${days||''}" placeholder="0" title="Укажите количество дней"></div>
+              <div class="form-group"><label>Часы</label><input type="number" name="hours" value="${hours||''}" placeholder="0" min="0" max="24" title="Укажите количество часов (0–24)"></div>
+              <div class="form-group"><label>Цена (RUB)</label><input type="number" step="0.01" name="price" value="${price||''}" placeholder="0" required title="Введите цену тарифа, в рублях"></div>
+              <div class="form-group"><label>Трафик (ГБ)</label><input type="number" step="0.01" name="traffic_gb" value="${traffic||''}" placeholder="0 (безлимит)" title="Введите лимит трафика в ГБ или 0 для безлимита"></div>
+              <div class="form-group">
+                <label title="Выберите что будет предоставляться пользователю при покупке тарифа">Режим предоставления</label>
+                <select name="key_provision_mode" title="Что получит пользователь: ключ, подписка или оба варианта">
+                  <option value="key" ${provisionMode === 'key' ? 'selected' : ''}>Ключ</option>
+                  <option value="subscription" ${provisionMode === 'subscription' ? 'selected' : ''}>Подписка</option>
+                  <option value="both" ${provisionMode === 'both' ? 'selected' : ''}>Ключ + Подписка</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label title="Выберите режим отображения тарифа для разных категорий пользователей">Режим отображения</label>
+                <select name="display_mode" title="Кому показывать этот тариф в боте">
+                  <option value="all" ${displayMode === 'all' ? 'selected' : ''}>Отображать всем</option>
+                  <option value="hidden_all" ${displayMode === 'hidden_all' ? 'selected' : ''}>Скрыть у всех</option>
+                  <option value="hidden_new" ${displayMode === 'hidden_new' ? 'selected' : ''}>Скрыть у новых</option>
+                  <option value="hidden_old" ${displayMode === 'hidden_old' ? 'selected' : ''}>Скрыть у старых</option>
+                </select>
+              </div>
+              <div class="modal-actions">
+                <span></span>
+                <button type="button" class="button button-secondary" onclick="closeModal()" title="Отменить и закрыть">Отмена</button>
+                <button type="submit" class="button button-primary">Сохранить</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    showModal(html);
+}
+
+// Delete helpers
+function deleteHost(hostName){
+    if (!hostName) return;
+    if (!confirm('Удалить хост и все его тарифы?')) return;
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `/delete-host/${hostName}`;
+    
+    // Добавляем CSRF токен
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    form.appendChild(csrfInput);
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
+function deletePlan(planId){
+    if (!planId) return;
+    if (!confirm('Удалить тариф?')) return;
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `/delete-plan/${planId}`;
+    
+    // Добавляем CSRF токен
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    form.appendChild(csrfInput);
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
+// Обработчик для безопасного открытия модалки тарифа (add/edit) через data-*
+function openPlanModalData(el){
+    if(!el) return;
+    const planId = el.getAttribute('data-plan-id');
+    const hostName = el.getAttribute('data-host-name') || '';
+    if (planId) {
+        // Редактирование существующего тарифа
+        const name = el.getAttribute('data-plan-name') || '';
+        const months = el.getAttribute('data-plan-months') || '';
+        const days = el.getAttribute('data-plan-days') || '';
+        const price = el.getAttribute('data-plan-price') || '';
+        const traffic = el.getAttribute('data-plan-traffic') || '';
+        const hours = el.getAttribute('data-plan-hours') || '';
+        const keyProvisionMode = el.getAttribute('data-plan-provision-mode') || 'key';
+        const displayMode = el.getAttribute('data-plan-display-mode') || 'all';
+        openPlanModal(planId, name, months, days, price, traffic, hostName, hours, keyProvisionMode, displayMode);
+    } else {
+        // Создание нового тарифа
+        openPlanModal(null, '', '', '', '', '', hostName, '', 'key', 'all');
+    }
+}
+
+function showModal(html){
+    // Удаляем все существующие модальные окна перед созданием нового
+    const existingModals = document.querySelectorAll('.modal-backdrop');
+    existingModals.forEach(modal => modal.remove());
+    
+    const wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    document.body.appendChild(wrap);
+    const modal = wrap.querySelector('.modal');
+    const backdrop = wrap.querySelector('.modal-backdrop');
+    const modalContent = wrap.querySelector('.modal-content');
+    
+    if (modal) modal.style.display = 'flex';
+    if (backdrop) backdrop.style.display = 'block';
+    
+    // Убеждаемся, что модальное окно имеет правильные размеры
+    if (modalContent) {
+        // Если у модального окна нет явно заданных стилей, устанавливаем стандартные
+        if (!modalContent.style.width && !modalContent.style.maxWidth) {
+            modalContent.style.width = '90%';
+            modalContent.style.maxWidth = '500px';
+            modalContent.style.maxHeight = '90vh';
+        }
+    }
+}
+function closeModal(){
+    const el = document.querySelector('.modal-backdrop');
+    if(el) el.remove();
+}
+
+function closeHtmlEditor(){
+    const el = document.querySelector('.modal-backdrop');
+    if(el) el.remove();
+}
+
+// Функции для работы с модальным окном редактирования контента
+function openContentModal(fieldId, fieldLabel, fieldType) {
+    const field = document.getElementById(fieldId);
+    if (!field) return;
+    
+    const currentValue = field.value || '';
+    const isTextarea = fieldType === 'textarea';
+    
+    const html = `
+    <div class="modal-backdrop">
+      <div class="modal">
+        <div class="modal-content" style="width: 90%; max-width: 500px; max-height: 90vh;">
+          <div class="modal-header">
+            <h3>Редактировать ${fieldLabel}</h3>
+            <span class="close" onclick="closeModal()">&times;</span>
+          </div>
+          <div class="modal-body">
+            <form id="contentEditForm">
+              <div class="form-group">
+                <label for="contentValue">${fieldLabel}:</label>
+                ${isTextarea ? 
+                    `<textarea id="contentValue" name="contentValue" class="textarea-small" rows="5" placeholder="Введите ${fieldLabel.toLowerCase()}" required>${currentValue}</textarea>` :
+                    `<input type="${fieldType}" id="contentValue" name="contentValue" value="${currentValue}" placeholder="Введите ${fieldLabel.toLowerCase()}" required>`
+                }
+              </div>
+              <div class="modal-actions">
+                <span></span>
+                <button type="button" class="button button-secondary" onclick="closeModal()" title="Отменить и закрыть">Отмена</button>
+                <button type="button" class="button button-primary" onclick="saveContent('${fieldId}')" title="Сохранить изменения">Сохранить</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    showModal(html);
+}
+
+function saveContent(fieldId) {
+    const contentValue = document.getElementById('contentValue');
+    if (!contentValue) return;
+    
+    const newValue = contentValue.value.trim();
+    const originalField = document.getElementById(fieldId);
+    
+    if (originalField) {
+        originalField.value = newValue;
+    }
+    
+    closeModal();
+}
+
+// Новая функция для модального окна с автосохранением
+function openContentModalWithAutoSave(fieldId, fieldLabel, fieldType) {
+    const field = document.getElementById(fieldId);
+    if (!field) return;
+    
+    const currentValue = field.value || '';
+    const isTextarea = fieldType === 'textarea';
+    
+    const html = `
+    <div class="modal-backdrop">
+      <div class="modal">
+        <div class="modal-content" style="width: 90%; max-width: 500px; max-height: 90vh;">
+          <div class="modal-header">
+            <h3>Редактировать ${fieldLabel}</h3>
+            <span class="close" onclick="closeModal()">&times;</span>
+          </div>
+          <div class="modal-body">
+            <form id="contentEditForm">
+              <div class="form-group">
+                <label for="contentValue">${fieldLabel}:</label>
+                ${isTextarea ? 
+                    `<textarea id="contentValue" name="contentValue" class="textarea-small" rows="5" placeholder="Введите ${fieldLabel.toLowerCase()}" required>${currentValue}</textarea>` :
+                    `<input type="${fieldType}" id="contentValue" name="contentValue" value="${currentValue}" placeholder="Введите ${fieldLabel.toLowerCase()}" required>`
+                }
+              </div>
+              <div class="modal-actions">
+                <span></span>
+                <button type="button" class="button button-secondary" onclick="closeModal()" title="Отменить и закрыть">Отмена</button>
+                <button type="button" class="button button-primary" onclick="saveContentWithAutoSave('${fieldId}')" title="Сохранить изменения">Сохранить</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    showModal(html);
+}
+
+// Функция сохранения контента с автосохранением на сервере
+async function saveContentWithAutoSave(fieldId) {
+    const contentValue = document.getElementById('contentValue');
+    if (!contentValue) return;
+    
+    const newValue = contentValue.value.trim();
+    const originalField = document.getElementById(fieldId);
+    
+    if (!originalField) return;
+    
+    // Показываем индикатор загрузки
+    const saveButton = document.querySelector('button[onclick*="saveContentWithAutoSave"]');
+    const originalText = saveButton.textContent;
+    saveButton.disabled = true;
+    saveButton.textContent = 'Сохранение...';
+    
+    try {
+        // Отправляем AJAX запрос для сохранения на сервере
+        const formData = new FormData();
+        formData.append(fieldId, newValue);
+        
+        const response = await fetch('/save-content-setting', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (response.ok) {
+            // Обновляем поле в форме
+            originalField.value = newValue;
+            
+            // Показываем уведомление об успехе
+            showNotification('Настройка успешно сохранена!', 'success');
+            
+            // Закрываем модальное окно
+            closeModal();
+        } else {
+            throw new Error('Ошибка сохранения');
+        }
+    } catch (error) {
+        console.error('Ошибка сохранения:', error);
+        showNotification('Ошибка при сохранении настройки', 'error');
+    } finally {
+        // Восстанавливаем кнопку
+        saveButton.disabled = false;
+        saveButton.textContent = originalText;
+    }
+}
+
+// Функция для показа уведомлений
+function showNotification(message, type = 'success') {
+    // Создаем уведомление
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${type === 'error' ? '#dc3545' : '#28a745'};
+        color: white;
+        padding: 12px 20px;
+        border-radius: 4px;
+        z-index: 10000;
+        font-size: 14px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    `;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    // Убираем уведомление через 3 секунды
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, 3000);
+}
+
+// Функция для открытия HTML-редактора в модальном окне
+function openHtmlEditor(pageType) {
+    const pageTitle = pageType === 'terms' ? 'Условия использования' : 'Политика конфиденциальности';
+    const previewUrl = pageType === 'terms' ? '/terms' : '/privacy';
+    
+    // Создаем HTML для модального окна
+    const html = `
+    <div class="modal-backdrop">
+      <div class="modal">
+        <div class="modal-content modal-large" style="width: 90%; max-width: 1200px; max-height: 90vh;">
+            <div class="modal-header">
+                <h2>Редактирование ${pageTitle}</h2>
+                <span class="close" onclick="closeHtmlEditor()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="htmlEditForm" method="POST" action="/edit-${pageType}">
+                    <div class="form-group">
+                        <label for="html_content">HTML-код страницы:</label>
+                        <textarea 
+                            id="html_content" 
+                            name="${pageType}_content" 
+                            class="textarea-code"
+                            rows="30" 
+                            placeholder="Введите HTML-код страницы..."
+                            required
+                        ></textarea>
+                        <small class="form-help">
+                            Вы можете редактировать HTML-код страницы ${pageTitle.toLowerCase()}. 
+                            <a href="${previewUrl}" target="_blank">Предварительный просмотр</a>
+                        </small>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="button button-secondary" onclick="closeHtmlEditor()" title="Отменить изменения">
+                            <i class="fas fa-times"></i>
+                            Отмена
+                        </button>
+                        <button type="submit" class="button button-primary" title="Сохранить изменения">
+                            <i class="fas fa-save"></i>
+                            Сохранить
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+      </div>
+    </div>`;
+    
+    showModal(html);
+    
+    
+    // Добавляем обработчик формы
+    const form = document.getElementById('htmlEditForm');
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(form);
+        
+        fetch(form.action, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (response.ok) {
+                // Обновляем URL в поле настроек
+                const fieldId = pageType === 'terms' ? 'terms_content' : 'privacy_content';
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    const baseUrl = window.location.origin;
+                    field.value = baseUrl + previewUrl;
+                }
+                
+                // Показываем уведомление об успехе
+                showNotification('Изменения сохранены успешно!', 'success');
+                
+                // Закрываем модальное окно
+                closeHtmlEditor();
+            } else {
+                throw new Error('Ошибка сохранения');
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка:', error);
+            showNotification('Ошибка при сохранении изменений', 'error');
+        });
+    });
+    
+    // Загружаем текущий контент
+    loadCurrentContent(pageType);
+}
+
+// Функция для загрузки текущего контента
+function loadCurrentContent(pageType) {
+    const apiUrl = pageType === 'terms' ? '/api/get-terms-content' : '/api/get-privacy-content';
+    fetch(apiUrl)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('html_content').value = data.content || '';
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки контента:', error);
+        });
+}
+
+// Функция для закрытия модального окна
+function closeHtmlEditor() {
+    const modal = document.querySelector('.modal-backdrop');
+    if (modal) {
+        modal.remove();
+    }
+    // Удаляем добавленные стили
+    const style = document.querySelector('style');
+    if (style && style.textContent.includes('.modal-backdrop')) {
+        style.remove();
+    }
+}
+
+// Функция для открытия манифеста TON Connect в новой вкладке
+function openTonManifest() {
+    // Открываем манифест TON Connect в новом окне
+    const manifestUrl = '/.well-known/tonconnect-manifest.json';
+    window.open(manifestUrl, '_blank');
+}
+
+// Функция для открытия редактора манифеста TON Connect
+function openTonManifestEditor() {
+    const html = `
+    <div class="modal-backdrop">
+      <div class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>Редактирование Ton Connect Manifest</h2>
+                <span class="close" onclick="closeTonManifestEditor()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="tonManifestForm" class="ton-manifest-form">
+                    <div class="form-group">
+                        <label for="ton_manifest_name">Название приложения:</label>
+                        <input type="text" id="ton_manifest_name" name="ton_manifest_name" 
+                               value="" 
+                               placeholder="Введите название приложения" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="app_url">URL приложения:</label>
+                        <input type="url" id="app_url" name="app_url" 
+                               value="" 
+                               placeholder="https://example.com" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="ton_manifest_icon_url">URL иконки:</label>
+                        <div class="icon-upload-container">
+                            <div class="icon-url-input">
+                                <input type="url" id="ton_manifest_icon_url" name="ton_manifest_icon_url" 
+                                       value="" 
+                                       placeholder="https://example.com/icon.png" required>
+                                <button type="button" class="button button-secondary" onclick="document.getElementById('icon_file_input').click()" title="Загрузить файл">
+                                    <i class="fas fa-upload"></i>
+                                    Загрузить
+                                </button>
+                            </div>
+                            <input type="file" id="icon_file_input" accept="image/png,image/jpg,image/jpeg,image/gif,image/webp" style="display: none;">
+                            <div class="icon-preview" id="icon_preview">
+                                <img id="icon_preview_img" src="" alt="Превью иконки">
+                            </div>
+                            <small>Рекомендуемый размер: 256x256 пикселей (PNG, JPG, JPEG, GIF, WEBP)</small>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="ton_manifest_terms_url">URL условий использования:</label>
+                        <input type="url" id="ton_manifest_terms_url" name="ton_manifest_terms_url" 
+                               value="" 
+                               placeholder="https://example.com/terms" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="ton_manifest_privacy_url">URL политики конфиденциальности:</label>
+                        <input type="url" id="ton_manifest_privacy_url" name="ton_manifest_privacy_url" 
+                               value="" 
+                               placeholder="https://example.com/privacy" required>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="button button-secondary" onclick="closeTonManifestEditor()" title="Отменить изменения">
+                            <i class="fas fa-times"></i>
+                            Отменить
+                        </button>
+                        <button type="submit" class="button button-primary" title="Сохранить изменения манифеста">
+                            <i class="fas fa-save"></i>
+                            Сохранить
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+      </div>
+    </div>`;
+    
+    showModal(html);
+    
+    // Загружаем актуальные данные из базы данных
+    loadTonManifestData();
+    
+    // Добавляем обработчики
+    const form = document.getElementById('tonManifestForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(form);
+            
+            fetch('/save-ton-manifest-settings', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Настройки Ton Connect манифеста успешно сохранены', 'success');
+                    closeTonManifestEditor();
+                } else {
+                    showNotification('Ошибка при сохранении настроек: ' + (data.message || 'Неизвестная ошибка'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+                showNotification('Ошибка при сохранении настроек', 'error');
+            });
+        });
+    }
+    
+    // Обработка загрузки иконки
+    const iconFileInput = document.getElementById('icon_file_input');
+    if (iconFileInput) {
+        iconFileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                uploadIconFile(file);
+            }
+        });
+    }
+}
+
+// Функция для загрузки актуальных данных Ton manifest
+function loadTonManifestData() {
+    console.log('Начинаем загрузку данных манифеста...');
+    
+    fetch('/api/get-ton-manifest-data')
+        .then(response => {
+            console.log('Ответ сервера:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('Полученные данные:', data);
+            
+            if (data.success) {
+                // Заполняем поля формы актуальными данными
+                const nameField = document.getElementById('ton_manifest_name');
+                const urlField = document.getElementById('app_url');
+                const iconUrlField = document.getElementById('ton_manifest_icon_url');
+                const termsUrlField = document.getElementById('ton_manifest_terms_url');
+                const privacyUrlField = document.getElementById('ton_manifest_privacy_url');
+                
+                if (nameField) nameField.value = data.data.name || '';
+                if (urlField) urlField.value = data.data.url || '';
+                if (iconUrlField) iconUrlField.value = data.data.iconUrl || '';
+                if (termsUrlField) termsUrlField.value = data.data.termsOfUseUrl || '';
+                if (privacyUrlField) privacyUrlField.value = data.data.privacyPolicyUrl || '';
+                
+                // Обновляем превью иконки
+                const previewImg = document.getElementById('icon_preview_img');
+                if (previewImg) previewImg.src = data.data.iconUrl || '';
+                
+                console.log('Поля формы заполнены:', {
+                    name: data.data.name,
+                    url: data.data.url,
+                    iconUrl: data.data.iconUrl,
+                    termsUrl: data.data.termsOfUseUrl,
+                    privacyUrl: data.data.privacyPolicyUrl
+                });
+            } else {
+                console.error('Ошибка получения данных:', data.message);
+                showNotification('Ошибка при загрузке данных манифеста: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка загрузки данных манифеста:', error);
+            showNotification('Ошибка при загрузке данных манифеста', 'error');
+        });
+}
+
+// Функция для загрузки файла иконки
+function uploadIconFile(file) {
+    const formData = new FormData();
+    formData.append('icon', file);
+    
+    // Показываем индикатор загрузки
+    const iconPreview = document.getElementById('icon_preview');
+    const iconUrlInput = document.getElementById('ton_manifest_icon_url');
+    const uploadButton = document.querySelector('.icon-url-input .button');
+    
+    iconPreview.classList.add('icon-upload-loading');
+    uploadButton.disabled = true;
+    uploadButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Загрузка...';
+    
+    fetch('/upload-ton-icon', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Обновляем URL в поле ввода
+            iconUrlInput.value = data.icon_url;
+            
+            // Обновляем превью
+            const previewImg = document.getElementById('icon_preview_img');
+            previewImg.src = data.icon_url;
+            
+            // Показываем уведомление об успехе
+            showNotification('Иконка успешно загружена', 'success');
+        } else {
+            showNotification('Ошибка при загрузке иконки: ' + data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Ошибка:', error);
+        showNotification('Ошибка при загрузке иконки', 'error');
+    })
+    .finally(() => {
+        // Убираем индикатор загрузки
+        iconPreview.classList.remove('icon-upload-loading');
+        uploadButton.disabled = false;
+        uploadButton.innerHTML = '<i class="fas fa-upload"></i> Загрузить';
+    });
+}
+
+// Функция для закрытия редактора манифеста TON Connect
+function closeTonManifestEditor() {
+    const modal = document.querySelector('.modal-backdrop');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// Функция переключения режима YooKassa
+function toggleYooKassaMode() {
+    const testModeCheckbox = document.getElementById('yookassa_test_mode');
+    const modeLabelText = document.getElementById('mode-label-text');
+    
+    if (testModeCheckbox.checked) {
+        // Тестовый режим включен
+        modeLabelText.textContent = 'Режим: Тестовый';
+    } else {
+        // Боевой режим включен
+        modeLabelText.textContent = 'Режим: Боевой';
+    }
+    
+    console.log('Режим YooKassa изменен:', testModeCheckbox.checked ? 'Тестовый' : 'Боевой');
+}
+
+// Функция для тестирования бота логов
+async function testLoggingBot() {
+    const token = document.getElementById('logging_bot_token').value;
+    const chatId = document.getElementById('logging_bot_admin_chat_id').value;
+    
+    if (!token || !chatId) {
+        showNotification('Заполните токен бота и ID администратора', 'warning');
+        return;
+    }
+    
+    // Показываем индикатор загрузки
+    const button = event.target.closest('button');
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Отправка...';
+    
+    try {
+        const response = await fetch('/test-logging-bot', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                token: token,
+                chat_id: chatId
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('Тестовое сообщение успешно отправлено! Проверьте Telegram.', 'success');
+        } else {
+            showNotification('Ошибка отправки: ' + (data.message || 'Неизвестная ошибка'), 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка:', error);
+        showNotification('Ошибка при отправке тестового сообщения', 'error');
+    } finally {
+        // Восстанавливаем кнопку
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
+
+</script>
+
+
+
+<style>
+</style>
+
+{% endblock %}

@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Редактирование политики конфиденциальности{% endblock %}
+{% block header_title %}Редактирование политики конфиденциальности{% endblock %}
+{% block content %}
+
+<div class="content-container">
+    <div class="page-header">
+        <h1>Редактирование политики конфиденциальности</h1>
+        <div class="header-actions">
+            <a href="/privacy" target="_blank" class="button button-secondary" title="Предварительный просмотр">
+                <i class="fas fa-eye"></i>
+                Предварительный просмотр
+            </a>
+        </div>
+    </div>
+
+    <form method="POST" class="edit-form">
+        <div class="form-group">
+            <label for="privacy_content">HTML-код страницы:</label>
+            <textarea 
+                id="privacy_content" 
+                name="privacy_content" 
+                class="textarea-code"
+                rows="30" 
+                placeholder="Введите HTML-код страницы..."
+                required
+            >{{ privacy_content }}</textarea>
+            <small class="form-help">
+                Вы можете редактировать HTML-код страницы политики конфиденциальности. 
+                <a href="/privacy" target="_blank">Предварительный просмотр</a>
+            </small>
+        </div>
+        
+        <div class="form-actions">
+            <button type="button" class="button button-secondary" onclick="window.history.back()" title="Отменить изменения">
+                <i class="fas fa-times"></i>
+                Отмена
+            </button>
+            <button type="submit" class="button button-primary" title="Сохранить изменения">
+                <i class="fas fa-save"></i>
+                Сохранить
+            </button>
+        </div>
+    </form>
+</div>
+
+<style>
+.content-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    background: var(--bg-surface);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.page-header h1 {
+    color: var(--light-color);
+    margin: 0;
+    font-size: 1.8em;
+    font-weight: 600;
+}
+
+.header-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.edit-form {
+    background: var(--bg-elevated);
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    border: 1px solid var(--border-color);
+}
+
+.form-group {
+    margin-bottom: 25px;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--light-color);
+}
+
+
+.form-help {
+    display: block;
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.form-help a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.form-help a:hover {
+    text-decoration: underline;
+    color: var(--primary-hover);
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+.button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 6px;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-height: 44px;
+}
+
+.button-primary {
+    background: var(--primary-color);
+    color: white;
+}
+
+.button-primary:hover {
+    background: var(--primary-hover);
+}
+
+.button-secondary {
+    background: var(--muted);
+    color: white;
+}
+
+.button-secondary:hover {
+    background: var(--muted-hover);
+}
+
+.flash {
+    padding: 15px 20px;
+    margin-bottom: 20px;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+.flash-success {
+    background: var(--success-color);
+    color: white;
+    border: 1px solid var(--success-hover);
+}
+
+.flash-danger {
+    background: var(--danger-strong);
+    color: white;
+    border: 1px solid var(--danger-strong-hover);
+}
+</style>
+
+{% endblock %}

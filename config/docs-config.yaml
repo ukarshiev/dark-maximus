@@ -1,0 +1,47 @@
+# CodeX Docs Configuration для Dark Maximus VPN
+# Конфигурация пользовательской базы знаний
+
+# Основная информация
+name: "Dark Maximus VPN"
+description: "База знаний и инструкции по использованию VPN"
+
+# Меню навигации
+menu:
+  - name: "Главная"
+    uri: "/"
+  - name: "Настройка"
+    items:
+      - name: "Android"
+        uri: "/setup/android"
+      - name: "iOS (iPhone/iPad)"
+        uri: "/setup/ios"
+      - name: "Windows"
+        uri: "/setup/windows"
+      - name: "macOS"
+        uri: "/setup/macos"
+      - name: "Linux"
+        uri: "/setup/linux"
+  - name: "Помощь"
+    items:
+      - name: "FAQ - Частые вопросы"
+        uri: "/faq"
+      - name: "Решение проблем"
+        uri: "/troubleshooting"
+      - name: "Оплата и баланс"
+        uri: "/payment"
+
+# Дополнительные настройки
+footer:
+  links:
+    - name: "Telegram канал"
+      uri: "https://t.me/dark_maximus"
+    - name: "Написать в поддержку"
+      uri: "https://t.me/YOUR_SUPPORT_BOT"
+
+# Брендинг (опционально)
+# logo: "/static/logo.svg"
+
+# Yandex Metrica (опционально, если есть счётчик)
+# metrika:
+#   id: "YOUR_METRIKA_ID"
+

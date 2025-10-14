@@ -1,0 +1,189 @@
+{% extends "base.html" %} 
+{% block title %}dark-maximus.com{% endblock %}
+{% block header_title %}Главная{% endblock %}
+{%
+block content %}
+
+
+<section class="stats-section">
+	<div class="stats-grid">
+		<div class="stat-card">
+			<h3>Пользователей</h3>
+			<p class="stat-number">{{ stats.user_count or 0 }}</p>
+		</div>
+		<div class="stat-card">
+			<h3>Всего ключей</h3>
+			<p class="stat-number">{{ stats.total_keys or 0 }}</p>
+		</div>
+		<div class="stat-card">
+			<h3>Всего заработано</h3>
+			<p class="stat-number">
+				{{ (stats.total_spent or 0) | round(2) }} <small>RUB</small>
+			</p>
+		</div>
+		<div class="stat-card">
+			<h3>Активных хостов</h3>
+			<p class="stat-number">{{ stats.host_count or 0 }}</p>
+		</div>
+		<div class="stat-card">
+			<h3>Всего уведомлений</h3>
+			<p class="stat-number">{{ stats.total_notifications or 0 }}</p>
+		</div>
+	</div>
+</section>
+
+<!-- Аналитика на всю страницу -->
+<section class="analytics-section">
+	<h2>Аналитика за последние 30 дней</h2>
+	<div class="charts-grid">
+		<div class="chart-container">
+			<h3>Новые пользователи и ключи</h3>
+			<canvas id="combinedChart"></canvas>
+		</div>
+	</div>
+</section>
+
+<script>
+	// Инициализация объединенного графика
+	document.addEventListener('DOMContentLoaded', function() {
+		const combinedCtx = document.getElementById('combinedChart').getContext('2d');
+		new Chart(combinedCtx, {
+			type: 'line',
+			data: {
+				labels: {{ chart_data.dates | tojson }},
+				datasets: [{
+					label: 'Новые пользователи',
+					data: {{ chart_data.new_users | tojson }},
+					borderColor: '#4CAF50',
+					backgroundColor: 'rgba(76, 175, 80, 0.1)',
+					tension: 0.4,
+					pointRadius: 4,
+					pointHoverRadius: 6,
+					borderWidth: 2
+				}, {
+					label: 'Новые ключи',
+					data: {{ chart_data.new_keys | tojson }},
+					borderColor: '#2196F3',
+					backgroundColor: 'rgba(33, 150, 243, 0.1)',
+					tension: 0.4,
+					pointRadius: 4,
+					pointHoverRadius: 6,
+					borderWidth: 2
+				}, {
+					label: 'Заработано (RUB)',
+					data: {{ chart_data.earned_sum | tojson }},
+					borderColor: '#FF9800',
+					backgroundColor: 'rgba(255, 152, 0, 0.1)',
+					yAxisID: 'y1',
+					pointRadius: 4,
+					pointHoverRadius: 6,
+					borderWidth: 2
+				}, {
+					label: 'Новые уведомления',
+					data: {{ chart_data.new_notifications | tojson }},
+					borderColor: '#9C27B0',
+					backgroundColor: 'rgba(156, 39, 176, 0.1)',
+					tension: 0.4,
+					pointRadius: 4,
+					pointHoverRadius: 6,
+					borderWidth: 2
+				}]
+			},
+			options: {
+				responsive: true,
+				maintainAspectRatio: false,
+				layout: {
+					padding: {
+						top: 5,
+						right: 5,
+						bottom: 5,
+						left: 5
+					}
+				},
+				plugins: {
+					legend: {
+						display: true,
+						position: 'top',
+						labels: {
+							font: {
+								size: 12
+							},
+							usePointStyle: true,
+							padding: 15
+						}
+					}
+				},
+				scales: {
+					x: {
+						display: true,
+						title: {
+							display: true,
+							text: 'Дата',
+							font: {
+								size: 10
+							}
+						},
+						ticks: {
+							font: {
+								size: 9
+							},
+							maxRotation: 45,
+							padding: 3
+						},
+						grid: {
+							display: true,
+							drawBorder: true
+						}
+					},
+					y: {
+						display: true,
+						beginAtZero: true,
+						title: {
+							display: true,
+							text: 'Количество',
+							font: {
+								size: 10
+							}
+						},
+						ticks: {
+							font: {
+								size: 9
+							},
+							padding: 3,
+							stepSize: 1
+						},
+						grid: {
+							display: true,
+							drawBorder: true
+						}
+					},
+					y1: {
+						display: true,
+						position: 'right',
+						beginAtZero: true,
+						title: {
+							display: true,
+							text: 'RUB',
+							font: { size: 10 }
+						}
+					}
+				},
+				interaction: {
+					intersect: false,
+					mode: 'index'
+				},
+				elements: {
+					point: {
+						radius: 4,
+						hoverRadius: 6
+					},
+					line: {
+						tension: 0.4
+					}
+				}
+			}
+		});
+	});
+</script>
+
+{% endblock %}

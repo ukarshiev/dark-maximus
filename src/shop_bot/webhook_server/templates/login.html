@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ru">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Вход в Панель управления</title>
+		<link
+			rel="stylesheet"
+			href="{{ url_for('static', filename='css/style.css', v=project_version or '1') }}?t=20241221"
+		/>
+	</head>
+	<body class="login-page">
+		<!-- Закрепленная панель в head -->
+		<header class="header-panel">
+			<!-- Пока пустая панель для будущих элементов -->
+		</header>
+		
+		<div class="login-container">
+
+			{% with messages = get_flashed_messages(with_categories=true) %} {% if
+			messages %} {% for category, message in messages %}
+			<div class="flash flash-{{ category }}">{{ message }}</div>
+			{% endfor %} {% endif %} {% endwith %}
+
+		<form method="post">
+			<div class="form-group">
+				<label for="username">Логин:</label>
+					<input type="text" id="username" name="username" required />
+				</div>
+				<div class="form-group">
+					<label for="password">Пароль:</label>
+					<input type="password" id="password" name="password" required />
+				</div>
+				<button type="submit" class="button button-primary" data-size="lg" style="width: 100%" title="Войти в панель управления">
+					<i class="fas fa-sign-in-alt"></i>
+					Войти
+				</button>
+			</form>
+		</div>
+	</body>
+</html>

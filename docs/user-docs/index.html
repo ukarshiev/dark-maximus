@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Dark Maximus VPN - База знаний</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <meta name="description" content="База знаний и инструкции по использованию Dark Maximus VPN">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
+  
+  <!-- Docsify Theme -->
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css">
+  
+  <style>
+    :root {
+      --theme-color: #6366f1;
+      --theme-color-dark: #4f46e5;
+    }
+    
+    /* Кастомизация для Dark Maximus */
+    .app-name-link img {
+      width: 180px;
+    }
+    
+    .sidebar-nav li {
+      font-size: 14px;
+    }
+    
+    /* Улучшенные иконки */
+    .sidebar-nav a:before {
+      content: "📄";
+      margin-right: 8px;
+    }
+    
+    .sidebar-nav li.folder>a:before {
+      content: "📁";
+    }
+    
+    /* Красивые кнопки */
+    .markdown-section a {
+      color: var(--theme-color);
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      transition: border-bottom 0.3s;
+    }
+    
+    .markdown-section a:hover {
+      border-bottom: 1px solid var(--theme-color);
+    }
+  </style>
+</head>
+<body>
+  <div id="app">Загрузка...</div>
+  
+  <script>
+    window.$docsify = {
+      name: 'Dark Maximus VPN',
+      repo: '',
+      loadSidebar: true,
+      loadNavbar: false,
+      subMaxLevel: 3,
+      auto2top: true,
+      coverpage: false,
+      executeScript: true,
+      
+      // Поиск
+      search: {
+        maxAge: 86400000,
+        paths: 'auto',
+        placeholder: 'Поиск...',
+        noData: 'Ничего не найдено',
+        depth: 3
+      },
+      
+      // Копирование кода
+      copyCode: {
+        buttonText: 'Копировать',
+        errorText: 'Ошибка',
+        successText: 'Скопировано!'
+      },
+      
+      // Пагинация
+      pagination: {
+        previousText: '← Предыдущая',
+        nextText: 'Следующая →',
+        crossChapter: true,
+        crossChapterText: true,
+      },
+      
+      // Emoji
+      markdown: {
+        smartypants: true
+      }
+    }
+  </script>
+  
+  <!-- Docsify Core -->
+  <script src="//cdn.jsdelivr.net/npm/docsify@4"></script>
+  
+  <!-- Плагины -->
+  <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/search.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify-copy-code@2"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify-pagination/dist/docsify-pagination.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/emoji.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-yaml.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-nginx.min.js"></script>
+</body>
+</html>
+

@@ -1,0 +1,1012 @@
+{% extends "base.html" %}
+{% block title %}Ключи{% endblock %}
+{% block header_title %}Ключи{% endblock %}
+
+{% block header_buttons %}
+<button class="button button-secondary" data-size="sm" onclick="openHostRefreshModal()" id="hostRefreshBtn" title="Обновить ключи по выбранному хосту">
+	<i class="fas fa-server"></i>
+	<span>Обновить по хосту</span>
+</button>
+<button class="button button-secondary" data-size="sm" onclick="refreshKeys()" id="headerRefreshBtn" title="Обновить все ключи из 3x-ui панелей">
+	<i class="fas fa-sync-alt" id="headerRefreshIcon"></i>
+	<span id="headerRefreshText">Обновить все ключи</span>
+</button>
+{% endblock %}
+
+{% block content %}
+
+<div class="keys-container">
+	<div class="keys-header">
+	</div>
+
+	<section class="keys-section">
+		<div class="table-container" style="padding-bottom: 80px;">
+			<table class="keys-table">
+				<thead>
+					<tr>
+						<th>Меню</th>
+						<th>ID</th>
+						<th>Пользователь</th>
+						<th>Хост</th>
+						<th>План</th>
+						<th>Стоимость</th>
+						<th>Тип</th>
+						<th>Триал</th>
+						<th>Начало</th>
+						<th>Окончание</th>
+						<th>Осталось</th>
+						<th title="Общее&#10;Использовано&#10;Остаток">Трафик</th>
+					<th>Статус</th>
+					<th>Вкл</th>
+					<th title="Ссылка на подписку из 3x-ui">Subscription Link</th>
+					<th>Ключ</th>
+						<th>3x-ui</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for key in keys %}
+					<tr class="key-row" ondblclick="openKeyDrawer({{ key.key_id }})" style="cursor: pointer;" title="Дважды кликните для открытия деталей ключа">
+						<td>
+							<div class="kebab-wrapper">
+								<button class="kebab-btn" onclick="toggleKebabMenu('kebab-key-{{ key.key_id }}')" title="Действия с ключом">
+									<i class="fas fa-ellipsis-v"></i>
+								</button>
+								<div class="kebab-menu" id="kebab-key-{{ key.key_id }}">
+									<button class="kebab-item" onclick="closeKebabMenu('kebab-key-{{ key.key_id }}'); openKeyDrawer({{ key.key_id }})" title="Открыть детали ключа">
+										<i class="fas fa-eye"></i>
+										<span>Открыть</span>
+									</button>
+									<button class="kebab-item" onclick="closeKebabMenu('kebab-key-{{ key.key_id }}'); refreshUserKey({{ key.user_id }})" title="Обновить из 3x-ui">
+										<i class="fas fa-sync-alt"></i>
+										<span>Обновить из 3x-ui</span>
+									</button>
+									{% if key.enabled %}
+									<button class="kebab-item" onclick="closeKebabMenu('kebab-key-{{ key.key_id }}'); toggleKeyEnabled({{ key.key_id }}, false)" title="Отключить ключ">
+										<i class="fas fa-toggle-off"></i>
+										<span>Отключить</span>
+									</button>
+									{% else %}
+									<button class="kebab-item" onclick="closeKebabMenu('kebab-key-{{ key.key_id }}'); toggleKeyEnabled({{ key.key_id }}, true)" title="Включить ключ">
+										<i class="fas fa-toggle-on"></i>
+										<span>Включить</span>
+									</button>
+									{% endif %}
+								</div>
+							</div>
+						</td>
+						<td>{{ key.key_id }}</td>
+						<td>
+							<div class="user-info">
+								<div data-field="key_user_id" data-original="{{ key.user_id }}">
+									<div class="cell-inline">
+										<div class="cell-left">
+											<strong>ID:</strong>
+											<span>{{ hidden_mode and '***' or key.user_id }}</span>
+										</div>
+										<div class="cell-actions">
+											<button class="modal-action-btn" data-size="xs" onclick="openUserModal({{ key.user_id }}, '{{ key.username or 'N/A' }}', false, {{ key.user_keys_count or 0 }})" title="Открыть карточку пользователя">
+												<i class="fas fa-eye"></i>
+											</button>
+										</div>
+									</div>
+								</div>
+								<div data-field="key_username" data-original="{{ key.username or 'N/A' }}"><strong>Username:</strong> {{ hidden_mode and '***' or (key.username or 'N/A') }}</div>
+							</div>
+						</td>
+						<td>{{ key.host_name }}</td>
+						<td>
+							{% if key.is_trial == 1 %}
+								Триал
+							{% else %}
+								{{ key.plan_name or 'N/A' }}
+							{% endif %}
+						</td>
+						<td>{{ key.price or 'N/A' }} RUB</td>
+						<td>{{ key.protocol or 'vless' }}</td>
+						<td>
+							{% if key.is_trial == 1 %}
+								<span class="status-badge status-active">Да</span>
+							{% else %}
+								<span class="status-badge status-banned">Нет</span>
+							{% endif %}
+						</td>
+						<td>
+							{% if key.created_date %}
+								{{ key.created_date.strftime('%Y-%m-%d') }}<br/>{{ key.created_date.strftime('%H:%M:%S') }}
+							{% else %}
+								N/A
+							{% endif %}
+						</td>
+						<td>
+							{% if key.expiry_date %}
+								{% if key.expiry_date.strftime is defined %}
+									{{ key.expiry_date.strftime('%Y-%m-%d') }}<br/>{{ key.expiry_date.strftime('%H:%M:%S') }}
+								{% else %}
+									{{ key.expiry_date }}
+								{% endif %}
+							{% else %}
+								N/A
+							{% endif %}
+						</td>
+						<td>
+							{% if key.remaining_seconds is not none %}
+								{% set days = (key.remaining_seconds // 86400) %}
+								{% set hours = ((key.remaining_seconds % 86400) // 3600) %}
+								{% set cls = '' %}
+								{% if key.remaining_seconds == 0 %}
+									{% set cls = 'rem-red' %}
+								{% elif key.remaining_seconds <= (1*86400 + 24*3600) %}
+									{% set cls = 'rem-orange' %}
+								{% elif key.remaining_seconds <= (3*86400 + 24*3600) %}
+									{% set cls = 'rem-yellow' %}
+								{% else %}
+									{% set cls = 'rem-green' %}
+								{% endif %}
+								<span class="{{ cls }}">{{ days }} д {{ hours }} ч</span>
+							{% else %}
+								N/A
+							{% endif %}
+						</td>
+						<td>
+							{% set quota = key.quota_total_gb %}
+							{% set down_mb = (key.traffic_down_bytes or 0) / (1024*1024) %}
+							{% set down_str = (down_mb >= 1024) and ((down_mb/1024)|round(2) ~ ' GB') or (down_mb|round(2) ~ ' MB') %}
+							{% set unlimited_case = (quota is none) and ((key.traffic_down_bytes or 0) == 0) and (key.quota_remaining_bytes is none) %}
+							{% if unlimited_case %}
+								∞
+							{% else %}
+								{% if key.quota_remaining_bytes is not none %}
+									{% set rem_mb = key.quota_remaining_bytes / (1024*1024) %}
+									{% set rem_str = (rem_mb >= 1024) and ((rem_mb/1024)|round(2) ~ ' GB') or (rem_mb|round(2) ~ ' MB') %}
+								{% else %}
+									{% set rem_str = '∞' %}
+								{% endif %}
+								{{ (quota is not none) and ((quota|round(2)) ~ ' GB') or '∞' }}<br/>{{ down_str }}<br/>{{ rem_str }}
+							{% endif %}
+						</td>
+						<td>{{ key.status or 'N/A' }}</td>
+						<td>
+							{% if key.enabled %}
+								<span class="status-badge status-active" title="Ключ включен">Вкл</span>
+							{% else %}
+								<span class="status-badge status-banned" title="Ключ отключен">Выкл</span>
+							{% endif %}
+						</td>
+						<td>
+							{% if key.subscription_link %}
+								<div class="key-cell">
+									<span class="key-text" title="{{ key.subscription_link }}">{{ key.subscription_link[:50] }}{% if key.subscription_link|length > 50 %}...{% endif %}</span>
+									<button class="copy-btn" data-size="xs" onclick="copyKey('{{ key.subscription_link|replace("'", "\\'") }}')" title="Копировать subscription link">
+										<i class="fas fa-copy"></i>
+									</button>
+								</div>
+							{% else %}
+								-
+							{% endif %}
+						</td>
+						<td>
+							{% if key.connection_string %}
+								<div class="key-cell">
+									<span class="key-text" title="{{ key.connection_string }}">{{ key.connection_string[:50] }}{% if key.connection_string|length > 50 %}...{% endif %}</span>
+									<button class="copy-btn" data-size="xs" onclick="copyKey('{{ key.connection_string|replace("'", "\\'") }}')" title="Копировать ключ подключения">
+										<i class="fas fa-copy"></i>
+									</button>
+								</div>
+							{% else %}
+								-
+							{% endif %}
+						</td>
+						<td>
+							{% if key.key_email %}
+								<div class="key-cell">
+									<span class="key-text" title="{{ key.key_email }}">{{ key.key_email }}</span>
+									<button class="copy-btn" data-size="xs" onclick="copyKey('{{ key.key_email|replace("'", "\\'") }}')" title="Копировать email ключа">
+										<i class="fas fa-copy"></i>
+									</button>
+								</div>
+							{% else %}
+								-
+							{% endif %}
+						</td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+
+		<!-- Пагинация -->
+		<div class="pagination-panel">
+			<div class="pagination-controls">
+			<!-- Левая область: кнопки действий -->
+			<div class="pagination-left">
+			</div>
+				
+				<!-- Правая область: пагинация и переключатель -->
+				<div class="pagination-right">
+					<!-- Пагинация -->
+					{% if total_pages > 1 %}
+					<div class="pagination">
+						<!-- Стрелка назад -->
+						{% if current_page > 1 %}
+							<a href="{{ url_for('keys_page', page=current_page-1, per_page=per_page) }}" class="pagination-link" title="Предыдущая страница">«</a>
+						{% endif %}
+						
+						<!-- Логика отображения страниц: максимум 6 номеров -->
+						{% if total_pages <= 6 %}
+							<!-- Если страниц 6 или меньше, показываем все -->
+							{% for p in range(1, total_pages + 1) %}
+								{% if p == current_page %}
+									<span class="pagination-link active" title="Текущая страница">{{ p }}</span>
+								{% else %}
+									<a href="{{ url_for('keys_page', page=p, per_page=per_page) }}" class="pagination-link" title="Страница {{ p }}">{{ p }}</a>
+								{% endif %}
+							{% endfor %}
+						{% else %}
+							<!-- Если страниц больше 6, показываем первые 4, многоточие и последнюю -->
+							{% if current_page <= 4 %}
+								<!-- Показываем 1, 2, 3, 4, ..., последняя -->
+								{% for p in range(1, 5) %}
+									{% if p == current_page %}
+										<span class="pagination-link active" title="Текущая страница">{{ p }}</span>
+									{% else %}
+										<a href="{{ url_for('keys_page', page=p, per_page=per_page) }}" class="pagination-link" title="Страница {{ p }}">{{ p }}</a>
+									{% endif %}
+								{% endfor %}
+								<span class="pagination-link">...</span>
+								<a href="{{ url_for('keys_page', page=total_pages, per_page=per_page) }}" class="pagination-link" title="Страница {{ total_pages }}">{{ total_pages }}</a>
+							{% elif current_page >= total_pages - 3 %}
+								<!-- Показываем 1, ..., последние 4 -->
+								<a href="{{ url_for('keys_page', page=1, per_page=per_page) }}" class="pagination-link" title="Страница 1">1</a>
+								<span class="pagination-link">...</span>
+								{% for p in range(total_pages - 3, total_pages + 1) %}
+									{% if p == current_page %}
+										<span class="pagination-link active" title="Текущая страница">{{ p }}</span>
+									{% else %}
+										<a href="{{ url_for('keys_page', page=p, per_page=per_page) }}" class="pagination-link" title="Страница {{ p }}">{{ p }}</a>
+									{% endif %}
+								{% endfor %}
+							{% else %}
+								<!-- Показываем 1, ..., текущая-1, текущая, текущая+1, ..., последняя -->
+								<a href="{{ url_for('keys_page', page=1, per_page=per_page) }}" class="pagination-link" title="Страница 1">1</a>
+								<span class="pagination-link">...</span>
+								{% for p in range(current_page - 1, current_page + 2) %}
+									{% if p == current_page %}
+										<span class="pagination-link active" title="Текущая страница">{{ p }}</span>
+									{% else %}
+										<a href="{{ url_for('keys_page', page=p, per_page=per_page) }}" class="pagination-link" title="Страница {{ p }}">{{ p }}</a>
+									{% endif %}
+								{% endfor %}
+								<span class="pagination-link">...</span>
+								<a href="{{ url_for('keys_page', page=total_pages, per_page=per_page) }}" class="pagination-link" title="Страница {{ total_pages }}">{{ total_pages }}</a>
+							{% endif %}
+						{% endif %}
+						
+						<!-- Стрелка вперед -->
+						{% if current_page < total_pages %}
+							<a href="{{ url_for('keys_page', page=current_page+1, per_page=per_page) }}" class="pagination-link" title="Следующая страница">»</a>
+						{% endif %}
+					</div>
+					{% endif %}
+					
+					<!-- Переключатель количества записей -->
+					<div class="per-page-selector">
+						<select id="perPageSelect" onchange="changePerPage(this.value)" title="Выберите количество записей на странице">
+							<option value="5" {% if per_page == 5 %}selected{% endif %}>5</option>
+							<option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+							<option value="15" {% if per_page == 15 %}selected{% endif %}>15</option>
+							<option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+							<option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+						</select>
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+</div>
+
+<!-- Модальное окно для обновления по хосту -->
+<div id="hostRefreshModal" class="modal" style="display: none;">
+	<div class="modal-content">
+		<div class="modal-header">
+			<h3>Обновить ключи по хосту</h3>
+			<button class="modal-close" onclick="closeHostRefreshModal()" title="Закрыть модальное окно">
+				<i class="fas fa-times"></i>
+			</button>
+		</div>
+		<div class="modal-body">
+			<div class="form-group">
+				<label for="hostSelect">Выберите хост:</label>
+				<select id="hostSelect" title="Выберите хост для обновления ключей">
+					<option value="">Загрузка хостов...</option>
+				</select>
+			</div>
+			<div class="form-group">
+				<div class="info-text">
+					<i class="fas fa-info-circle"></i>
+					<span>Будут обновлены все ключи, принадлежащие выбранному хосту. Это более эффективно, чем обновление всех ключей сразу.</span>
+				</div>
+			</div>
+		</div>
+		<div class="modal-footer">
+			<button class="button button-secondary" onclick="closeHostRefreshModal()" title="Отменить операцию">
+				<i class="fas fa-times"></i>
+				<span>Отмена</span>
+			</button>
+			<button class="button button-primary" onclick="executeHostRefresh()" id="executeHostRefreshBtn" title="Выполнить обновление ключей для выбранного хоста">
+				<i class="fas fa-sync-alt"></i>
+				<span>Выполнить запрос</span>
+			</button>
+		</div>
+	</div>
+</div>
+
+<!-- Старое модальное окно удалено - используется Key Drawer из base.html -->
+
+<script>
+function changePerPage(value) {
+	const url = new URL(window.location);
+	url.searchParams.set('per_page', value);
+	url.searchParams.set('page', '1');
+	window.location.href = url.toString();
+}
+
+function refreshKeys() {
+	// Ищем кнопку обновления - сначала в header, потом в пагинации
+	let refreshBtn = document.getElementById('headerRefreshBtn');
+	let refreshIcon = document.getElementById('headerRefreshIcon');
+	let refreshText = document.getElementById('headerRefreshText');
+	
+	// Если кнопка в header не найдена, ищем в пагинации (для обратной совместимости)
+	if (!refreshBtn) {
+		refreshBtn = document.getElementById('refreshBtn');
+		refreshIcon = document.getElementById('refreshIcon');
+		refreshText = document.getElementById('refreshText');
+	}
+	
+	refreshBtn.disabled = true;
+	refreshIcon.classList.add('spinning');
+	refreshText.textContent = 'Проверяем...';
+	
+	fetch('/refresh-keys', {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		}
+	})
+	.then(response => response.json())
+	.then(data => {
+		if (data.status === 'success') {
+			refreshText.textContent = data.message;
+			
+			// Если есть ошибки, показываем модальное окно и НЕ обновляем страницу автоматически
+			if (data.errors && data.errors.length > 0) {
+				showSyncErrorsModal(data.errors);
+				// Сбрасываем состояние кнопки, но не обновляем страницу
+				setTimeout(() => {
+					refreshBtn.disabled = false;
+					refreshIcon.classList.remove('spinning');
+					refreshText.textContent = 'Обновить';
+				}, 1000);
+			} else {
+				// Если ошибок нет, показываем результат дольше, затем обновляем страницу
+				setTimeout(() => {
+					refreshBtn.disabled = false;
+					refreshIcon.classList.remove('spinning');
+					refreshText.textContent = 'Обновить';
+					// Обновляем страницу через 3 секунды, чтобы пользователь успел увидеть результат
+					setTimeout(() => {
+						window.location.reload();
+					}, 2000);
+				}, 3000);
+			}
+		} else {
+			refreshText.textContent = 'Ошибка: ' + data.message;
+			setTimeout(() => {
+				refreshBtn.disabled = false;
+				refreshIcon.classList.remove('spinning');
+				refreshText.textContent = 'Обновить';
+			}, 2000);
+		}
+	})
+	.catch(error => {
+		console.error('Error:', error);
+		refreshText.textContent = 'Ошибка соединения';
+		setTimeout(() => {
+			refreshBtn.disabled = false;
+			refreshIcon.classList.remove('spinning');
+			refreshText.textContent = 'Обновить';
+		}, 2000);
+	});
+}
+
+function showSyncErrorsModal(errors) {
+	// Создаем модальное окно для ошибок синхронизации
+	const modalHtml = `
+		<div id="syncErrorsModal" class="modal" style="display: flex;" onclick="closeSyncErrorsModal()">
+			<div class="modal-content" onclick="event.stopPropagation();">
+				<div class="modal-header">
+					<h2>⚠️ Ошибки синхронизации с 3x-ui</h2>
+					<span class="close" onclick="closeSyncErrorsModal()">&times;</span>
+				</div>
+				<div class="modal-body">
+					<p>Найдено ${errors.length} ключей с ошибками синхронизации:</p>
+					<div class="errors-list" style="max-height: 400px; overflow-y: auto; margin-top: 15px; background-color: #151f31; border-radius: 8px; padding: 10px;">
+						${errors.map(error => `
+							<div class="error-item" style="border: 1px solid #e74c3c; border-radius: 8px; padding: 12px; margin-bottom: 12px; background-color: #151f31; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+								<div style="font-weight: bold; color: #ecf0f1; margin-bottom: 8px; font-size: 16px;">
+									${error.email}
+								</div>
+								<div style="font-size: 14px; color: #bdc3c7; line-height: 1.4;">
+									<strong style="color: #3498db;">Создано:</strong> ${error.created_date}<br>
+									<strong style="color: #3498db;">Срок действия:</strong> ${error.expiry_date}
+									${error.error ? `<br><strong style="color: #e74c3c;">Ошибка:</strong> <span style="color: #f39c12;">${error.error}</span>` : ''}
+								</div>
+							</div>
+						`).join('')}
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button onclick="deleteErrorKeys()" class="button button-danger" data-size="md" id="deleteBtn" title="Удалить ключи с ошибками из 3x-ui">
+						<i class="fas fa-trash"></i>
+						Удалить ключи с ошибками в 3x-ui
+					</button>
+				</div>
+			</div>
+		</div>
+	`;
+	
+	// Добавляем модальное окно в DOM
+	document.body.insertAdjacentHTML('beforeend', modalHtml);
+	
+	// Сохраняем данные об ошибках для использования при удалении
+	window.currentSyncErrors = errors;
+}
+
+function deleteErrorKeys() {
+	const deleteBtn = document.getElementById('deleteBtn');
+	const deleteResult = document.getElementById('deleteResult');
+	
+	if (!window.currentSyncErrors || window.currentSyncErrors.length === 0) {
+		showDeleteResult('Нет ключей для удаления', 'error');
+		return;
+	}
+	
+	// Показываем процесс удаления
+	deleteBtn.disabled = true;
+	deleteBtn.innerHTML = '🔄 Удаляем...';
+	
+	// Подготавливаем данные для отправки
+	const keysToDelete = window.currentSyncErrors.map(error => ({
+		email: error.email,
+		host_name: error.host_name,
+		xui_client_uuid: error.xui_client_uuid
+	}));
+	
+	fetch('/delete-error-keys', {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({ keys: keysToDelete })
+	})
+	.then(response => response.json())
+	.then(data => {
+		if (data.status === 'success') {
+			let resultMessage = `✅ ${data.message}`;
+			
+			if (data.failed_deletions && data.failed_deletions.length > 0) {
+				resultMessage += `<br><br>❌ Ошибки при удалении:`;
+				data.failed_deletions.forEach(failed => {
+					resultMessage += `<br>• ${failed.email}: ${failed.error}`;
+				});
+			}
+			
+			showDeleteResult(resultMessage, 'success');
+			
+			// Обновляем список ошибок (убираем удаленные)
+			if (data.deleted_count > 0) {
+				window.currentSyncErrors = window.currentSyncErrors.filter(error => 
+					!data.failed_deletions?.some(failed => failed.email === error.email)
+				);
+				
+				// Если все ключи удалены, скрываем кнопку
+				if (window.currentSyncErrors.length === 0) {
+					deleteBtn.style.display = 'none';
+				}
+			}
+		} else {
+			showDeleteResult(`❌ Ошибка: ${data.message}`, 'error');
+		}
+	})
+	.catch(error => {
+		console.error('Error:', error);
+		showDeleteResult('❌ Ошибка соединения при удалении ключей', 'error');
+	})
+	.finally(() => {
+		deleteBtn.disabled = false;
+		deleteBtn.innerHTML = '🗑️ Удалить ключи с ошибками в 3x-ui';
+	});
+}
+
+function showDeleteResult(message, type) {
+	// Создаем отдельное модальное окно для результата удаления
+	const resultModalHtml = `
+		<div id="deleteResultModal" class="modal" style="display: flex;" onclick="closeDeleteResultModal()">
+			<div class="modal-content" onclick="event.stopPropagation();">
+				<div class="modal-header">
+					<h2>${type === 'success' ? '✅ Результат удаления' : '❌ Ошибка удаления'}</h2>
+					<span class="close" onclick="closeDeleteResultModal()">&times;</span>
+				</div>
+				<div class="modal-body">
+					<div style="max-height: 400px; overflow-y: auto; padding: 15px; background-color: #151f31; border-radius: 8px; border: 1px solid ${type === 'success' ? '#2ecc71' : '#e74c3c'};">
+						<div style="color: #ecf0f1; line-height: 1.6; white-space: pre-wrap;">${message}</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button onclick="closeDeleteResultModal()" class="button button-primary" data-size="md" title="Закрыть окно">
+						<i class="fas fa-times"></i>
+						Закрыть
+					</button>
+				</div>
+			</div>
+		</div>
+	`;
+	
+	// Добавляем модальное окно в DOM
+	document.body.insertAdjacentHTML('beforeend', resultModalHtml);
+}
+
+function closeDeleteResultModal() {
+	const modal = document.getElementById('deleteResultModal');
+	if (modal) {
+		modal.remove();
+	}
+}
+
+function closeSyncErrorsModal() {
+	const modal = document.getElementById('syncErrorsModal');
+	if (modal) {
+		modal.remove();
+		// Обновляем страницу после закрытия модального окна
+		window.location.reload();
+	}
+}
+
+// Функции copyKey, showCopyNotification, toggleKebabMenu, closeKebabMenu, openUserModal
+// определены глобально в script.js и доступны на всех страницах
+
+// Функция для обновления ключей конкретного пользователя
+function refreshUserKey(userId) {
+	// Закрываем все меню
+	document.querySelectorAll('.kebab-menu.active').forEach(menu => {
+		menu.classList.remove('active');
+	});
+	
+	// Показываем индикатор загрузки
+	const refreshBtn = document.getElementById('headerRefreshBtn');
+	const refreshIcon = document.getElementById('headerRefreshIcon');
+	const refreshText = document.getElementById('headerRefreshText');
+	
+	if (refreshBtn) {
+		refreshBtn.disabled = true;
+		if (refreshIcon) refreshIcon.classList.add('spinning');
+		if (refreshText) refreshText.textContent = 'Обновляем...';
+	}
+	
+	// Отправляем запрос на обновление ключей пользователя
+	fetch('/refresh-user-keys', {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({ user_id: userId })
+	})
+	.then(response => response.json())
+	.then(data => {
+		if (data.success) {
+			alert(`Успешно обновлено ${data.updated_count} ключей для пользователя ${userId}`);
+			location.reload();
+		} else {
+			alert('Ошибка при обновлении: ' + (data.error || 'Неизвестная ошибка'));
+		}
+	})
+	.catch(error => {
+		console.error('Ошибка:', error);
+		alert('Ошибка при обновлении ключей');
+	})
+	.finally(() => {
+		if (refreshBtn) {
+			refreshBtn.disabled = false;
+			if (refreshIcon) refreshIcon.classList.remove('spinning');
+			if (refreshText) refreshText.textContent = 'Обновить все ключи';
+		}
+	});
+}
+
+// Функции для работы с модальным окном обновления по хосту
+function openHostRefreshModal() {
+	const modal = document.getElementById('hostRefreshModal');
+	if (!modal) {
+		return;
+	}
+    modal.style.display = 'flex';
+	loadHosts();
+
+	const headerMenu = document.getElementById('keysDropdownMenu');
+	if (headerMenu) {
+		headerMenu.style.display = 'none';
+	}
+}
+
+function closeHostRefreshModal() {
+	const modal = document.getElementById('hostRefreshModal');
+	modal.style.display = 'none';
+}
+
+function loadHosts() {
+	const hostSelect = document.getElementById('hostSelect');
+	hostSelect.innerHTML = '<option value="">Загрузка хостов...</option>';
+	
+	fetch('/api/hosts')
+		.then(response => {
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}`);
+			}
+			return response.json();
+		})
+		.then(data => {
+			if (!data.success || !Array.isArray(data.hosts)) {
+				throw new Error(data.error || 'Неверный формат данных');
+			}
+			hostSelect.innerHTML = '<option value="">Выберите хост</option>';
+			data.hosts.forEach(host => {
+				const option = document.createElement('option');
+				option.value = host.host_name;
+				option.textContent = host.host_name;
+				hostSelect.appendChild(option);
+			});
+		})
+		.catch(error => {
+			console.error('Ошибка загрузки хостов:', error);
+			hostSelect.innerHTML = '<option value="">Ошибка загрузки хостов</option>';
+		});
+}
+
+function executeHostRefresh() {
+	const hostSelect = document.getElementById('hostSelect');
+	const selectedHost = hostSelect.value;
+	const executeBtn = document.getElementById('executeHostRefreshBtn');
+	
+	if (!selectedHost) {
+		alert('Пожалуйста, выберите хост');
+		return;
+	}
+	
+	executeBtn.disabled = true;
+	executeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Обновляем...</span>';
+	
+	fetch('/api/refresh-keys-by-host', {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({ host_name: selectedHost })
+	})
+	.then(response => response.json())
+	.then(data => {
+		if (data.success) {
+			alert(`Успешно обновлено ${data.updated} из ${data.total} ключей для хоста ${selectedHost}`);
+			location.reload();
+		} else {
+			alert('Ошибка при обновлении: ' + (data.error || 'Неизвестная ошибка'));
+		}
+	})
+	.catch(error => {
+		console.error('Ошибка:', error);
+		alert('Ошибка при обновлении ключей');
+	})
+	.finally(() => {
+		executeBtn.disabled = false;
+		executeBtn.innerHTML = '<i class="fas fa-sync-alt"></i><span>Выполнить запрос</span>';
+	});
+}
+
+// Функция для переключения статуса включения/отключения ключа
+function toggleKeyEnabled(keyId, enabled) {
+	const action = enabled ? 'включение' : 'отключение';
+	
+	// Показываем подтверждение
+	if (!confirm(`Вы уверены, что хотите ${enabled ? 'включить' : 'отключить'} этот ключ?`)) {
+		return;
+	}
+	
+	// Показываем индикатор загрузки
+	const button = event.target.closest('button');
+	const originalContent = button.innerHTML;
+	button.disabled = true;
+	button.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Обработка...</span>';
+	
+	// Отправляем запрос
+	fetch('/api/toggle-key-enabled', {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			key_id: keyId,
+			enabled: enabled
+		})
+	})
+	.then(response => response.json())
+	.then(data => {
+		if (data.success) {
+			// Показываем уведомление об успехе
+			showCopyNotification(data.message, 'success');
+			// Обновляем страницу через небольшую задержку
+			setTimeout(() => {
+				location.reload();
+			}, 1500);
+		} else {
+			showCopyNotification('Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+			button.disabled = false;
+			button.innerHTML = originalContent;
+		}
+	})
+	.catch(error => {
+		console.error('Ошибка:', error);
+		showCopyNotification('Ошибка соединения при ' + action + ' ключа', 'error');
+		button.disabled = false;
+		button.innerHTML = originalContent;
+	});
+}
+
+// Закрытие модального окна при клике вне его
+window.onclick = function(event) {
+	const hostModal = document.getElementById('hostRefreshModal');
+	
+	if (event.target === hostModal) {
+		closeHostRefreshModal();
+	}
+}
+
+// Закрытие drawer при клике на overlay
+document.addEventListener('DOMContentLoaded', function() {
+	const keyDrawerOverlay = document.getElementById('keyDrawer');
+	if (keyDrawerOverlay) {
+		keyDrawerOverlay.addEventListener('click', function(e) {
+			// Закрываем только если клик был на overlay, а не на drawer или его содержимом
+			if (e.target === keyDrawerOverlay) {
+				closeKeyDrawer();
+			}
+		});
+	}
+});
+
+// Переопределение openKeyDrawer для специфичной для страницы логики
+// Переменные currentKeyDrawerId, currentKeyDrawerUserId, currentKeyDrawerEnabled определены в script.js
+async function openKeyDrawer(keyId) {
+	window.currentKeyDrawerId = keyId;
+	
+	try {
+		const response = await fetch(`/api/key/${keyId}`);
+		const data = await response.json();
+		
+		if (!data.key) {
+			alert('Ошибка загрузки данных ключа');
+			return;
+		}
+		
+		const key = data.key;
+		window.currentKeyDrawerUserId = key.user_id;
+		window.currentKeyDrawerEnabled = key.enabled;
+		
+		// Заполняем Drawer данными - верхняя закрепленная область (информация о пользователе)
+		document.getElementById('keyModalTelegramId').textContent = key.telegram_id || 'N/A';
+		document.getElementById('keyModalFullName').textContent = key.fullname || 'N/A';
+		document.getElementById('keyModalFio').textContent = key.fio || 'N/A';
+		
+		// Статус
+		document.getElementById('keyModalStatus').innerHTML = key.enabled 
+			? '<span class="status-badge status-active">Активен</span>' 
+			: '<span class="status-badge status-banned">Неактивен</span>';
+		
+		// Вкладка: Основные данные
+		// Группа: Тариф
+		document.getElementById('keyDetailHost').textContent = key.host_name || 'N/A';
+		
+		if (key.is_trial === 1) {
+			document.getElementById('keyDetailPlan').textContent = 'Триал';
+		} else {
+			document.getElementById('keyDetailPlan').textContent = key.plan_name || 'N/A';
+		}
+		
+		document.getElementById('keyDetailPrice').textContent = key.price ? `${key.price} RUB` : 'N/A';
+		
+		// Статус во вкладке
+		document.getElementById('keyDetailStatusInTab').innerHTML = key.enabled 
+			? '<span class="status-badge status-active">Активен</span>' 
+			: '<span class="status-badge status-banned">Неактивен</span>';
+		
+		// Группа: Подписка
+		document.getElementById('keyDetailProtocol').textContent = key.protocol || 'vless';
+		
+		// Включен
+		const enabledSpan = document.getElementById('keyDetailEnabled');
+		if (key.enabled) {
+			enabledSpan.innerHTML = '<span class="status-badge status-active">Вкл</span>';
+		} else {
+			enabledSpan.innerHTML = '<span class="status-badge status-banned">Выкл</span>';
+		}
+		
+		// Триал
+		const trialSpan = document.getElementById('keyDetailTrial');
+		if (key.is_trial === 1) {
+			trialSpan.innerHTML = '<span class="status-badge status-active">Да</span>';
+		} else {
+			trialSpan.innerHTML = '<span class="status-badge status-banned">Нет</span>';
+		}
+		
+		// Даты
+		if (key.created_date) {
+			const createdDate = new Date(key.created_date);
+			document.getElementById('keyDetailCreatedDate').textContent = createdDate.toLocaleString('ru-RU');
+		} else {
+			document.getElementById('keyDetailCreatedDate').textContent = 'N/A';
+		}
+		
+		if (key.expiry_date) {
+			const expiryDate = new Date(key.expiry_date);
+			document.getElementById('keyDetailExpiryDate').textContent = expiryDate.toLocaleString('ru-RU');
+		} else {
+			document.getElementById('keyDetailExpiryDate').textContent = 'N/A';
+		}
+		
+		// Оставшееся время
+		if (key.remaining_seconds !== null && key.remaining_seconds !== undefined) {
+			const days = Math.floor(key.remaining_seconds / 86400);
+			const hours = Math.floor((key.remaining_seconds % 86400) / 3600);
+			let cls = '';
+			if (key.remaining_seconds === 0) {
+				cls = 'rem-red';
+			} else if (key.remaining_seconds <= (1 * 86400 + 24 * 3600)) {
+				cls = 'rem-orange';
+			} else if (key.remaining_seconds <= (3 * 86400 + 24 * 3600)) {
+				cls = 'rem-yellow';
+			} else {
+				cls = 'rem-green';
+			}
+			document.getElementById('keyDetailRemaining').innerHTML = `<span class="${cls}">${days} д ${hours} ч</span>`;
+		} else {
+			document.getElementById('keyDetailRemaining').textContent = 'N/A';
+		}
+		
+		// Группа: Трафик (теперь в той же вкладке "Основные данные")
+		const quotaTotalGb = key.quota_total_gb;
+		const trafficDownBytes = key.traffic_down_bytes || 0;
+		const quotaRemainingBytes = key.quota_remaining_bytes;
+		
+		// Квота всего
+		if (quotaTotalGb !== null && quotaTotalGb !== undefined) {
+			document.getElementById('keyDetailQuotaTotal').textContent = `${quotaTotalGb.toFixed(2)} GB`;
+		} else {
+			document.getElementById('keyDetailQuotaTotal').textContent = '∞';
+		}
+		
+		// Трафик использовано
+		const downMb = trafficDownBytes / (1024 * 1024);
+		if (downMb >= 1024) {
+			document.getElementById('keyDetailTrafficDown').textContent = `${(downMb / 1024).toFixed(2)} GB`;
+		} else {
+			document.getElementById('keyDetailTrafficDown').textContent = `${downMb.toFixed(2)} MB`;
+		}
+		
+		// Квота остаток
+		if (quotaRemainingBytes !== null && quotaRemainingBytes !== undefined) {
+			const remMb = quotaRemainingBytes / (1024 * 1024);
+			if (remMb >= 1024) {
+				document.getElementById('keyDetailQuotaRemaining').textContent = `${(remMb / 1024).toFixed(2)} GB`;
+			} else {
+				document.getElementById('keyDetailQuotaRemaining').textContent = `${remMb.toFixed(2)} MB`;
+			}
+		} else {
+			document.getElementById('keyDetailQuotaRemaining').textContent = '∞';
+		}
+		
+		// Вкладка: Подключение
+		document.getElementById('keyDetailSubscription').textContent = key.subscription || '—';
+		document.getElementById('keyDetailSubscriptionLink').textContent = key.subscription_link || '—';
+		document.getElementById('keyDetailEmail').textContent = key.key_email || 'N/A';
+		document.getElementById('keyDetailUuid').textContent = key.xui_client_uuid || 'N/A';
+		document.getElementById('keyDetailConnectionString').textContent = key.connection_string || 'N/A';
+		document.getElementById('keyDetailTelegramChatId').textContent = key.telegram_chat_id || '—';
+		document.getElementById('keyDetailComment').textContent = key.comment || '—';
+		
+		// Обновляем кнопку переключения в Drawer
+		const drawerToggleText = document.getElementById('keyDrawerToggleText');
+		if (key.enabled) {
+			drawerToggleText.textContent = 'Отключить';
+		} else {
+			drawerToggleText.textContent = 'Включить';
+		}
+		
+		// Показываем Drawer с анимацией
+		const drawer = document.getElementById('keyDrawer');
+		drawer.style.display = 'block';
+		// Небольшая задержка для запуска анимации
+		setTimeout(() => {
+			drawer.classList.add('active');
+		}, 10);
+		
+	} catch (error) {
+		console.error('Ошибка загрузки данных ключа:', error);
+		alert('Ошибка загрузки данных ключа');
+	}
+}
+
+// Функция для закрытия Drawer
+function closeKeyDrawer() {
+	const drawer = document.getElementById('keyDrawer');
+	drawer.classList.remove('active');
+	// Ждем завершения анимации перед скрытием
+	setTimeout(() => {
+		drawer.style.display = 'none';
+	}, 300);
+	
+	window.currentKeyDrawerId = null;
+	window.currentKeyDrawerUserId = null;
+	window.currentKeyDrawerEnabled = false;
+}
+
+// Функция для переключения вкладок в Drawer ключа
+function switchKeyTab(tabName) {
+	// Убираем активный класс со всех кнопок и контента
+	document.querySelectorAll('#keyDrawer .tab-button').forEach(btn => btn.classList.remove('active'));
+	document.querySelectorAll('#keyDrawer .tab-content').forEach(content => content.classList.remove('active'));
+	
+	// Добавляем активный класс к выбранной вкладке
+	event.target.closest('.tab-button').classList.add('active');
+	document.getElementById(`tab-${tabName}`).classList.add('active');
+}
+
+// Функция для обновления ключа из Drawer
+function keyDrawerRefresh() {
+	if (window.currentKeyDrawerUserId) {
+		refreshUserKey(window.currentKeyDrawerUserId);
+		// Перезагружаем данные Drawer после небольшой задержки
+		setTimeout(() => {
+			if (window.currentKeyDrawerId) {
+				openKeyDrawer(window.currentKeyDrawerId);
+			}
+		}, 2000);
+	}
+}
+
+// Функция для переключения включения/отключения ключа из Drawer
+function keyDrawerToggle() {
+	if (window.currentKeyDrawerId) {
+		const newEnabled = !window.currentKeyDrawerEnabled;
+		toggleKeyEnabled(window.currentKeyDrawerId, newEnabled);
+		// Перезагружаем данные Drawer после небольшой задержки
+		setTimeout(() => {
+			if (window.currentKeyDrawerId) {
+				openKeyDrawer(window.currentKeyDrawerId);
+			}
+		}, 1500);
+	}
+}
+
+// Функция для копирования поля из Drawer ключа
+function copyKeyField(elementId) {
+	const element = document.getElementById(elementId);
+	if (element) {
+		const text = element.textContent;
+		if (text && text !== '—' && text !== 'N/A') {
+			copyKey(text);
+		} else {
+			showCopyNotification('Нет данных для копирования', 'error');
+		}
+	}
+}
+</script>
+
+{% endblock %}

@@ -1,0 +1,50 @@
+[project]
+name = "dark-maximus"
+version = "2.66.13"
+description = "Продвинутый Telegram-бот для автоматической продажи VLESS VPN с улучшенным веб-интерфейсом и аналитикой"
+authors = [
+    {name = "Karshie Umid", email = "umid.t.karshiev@gmail.com"}
+]
+readme = "README.md"
+license = {text = "MIT"}
+keywords = ["telegram", "bot", "vpn", "vless", "shop", "automation", "3x-ui", "dark-maximus"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Communications :: Chat",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "aiogram==3.21.0",
+    "flask==3.1.1",
+    "flask-wtf==1.2.1",
+    "flask-session==0.8.0",
+    "py3xui==0.4.0",
+    "pyotp==2.9.0",
+    "python-dotenv==1.1.1",
+    "qrcode[pil]==8.2",
+    "yookassa==3.5.0",
+    "aiosend==2.1.2",
+    "aiohttp==3.12.15",
+    "aiohttp-sse-client==0.2.1",
+    "pytonconnect==0.3.2",
+    "requests==2.31.0",
+    "bcrypt==4.1.2"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pip-tools",
+    "pylint",
+    "black"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Wiki редактор{% endblock %}
+{% block header_title %}Wiki редактор{% endblock %}
+
+{% block header_buttons %}
+<button class="button button-start" data-size="sm" onclick="openCreateModal()" title="Создать новую Wiki страницу">
+    <i class="fas fa-plus"></i>
+    Создать страницу
+</button>
+<a href="{{ wiki_url }}" target="_blank" class="button button-secondary" data-size="sm" title="Открыть Вики в новой вкладке">
+    <i class="fas fa-external-link-alt"></i>
+    Вики
+</a>
+<a href="http://localhost:3002" target="_blank" class="button button-secondary" data-size="sm" title="Открыть базу знаний в новой вкладке">
+    <i class="fas fa-book"></i>
+    База знаний
+</a>
+{% endblock %}
+
+{% block content %}
+
+<section class="settings-section settings-section--fluid">
+    <h2 style="margin-bottom:16px;">📚 Список страниц Wiki</h2>
+    
+    <p style="margin-bottom: 20px; color: var(--text-muted);">
+        Редактируйте страницы базы знаний для пользователей. Изменения применяются автоматически в Wiki.
+    </p>
+    
+    {% if wiki_files %}
+    <div class="table-scroll-x">
+        <table class="users-table">
+            <thead>
+                <tr>
+                    <th title="Название страницы">Страница</th>
+                    <th title="Путь к файлу">Путь</th>
+                    <th title="Размер файла">Размер</th>
+                    <th title="Дата последнего изменения">Изменено</th>
+                    <th title="Действия">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for file in wiki_files %}
+                <tr>
+                    <td>
+                        <strong>{{ file.title }}</strong>
+                    </td>
+                    <td style="font-family: monospace; font-size: 0.9em;">
+                        {{ file.path }}
+                    </td>
+                    <td>
+                        {{ "%.1f"|format(file.size / 1024) }} KB
+                    </td>
+                    <td>
+                        {{ file.modified }}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('wiki_editor_edit', file=file.path) }}" 
+                           class="button button-primary" 
+                           data-size="xs"
+                           title="Редактировать страницу">
+                            <i class="fas fa-edit"></i>
+                            Редактировать
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 60px 20px;">
+        <i class="fas fa-folder-open" style="font-size: 64px; color: var(--text-muted); opacity: 0.3; margin-bottom: 16px;"></i>
+        <p style="color: var(--text-muted); font-size: 18px;">Нет доступных страниц для редактирования</p>
+    </div>
+    {% endif %}
+</section>
+
+<!-- Информационная секция -->
+<section class="settings-section">
+    <h3 style="margin-bottom: 12px;">ℹ️ Информация</h3>
+    <ul style="line-height: 1.8; color: var(--text-muted);">
+        <li>✏️ Все страницы используют формат <strong>Markdown</strong> (редактируются через Editor.js)</li>
+        <li>🔄 Изменения применяются <strong>автоматически</strong> после сохранения</li>
+        <li>🌐 Wiki доступна на порту <strong>3001</strong> (http://localhost:3001)</li>
+        <li>➕ Используйте <strong>"Создать страницу"</strong> для добавления новых разделов</li>
+    </ul>
+</section>
+
+<!-- Модальное окно создания страницы -->
+<div id="createModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:var(--bg-surface); padding:32px; border-radius:12px; max-width:500px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+        <h3 style="margin:0 0 20px 0; color:var(--text-primary);">➕ Создать новую страницу</h3>
+        
+        <form method="post" action="{{ url_for('wiki_create_page') }}" id="createForm">
+            <div style="margin-bottom:16px;">
+                <label style="display:block; margin-bottom:6px; color:var(--text-muted); font-size:14px;">Название страницы *</label>
+                <input type="text" name="title" id="pageTitle" required
+                       style="width:100%; padding:10px; background:var(--bg-primary); border:1px solid var(--border-color); border-radius:6px; color:var(--text-primary); font-size:14px;"
+                       placeholder="Например: Как настроить VPN"
+                       title="Введите название страницы">
+            </div>
+            
+            <div style="margin-bottom:16px;">
+                <label style="display:block; margin-bottom:6px; color:var(--text-muted); font-size:14px;">Имя файла</label>
+                <input type="text" name="filename" id="pageFilename" readonly
+                       style="width:100%; padding:10px; background:var(--bg-primary); border:1px solid var(--border-color); border-radius:6px; color:var(--text-muted); font-size:14px; font-family:monospace;"
+                       placeholder="автоматически"
+                       title="Имя файла генерируется автоматически">
+                <small style="color:var(--text-muted); font-size:12px;">Автоматически из названия</small>
+            </div>
+            
+            <div style="margin-bottom:20px;">
+                <label style="display:block; margin-bottom:6px; color:var(--text-muted); font-size:14px;">Папка</label>
+                <select name="folder" id="pageFolder"
+                        style="width:100%; padding:10px; background:var(--bg-primary); border:1px solid var(--border-color); border-radius:6px; color:var(--text-primary); font-size:14px;"
+                        title="Выберите папку для страницы">
+                    <option value="">Корень (/)</option>
+                    <option value="setup">setup/ (инструкции)</option>
+                </select>
+            </div>
+            
+            <div style="display:flex; gap:12px;">
+                <button type="submit" class="button button-start" data-size="md" style="flex:1;" title="Создать страницу">
+                    <i class="fas fa-plus"></i>
+                    Создать
+                </button>
+                <button type="button" class="button button-secondary" data-size="md" style="flex:1;" onclick="closeCreateModal()" title="Отменить">
+                    <i class="fas fa-times"></i>
+                    Отмена
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// Открыть модальное окно
+function openCreateModal() {
+    document.getElementById('createModal').style.display = 'flex';
+    document.getElementById('pageTitle').focus();
+}
+
+// Закрыть модальное окно
+function closeCreateModal() {
+    document.getElementById('createModal').style.display = 'none';
+    document.getElementById('createForm').reset();
+    document.getElementById('pageFilename').value = '';
+}
+
+// Автоматическая генерация имени файла из названия
+document.getElementById('pageTitle').addEventListener('input', function() {
+    const title = this.value;
+    // Транслитерация и создание slug
+    const slug = transliterate(title)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    document.getElementById('pageFilename').value = slug ? slug + '.md' : '';
+});
+
+// Простая транслитерация
+function transliterate(text) {
+    const ru = {
+        'а':'a', 'б':'b', 'в':'v', 'г':'g', 'д':'d', 'е':'e', 'ё':'yo', 'ж':'zh', 'з':'z', 'и':'i',
+        'й':'y', 'к':'k', 'л':'l', 'м':'m', 'н':'n', 'о':'o', 'п':'p', 'р':'r', 'с':'s', 'т':'t',
+        'у':'u', 'ф':'f', 'х':'h', 'ц':'c', 'ч':'ch', 'ш':'sh', 'щ':'sch', 'ъ':'', 'ы':'y', 'ь':'',
+        'э':'e', 'ю':'yu', 'я':'ya',
+        'А':'A', 'Б':'B', 'В':'V', 'Г':'G', 'Д':'D', 'Е':'E', 'Ё':'Yo', 'Ж':'Zh', 'З':'Z', 'И':'I',
+        'Й':'Y', 'К':'K', 'Л':'L', 'М':'M', 'Н':'N', 'О':'O', 'П':'P', 'Р':'R', 'С':'S', 'Т':'T',
+        'У':'U', 'Ф':'F', 'Х':'H', 'Ц':'C', 'Ч':'Ch', 'Ш':'Sh', 'Щ':'Sch', 'Ъ':'', 'Ы':'Y', 'Ь':'',
+        'Э':'E', 'Ю':'Yu', 'Я':'Ya'
+    };
+    return text.split('').map(char => ru[char] || char).join('');
+}
+
+// Закрыть по клику вне окна
+document.getElementById('createModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeCreateModal();
+    }
+});
+
+// Закрыть по ESC
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('createModal').style.display === 'flex') {
+        closeCreateModal();
+    }
+});
+</script>
+
+{% endblock %}
+

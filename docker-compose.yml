@@ -1,0 +1,54 @@
+name: dark-maximus
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    container_name: dark-maximus-bot
+    ports:
+      - '1488:1488'
+    environment:
+      - PYTHONIOENCODING=utf-8
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
+    volumes:
+      - .:/app/project
+      - /app/.venv
+      - sessions_data:/app/sessions
+
+  docs:
+    build:
+      context: .
+      dockerfile: Dockerfile.docs
+    restart: unless-stopped
+    container_name: dark-maximus-docs
+    ports:
+      - '3001:8080'
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+
+  codex-docs:
+    build:
+      context: .
+      dockerfile: Dockerfile.codex-docs
+    restart: unless-stopped
+    container_name: dark-maximus-codex-docs
+    ports:
+      - '3002:3000'
+    volumes:
+      - codex_uploads:/usr/src/app/uploads
+      - codex_db:/usr/src/app/db
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  sessions_data:
+  codex_uploads:
+  codex_db:

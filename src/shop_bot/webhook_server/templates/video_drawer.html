@@ -1,0 +1,623 @@
+<!-- Video Drawer (Side Sheet) -->
+<div id="videoDrawer" class="drawer-overlay" style="display: none;">
+	<div class="drawer" id="videoDrawerPanel">
+		<div class="drawer-header">
+			<h3 id="videoDrawerTitle">Создать видеоинструкцию</h3>
+			<button class="drawer-close" onclick="closeVideoDrawer()" title="Закрыть панель">
+				<i class="fas fa-times"></i>
+			</button>
+		</div>
+		
+		<div class="drawer-body">
+			<form id="videoForm" enctype="multipart/form-data">
+				<input type="hidden" id="video_id" name="video_id" value="">
+				
+				<!-- ID (только для редактирования) -->
+				<div id="videoIdField" class="form-group" style="display: none;">
+					<label for="display_video_id" title="Уникальный идентификатор видеоинструкции">ID:</label>
+					<input type="text" id="display_video_id" readonly disabled 
+						   style="background: var(--bg-hover); cursor: not-allowed;" />
+				</div>
+
+				<!-- Дата загрузки (только для редактирования) -->
+				<div id="videoCreatedAtField" class="form-group" style="display: none;">
+					<label for="display_created_at" title="Дата и время загрузки видеоинструкции">Дата загрузки:</label>
+					<input type="text" id="display_created_at" readonly disabled 
+						   style="background: var(--bg-hover); cursor: not-allowed;" />
+				</div>
+
+				<!-- Название -->
+				<div class="form-group">
+					<label for="video_title" title="Введите название видеоинструкции">Название <span style="color: var(--danger-color);">*</span></label>
+					<input type="text" id="video_title" name="title" required 
+						   placeholder="Например: Настройка VPN на Android" 
+						   title="Введите название видеоинструкции" />
+				</div>
+
+			<!-- Превью изображение -->
+			<div class="form-group">
+				<label for="video_poster" title="Загрузите превью изображение для видео">Превью изображение</label>
+				<div class="file-input-wrapper">
+					<input type="file" id="video_poster" name="poster" 
+						   accept="image/jpeg,image/png,image/webp,image/jpg"
+						   title="Выберите превью изображение"
+						   class="file-input-hidden" />
+					<button type="button" class="file-input-button" onclick="document.getElementById('video_poster').click()" title="Выберите превью изображение">
+						<i class="fas fa-image"></i>
+						<span id="posterFileName">Выбрать изображение</span>
+					</button>
+				</div>
+				<small style="color: var(--text-muted); display: block; margin-top: 4px;">
+					Форматы: JPG, PNG, WebP. Рекомендуемое разрешение: 1280x720 (16:9)
+				</small>
+				<div id="posterPreview" style="margin-top: 12px; display: none;">
+					<img id="posterPreviewImg" src="" alt="Превью" 
+						 style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid var(--border-color);" />
+				</div>
+			</div>
+
+			<!-- Видеофайл -->
+			<div class="form-group">
+				<label for="video_file" title="Загрузите видеофайл">Видеофайл <span id="videoRequiredIndicator" style="color: var(--danger-color);">*</span></label>
+				<div class="file-input-wrapper">
+					<input type="file" id="video_file" name="video" 
+						   accept="video/mp4,video/webm,video/quicktime"
+						   title="Выберите видеофайл"
+						   class="file-input-hidden" />
+					<button type="button" class="file-input-button" onclick="document.getElementById('video_file').click()" title="Выберите видеофайл">
+						<i class="fas fa-video"></i>
+						<span id="videoFileName">Выбрать видео</span>
+					</button>
+				</div>
+				<small style="color: var(--text-muted); display: block; margin-top: 4px;">
+					Форматы: MP4, WebM, MOV. Рекомендуется: 720p или 1080p
+				</small>
+					
+					<!-- Прогресс-бар загрузки -->
+					<div id="videoUploadProgress" style="display: none; margin-top: 12px;">
+						<div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+							<span id="uploadProgressText">Загрузка...</span>
+							<span id="uploadProgressPercent">0%</span>
+						</div>
+						<div style="width: 100%; height: 24px; background: var(--bg-surface); border-radius: 4px; overflow: hidden; border: 1px solid var(--border-color);">
+							<div id="uploadProgressBar" style="height: 100%; width: 0%; background: linear-gradient(90deg, var(--primary-color), var(--success-color)); transition: width 0.3s ease;"></div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Размер файла (только для редактирования) -->
+				<div id="videoFileSizeField" class="form-group" style="display: none;">
+					<label for="display_file_size" title="Размер загруженного видеофайла в мегабайтах">Размер файла:</label>
+					<input type="text" id="display_file_size" readonly disabled 
+						   style="background: var(--bg-hover); cursor: not-allowed;" />
+				</div>
+
+				<!-- Ссылка (только для редактирования) -->
+				<div id="videoLinkField" class="form-group" style="display: none;">
+					<label for="display_video_link" title="Ссылка для просмотра видео в плеере">Ссылка на плеер:</label>
+					<div style="display: flex; gap: 8px;">
+						<input type="text" id="display_video_link" readonly 
+							   style="flex: 1; background: var(--bg-hover); cursor: pointer; color: var(--primary-color); text-decoration: underline;" 
+							   onclick="openCurrentVideoPlayer()"
+							   title="Кликните для открытия видео в плеере" />
+						<button type="button" class="button button-secondary" data-size="sm" 
+								onclick="copyToClipboard(document.getElementById('display_video_link').value)"
+								title="Скопировать ссылку">
+							<i class="fas fa-copy"></i>
+						</button>
+						<button type="button" class="button button-primary" data-size="sm" 
+								id="openVideoPlayerBtn"
+								title="Открыть видео в плеере">
+							<i class="fas fa-external-link-alt"></i>
+						</button>
+					</div>
+				</div>
+
+				<!-- iframe код (только для редактирования) -->
+				<div id="videoIframeField" class="form-group" style="display: none;">
+					<label for="display_video_iframe" title="HTML код для встраивания видео на веб-страницы">Код iframe:</label>
+					<div style="display: flex; gap: 8px;">
+						<textarea id="display_video_iframe" readonly rows="3" 
+								  style="flex: 1; background: var(--bg-hover); cursor: text; font-family: monospace; font-size: 0.85em;" 
+								  title="Код для встраивания видео"></textarea>
+						<button type="button" class="button button-secondary" data-size="sm" 
+								onclick="copyToClipboard(document.getElementById('display_video_iframe').value)"
+								title="Скопировать код iframe">
+							<i class="fas fa-copy"></i>
+						</button>
+					</div>
+				</div>
+			</form>
+		</div>
+
+		<!-- Footer с кнопками действий -->
+		<div class="drawer-footer">
+			<!-- Левая часть: кебаб-меню и кнопка закрытия -->
+			<div class="drawer-footer-left">
+				<!-- Кебаб-меню для действий -->
+				<div class="kebab-wrapper" id="videoKebabWrapper" style="display: none;">
+					<button class="kebab-btn" onclick="toggleVideoDrawerKebabMenu()" title="Действия с видеоинструкцией">
+						<i class="fas fa-ellipsis-v"></i>
+					</button>
+					<div class="kebab-menu" id="video-drawer-kebab-menu">
+						<button type="button" class="kebab-item danger" onclick="closeVideoDrawerKebabMenu(); deleteVideo()" title="Удалить видеоинструкцию">
+							<i class="fas fa-trash"></i>
+							<span>Удалить</span>
+						</button>
+					</div>
+				</div>
+				
+				<button type="button" class="button button-secondary" onclick="closeVideoDrawer()" title="Отменить и закрыть панель">
+					<i class="fas fa-times"></i>
+					Закрыть
+				</button>
+			</div>
+			
+			<!-- Правая часть: кнопка сохранения -->
+			<div class="drawer-footer-right">
+				<button type="button" id="videoSubmitBtn" class="button button-primary" onclick="submitVideoForm()" title="Сохранить видеоинструкцию">
+					<i class="fas fa-save"></i>
+					<span id="videoSubmitBtnText">Создать</span>
+				</button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<script>
+let currentVideoId = null;
+
+function openVideoDrawer(videoId = null) {
+	currentVideoId = videoId;
+	const drawer = document.getElementById('videoDrawer');
+	const form = document.getElementById('videoForm');
+	
+	// Очищаем форму
+	form.reset();
+	document.getElementById('video_id').value = '';
+	document.getElementById('posterPreview').style.display = 'none';
+	document.getElementById('videoUploadProgress').style.display = 'none';
+	
+	// Сбрасываем текст кнопок выбора файлов
+	const posterButton = document.getElementById('posterFileName').parentElement;
+	const videoButton = document.getElementById('videoFileName').parentElement;
+	posterButton.classList.remove('file-selected');
+	videoButton.classList.remove('file-selected');
+	document.getElementById('posterFileName').textContent = 'Выбрать изображение';
+	document.getElementById('videoFileName').textContent = 'Выбрать видео';
+	
+	if (videoId) {
+		// Редактирование
+		document.getElementById('videoDrawerTitle').textContent = 'Редактировать видеоинструкцию';
+		document.getElementById('videoSubmitBtnText').textContent = 'Сохранить';
+		document.getElementById('videoKebabWrapper').style.display = 'inline-block';
+		document.getElementById('videoRequiredIndicator').style.display = 'none';
+		
+		document.getElementById('videoIdField').style.display = 'block';
+		document.getElementById('videoCreatedAtField').style.display = 'block';
+		document.getElementById('videoFileSizeField').style.display = 'block';
+		document.getElementById('videoLinkField').style.display = 'block';
+		document.getElementById('videoIframeField').style.display = 'block';
+		
+		fetch(`/api/video/${videoId}`)
+			.then(r => r.json())
+			.then(data => {
+				document.getElementById('video_id').value = data.video_id;
+				document.getElementById('display_video_id').value = data.video_id;
+				document.getElementById('display_created_at').value = data.created_at || '';
+				document.getElementById('video_title').value = data.title || '';
+				document.getElementById('display_file_size').value = data.file_size_mb ? `${data.file_size_mb.toFixed(2)} MB` : 'N/A';
+				document.getElementById('display_video_link').value = `/video/player/${data.video_id}`;
+				document.getElementById('display_video_iframe').value = `<iframe src="/video/embed/${data.video_id}" width="100%" height="400" frameborder="0" allowfullscreen></iframe>`;
+				
+				// Добавляем обработчик для кнопки открытия видео
+				document.getElementById('openVideoPlayerBtn').onclick = function() {
+					window.open(`/video/player/${data.video_id}`, '_blank');
+				};
+				
+				if (data.poster_filename) {
+					document.getElementById('posterPreviewImg').src = `/video_instructions/posters/${data.poster_filename}`;
+					document.getElementById('posterPreview').style.display = 'block';
+				}
+			})
+			.catch(err => showNotification('Ошибка загрузки данных видео', 'error'));
+	} else {
+		// Создание
+		document.getElementById('videoDrawerTitle').textContent = 'Создать видеоинструкцию';
+		document.getElementById('videoSubmitBtnText').textContent = 'Создать';
+		document.getElementById('videoKebabWrapper').style.display = 'none';
+		document.getElementById('videoRequiredIndicator').style.display = 'inline';
+		
+		document.getElementById('videoIdField').style.display = 'none';
+		document.getElementById('videoCreatedAtField').style.display = 'none';
+		document.getElementById('videoFileSizeField').style.display = 'none';
+		document.getElementById('videoLinkField').style.display = 'none';
+		document.getElementById('videoIframeField').style.display = 'none';
+	}
+	
+	drawer.style.display = 'flex';
+	setTimeout(() => {
+		document.getElementById('videoDrawerPanel').classList.add('open');
+	}, 10);
+}
+
+function closeVideoDrawer() {
+	const drawerPanel = document.getElementById('videoDrawerPanel');
+	drawerPanel.classList.remove('open');
+	
+	setTimeout(() => {
+		document.getElementById('videoDrawer').style.display = 'none';
+		currentVideoId = null;
+	}, 300);
+}
+
+function submitVideoForm() {
+	const videoId = document.getElementById('video_id').value;
+	const title = document.getElementById('video_title').value.trim();
+	const videoFile = document.getElementById('video_file').files[0];
+	
+	if (!title) {
+		showNotification('Введите название видео', 'error');
+		return;
+	}
+	
+	if (!videoId && !videoFile) {
+		showNotification('Выберите видеофайл', 'error');
+		return;
+	}
+	
+	const formData = new FormData(document.getElementById('videoForm'));
+	
+	if (videoFile) {
+		document.getElementById('videoUploadProgress').style.display = 'block';
+		document.getElementById('uploadProgressText').textContent = 'Загрузка...';
+		document.getElementById('uploadProgressPercent').textContent = '0%';
+		document.getElementById('uploadProgressBar').style.width = '0%';
+	}
+	
+	const xhr = new XMLHttpRequest();
+	
+	xhr.upload.onprogress = function(e) {
+		if (e.lengthComputable) {
+			const percent = (e.loaded / e.total) * 100;
+			document.getElementById('uploadProgressPercent').textContent = `${Math.round(percent)}%`;
+			document.getElementById('uploadProgressBar').style.width = `${percent}%`;
+			document.getElementById('uploadProgressText').textContent = percent < 100 ? 'Загрузка...' : 'Обработка...';
+		}
+	};
+	
+	xhr.onload = function() {
+		if (xhr.status === 200) {
+			const response = JSON.parse(xhr.responseText);
+			if (response.success) {
+				showNotification('Видео успешно сохранено!', 'success');
+				closeVideoDrawer();
+				location.reload();
+			} else {
+				showNotification(`Ошибка: ${response.message || 'Неизвестная ошибка'}`, 'error');
+				document.getElementById('videoUploadProgress').style.display = 'none';
+			}
+		} else {
+			showNotification(`Ошибка загрузки: ${xhr.statusText}`, 'error');
+			document.getElementById('videoUploadProgress').style.display = 'none';
+		}
+	};
+	
+	xhr.onerror = () => {
+		showNotification('Ошибка соединения с сервером', 'error');
+		document.getElementById('videoUploadProgress').style.display = 'none';
+	};
+	
+	const url = videoId ? `/api/video/${videoId}` : '/api/video/create';
+	xhr.open('POST', url);
+	xhr.send(formData);
+}
+
+function deleteVideo() {
+	if (!currentVideoId) return;
+	
+	if (!confirm('Вы уверены, что хотите удалить эту видеоинструкцию?')) return;
+	
+	fetch(`/api/video/${currentVideoId}`, { method: 'DELETE' })
+		.then(r => r.json())
+		.then(data => {
+			if (data.success) {
+				showNotification('Видео успешно удалено', 'success');
+				closeVideoDrawer();
+				location.reload();
+			} else {
+				showNotification(`Ошибка: ${data.message || 'Не удалось удалить видео'}`, 'error');
+			}
+		})
+		.catch(() => showNotification('Ошибка удаления видео', 'error'));
+}
+
+function openCurrentVideoPlayer() {
+	const linkInput = document.getElementById('display_video_link');
+	if (linkInput && linkInput.value) {
+		window.open(linkInput.value, '_blank');
+	}
+}
+
+// Функции для работы с кебаб-меню
+function toggleVideoDrawerKebabMenu() {
+	const menu = document.getElementById('video-drawer-kebab-menu');
+	if (menu.classList.contains('active')) {
+		closeVideoDrawerKebabMenu();
+	} else {
+		menu.classList.add('active');
+		// Закрываем другие открытые кебаб-меню
+		document.querySelectorAll('.kebab-menu.active').forEach(otherMenu => {
+			if (otherMenu !== menu) {
+				otherMenu.classList.remove('active');
+			}
+		});
+	}
+}
+
+function closeVideoDrawerKebabMenu() {
+	const menu = document.getElementById('video-drawer-kebab-menu');
+	menu.classList.remove('active');
+}
+
+// Утилита для копирования
+function copyToClipboard(text) {
+	navigator.clipboard.writeText(text).then(() => {
+		showNotification('Скопировано!', 'success');
+	}).catch(() => {
+		showNotification('Ошибка копирования', 'error');
+	});
+}
+
+// Утилита для уведомлений
+function showNotification(message, type = 'info') {
+	const notification = document.createElement('div');
+	notification.textContent = message;
+	notification.style.cssText = `
+		position: fixed;
+		top: 20px;
+		right: 20px;
+		background: var(--${type === 'success' ? 'success-color' : type === 'error' ? 'danger-color' : 'primary-color'});
+		color: #fff;
+		padding: 12px 24px;
+		border-radius: 8px;
+		z-index: 10000;
+		animation: fadeInOut 2s;
+	`;
+	document.body.appendChild(notification);
+	setTimeout(() => notification.remove(), 2000);
+}
+
+// Превью постера и обновление имени файла
+document.addEventListener('DOMContentLoaded', function() {
+	// Закрытие drawer при клике на overlay
+	document.getElementById('videoDrawer')?.addEventListener('click', function(e) {
+		if (e.target === this) {
+			closeVideoDrawer();
+		}
+	});
+	
+	// Закрытие кебаб-меню при клике вне его
+	document.addEventListener('click', function(event) {
+		if (!event.target.closest('.kebab-wrapper')) {
+			document.querySelectorAll('.kebab-menu.active').forEach(menu => {
+				menu.classList.remove('active');
+			});
+		}
+	});
+	
+	// Обработчик выбора превью изображения
+	document.getElementById('video_poster')?.addEventListener('change', function(e) {
+		const file = e.target.files[0];
+		if (file) {
+			// Обновляем текст кнопки с именем файла
+			const fileNameElement = document.getElementById('posterFileName');
+			fileNameElement.textContent = file.name.length > 30 ? file.name.substring(0, 30) + '...' : file.name;
+			fileNameElement.parentElement.classList.add('file-selected');
+			
+			// Показываем превью
+			const reader = new FileReader();
+			reader.onload = e => {
+				document.getElementById('posterPreviewImg').src = e.target.result;
+				document.getElementById('posterPreview').style.display = 'block';
+			};
+			reader.readAsDataURL(file);
+		}
+	});
+	
+	// Обработчик выбора видеофайла
+	document.getElementById('video_file')?.addEventListener('change', function(e) {
+		const file = e.target.files[0];
+		if (file) {
+			// Обновляем текст кнопки с именем файла
+			const fileNameElement = document.getElementById('videoFileName');
+			fileNameElement.textContent = file.name.length > 30 ? file.name.substring(0, 30) + '...' : file.name;
+			fileNameElement.parentElement.classList.add('file-selected');
+		}
+	});
+});
+</script>
+
+<style>
+/* Drawer стили для плавных анимаций */
+.drawer-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: rgba(0, 0, 0, 0.5);
+	z-index: 9999;
+	display: flex;
+	justify-content: flex-end;
+	align-items: stretch;
+	opacity: 0;
+	transition: opacity 0.3s ease;
+}
+
+.drawer-overlay[style*="display: flex"] {
+	opacity: 1;
+}
+
+.drawer {
+	background: var(--bg-surface);
+	width: 100%;
+	max-width: 600px;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
+	transform: translateX(100%);
+	transition: transform 0.3s ease;
+}
+
+.drawer.open {
+	transform: translateX(0);
+}
+
+.drawer-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 20px;
+	border-bottom: 1px solid var(--border-color);
+}
+
+.drawer-header h3 {
+	margin: 0;
+	font-size: 1.25rem;
+	color: var(--text-primary);
+}
+
+.drawer-close {
+	background: none;
+	border: none;
+	font-size: 1.5rem;
+	cursor: pointer;
+	color: var(--text-muted);
+	transition: color 0.2s ease;
+}
+
+.drawer-close:hover {
+	color: var(--text-primary);
+}
+
+.drawer-body {
+	flex: 1;
+	padding: 20px;
+	overflow-y: auto;
+}
+
+.drawer-footer {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 20px;
+	border-top: 1px solid var(--border-color);
+	gap: 12px;
+}
+
+.drawer-footer-left,
+.drawer-footer-right {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+/* Кебаб-меню в drawer footer */
+.drawer-footer .kebab-menu {
+	top: auto;
+	bottom: 100%;
+	margin-bottom: 8px;
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 768px) {
+	.drawer {
+		max-width: 100%;
+	}
+	
+	.drawer-footer {
+		flex-direction: column;
+		gap: 12px;
+	}
+	
+	.drawer-footer-left,
+	.drawer-footer-right {
+		width: 100%;
+		justify-content: center;
+	}
+}
+
+@keyframes fadeInOut {
+	0% { opacity: 0; transform: translateY(-10px); }
+	20% { opacity: 1; transform: translateY(0); }
+	80% { opacity: 1; transform: translateY(0); }
+	100% { opacity: 0; transform: translateY(-10px); }
+}
+
+/* Стили для кастомных кнопок выбора файлов */
+.file-input-wrapper {
+	position: relative;
+	display: inline-block;
+	width: 100%;
+}
+
+.file-input-hidden {
+	display: none;
+}
+
+.file-input-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	width: 100%;
+	padding: 12px 16px;
+	background: var(--bg-hover);
+	border: 2px dashed var(--border-color);
+	border-radius: 8px;
+	color: var(--text-muted);
+	font-size: 14px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: all 0.3s ease;
+	text-align: center;
+}
+
+.file-input-button:hover {
+	background: var(--bg-surface);
+	border-color: var(--primary-color);
+	color: var(--text-primary);
+	transform: translateY(-2px);
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.file-input-button:active {
+	transform: translateY(0);
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.file-input-button.file-selected {
+	background: var(--success-color);
+	border-color: var(--success-color);
+	border-style: solid;
+	color: #fff;
+}
+
+.file-input-button.file-selected:hover {
+	background: #1e7e34;
+	border-color: #1e7e34;
+}
+
+.file-input-button i {
+	font-size: 18px;
+}
+
+.file-input-button span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+</style>
+

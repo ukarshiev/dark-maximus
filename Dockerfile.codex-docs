@@ -1,0 +1,42 @@
+# Multi-stage Dockerfile для админской документации (Codex.docs)
+# Следует best practices из Docker документации
+
+# =========================================
+# Stage 1: Подготовка конфигурации и контента
+# =========================================
+FROM alpine:3.22 AS config-builder
+
+WORKDIR /build
+
+# Копируем конфигурацию Codex.docs
+COPY codex.docs/docs-config.yaml ./docs-config.yaml
+
+# Копируем предсобранный контент
+COPY codex.docs/dist ./dist
+COPY codex.docs/public ./public
+
+# =========================================
+# Stage 2: Codex.docs runtime
+# =========================================
+FROM ghcr.io/codex-team/codex.docs:v2.0.0-rc.8
+
+# Копируем конфигурацию из builder stage
+COPY --from=config-builder /build/docs-config.yaml /usr/src/app/docs-config.yaml
+
+# Копируем предсобранный контент
+COPY --from=config-builder /build/dist /usr/src/app/dist
+COPY --from=config-builder /build/public /usr/src/app/public
+
+# Volumes для данных (будут монтироваться через docker-compose)
+# - /usr/src/app/uploads
+# - /usr/src/app/db
+
+# Expose порт
+EXPOSE 3000
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://localhost:3000/ || exit 1
+
+# Команда запуска определена в базовом образе
+

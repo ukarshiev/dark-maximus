@@ -1,0 +1,135 @@
+.writing-header {
+  padding: 0 0 15px 0;
+  margin-top: 0;
+  background: #fff;
+  box-shadow: 0 3px 10px #fff;
+  font-size: 14px;
+
+  &__save {
+    @apply --button;
+    @apply --button-primary;
+    margin: auto;
+  }
+
+  &__inner-container {
+    margin: auto 0;
+    display: flex;
+    color: var(--color-text-second);
+    gap: 10px;
+
+    @media(--mobile) {
+      flex-flow: column;
+    }
+
+    & > * {
+      flex: 0 1 33.3%;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    select {
+      @apply --select;
+    }
+
+    input {
+      @apply --input;
+    }
+  }
+}
+
+.writing-buttons {
+  display: flex;
+
+  button:not(:last-child) {
+    margin-right: 20px;
+  }
+}
+
+.writing-editor {
+  @apply --text-content-main;
+
+  .ce-code__textarea {
+    @apply --text-code-block;
+
+    border: 0;
+    border-radius: 8px;
+  }
+
+  .ce-paragraph {
+    line-height: inherit;
+
+    a {
+     @apply --text-inline-link;
+    }
+  }
+
+  .ce-header {
+    @apply --text-header;
+    padding: 0 0 10px;
+  }
+
+  h2.ce-header {
+    @apply --text-header-2;
+  }
+
+  h3.ce-header {
+    @apply --text-header-3;
+  }
+
+  .inline-code {
+    @apply  --text-inline-code;
+  }
+
+  .tc-table {
+    @apply --text-content-main;
+  }
+
+  .tc-cell {
+    padding: 6px 8px;
+  }
+
+  .cdx-list {
+    @apply --text-list;
+
+    &__item {
+      line-height: inherit;
+    }
+  }
+
+  @media (--desktop) {
+    .ce-block__content,
+    .ce-toolbar__content {
+      max-width: var(--layout-width-main-col);
+    }
+  }
+}
+
+.codex-editor__redactor .ce-block:first-of-type .ce-header {
+  @apply --text-content-title;
+}
+
+.cdx-block {
+  @apply --content-block;
+}
+
+.cdx-settings-button[data-tune="stretched"] {
+  display: none;
+}
+
+/* Dark mode styles for writing header - убираем фон и тень */
+[data-theme="dark"] .writing-header {
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--color-text-main) !important;
+}
+
+[data-theme="dark"] .writing-header__inner-container {
+  color: var(--color-text-main) !important;
+}
+
+[data-theme="dark"] .writing-header__inner-container label {
+  color: var(--color-text-main) !important;
+}

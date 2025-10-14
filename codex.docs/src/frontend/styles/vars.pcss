@@ -1,0 +1,628 @@
+:root {
+  --color-text-main: #060C26;
+  --color-text-second: #717682;
+  --color-line-gray: #E8E8EB;
+  --color-link-active: #2071cc;
+  --color-link-hover: #F3F6F8;
+  --color-bg-light: #f8f7fa;
+  --color-page-active: #ff1767;
+  --color-input-primary: #F3F6F8;
+  --color-input-border: #477CFF;
+
+  /* Background colors */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f8f7fa;
+  --color-bg-tertiary: #f3f6f8;
+
+  /* Code Block styles */
+  --color-code-bg: #252935;
+  --color-code-main: #E1EBFE;
+  --color-code-keyword: #ff6675;
+  --color-code-class: #bf9dff;
+  --color-code-variable: #69c6ff;
+  --color-code-string: #81bcff;
+  --color-code-params: #ffa259;
+  --color-code-tag: #74e59d;
+  --color-code-number: #ff6262;
+  --color-code-comment: #6c7f93;
+
+  /* Button component styles */
+  --color-button-primary: #3389FF;
+  --color-button-primary-hover: #2E7AE6;
+  --color-button-primary-active: #296DCC;
+
+  --color-button-secondary: #717682;
+  --color-button-secondary-hover: #5D6068;
+  --color-button-secondary-active: #4B4F5B;
+
+  --color-button-warning: #EF5C5C;
+  --color-button-warning-hover: #D65151;
+  --color-button-warning-active: #BD4848;
+
+  --color-success: #00e08f;
+
+
+  /**
+   * Site layout sizes
+   */
+  --layout-padding-horizontal: 22px;
+  --layout-padding-vertical: 30px;
+  --layout-padding-content-horizontal: 50px;
+  --layout-sidebar-width: 280px;
+  --layout-width-main-col: 700px;
+  --layout-height-header: 56px;
+
+  @media (--mobile) {
+    --layout-padding-horizontal: 15px;
+    --layout-padding-vertical: 15px;
+    --layout-height-header: 88px;
+    --layout-padding-content-horizontal: var(--layout-padding-horizontal);
+  }
+
+  @media (--wide-desktop) {
+    --layout-sidebar-width: 344px;
+  }
+
+  --font-mono: Menlo,Monaco,Consolas,Courier New,monospace;
+
+  --button {
+    display: inline-block;
+    padding: 9px 15px;
+    border-radius: 3px;
+    color: #6c6375;
+    background: #fcfcff;
+    box-shadow: inset 0 0 0 1px rgba(184, 189, 206, 0.2);
+    font-size: 14px;
+    line-height: 1em;
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
+    -webkit-appearance: none;
+    border: 0;
+
+    svg {
+      margin: 0 0.3em 0 -0.05em;
+    }
+  }
+
+
+  --button-primary {
+    background: var(--color-link-active);
+    color: #fff;
+    box-shadow: none;
+
+    &:hover {
+      background: color-mod(var(--color-link-active) blackness(+10%));
+    }
+  }
+
+  --select {
+    position: relative;
+    padding: 10px 30px 10px 10px;
+    width: 100%;
+    border: solid 1px transparent;
+    border-radius: 8px;
+    background-color: var(--color-input-primary);
+    box-sizing: border-box;
+    appearance: none;
+    line-height: 18px;
+    background-image: url("../svg/arrow-down.svg");
+    background-repeat: no-repeat;
+    background-position: right 15px center;
+
+    &:focus {
+      border: solid 1px var(--color-input-border);
+      box-shadow: 0 0 0 3px rgba(18, 155, 255, 0.33);
+    }
+
+    &:focus-visible {
+      outline: none;
+    }
+  }
+
+  --input {
+    padding: 10px;
+    width: 100%;
+    line-height: 18px;
+    border: solid 1px transparent;
+    border-radius: 8px;
+    background-color: var(--color-input-primary);
+    box-sizing: border-box;
+
+    &:focus {
+      border: solid 1px var(--color-input-border);
+      box-shadow: 0 0 0 3px rgba(18, 155, 255, 0.33);
+    }
+
+    &:focus-visible {
+      outline: none;
+    }
+  }
+
+  --squircle {
+    border-radius: 8px;
+
+    @supports(-webkit-mask-box-image: url('')){
+      border-radius: 0;
+      -webkit-mask-box-image: url("data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 10.3872C0 1.83334 1.83334 0 10.3872 0H13.6128C22.1667 0 24 1.83334 24 10.3872V13.6128C24 22.1667 22.1667 24 13.6128 24H10.3872C1.83334 24 0 22.1667 0 13.6128V10.3872Z' fill='black'/%3E%3C/svg%3E%0A") 48% 41% 37.9% 53.3%;;
+    }
+  }
+
+  /**
+   * The common styles for the Page blocks as well as Editor blocks
+   */
+  --content-block {
+    padding: 10px 0;
+  }
+
+  /**
+   * Main page H1 title
+   */
+  --text-content-title {
+    font-size: 36px;
+    font-weight: 800;
+    margin: 0;
+  }
+
+  /**
+   * Page body font
+   */
+  --text-content-main {
+    font-size: 16px;
+    line-height: 150%;
+  }
+
+  /**
+   * Code on page and in the Editor
+   */
+  --text-code-block {
+    background: var(--color-code-bg);
+    color: var(--color-code-main);
+    font-family: var(--font-mono);
+    line-height: 1.5em;
+    font-size: 13px;
+    overflow-x: auto;
+  }
+
+  /**
+   * Common styles for text headings (H2, H3, H4)
+   */
+  --text-header {
+    margin: 20px 0 0;
+    line-height: 1.35em;
+  }
+
+  /**
+   * Styles for the H2 at the Page and Editor
+   */
+  --text-header-2 {
+    font-size: 24px;
+    font-weight: 700;
+  }
+
+  /**
+   * Styles for the H3 at the Page and Editor
+   */
+  --text-header-3 {
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  /**
+   * Styles for the inline code element at the Page and Editor
+   */
+  --text-inline-code {
+    display: inline-block;
+    background: rgba(251,241,241,0.78);
+    color: #C44545;
+    font-size: 14px;
+    line-height: 1.4em;
+    letter-spacing: 0;
+
+    padding: 3px 4px 2px;
+    margin: -1px 2px 0;
+    font-family: var(--font-mono);
+    font-size: 0.84em;
+    border-bottom: 0;
+
+    &:hover {
+      background: rgba(251,241,241,0.78);
+    }
+  }
+
+  /* Dark mode variables - Material Design best practices */
+  &[data-theme="dark"] {
+    --color-text-main: #CCCCCC;
+    --color-text-second: #9CA3AF;
+    --color-line-gray: #374151;
+    --color-link-active: #60A5FA;
+    --color-link-hover: #4B5563;
+    --color-bg-light: #1F2937;
+    --color-page-active: #F472B6;
+    --color-input-primary: #374151;
+    --color-input-border: #60A5FA;
+
+    /* Background colors - using elevation levels instead of pure black */
+    --color-bg-primary: #111827;      /* Main background - dark grey, not black */
+    --color-bg-secondary: #1F2937;    /* Cards, elevated surfaces */
+    --color-bg-tertiary: #374151;     /* Nested elements, inputs */
+
+    /* Code Block styles (dark mode optimized) - Catppuccin Mocha */
+    --color-code-bg: #1F2937;
+    --color-code-main: #E5E7EB;
+    --color-code-keyword: #F38BA8;
+    --color-code-class: #CBA6F7;
+    --color-code-variable: #89B4FA;
+    --color-code-string: #A6E3A1;
+    --color-code-params: #F9E2AF;
+    --color-code-tag: #94E2D5;
+    --color-code-number: #FAB387;
+    --color-code-comment: #6B7280;
+
+    /* Button component styles (dark mode) - Tailwind colors */
+    --color-button-primary: #3B82F6;
+    --color-button-primary-hover: #2563EB;
+    --color-button-primary-active: #1D4ED8;
+
+    --color-button-secondary: #9CA3AF;
+    --color-button-secondary-hover: #6B7280;
+    --color-button-secondary-active: #4B5563;
+
+    --color-button-warning: #EF4444;
+    --color-button-warning-hover: #DC2626;
+    --color-button-warning-active: #B91C1C;
+
+    --color-success: #10B981;
+  }
+
+  /* Dark mode inline code styles */
+  &[data-theme="dark"] .inline-code,
+  &[data-theme="dark"] .block-header a .inline-code {
+    background: rgba(55, 65, 81, 0.6);
+    color: #FCA5A5;
+
+    &:hover {
+      background: rgba(55, 65, 81, 0.8);
+    }
+  }
+
+  /* Dark mode inline link styles */
+  &[data-theme="dark"] a {
+    border-bottom-color: #60A5FA;
+
+    &:hover {
+      color: #93C5FD;
+      border-bottom-color: #93C5FD;
+    }
+
+    .inline-code {
+      border-bottom-color: #60A5FA;
+      color: #93C5FD;
+      background-color: rgba(59, 130, 246, 0.15);
+
+      &:hover {
+        background-color: rgba(59, 130, 246, 0.25);
+      }
+    }
+  }
+
+  /**
+   * Styles for regular links inside a text
+   */
+  --text-inline-link {
+    text-decoration: none;
+    border-bottom: 1px solid #000;
+    padding-bottom: 1px;
+    color: inherit;
+
+    &:hover {
+      color: var(--color-link-active);
+      border-bottom-color: var(--color-link-active);
+    }
+
+    /**
+     * When a link contain an inline code, highlight it by its own way
+     */
+    .inline-code {
+      margin: 0;
+      padding: 2px 5px;
+      border-bottom: 1px dashed rgba(84, 151, 255, 0.99);
+      color: #1f6fd8;
+      background-color: #daf1fe;
+      border-radius: 3px !important;
+
+      &:hover {
+        background-color: #c8edfe;
+      }
+    }
+  }
+
+  /**
+   * Styles for the List block
+   */
+  --text-list {
+    margin: 0;
+    list-style: outside;
+    padding-left: 40px;
+
+    &--ordered {
+      list-style-type: decimal
+    }
+
+    li {
+      padding: 0;
+
+      &:not(:last-of-type){
+        margin-bottom: 8px;
+      }
+    }
+  }
+
+}
+
+  /**
+   * Dark mode styles for all UI elements (popups, modals, forms, etc.)
+   */
+  &[data-theme="dark"] {
+    /* Text selection - темный фон с светлым текстом */
+    ::selection {
+      background: rgba(59, 130, 246, 0.4) !important;
+      color: #FFFFFF !important;
+    }
+
+    ::-moz-selection {
+      background: rgba(59, 130, 246, 0.4) !important;
+      color: #FFFFFF !important;
+    }
+
+    /* Modal and popup backgrounds */
+    .cdx-popup,
+    .cdx-modal,
+    .cdx-dropdown,
+    .ce-popover,
+    .ce-toolbar__plus,
+    .ce-toolbar__settings-btn,
+    .ce-conversion-toolbar,
+    .ce-inline-toolbar,
+    .ce-block-settings,
+    .ce-settings__button,
+    .ce-toolbar__content {
+      background: var(--color-bg-secondary) !important;
+      color: var(--color-text-main) !important;
+      border-color: var(--color-line-gray) !important;
+    }
+
+    /* Popover items - улучшенная видимость */
+    .ce-popover__items {
+      background: var(--color-bg-secondary) !important;
+      color: var(--color-text-main) !important;
+      border-color: var(--color-line-gray) !important;
+    }
+
+    .ce-popover__item {
+      background: transparent !important;
+      color: var(--color-text-main) !important;
+      border-color: var(--color-line-gray) !important;
+
+      &:hover {
+        background: var(--color-bg-tertiary) !important;
+      }
+    }
+
+    .ce-popover__item-icon,
+    .ce-popover__item-label,
+    .ce-popover__item-shortcut,
+    .ce-popover__item-hint {
+      background: transparent !important;
+      color: var(--color-text-main) !important;
+    }
+
+    /* Conversion toolbar items */
+    .ce-conversion-tool__icon,
+    .ce-conversion-tool__label {
+      background: var(--color-bg-secondary) !important;
+      color: var(--color-text-main) !important;
+      border-color: var(--color-line-gray) !important;
+    }
+
+    /* Input fields and forms */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    input[type="search"],
+    textarea,
+    select {
+      background: var(--color-bg-tertiary) !important;
+      color: var(--color-text-main) !important;
+      border-color: var(--color-line-gray) !important;
+
+      &::placeholder {
+        color: var(--color-text-second) !important;
+      }
+
+      &:focus {
+        border-color: var(--color-input-border) !important;
+        background: var(--color-bg-tertiary) !important;
+      }
+    }
+
+    /* Buttons - более контрастные цвета для темной темы */
+    button,
+    .ce-toolbar__plus,
+    .ce-toolbar__settings-btn,
+    .ce-settings__button,
+    .ce-inline-toolbar__button,
+    .ce-conversion-tool,
+    .ce-popover__item {
+      background: var(--color-bg-tertiary) !important;
+      color: var(--color-text-main) !important;
+      border-color: var(--color-line-gray) !important;
+
+      &:hover {
+        background: var(--color-bg-secondary) !important;
+        color: var(--color-text-main) !important;
+      }
+
+      &:active {
+        background: var(--color-bg-tertiary) !important;
+      }
+
+      svg {
+        fill: var(--color-text-main) !important;
+      }
+    }
+
+    /* Primary buttons - более яркие */
+    button.ce-toolbar__plus:hover,
+    button.ce-settings__button:hover,
+    .ce-toolbar__plus:hover,
+    .ce-settings__button:hover {
+      background: var(--color-button-primary) !important;
+      color: #FFFFFF !important;
+      
+      svg {
+        fill: #FFFFFF !important;
+      }
+    }
+
+    /* Icon buttons - более контрастные */
+    .ce-toolbar__plus svg,
+    .ce-settings__button svg,
+    .ce-inline-toolbar__button svg,
+    .ce-conversion-tool__icon svg {
+      fill: var(--color-text-main) !important;
+      opacity: 1 !important;
+    }
+
+    .ce-toolbar__plus:hover svg,
+    .ce-settings__button:hover svg {
+      fill: #FFFFFF !important;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--color-bg-primary);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--color-line-gray);
+      border-radius: 4px;
+
+      &:hover {
+        background: var(--color-text-second);
+      }
+    }
+
+    /* Tooltips */
+    .ce-toolbar__plus:hover::after,
+    .ce-settings__button:hover::after {
+      background: var(--color-bg-tertiary) !important;
+      color: var(--color-text-main) !important;
+      border-color: var(--color-line-gray) !important;
+    }
+
+    /* Code editor */
+    .ce-code__textarea {
+      background: var(--color-code-bg) !important;
+      color: var(--color-code-main) !important;
+    }
+
+    /* Lists */
+    ul,
+    ol {
+      color: var(--color-text-main) !important;
+    }
+
+    li {
+      color: var(--color-text-main) !important;
+    }
+
+    /* Tables */
+    table {
+      background: var(--color-bg-secondary) !important;
+      color: var(--color-text-main) !important;
+      border-color: var(--color-line-gray) !important;
+    }
+
+    th,
+    td {
+      border-color: var(--color-line-gray) !important;
+      color: var(--color-text-main) !important;
+    }
+
+    th {
+      background: var(--color-bg-tertiary) !important;
+    }
+
+    /* Navigator items - светлый текст вместо черного и hover эффект */
+    .navigator__item {
+      color: var(--color-text-main) !important;
+      transition: background-color 0.2s ease !important;
+
+      &:hover {
+        background-color: var(--color-button-primary) !important;
+        color: #FFFFFF !important;
+      }
+
+      &:active {
+        background-color: var(--color-button-primary-active) !important;
+      }
+    }
+
+    .navigator__item-direction {
+      color: var(--color-text-second) !important;
+
+      .navigator__item:hover & {
+        color: rgba(255, 255, 255, 0.8) !important;
+      }
+    }
+
+    /* Image tool - убираем светлую заливку */
+    .image-tool,
+    .image-tool__image,
+    .image-tool__image-picture,
+    .image-tool__preloader {
+      background-color: transparent !important;
+    }
+
+    .image-tool__caption {
+      background: var(--color-bg-tertiary) !important;
+      color: var(--color-text-main) !important;
+    }
+
+    /* Useful links - темный hover вместо светлого */
+    .docs-sidebar__useful-links-item {
+      color: var(--color-link-active) !important;
+      transition: background-color 0.2s ease !important;
+
+      &:hover {
+        background-color: var(--color-link-hover) !important;
+        color: var(--color-link-active) !important;
+      }
+    }
+
+    .docs-sidebar__useful-links-icon {
+      color: inherit !important;
+    }
+  }
+
+  /**
+   * Custom media queries
+   */
+  @custom-media --wide-desktop all and (min-width: 1300px);
+  @custom-media --desktop all and (min-width: 1050px);
+  @custom-media --tablet all and (min-width: 980px) and (max-width: 1050px);
+  @custom-media --mobile all and (max-width: 980px);
+  @custom-media --not-mobile all and (min-width: 981px);
+  @custom-media --retina all and (-webkit-min-device-pixel-ratio: 1.5);
+  @custom-media --can-hover all and (hover:hover);
+  /**
+   * Big screens that have additional space around the center column
+   */
+  @custom-media --widest-desktop all and (min-width: 1470px);

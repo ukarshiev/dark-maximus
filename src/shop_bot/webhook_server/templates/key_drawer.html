@@ -1,0 +1,246 @@
+<!-- Key Drawer (Side Sheet) -->
+<div id="keyDrawer" class="drawer-overlay" style="display: none;">
+	<div class="drawer" id="keyDrawerPanel">
+		<div class="drawer-header">
+			<h3>Детали ключа</h3>
+			<button class="drawer-close" onclick="closeKeyDrawer()" title="Закрыть детали ключа">
+				<i class="fas fa-times"></i>
+			</button>
+		</div>
+		
+		<div class="drawer-body">
+			<!-- Закрепленная информация о пользователе -->
+			<div class="user-info-section">
+				<div class="user-info-grid">
+					<div class="user-info-item" title="Идентификатор пользователя в Telegram">
+						<label>Telegram ID:</label>
+						<span id="keyModalTelegramId" class="user-info-value"></span>
+					</div>
+					<div class="user-info-item" title="Полное имя из профиля Telegram">
+						<label>Полное имя:</label>
+						<span id="keyModalFullName" class="user-info-value"></span>
+					</div>
+					<div class="user-info-item" title="ФИО пользователя">
+						<label>ФИО:</label>
+						<span id="keyModalFio" class="user-info-value"></span>
+					</div>
+					<div class="user-info-item" title="Статус ключа">
+						<label>Статус:</label>
+						<span id="keyModalStatus" class="user-info-value"></span>
+					</div>
+				</div>
+			</div>
+
+			<!-- Вкладки -->
+			<div class="drawer-tabs">
+				<button class="tab-button active" onclick="switchKeyTab('keydata')" title="Основные данные ключа и трафика">
+					<i class="fas fa-key"></i>
+					Основные данные
+				</button>
+				<button class="tab-button" onclick="switchKeyTab('connection')" title="Данные для подключения">
+					<i class="fas fa-link"></i>
+					Подключение
+				</button>
+			</div>
+
+			<!-- Контент вкладок -->
+			<div class="drawer-tabs-content">
+				<!-- Вкладка: Основные данные -->
+				<div class="tab-content active" id="tab-keydata">
+					
+					<!-- Группа: Тариф -->
+					<div class="user-data-group">
+						<div class="user-data-group-header">
+							<i class="fas fa-tags"></i>
+							<span>Тариф</span>
+						</div>
+						<div class="user-details-grid">
+							<div class="user-detail-item" title="Название хоста">
+								<label>Хост:</label>
+								<span id="keyDetailHost">—</span>
+							</div>
+							<div class="user-detail-item" title="Название плана">
+								<label>План:</label>
+								<span id="keyDetailPlan">—</span>
+							</div>
+							<div class="user-detail-item" title="Стоимость подписки">
+								<label>Стоимость:</label>
+								<span id="keyDetailPrice">—</span>
+							</div>
+							<div class="user-detail-item" title="Текущий статус ключа">
+								<label>Статус:</label>
+								<span id="keyDetailStatusInTab">—</span>
+							</div>
+						</div>
+					</div>
+
+					<!-- Группа: Подписка -->
+					<div class="user-data-group">
+						<div class="user-data-group-header">
+							<i class="fas fa-receipt"></i>
+							<span>Подписка</span>
+						</div>
+						<div class="user-details-grid">
+							<div class="user-detail-item" title="Протокол подключения">
+								<label>Протокол:</label>
+								<span id="keyDetailProtocol">—</span>
+							</div>
+							<div class="user-detail-item" title="Состояние ключа">
+								<label>Включен:</label>
+								<span id="keyDetailEnabled">—</span>
+							</div>
+							<div class="user-detail-item" title="Является ли триальным ключом">
+								<label>Триал:</label>
+								<span id="keyDetailTrial">—</span>
+							</div>
+							<div class="user-detail-item" title="Дата создания ключа">
+								<label>Дата создания:</label>
+								<span id="keyDetailCreatedDate">—</span>
+							</div>
+							<div class="user-detail-item" title="Дата окончания действия">
+								<label>Дата окончания:</label>
+								<span id="keyDetailExpiryDate">—</span>
+							</div>
+							<div class="user-detail-item" title="Оставшееся время">
+								<label>Осталось:</label>
+								<span id="keyDetailRemaining">—</span>
+							</div>
+						</div>
+					</div>
+
+					<!-- Группа: Трафик -->
+					<div class="user-data-group">
+						<div class="user-data-group-header">
+							<i class="fas fa-chart-line"></i>
+							<span>Трафик</span>
+						</div>
+						<div class="user-details-grid">
+							<div class="user-detail-item" title="Общая квота трафика">
+								<label>Квота (всего):</label>
+								<span id="keyDetailQuotaTotal">—</span>
+							</div>
+							<div class="user-detail-item" title="Использовано трафика">
+								<label>Использовано:</label>
+								<span id="keyDetailTrafficDown">—</span>
+							</div>
+							<div class="user-detail-item" title="Остаток трафика">
+								<label>Остаток:</label>
+								<span id="keyDetailQuotaRemaining">—</span>
+							</div>
+						</div>
+					</div>
+
+				</div>
+
+				<!-- Вкладка: Подключение -->
+				<div class="tab-content" id="tab-connection">
+					<div class="user-data-group">
+						<div class="user-data-group-header">
+							<i class="fas fa-link"></i>
+							<span>Подключения</span>
+						</div>
+						<div class="user-details-grid">
+							<div class="user-detail-item" title="Ссылка на подписку" style="grid-column: 1 / -1;">
+								<label>Subscription:</label>
+								<div class="field-container">
+									<span id="keyDetailSubscription" style="font-family: 'Courier New', monospace; font-size: 12px; word-break: break-all;">—</span>
+									<button class="copy-btn" data-size="xs" onclick="copyKeyField('keyDetailSubscription')" title="Копировать Subscription">
+										<i class="fas fa-copy"></i>
+									</button>
+								</div>
+							</div>
+							<div class="user-detail-item" title="Ссылка на подписку из 3x-ui" style="grid-column: 1 / -1;">
+								<label>Subscription Link:</label>
+								<div class="field-container">
+									<span id="keyDetailSubscriptionLink" style="font-family: 'Courier New', monospace; font-size: 12px; word-break: break-all;">—</span>
+									<button class="copy-btn" data-size="xs" onclick="copyKeyField('keyDetailSubscriptionLink')" title="Копировать Subscription Link">
+										<i class="fas fa-copy"></i>
+									</button>
+								</div>
+							</div>
+							<div class="user-detail-item" title="Строка подключения" style="grid-column: 1 / -1;">
+								<label>Ключ подключения:</label>
+								<div class="field-container" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+									<div style="display: flex; align-items: center; gap: 8px; width: 100%;">
+										<span id="keyDetailConnectionString" style="font-family: 'Courier New', monospace; font-size: 11px; word-break: break-all; flex: 1; background: #1a1a1a; padding: 8px; border-radius: 4px; border: 1px solid #333;">—</span>
+										<button class="copy-btn" data-size="sm" onclick="copyKeyField('keyDetailConnectionString')" title="Копировать ключ подключения">
+											<i class="fas fa-copy"></i>
+										</button>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<div class="user-data-group">
+						<div class="user-data-group-header">
+							<i class="fas fa-server"></i>
+							<span>АТРИБУТЫ 3X-UI</span>
+						</div>
+						<div class="user-details-grid">
+							<div class="user-detail-item" title="Email ключа в 3x-ui" style="grid-column: 1 / -1;">
+								<label>Email (3x-ui):</label>
+								<div class="field-container">
+									<span id="keyDetailEmail" style="font-family: 'Courier New', monospace; font-size: 12px; word-break: break-all;">—</span>
+									<button class="copy-btn" data-size="xs" onclick="copyKeyField('keyDetailEmail')" title="Копировать Email">
+										<i class="fas fa-copy"></i>
+									</button>
+								</div>
+							</div>
+							<div class="user-detail-item" title="UUID клиента в 3x-ui" style="grid-column: 1 / -1;">
+								<label>UUID (3x-ui):</label>
+								<div class="field-container">
+									<span id="keyDetailUuid" style="font-family: 'Courier New', monospace; font-size: 12px; word-break: break-all;">—</span>
+									<button class="copy-btn" data-size="xs" onclick="copyKeyField('keyDetailUuid')" title="Копировать UUID">
+										<i class="fas fa-copy"></i>
+									</button>
+								</div>
+							</div>
+							<div class="user-detail-item" title="Telegram Chat ID" style="grid-column: 1 / -1;">
+								<label>Telegram ChatID:</label>
+								<div class="field-container">
+									<span id="keyDetailTelegramChatId" style="font-family: 'Courier New', monospace; font-size: 12px; word-break: break-all;">—</span>
+									<button class="copy-btn" data-size="xs" onclick="copyKeyField('keyDetailTelegramChatId')" title="Копировать Telegram Chat ID">
+										<i class="fas fa-copy"></i>
+									</button>
+								</div>
+							</div>
+							<div class="user-detail-item" title="Комментарий к ключу" style="grid-column: 1 / -1;">
+								<label>Комментарий:</label>
+								<span id="keyDetailComment" style="word-break: break-word;">—</span>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Footer с кнопками действий -->
+		<div class="drawer-footer">
+			<!-- Левая часть: кебаб-меню и закрыть -->
+			<div class="drawer-footer-left">
+				<!-- Кебаб-меню -->
+				<div class="kebab-wrapper">
+					<button class="kebab-btn" onclick="toggleDrawerKebabMenu('key-drawer-kebab-menu')" title="Действия с ключом">
+						<i class="fas fa-ellipsis-v"></i>
+					</button>
+					<div class="kebab-menu" id="key-drawer-kebab-menu">
+						<button type="button" class="kebab-item" onclick="closeDrawerKebabMenu(); keyDrawerRefresh()" title="Обновить из 3x-ui">
+							<i class="fas fa-sync-alt"></i>
+							<span>Обновить из 3x-ui</span>
+						</button>
+						<button type="button" class="kebab-item" onclick="closeDrawerKebabMenu(); keyDrawerToggle()" id="keyDrawerToggleBtn" title="Включить/отключить ключ">
+							<i class="fas fa-toggle-on"></i>
+							<span id="keyDrawerToggleText">Отключить</span>
+						</button>
+					</div>
+				</div>
+				
+				<button type="button" class="button button-secondary" onclick="closeKeyDrawer()" title="Закрыть детали ключа">
+					Закрыть
+				</button>
+			</div>
+		</div>
+	</div>
+</div>
+

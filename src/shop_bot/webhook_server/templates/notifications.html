@@ -1,0 +1,238 @@
+{% extends "base.html" %} 
+{% block title %}Уведомления{% endblock %}
+{% block header_title %}Уведомления{% endblock %}
+
+{% block header_buttons %}
+<button class="button button-primary" data-size="sm" onclick="openCreateNotificationModal()" title="Создать новое уведомление">
+	<i class="fas fa-plus"></i>
+	Создать
+</button>
+<button class="button button-secondary" data-size="sm" onclick="refreshNotificationsPage()" title="Обновить список уведомлений">
+	<i class="fas fa-sync-alt"></i>
+	Обновить
+</button>
+{% endblock %}
+
+{% block content %}
+
+<div class="transactions-container">
+    <div class="transactions-header">
+    </div>
+
+    <section class="transactions-section">
+        <div class="transactions-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Пользователь</th>
+                        <th>Тип</th>
+                        <th>Заголовок</th>
+                        <th>Статус</th>
+                        <th>Дата</th>
+                        <th>Детали</th>
+                        <th class="actions-cell">Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for n in notifications %}
+                    <tr>
+                        <td>{{ n.notification_id }}</td>
+                        <td>
+                            <div class="user-info">
+                                <div class="cell-inline">
+                                    <div class="cell-left">
+                                        <strong>ID:</strong>
+                                        <span>{{ hidden_mode and '***' or n.user_id }}</span>
+                                    </div>
+                                    <div class="cell-actions">
+                                        <button class="modal-action-btn" data-size="xs" onclick="openUserModal({{ n.user_id }}, '{{ n.username or 'N/A' }}', false, 0)" title="Открыть карточку пользователя">
+											<i class="fas fa-eye"></i>
+										</button>
+                                    </div>
+                                </div>
+                                <div><strong>Username:</strong> {{ hidden_mode and '***' or (n.username or 'N/A') }}</div>
+                            </div>
+                        </td>
+                        <td>{{ n.type or '-' }}</td>
+                        <td>{{ n.title or '-' }}</td>
+                        <td>
+                            {% if n.status == 'sent' %}
+                                <span class="status-badge status-paid">Отправлено</span>
+                            {% elif n.status == 'resent' %}
+                                <span class="status-badge status-paid">Повтор</span>
+                            {% elif n.status == 'failed' %}
+                                <span class="status-badge status-pending">Не удалось</span>
+                            {% else %}
+                                <span class="status-badge">{{ n.status or '-' }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if n.created_date %}
+                                {{ n.created_date.strftime('%Y-%m-%d %H:%M:%S') }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% set m = n.meta or {} %}
+                            {% if m and (m.key_id or m.expiry_at or m.time_left_hours) %}
+                                Ключ: {{ m.key_id or '' }}{% if m.expiry_at %}, истекает: {{ m.expiry_at }}{% endif %}{% if m.time_left_hours %}, ч: {{ m.time_left_hours }}{% endif %}
+                            {% endif %}
+                        </td>
+                        <td class="actions-cell">
+                            <button class="button button-small" data-size="sm" onclick="resendNotification({{ n.notification_id }})" title="Повторно отправить уведомление">
+								<i class="fas fa-redo"></i>
+							</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <div class="pagination-panel">
+        <div class="pagination-controls">
+            <!-- Левая область: кнопки действий -->
+            <div class="pagination-left">
+            </div>
+            
+            <!-- Правая область: пагинация и переключатель -->
+            <div class="pagination-right">
+                <!-- Пагинация -->
+                {% if total_pages > 1 %}
+                <div class="pagination">
+                    <!-- Стрелка назад -->
+                    {% if current_page > 1 %}
+                        <a href="{{ url_for('notifications_page', page=current_page-1, per_page=per_page) }}" class="pagination-link" title="Предыдущая страница">«</a>
+                    {% endif %}
+                    
+                    <!-- Логика отображения страниц: максимум 6 номеров -->
+                    {% if total_pages <= 6 %}
+                        <!-- Если страниц 6 или меньше, показываем все -->
+                        {% for p in range(1, total_pages + 1) %}
+                            {% if p == current_page %}
+                                <span class="pagination-link active" title="Текущая страница">{{ p }}</span>
+                            {% else %}
+                                <a href="{{ url_for('notifications_page', page=p, per_page=per_page) }}" class="pagination-link" title="Страница {{ p }}">{{ p }}</a>
+                            {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        <!-- Если страниц больше 6, показываем первые 4, многоточие и последнюю -->
+                        {% if current_page <= 4 %}
+                            <!-- Показываем 1, 2, 3, 4, ..., последняя -->
+                            {% for p in range(1, 5) %}
+                                {% if p == current_page %}
+                                    <span class="pagination-link active" title="Текущая страница">{{ p }}</span>
+                                {% else %}
+                                    <a href="{{ url_for('notifications_page', page=p, per_page=per_page) }}" class="pagination-link" title="Страница {{ p }}">{{ p }}</a>
+                                {% endif %}
+                            {% endfor %}
+                            <span class="pagination-link">...</span>
+                            <a href="{{ url_for('notifications_page', page=total_pages, per_page=per_page) }}" class="pagination-link" title="Страница {{ total_pages }}">{{ total_pages }}</a>
+                        {% elif current_page >= total_pages - 3 %}
+                            <!-- Показываем 1, ..., последние 4 -->
+                            <a href="{{ url_for('notifications_page', page=1, per_page=per_page) }}" class="pagination-link" title="Страница 1">1</a>
+                            <span class="pagination-link">...</span>
+                            {% for p in range(total_pages - 3, total_pages + 1) %}
+                                {% if p == current_page %}
+                                    <span class="pagination-link active" title="Текущая страница">{{ p }}</span>
+                                {% else %}
+                                    <a href="{{ url_for('notifications_page', page=p, per_page=per_page) }}" class="pagination-link" title="Страница {{ p }}">{{ p }}</a>
+                                {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            <!-- Показываем 1, ..., текущая-1, текущая, текущая+1, ..., последняя -->
+                            <a href="{{ url_for('notifications_page', page=1, per_page=per_page) }}" class="pagination-link" title="Страница 1">1</a>
+                            <span class="pagination-link">...</span>
+                            {% for p in range(current_page - 1, current_page + 2) %}
+                                {% if p == current_page %}
+                                    <span class="pagination-link active" title="Текущая страница">{{ p }}</span>
+                                {% else %}
+                                    <a href="{{ url_for('notifications_page', page=p, per_page=per_page) }}" class="pagination-link" title="Страница {{ p }}">{{ p }}</a>
+                                {% endif %}
+                            {% endfor %}
+                            <span class="pagination-link">...</span>
+                            <a href="{{ url_for('notifications_page', page=total_pages, per_page=per_page) }}" class="pagination-link" title="Страница {{ total_pages }}">{{ total_pages }}</a>
+                        {% endif %}
+                    {% endif %}
+                    
+                    <!-- Стрелка вперед -->
+                    {% if current_page < total_pages %}
+                        <a href="{{ url_for('notifications_page', page=current_page+1, per_page=per_page) }}" class="pagination-link" title="Следующая страница">»</a>
+                    {% endif %}
+                </div>
+                {% endif %}
+                
+                <!-- Переключатель количества записей -->
+                <div class="per-page-selector">
+                    <select id="perPageSelect" onchange="changePerPage(this.value)" title="Выберите количество записей на странице">
+                        <option value="5" {% if per_page == 5 %}selected{% endif %}>5</option>
+                        <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                        <option value="15" {% if per_page == 15 %}selected{% endif %}>15</option>
+                        <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+                        <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно: Создание уведомления -->
+<div id="createNotificationModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-header-content">
+                <h3>Создать уведомление</h3>
+            </div>
+            <span class="close" onclick="closeCreateNotificationModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label for="notifUserSearch">Пользователь</label>
+                <input type="text" id="notifUserSearch" placeholder="ID или username" oninput="debouncedUserSearch(this.value, 'notification')" />
+                <input type="hidden" id="notifSelectedUserId" />
+                <div id="notifSelectedUserLabel" style="margin-top: 6px; color: #adb5bd;"></div>
+                <div id="notifUserSuggestions" class="suggestions" style="margin-top: 6px;"></div>
+            </div>
+            <div class="form-group">
+                <label for="notifTypeSelect">Уведомление</label>
+                <select id="notifTypeSelect">
+                    <option value="72">окончание подписки через 3 дня</option>
+                    <option value="48">окончание подписки через 2 дня</option>
+                    <option value="24">окончание подписки через 1 день</option>
+                    <option value="1">окончание подписки через 1 час</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer" style="justify-content: space-between;">
+            <button class="button button-stop" data-size="md" onclick="closeCreateNotificationModal()" title="Отменить создание уведомления">
+				<i class="fas fa-times"></i>
+				Отменить
+			</button>
+            <button class="button button-start" data-size="md" onclick="submitCreateNotification()" title="Запустить отправку уведомления">
+				<i class="fas fa-play"></i>
+				Запустить
+			</button>
+        </div>
+    </div>
+    
+</div>
+
+<script>
+function changePerPage(value) {
+    const url = new URL(window.location);
+    url.searchParams.set('per_page', value);
+    url.searchParams.set('page', '1');
+    window.location.href = url.toString();
+}
+
+function refreshNotificationsPage() {
+    window.location.reload();
+}
+</script>
+
+{% endblock %}
+

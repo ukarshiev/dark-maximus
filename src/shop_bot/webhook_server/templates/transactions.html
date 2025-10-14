@@ -1,0 +1,394 @@
+{% extends "base.html" %} 
+{% block title %}Недавние транзакции{% endblock %}
+{% block header_title %}Платежи{% endblock %}
+
+{% block header_buttons %}
+<button class="button button-primary" data-size="sm" onclick="openTopupBalanceModal()" title="Пополнить баланс пользователя">
+	<i class="fas fa-plus-circle"></i>
+	Пополнить баланс
+</button>
+<button class="button button-secondary" data-size="sm" onclick="refreshTransactions()" id="headerRefreshBtn" title="Обновить список транзакций">
+	<i class="fas fa-sync-alt" id="headerRefreshIcon"></i>
+	<span id="headerRefreshText">Обновить</span>
+</button>
+{% endblock %}
+{%
+block content %}
+
+<div class="transactions-container">
+	<div class="transactions-header">
+	</div>
+
+	<section class="transactions-section">
+		<div class="table-scroll-x">
+		<div class="transactions-table">
+			<table class="transactions-table">
+				<thead>
+					<tr>
+						<th class="actions-cell">Меню</th>
+						<th>ID</th>
+						<th>Пользователь</th>
+						<th>Дата</th>
+						<th>Тип операции</th>
+						<th>Способ оплаты</th>
+						<th>Цена</th>
+						<th>Статус</th>
+						<th>Хост</th>
+						<th>План</th>
+						<th>Транзакция</th>
+						<th>Ключ</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for tx in transactions %}
+					<tr class="tx-row" ondblclick="openTransactionModal({{ tx.transaction_id }})" style="cursor: pointer;" data-tx-id="{{ tx.transaction_id }}">
+						<td class="actions-cell">
+							<div class="kebab-wrapper">
+								<button class="kebab-btn" onclick="toggleKebabMenu('kebab-tx-{{ tx.id }}')" title="Действия с транзакцией">
+									<i class="fas fa-ellipsis-v"></i>
+								</button>
+								<div class="kebab-menu" id="kebab-tx-{{ tx.id }}">
+									<button type="button" class="kebab-item" onclick="closeKebabMenu('kebab-tx-{{ tx.id }}'); openTransactionModal({{ tx.transaction_id }})" title="Открыть детали платежа">
+										<i class="fas fa-eye"></i>
+										<span>Открыть</span>
+									</button>
+									<button type="button" class="kebab-item" onclick="closeKebabMenu('kebab-tx-{{ tx.id }}'); openTopupBalanceModal({{ tx.user_id }}, '{{ tx.username or 'N/A' }}')" title="Пополнить баланс пользователя">
+										<i class="fas fa-plus-circle"></i>
+										<span>Пополнить баланс</span>
+									</button>
+								</div>
+							</div>
+						</td>
+						<td>{{ tx.transaction_id }}</td>
+						<td>
+							<div class="user-info">
+								<div data-field="user_id" data-original="{{ tx.user_id }}">
+									<div class="cell-inline">
+										<div class="cell-left">
+											<strong>ID:</strong>
+											<span>{{ hidden_mode and '***' or tx.user_id }}</span>
+										</div>
+										<div class="cell-actions">
+											<button class="modal-action-btn" data-size="xs" onclick="openUserModal({{ tx.user_id }}, '{{ tx.username or 'N/A' }}', false, 0)" title="Открыть карточку пользователя">
+												<i class="fas fa-eye"></i>
+											</button>
+										</div>
+									</div>
+								</div>
+								<div data-field="tx_username" data-original="{{ tx.username or 'N/A' }}"><strong>Username:</strong> {{ hidden_mode and '***' or (tx.username or 'N/A') }}</div>
+							</div>
+						</td>
+						<td>
+							{% if tx.created_date %}
+								{{ tx.created_date.strftime('%Y-%m-%d %H:%M:%S') }}
+							{% else %}
+								N/A
+							{% endif %}
+						</td>
+                        <td>
+                            {% if tx.metadata %}
+                                {% if tx.metadata.get('operation') == 'topup' or tx.metadata.get('type') == 'balance_topup' %}
+                                    Зачисление
+                                {% elif tx.metadata.get('action') %}
+                                    {% if tx.metadata.get('action') == 'new' %}новый{% else %}продление{% endif %}
+                                {% else %}-{% endif %}
+                            {% elif tx.payment_method == 'Balance' %}
+                                Зачисление
+                            {% else %}-{% endif %}
+                        </td>
+						<td>{{ tx.payment_method or '-' }}</td>
+						<td data-field="price" data-original="{{ tx.amount_rub | round(2) }} RUB{% if tx.payment_method == 'Stars' %}{% set meta = tx.metadata %}{% if meta %}{% set stars = meta.get('stars_paid') or (tx.amount_currency) %}{% set rate = meta.get('stars_rate') %} {{ (stars | int) }}⭐️{% if rate %} - {{ rate }}{% endif %}{% else %} {{ (tx.amount_currency or 0) | int }}⭐️{% endif %}{% endif %}">
+							<div>
+								{{ hidden_mode and '*** RUB' or (tx.amount_rub | round(2)) ~ ' RUB' }}
+								{% if not hidden_mode and tx.payment_method == 'Stars' %}
+									{% set meta = tx.metadata %}
+									{% if meta %}
+										{% set stars = meta.get('stars_paid') or (tx.amount_currency) %}
+										{% set rate = meta.get('stars_rate') %}
+										<br>{{ (stars | int) }}⭐️{% if rate %} - {{ rate }}{% endif %}
+									{% else %}
+										<br>{{ (tx.amount_currency or 0) | int }}⭐️
+									{% endif %}
+								{% endif %}
+							</div>
+						</td>
+						<td>
+							{% if tx.status == 'paid' %}
+								<span class="status-badge status-paid">Оплачено</span>
+							{% elif tx.status == 'pending' %}
+								<span class="status-badge status-pending">Ожидает</span>
+							{% else %}
+								<span class="status-badge status-{{ tx.status }}">{{ tx.status }}</span>
+							{% endif %}
+						</td>
+                        <td>{{ tx.host_name }}</td>
+                        <td>
+                            {% if tx.metadata and (tx.metadata.get('operation') == 'topup' or tx.metadata.get('type') == 'balance_topup') %}
+                                -
+                            {% elif tx.metadata and tx.metadata.get('is_trial') == 1 %}
+                                Триал
+                            {% else %}
+                                {{ tx.plan_name or 'N/A' }}
+                            {% endif %}
+                        </td>
+						<td>
+							<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+								{% if tx.transaction_hash %}
+									{% if tx.payment_method == 'TON Connect' %}
+										<a href="https://tonscan.org/tx/{{ tx.transaction_hash }}" target="_blank" class="transaction-link">Посмотреть</a>
+									{% elif tx.payment_method == 'Stars' %}
+										<button class="copy-btn" data-size="xs" onclick="copyPaymentLink('{{ tx.transaction_hash }}')" title="Копировать ID транзакции">
+											<i class="fas fa-copy"></i>
+										</button>
+									{% else %}
+										<code>{{ tx.transaction_hash }}</code>
+									{% endif %}
+								{% else %}
+									<span>-</span>
+								{% endif %}
+
+								{% if tx.payment_link %}
+									<button class="copy-btn" data-size="xs" onclick="copyPaymentLink('{{ tx.payment_link }}')" title="Копировать ссылку на платеж">
+										<i class="fas fa-copy"></i>
+									</button>
+								{% endif %}
+							</div>
+						</td>
+						<td>
+							{% if tx.metadata and tx.metadata.get('connection_string') %}
+								<div class="key-cell">
+									<span class="key-text" title="{{ tx.metadata.get('connection_string') }}">{{ tx.metadata.get('connection_string')[:40] }}{% if tx.metadata.get('connection_string')|length > 40 %}...{% endif %}</span>
+									<button class="copy-btn" data-size="xs" onclick="copyPaymentLink('{{ tx.metadata.get('connection_string') }}')" title="Копировать ключ подключения">
+										<i class="fas fa-copy"></i>
+									</button>
+								</div>
+							{% else %}
+								-
+							{% endif %}
+						</td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+			</div>
+		</div>
+	</section>
+
+	<!-- Закрепленная панель пагинации -->
+	<div class="pagination-panel">
+		<div class="pagination-controls">
+			<!-- Левая область: кнопки действий -->
+			<div class="pagination-left">
+			</div>
+			
+			<!-- Правая область: пагинация и переключатель -->
+			<div class="pagination-right">
+				<!-- Пагинация -->
+				{% if total_pages > 1 %}
+				<div class="pagination">
+					<!-- Стрелка назад -->
+					{% if current_page > 1 %}
+						<a href="{{ url_for('transactions_page', page=current_page-1, per_page=per_page) }}" class="pagination-link" title="Предыдущая страница">«</a>
+					{% endif %}
+					
+					<!-- Логика отображения страниц: максимум 6 номеров -->
+					{% if total_pages <= 6 %}
+						<!-- Если страниц 6 или меньше, показываем все -->
+						{% for p in range(1, total_pages + 1) %}
+							{% if p == current_page %}
+								<span class="pagination-link active" title="Текущая страница">{{ p }}</span>
+							{% else %}
+								<a href="{{ url_for('transactions_page', page=p, per_page=per_page) }}" class="pagination-link" title="Страница {{ p }}">{{ p }}</a>
+							{% endif %}
+						{% endfor %}
+					{% else %}
+						<!-- Если страниц больше 6, показываем первые 4, многоточие и последнюю -->
+						{% if current_page <= 4 %}
+							<!-- Показываем 1, 2, 3, 4, ..., последняя -->
+							{% for p in range(1, 5) %}
+								{% if p == current_page %}
+									<span class="pagination-link active" title="Текущая страница">{{ p }}</span>
+								{% else %}
+									<a href="{{ url_for('transactions_page', page=p, per_page=per_page) }}" class="pagination-link" title="Страница {{ p }}">{{ p }}</a>
+								{% endif %}
+							{% endfor %}
+							<span class="pagination-link">...</span>
+							<a href="{{ url_for('transactions_page', page=total_pages, per_page=per_page) }}" class="pagination-link" title="Страница {{ total_pages }}">{{ total_pages }}</a>
+						{% elif current_page >= total_pages - 3 %}
+							<!-- Показываем 1, ..., последние 4 -->
+							<a href="{{ url_for('transactions_page', page=1, per_page=per_page) }}" class="pagination-link" title="Страница 1">1</a>
+							<span class="pagination-link">...</span>
+							{% for p in range(total_pages - 3, total_pages + 1) %}
+								{% if p == current_page %}
+									<span class="pagination-link active" title="Текущая страница">{{ p }}</span>
+								{% else %}
+									<a href="{{ url_for('transactions_page', page=p, per_page=per_page) }}" class="pagination-link" title="Страница {{ p }}">{{ p }}</a>
+								{% endif %}
+							{% endfor %}
+						{% else %}
+							<!-- Показываем 1, ..., текущая-1, текущая, текущая+1, ..., последняя -->
+							<a href="{{ url_for('transactions_page', page=1, per_page=per_page) }}" class="pagination-link" title="Страница 1">1</a>
+							<span class="pagination-link">...</span>
+							{% for p in range(current_page - 1, current_page + 2) %}
+								{% if p == current_page %}
+									<span class="pagination-link active" title="Текущая страница">{{ p }}</span>
+								{% else %}
+									<a href="{{ url_for('transactions_page', page=p, per_page=per_page) }}" class="pagination-link" title="Страница {{ p }}">{{ p }}</a>
+								{% endif %}
+							{% endfor %}
+							<span class="pagination-link">...</span>
+							<a href="{{ url_for('transactions_page', page=total_pages, per_page=per_page) }}" class="pagination-link" title="Страница {{ total_pages }}">{{ total_pages }}</a>
+						{% endif %}
+					{% endif %}
+					
+					<!-- Стрелка вперед -->
+					{% if current_page < total_pages %}
+						<a href="{{ url_for('transactions_page', page=current_page+1, per_page=per_page) }}" class="pagination-link" title="Следующая страница">»</a>
+					{% endif %}
+				</div>
+				{% endif %}
+				
+				<!-- Переключатель количества записей -->
+				<div class="per-page-selector">
+					<select id="perPageSelect" onchange="changePerPage(this.value)" title="Выберите количество записей на странице">
+						<option value="5" {% if per_page == 5 %}selected{% endif %}>5</option>
+						<option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+						<option value="15" {% if per_page == 15 %}selected{% endif %}>15</option>
+						<option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+						<option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+					</select>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<script>
+function changePerPage(value) {
+    const url = new URL(window.location);
+    url.searchParams.set('per_page', value);
+    url.searchParams.set('page', '1'); // Сбрасываем на первую страницу
+    window.location.href = url.toString();
+}
+
+function refreshTransactions() {
+    // Ищем кнопку обновления - сначала в header, потом в пагинации
+    let refreshBtn = document.getElementById('headerRefreshBtn');
+    let refreshIcon = document.getElementById('headerRefreshIcon');
+    let refreshText = document.getElementById('headerRefreshText');
+    
+    // Если кнопка в header не найдена, ищем в пагинации
+    if (!refreshBtn) {
+        refreshBtn = document.getElementById('refreshBtn');
+        refreshIcon = document.getElementById('refreshIcon');
+        refreshText = document.getElementById('refreshText');
+    }
+    
+    if (!refreshBtn || !refreshIcon || !refreshText) return;
+    
+    // Блокируем кнопку и показываем анимацию
+    refreshBtn.disabled = true;
+    refreshIcon.classList.add('spinning');
+    refreshText.textContent = 'Проверяем...';
+    
+    // Отправляем запрос на обновление транзакций
+    fetch('/refresh-transactions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            refreshText.textContent = data.message;
+            // Перезагружаем страницу через 1 секунду
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            refreshText.textContent = 'Ошибка: ' + data.message;
+            // Возвращаем кнопку в исходное состояние через 2 секунды
+            setTimeout(() => {
+                refreshBtn.disabled = false;
+                refreshIcon.classList.remove('spinning');
+                refreshText.textContent = 'Обновить';
+            }, 2000);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        refreshText.textContent = 'Ошибка соединения';
+        // Возвращаем кнопку в исходное состояние через 2 секунды
+        setTimeout(() => {
+            refreshBtn.disabled = false;
+            refreshIcon.classList.remove('spinning');
+            refreshText.textContent = 'Обновить';
+        }, 2000);
+    });
+}
+
+// Функция для копирования ссылки на оплату
+function copyPaymentLink(link) {
+    navigator.clipboard.writeText(link).then(() => {
+        // Показываем уведомление
+        const notification = document.createElement('div');
+        notification.textContent = 'Ссылка скопирована!';
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            z-index: 10000;
+            font-size: 14px;
+        `;
+        document.body.appendChild(notification);
+        
+        // Удаляем уведомление через 2 секунды
+        setTimeout(() => {
+            document.body.removeChild(notification);
+        }, 2000);
+    }).catch(err => {
+        console.error('Ошибка копирования: ', err);
+        alert('Не удалось скопировать ссылку');
+    });
+}
+</script>
+
+<!-- Модальное окно для пополнения баланса -->
+<div id="topupBalanceModal" class="modal" style="display: none;">
+	<div class="modal-content">
+		<div class="modal-header">
+			<h3>Пополнить баланс</h3>
+			<span class="close" onclick="closeTopupBalanceModal()" title="Закрыть окно">&times;</span>
+		</div>
+		<div class="modal-body">
+			<form id="topupBalanceForm">
+				<div class="form-group">
+					<label for="topupUserSearch">Пользователь:</label>
+					<input type="text" id="topupUserSearch" placeholder="Введите Telegram ID или username для поиска" title="Введите Telegram ID или username для поиска" oninput="debouncedUserSearch(this.value, 'topup')">
+					<div id="topupUserSuggestions" class="suggestions"></div>
+					<input type="hidden" id="topupSelectedUserId">
+					<div id="topupSelectedUserLabel" class="selected-user-label"></div>
+				</div>
+				<div class="form-group">
+					<label for="topupAmount">Сумма (RUB):</label>
+					<input type="number" id="topupAmount" min="1" step="1" placeholder="Введите сумму пополнения" title="Введите сумму пополнения в рублях">
+				</div>
+			</form>
+		</div>
+		<div class="modal-footer">
+			<button type="button" class="button button-secondary" onclick="closeTopupBalanceModal()" title="Отменить пополнение баланса">
+				Отменить
+			</button>
+			<button type="button" class="button button-primary" onclick="submitTopupBalance()" title="Сохранить пополнение баланса">
+				Сохранить
+			</button>
+		</div>
+	</div>
+</div>
+
+{% endblock %}
