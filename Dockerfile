@@ -7,7 +7,7 @@ COPY src/shop_bot/webhook_server/templates ./templates
 COPY src/shop_bot/webhook_server/static ./static
 RUN npx tailwindcss -i ./static/css/tailwind.input.css -o ./static/css/tw.css --minify
 
-FROM python:3.11-slim
+FROM python:3.14-slim
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONIOENCODING=utf-8
