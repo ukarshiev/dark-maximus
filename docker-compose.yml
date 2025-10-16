@@ -52,12 +52,14 @@ services:
     image: nginx:alpine
     restart: unless-stopped
     container_name: dark-maximus-nginx-proxy
+    user: root
     ports:
       - '80:80'
       - '443:443'
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./ssl-certs/live:/etc/letsencrypt/live:ro
     depends_on:
       - bot
       - docs
