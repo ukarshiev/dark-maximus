@@ -29,37 +29,131 @@ PROJECT_DIR="dark-maximus"
 NGINX_CONF_FILE="/etc/nginx/sites-available/${PROJECT_DIR}.conf"
 NGINX_ENABLED_FILE="/etc/nginx/sites-enabled/${PROJECT_DIR}.conf"
 
-# Выбираем docker compose v1/v2
-DC_BIN="$(command -v docker-compose || true)"
-if [ -z "${DC_BIN}" ]; then
-    DC_BIN="docker compose"
+# Выбираем docker compose v1/v2 как массив
+if docker compose version >/dev/null 2>&1; then 
+    DC=("docker" "compose")
+    echo -e "${GREEN}✔ Docker Compose v2 (плагин) работает.${NC}"
+else 
+    DC=("docker-compose")
+    if ! command -v docker-compose &> /dev/null || ! docker-compose --version &> /dev/null; then
+        echo -e "${YELLOW}Docker Compose не найден. Устанавливаем Docker Compose v1...${NC}"
+        sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        sudo chmod +x /usr/local/bin/docker-compose
+        DC=("docker-compose")
+    fi
+    echo -e "${GREEN}✔ Docker Compose v1 работает.${NC}"
 fi
 
-# Проверяем и настраиваем Docker Compose
-check_docker_compose() {
-    # Проверяем Docker Compose v2 (плагин) - приоритетный
-    if docker compose version &> /dev/null; then
-        DC_BIN="docker compose"
-        echo -e "${GREEN}✔ Docker Compose v2 (плагин) работает.${NC}"
-        return
-    fi
+# Функция для создания SSL конфигурации
+create_ssl_config() {
+    echo -e "${YELLOW}Создаем SSL-конфигурацию...${NC}"
     
-    # Проверяем Docker Compose v1 (отдельная утилита)
-    if command -v docker-compose &> /dev/null && docker-compose --version &> /dev/null; then
-        DC_BIN="docker-compose"
-        echo -e "${GREEN}✔ Docker Compose v1 работает.${NC}"
-        return
+    # Создаем директорию для SSL-конфигурации
+    sudo mkdir -p /etc/letsencrypt
+
+    # Создаем файл options-ssl-nginx.conf
+    if [ ! -f "/etc/letsencrypt/options-ssl-nginx.conf" ]; then
+        sudo bash -c "cat > /etc/letsencrypt/options-ssl-nginx.conf" << 'EOF'
+# This file contains important security parameters. If you modify this file
+# manually, Certbot will be unable to automatically provide future security
+# updates. Instead, Certbot will print a message to the log when it encounters
+# a configuration that would be updated.
+
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384;
+ssl_prefer_server_ciphers off;
+EOF
+        echo -e "${GREEN}✔ options-ssl-nginx.conf создан.${NC}"
+    else
+        echo -e "${GREEN}✔ options-ssl-nginx.conf уже существует.${NC}"
     fi
-    
-    # Если ничего не работает, устанавливаем Docker Compose v1 как fallback
-    echo -e "${YELLOW}Docker Compose не найден. Устанавливаем Docker Compose v1...${NC}"
-    sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-    sudo chmod +x /usr/local/bin/docker-compose
-    DC_BIN="docker-compose"
-    echo -e "${GREEN}✔ Docker Compose v1 установлен.${NC}"
+
+    # Создаем файл ssl-dhparams.pem
+    if [ ! -f "/etc/letsencrypt/ssl-dhparams.pem" ]; then
+        echo -e "${YELLOW}Генерируем DH параметры (это может занять несколько минут)...${NC}"
+        sudo openssl dhparam -out /etc/letsencrypt/ssl-dhparams.pem 2048
+        echo -e "${GREEN}✔ ssl-dhparams.pem создан.${NC}"
+    else
+        echo -e "${GREEN}✔ ssl-dhparams.pem уже существует.${NC}"
+    fi
 }
 
-check_docker_compose
+# Функция для проверки DNS
+check_dns_records() {
+    local main_domain="$1"
+    local docs_domain="$2"
+    local help_domain="$3"
+    
+    echo -e "${YELLOW}Проверяем DNS-записи (A-записи)...${NC}"
+    
+    SERVER_IP="$(curl -s4 https://api.ipify.org || hostname -I | awk '{print $1}')"
+    echo -e "${YELLOW}IP вашего сервера (IPv4): $SERVER_IP${NC}"
+    
+    # Функция проверки домена
+    domain_ok() {
+        local domain="$1"
+        local ips; ips=$(dig +short A "$domain" @8.8.8.8 | sort -u)
+        echo -e "  - ${domain} → ${ips:-<нет A>}"
+        [ -n "$ips" ] && grep -Fxq "$SERVER_IP" <<<"$ips"
+    }
+    
+    DNS_OK=true
+    for check_domain in "$main_domain" "$docs_domain" "$help_domain"; do
+        if ! domain_ok "$check_domain"; then
+            echo -e "${RED}❌ ОШИБКА: DNS для ${check_domain} не указывает на IP этого сервера!${NC}"
+            DNS_OK=false
+        fi
+    done
+    
+    if [ "$DNS_OK" = false ]; then
+        echo -e "${RED}❌ КРИТИЧЕСКАЯ ОШИБКА: DNS записи настроены неправильно!${NC}"
+        echo -e "${YELLOW}Настройте A-записи для всех поддоменов на IP: ${SERVER_IP}${NC}"
+        exit 1
+    fi
+    
+    echo -e "${GREEN}✔ Все DNS записи корректны.${NC}"
+}
+
+# Функция для надежной замены в файлах
+ensure_replace() {
+    local pat="$1" rep="$2" file="$3"
+    local before; before=$(grep -Eoc "$pat" "$file" || true)
+    sed -i -E "s|$pat|$rep|g" "$file"
+    local after; after=$(grep -Eoc "$pat" "$file" || true)
+    [ "$before" -gt 0 ] || { echo -e "${RED}Не найден шаблон: $pat в $file${NC}"; exit 1; }
+    echo -e "${GREEN}✔ Заменено $before совпадений: $pat${NC}"
+}
+
+# Функция для обновления nginx конфигурации
+update_nginx_config() {
+    local main_domain="$1"
+    local docs_domain="$2"
+    local help_domain="$3"
+    
+    echo -e "${YELLOW}Обновляем конфигурацию nginx-прокси...${NC}"
+    
+    # Заменяем домены - используем переменные!
+    ensure_replace 'panel\.dark-maximus\.com' "$main_domain" nginx/nginx.conf
+    ensure_replace 'docs\.dark-maximus\.com' "$docs_domain" nginx/nginx.conf
+    ensure_replace 'help\.dark-maximus\.com' "$help_domain" nginx/nginx.conf
+    
+    # Заменяем пути к сертификатам - используем переменную main_domain!
+    ensure_replace '/etc/nginx/ssl/cert\.pem' "/etc/letsencrypt/live/${main_domain}/fullchain.pem" nginx/nginx.conf
+    ensure_replace '/etc/nginx/ssl/key\.pem' "/etc/letsencrypt/live/${main_domain}/privkey.pem" nginx/nginx.conf
+    
+    echo -e "${GREEN}✔ Конфигурация nginx-прокси обновлена.${NC}"
+}
+
+# Функция для ожидания освобождения порта
+wait_for_port_free() {
+    local port="$1"
+    echo -e "${YELLOW}Ждем освобождения порта $port...${NC}"
+    for i in {1..20}; do 
+        ss -ltn "( sport = :$port )" | grep -q ":$port" || break
+        sleep 1
+    done
+    echo -e "${GREEN}✔ Порт $port свободен.${NC}"
+}
 
 echo -e "${GREEN}--- Запуск скрипта установки/обновления dark-maximus ---${NC}"
 
@@ -83,33 +177,7 @@ if [ -f "$NGINX_CONF_FILE" ]; then
     echo -e "${GREEN}✔ Код успешно обновлен.${NC}"
 
     echo -e "\n${CYAN}Шаг 2.5: Проверка SSL-конфигурации...${NC}"
-    # Проверяем и создаем SSL-файлы если их нет
-    if [ ! -f "/etc/letsencrypt/options-ssl-nginx.conf" ]; then
-        echo -e "${YELLOW}Создаем отсутствующий файл SSL-конфигурации...${NC}"
-        sudo bash -c "cat > /etc/letsencrypt/options-ssl-nginx.conf" << 'EOF'
-ssl_protocols TLSv1.2 TLSv1.3;
-ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384;
-ssl_prefer_server_ciphers off;
-EOF
-    fi
-
-    if [ ! -f "/etc/letsencrypt/ssl-dhparams.pem" ]; then
-        echo -e "${YELLOW}Создаем отсутствующие DH параметры...${NC}"
-        sudo openssl dhparam -out /etc/letsencrypt/ssl-dhparams.pem 2048
-    fi
-
-    # Проверяем SSL сертификаты для nginx-прокси
-    if [ ! -f "nginx/ssl/cert.pem" ] || [ ! -f "nginx/ssl/key.pem" ]; then
-        echo -e "${YELLOW}Создаем отсутствующие SSL сертификаты для nginx-прокси...${NC}"
-        mkdir -p nginx/ssl
-        cd nginx/ssl
-        openssl genrsa -out key.pem 2048
-        openssl req -new -x509 -key key.pem -out cert.pem -days 365 -subj "/C=RU/ST=Moscow/L=Moscow/O=DarkMaximus/OU=IT/CN=dark-maximus.com"
-        cd ../..
-        echo -e "${GREEN}✔ SSL сертификаты для nginx-прокси созданы.${NC}"
-    else
-        echo -e "${GREEN}✔ SSL сертификаты для nginx-прокси уже существуют.${NC}"
-    fi
+    create_ssl_config
 
     # Извлекаем домены из nginx конфигурации
     if [ -f "$NGINX_CONF_FILE" ]; then
@@ -121,8 +189,8 @@ EOF
         fi
     fi
 
-    # Если не удалось извлечь домены, используем localhost
-    if [ -z "$MAIN_DOMAIN" ]; then
+    # Исправление для nounset - используем параметр по умолчанию
+    if [ -z "${MAIN_DOMAIN:-}" ]; then
         MAIN_DOMAIN="localhost:1488"
         DOCS_DOMAIN="localhost:3001"
         HELP_DOMAIN="localhost:3002"
@@ -133,23 +201,27 @@ EOF
 
     echo -e "${GREEN}✔ SSL-конфигурация проверена.${NC}"
 
+    # В режиме обновления тоже обновляем nginx.conf если домен сменился
+    echo -e "\n${CYAN}Шаг 2.6: Обновление nginx конфигурации...${NC}"
+    update_nginx_config "$MAIN_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN"
+
     echo -e "\n${CYAN}Шаг 3: Перезапуск nginx-proxy контейнера...${NC}"
-    sudo ${DC_BIN} restart nginx-proxy
+    sudo "${DC[@]}" restart nginx-proxy
     echo -e "${GREEN}✔ nginx-proxy перезапущен.${NC}"
 
     echo -e "\n${CYAN}Шаг 4: Пересборка и перезапуск Docker-контейнеров...${NC}"
-    sudo ${DC_BIN} down --remove-orphans
-    sudo ${DC_BIN} up -d --build
+    sudo "${DC[@]}" down --remove-orphans
+    sudo "${DC[@]}" up -d --build
 
     # Проверяем, что nginx-прокси запустился
     echo -e "${YELLOW}Проверяем статус nginx-прокси...${NC}"
     sleep 5
-    if sudo ${DC_BIN} ps | grep -q "nginx-proxy.*Up"; then
+    if sudo "${DC[@]}" ps | grep -q "nginx-proxy.*Up"; then
         echo -e "${GREEN}✔ nginx-прокси запущен и работает.${NC}"
     else
         echo -e "${RED}❌ Ошибка запуска nginx-прокси!${NC}"
         echo -e "${YELLOW}Логи nginx-прокси:${NC}"
-        sudo ${DC_BIN} logs nginx-proxy
+        sudo "${DC[@]}" logs nginx-proxy
         exit 1
     fi
 
@@ -290,17 +362,8 @@ echo -e "  - Панель: ${MAIN_DOMAIN}"
 echo -e "  - Документация: ${DOCS_DOMAIN}"
 echo -e "  - Админ-документация: ${HELP_DOMAIN}"
 
-SERVER_IP="$(curl -s4 ifconfig.me || hostname -I | awk '{print $1}')"
-echo -e "${YELLOW}IP вашего сервера (IPv4): $SERVER_IP${NC}"
-
-echo -e "${YELLOW}Проверяем DNS-записи (A-записи)...${NC}"
-for check_domain in $MAIN_DOMAIN $DOCS_DOMAIN $HELP_DOMAIN; do
-    DOMAIN_IP=$(dig +short A "$check_domain" @8.8.8.8 | tail -n1)
-    echo -e "  - ${check_domain} → ${DOMAIN_IP}"
-    if [ -z "${DOMAIN_IP}" ] || [ "$SERVER_IP" != "$DOMAIN_IP" ]; then
-        echo -e "${RED}⚠️  ВНИМАНИЕ: DNS для ${check_domain} не указывает на IP этого сервера!${NC}"
-    fi
-done
+# Проверяем DNS записи
+check_dns_records "$MAIN_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN"
 
 read_input_yn "Продолжить установку? (y/n): "
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then echo "Установка прервана."; exit 1; fi
@@ -317,89 +380,81 @@ fi
 echo -e "${YELLOW}Выпускаем SSL-сертификаты (standalone, порт 80)...${NC}"
 # Останавливаем все сервисы, которые могут занимать порт 80
 sudo systemctl stop nginx 2>/dev/null || true
-sudo ${DC_BIN} stop nginx-proxy 2>/dev/null || true
+sudo "${DC[@]}" stop nginx-proxy 2>/dev/null || true
 
-# Ждем освобождения порта
-sleep 3
+# Ждем освобождения порта 80 до 20 секунд
+wait_for_port_free 80
 
+# ВАЖНО: $MAIN_DOMAIN должен быть первым для правильного lineage
 sudo certbot certonly --standalone \
     --preferred-challenges http \
     -d "$MAIN_DOMAIN" -d "$DOCS_DOMAIN" -d "$HELP_DOMAIN" \
     --email "$EMAIL" --agree-tos --non-interactive
 
-# Возвращаем сервисы
-sudo systemctl start nginx 2>/dev/null || true
 echo -e "${GREEN}✔ Сертификаты выпущены.${NC}"
 
 echo -e "\n${CYAN}Шаг 4: Создание SSL-конфигурации...${NC}"
-echo -e "Создаем необходимые файлы SSL-конфигурации..."
-
-# Создаем директорию для SSL-конфигурации
-sudo mkdir -p /etc/letsencrypt
-
-# Создаем файл options-ssl-nginx.conf
-sudo bash -c "cat > /etc/letsencrypt/options-ssl-nginx.conf" << 'EOF'
-# This file contains important security parameters. If you modify this file
-# manually, Certbot will be unable to automatically provide future security
-# updates. Instead, Certbot will print a message to the log when it encounters
-# a configuration that would be updated.
-
-ssl_protocols TLSv1.2 TLSv1.3;
-ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384;
-ssl_prefer_server_ciphers off;
-EOF
-
-# Создаем файл ssl-dhparams.pem
-echo -e "${YELLOW}Генерируем DH параметры (это может занять несколько минут)...${NC}"
-sudo openssl dhparam -out /etc/letsencrypt/ssl-dhparams.pem 2048
-
-echo -e "${GREEN}✔ SSL-конфигурация создана.${NC}"
+create_ssl_config
 
 echo -e "\n${CYAN}Шаг 5: Настройка Docker nginx-прокси...${NC}"
-echo -e "Настраиваем nginx-прокси контейнер для маршрутизации поддоменов..."
+echo -e "Настраиваем nginx-прокси контейнер для использования Let's Encrypt сертификатов..."
 
-# Создаем SSL сертификаты для nginx-прокси
-echo -e "${YELLOW}Создаем SSL сертификаты для nginx-прокси...${NC}"
-mkdir -p nginx/ssl
-if [ ! -f "nginx/ssl/cert.pem" ] || [ ! -f "nginx/ssl/key.pem" ]; then
-    echo -e "${YELLOW}Генерируем самоподписанные SSL сертификаты...${NC}"
-    cd nginx/ssl
-    openssl genrsa -out key.pem 2048
-    openssl req -new -x509 -key key.pem -out cert.pem -days 365 -subj "/C=RU/ST=Moscow/L=Moscow/O=DarkMaximus/OU=IT/CN=${DOMAIN}"
-    cd ../..
-    echo -e "${GREEN}✔ SSL сертификаты созданы.${NC}"
-else
-    echo -e "${GREEN}✔ SSL сертификаты уже существуют.${NC}"
-fi
+# Обновляем nginx конфигурацию
+update_nginx_config "$MAIN_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN"
 
-# Обновляем nginx.conf с правильными доменами
-echo -e "${YELLOW}Обновляем конфигурацию nginx-прокси...${NC}"
-sed -i "s/panel\.dark-maximus\.com/${MAIN_DOMAIN}/g" nginx/nginx.conf
-sed -i "s/docs\.dark-maximus\.com/${DOCS_DOMAIN}/g" nginx/nginx.conf
-sed -i "s/help\.dark-maximus\.com/${HELP_DOMAIN}/g" nginx/nginx.conf
-
-echo -e "${GREEN}✔ Docker nginx-прокси настроен.${NC}"
+echo -e "${GREEN}✔ Docker nginx-прокси настроен для использования Let's Encrypt сертификатов.${NC}"
 
 echo -e "\n${CYAN}Шаг 6: Сборка и запуск Docker-контейнеров...${NC}"
-if [ -n "$(sudo ${DC_BIN} ps -q || true)" ]; then
-    sudo ${DC_BIN} down || true
+if [ -n "$(sudo "${DC[@]}" ps -q || true)" ]; then
+    sudo "${DC[@]}" down || true
 fi
-sudo ${DC_BIN} up -d --build
+sudo "${DC[@]}" up -d --build
 echo -e "${GREEN}✔ Контейнеры запущены.${NC}"
 
 # Проверяем, что nginx-прокси запустился
 echo -e "${YELLOW}Проверяем статус nginx-прокси...${NC}"
 sleep 5
-if sudo ${DC_BIN} ps | grep -q "nginx-proxy.*Up"; then
+if sudo "${DC[@]}" ps | grep -q "nginx-proxy.*Up"; then
     echo -e "${GREEN}✔ nginx-прокси запущен и работает.${NC}"
 else
     echo -e "${RED}❌ Ошибка запуска nginx-прокси!${NC}"
     echo -e "${YELLOW}Логи nginx-прокси:${NC}"
-    sudo ${DC_BIN} logs nginx-proxy
+    sudo "${DC[@]}" logs nginx-proxy
     exit 1
 fi
 
-echo -e "\n${CYAN}Шаг 7: Развертывание админской документации...${NC}"
+echo -e "\n${CYAN}Шаг 7: Настройка автообновления сертификатов...${NC}"
+# Сохраняем абсолютный путь к проекту
+PROJECT_ABS_DIR="$(pwd -P)"
+
+# Создаем обертку для docker compose
+echo '#!/usr/bin/env bash' | sudo tee /usr/local/bin/dc >/dev/null
+echo 'exec '"${DC[*]}"' "$@"' | sudo tee -a /usr/local/bin/dc >/dev/null
+sudo chmod +x /usr/local/bin/dc
+
+# Создаем динамический post-hook для cron
+POST_HOOK='
+name=$(docker ps --filter "name=nginx-proxy" --format "{{.Names}}" | head -1);
+if [ -n "$name" ]; then docker exec "$name" sh -c "nginx -t && nginx -s reload" || docker restart "$name"; fi
+'
+
+# Создаем скрипт для автообновления сертификатов
+sudo bash -c "cat > /etc/cron.d/certbot-renew" << EOF
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+# Автообновление Let's Encrypt сертификатов каждый день в 2:30 утра
+30 2 * * * root /usr/bin/certbot renew --quiet \\
+  --pre-hook "/usr/local/bin/dc -f ${PROJECT_ABS_DIR}/docker-compose.yml stop nginx-proxy" \\
+  --post-hook 'eval '"$(printf %q "$POST_HOOK")"
+EOF
+
+# Устанавливаем правильные права и перезагружаем cron
+sudo chmod 644 /etc/cron.d/certbot-renew
+sudo systemctl reload cron || sudo service cron reload
+
+echo -e "${GREEN}✔ Автообновление сертификатов настроено.${NC}"
+
+echo -e "\n${CYAN}Шаг 8: Развертывание админской документации...${NC}"
 if [ -f "setup-admin-docs.sh" ]; then
     chmod +x setup-admin-docs.sh
     bash setup-admin-docs.sh
@@ -415,12 +470,16 @@ echo -e "\n${CYAN}📱 Доступные сервисы:${NC}"
 echo -e "  - ${YELLOW}Панель управления:${NC} ${GREEN}https://${MAIN_DOMAIN}${NC}"
 echo -e "  - ${YELLOW}Пользовательская документация:${NC} ${GREEN}https://${DOCS_DOMAIN}${NC}"
 echo -e "  - ${YELLOW}Админская документация:${NC} ${GREEN}https://${HELP_DOMAIN}${NC}"
-echo -e "\n${YELLOW}⚠️  Примечание: Используются самоподписанные SSL сертификаты для тестирования.${NC}"
-echo -e "   Для продакшена настройте Let's Encrypt сертификаты.${NC}"
+echo -e "\n${GREEN}✅ Используются доверенные Let's Encrypt SSL сертификаты${NC}"
+echo -e "✅ Автообновление сертификатов настроено"
+echo -e "✅ Мягкий reload nginx при обновлении сертификатов"
+echo -e "✅ Динамическое определение имени контейнера nginx-proxy"
+echo -e "✅ Надежное ожидание освобождения порта 80"
 echo -e "\n${CYAN}🔐 Данные для первого входа в админ-панель:${NC}"
 echo -e "   • Логин:   ${GREEN}admin${NC}"
 echo -e "   • Пароль:  ${GREEN}admin${NC}"
 echo -e "\n${CYAN}🔗 Вебхуки:${NC}"
 echo -e "   • YooKassa:  ${GREEN}https://${MAIN_DOMAIN}/yookassa-webhook${NC}"
 echo -e "   • CryptoBot: ${GREEN}https://${MAIN_DOMAIN}/cryptobot-webhook${NC}"
+echo -e "\n${YELLOW}💡 На будущее: рассмотрите переход на webroot-метод для обновления сертификатов без даунтайма${NC}"
 echo -e "\n"
