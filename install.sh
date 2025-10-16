@@ -373,6 +373,7 @@ cd "$PROJECT_DIR"
 echo -e "${GREEN}✔ Репозиторий готов.${NC}"
 
 echo -e "\n${CYAN}Шаг 3: Настройка домена...${NC}"
+USER_INPUT_DOMAIN=""
 read_input "Введите корневой домен (например, dark-maximus.com): " USER_INPUT_DOMAIN
 if [ -z "$USER_INPUT_DOMAIN" ]; then
     echo -e "${YELLOW}⚠️  Домен не введен, используем значение по умолчанию: dark-maximus.com${NC}"
@@ -388,6 +389,7 @@ if ! awk -F. 'NF==2 && $1!="" && $2!="" {exit 0} {exit 1}' <<< "$DOMAIN"; then
   exit 1
 fi
 
+EMAIL=""
 read_input "Введите ваш email (для регистрации SSL-сертификатов Let's Encrypt): " EMAIL
 if [ -z "$EMAIL" ]; then
     echo -e "${YELLOW}⚠️  Email не введен, используем значение по умолчанию: admin@${DOMAIN}${NC}"
