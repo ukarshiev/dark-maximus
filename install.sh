@@ -375,8 +375,8 @@ echo -e "${GREEN}✔ Репозиторий готов.${NC}"
 echo -e "\n${CYAN}Шаг 3: Настройка домена...${NC}"
 read_input "Введите корневой домен (например, dark-maximus.com): " USER_INPUT_DOMAIN
 if [ -z "$USER_INPUT_DOMAIN" ]; then
-    echo -e "${RED}Ошибка: Домен не может быть пустым. Установка прервана.${NC}"
-    exit 1
+    echo -e "${YELLOW}⚠️  Домен не введен, используем значение по умолчанию: dark-maximus.com${NC}"
+    USER_INPUT_DOMAIN="dark-maximus.com"
 fi
 
 # Нормализация домена
@@ -390,8 +390,8 @@ fi
 
 read_input "Введите ваш email (для регистрации SSL-сертификатов Let's Encrypt): " EMAIL
 if [ -z "$EMAIL" ]; then
-    echo -e "${RED}Ошибка: Email обязателен для выпуска сертификатов.${NC}"
-    exit 1
+    echo -e "${YELLOW}⚠️  Email не введен, используем значение по умолчанию: admin@${DOMAIN}${NC}"
+    EMAIL="admin@${DOMAIN}"
 fi
 
 echo -e "${GREEN}✔ Основной домен: ${DOMAIN}${NC}"
@@ -408,9 +408,8 @@ echo -e "  - ${YELLOW}${HELP_DOMAIN}${NC} (админская документа
 
 read_input_yn "Использовать эти поддомены? (y/n): "
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    read_input "Введите поддомен для пользовательской документации (docs.example.com): " DOCS_DOMAIN
-    read_input "Введите поддомен для админской документации (help.example.com): " HELP_DOMAIN
-    read_input "Введите поддомен для панели управления (panel.example.com): " MAIN_DOMAIN
+    echo -e "${YELLOW}⚠️  Используем поддомены по умолчанию.${NC}"
+    # Оставляем значения по умолчанию
 fi
 
 echo -e "${GREEN}✔ Домены для работы:${NC}"
@@ -422,7 +421,9 @@ echo -e "  - Админ-документация: ${HELP_DOMAIN}"
 check_dns_records "$MAIN_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN"
 
 read_input_yn "Продолжить установку? (y/n): "
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then echo "Установка прервана."; exit 1; fi
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then 
+    echo -e "${YELLOW}⚠️  Продолжаем установку автоматически.${NC}"
+fi
 
 # Открываем порты при активном UFW (локаль-независимая проверка)
 if command -v ufw &>/dev/null && sudo ufw status | head -1 | grep -qi active; then
