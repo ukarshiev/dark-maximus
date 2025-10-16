@@ -98,6 +98,19 @@ EOF
         sudo openssl dhparam -out /etc/letsencrypt/ssl-dhparams.pem 2048
     fi
 
+    # Проверяем SSL сертификаты для nginx-прокси
+    if [ ! -f "nginx/ssl/cert.pem" ] || [ ! -f "nginx/ssl/key.pem" ]; then
+        echo -e "${YELLOW}Создаем отсутствующие SSL сертификаты для nginx-прокси...${NC}"
+        mkdir -p nginx/ssl
+        cd nginx/ssl
+        openssl genrsa -out key.pem 2048
+        openssl req -new -x509 -key key.pem -out cert.pem -days 365 -subj "/C=RU/ST=Moscow/L=Moscow/O=DarkMaximus/OU=IT/CN=dark-maximus.com"
+        cd ../..
+        echo -e "${GREEN}✔ SSL сертификаты для nginx-прокси созданы.${NC}"
+    else
+        echo -e "${GREEN}✔ SSL сертификаты для nginx-прокси уже существуют.${NC}"
+    fi
+
     # Извлекаем домены из nginx конфигурации
     if [ -f "$NGINX_CONF_FILE" ]; then
         EXTRACTED_DOMAIN=$(grep -o 'server_name [^;]*' "$NGINX_CONF_FILE" | head -1 | awk '{print $2}' | sed 's/panel\.//')
@@ -120,13 +133,25 @@ EOF
 
     echo -e "${GREEN}✔ SSL-конфигурация проверена.${NC}"
 
-    echo -e "\n${CYAN}Шаг 3: Перезапуск Nginx с SSL-конфигурацией...${NC}"
-    sudo nginx -t && sudo systemctl reload nginx
-    echo -e "${GREEN}✔ Nginx перезапущен с SSL-конфигурацией.${NC}"
+    echo -e "\n${CYAN}Шаг 3: Перезапуск nginx-proxy контейнера...${NC}"
+    sudo ${DC_BIN} restart nginx-proxy
+    echo -e "${GREEN}✔ nginx-proxy перезапущен.${NC}"
 
     echo -e "\n${CYAN}Шаг 4: Пересборка и перезапуск Docker-контейнеров...${NC}"
     sudo ${DC_BIN} down --remove-orphans
     sudo ${DC_BIN} up -d --build
+
+    # Проверяем, что nginx-прокси запустился
+    echo -e "${YELLOW}Проверяем статус nginx-прокси...${NC}"
+    sleep 5
+    if sudo ${DC_BIN} ps | grep -q "nginx-proxy.*Up"; then
+        echo -e "${GREEN}✔ nginx-прокси запущен и работает.${NC}"
+    else
+        echo -e "${RED}❌ Ошибка запуска nginx-прокси!${NC}"
+        echo -e "${YELLOW}Логи nginx-прокси:${NC}"
+        sudo ${DC_BIN} logs nginx-proxy
+        exit 1
+    fi
 
     echo -e "\n${CYAN}Шаг 5: Обновление админской документации...${NC}"
     if [ -f "setup-admin-docs.sh" ]; then
@@ -290,13 +315,20 @@ if command -v ufw &>/dev/null && sudo ufw status | head -1 | grep -qi active; th
 fi
 
 echo -e "${YELLOW}Выпускаем SSL-сертификаты (standalone, порт 80)...${NC}"
-# Останавливаем Nginx, чтобы standalone занял 80 порт
-sudo systemctl stop nginx
+# Останавливаем все сервисы, которые могут занимать порт 80
+sudo systemctl stop nginx 2>/dev/null || true
+sudo ${DC_BIN} stop nginx-proxy 2>/dev/null || true
+
+# Ждем освобождения порта
+sleep 3
+
 sudo certbot certonly --standalone \
     --preferred-challenges http \
     -d "$MAIN_DOMAIN" -d "$DOCS_DOMAIN" -d "$HELP_DOMAIN" \
     --email "$EMAIL" --agree-tos --non-interactive
-sudo systemctl start nginx
+
+# Возвращаем сервисы
+sudo systemctl start nginx 2>/dev/null || true
 echo -e "${GREEN}✔ Сертификаты выпущены.${NC}"
 
 echo -e "\n${CYAN}Шаг 4: Создание SSL-конфигурации...${NC}"
@@ -331,7 +363,10 @@ echo -e "${YELLOW}Создаем SSL сертификаты для nginx-про�
 mkdir -p nginx/ssl
 if [ ! -f "nginx/ssl/cert.pem" ] || [ ! -f "nginx/ssl/key.pem" ]; then
     echo -e "${YELLOW}Генерируем самоподписанные SSL сертификаты...${NC}"
-    docker run --rm -v "$(pwd)/nginx/ssl:/ssl" alpine sh -c "apk add --no-cache openssl && cd /ssl && openssl genrsa -out key.pem 2048 && openssl req -new -x509 -key key.pem -out cert.pem -days 365 -subj '/C=RU/ST=Moscow/L=Moscow/O=DarkMaximus/OU=IT/CN=${DOMAIN}'"
+    cd nginx/ssl
+    openssl genrsa -out key.pem 2048
+    openssl req -new -x509 -key key.pem -out cert.pem -days 365 -subj "/C=RU/ST=Moscow/L=Moscow/O=DarkMaximus/OU=IT/CN=${DOMAIN}"
+    cd ../..
     echo -e "${GREEN}✔ SSL сертификаты созданы.${NC}"
 else
     echo -e "${GREEN}✔ SSL сертификаты уже существуют.${NC}"
