@@ -251,11 +251,25 @@ SERVER_IP=$(curl -s ifconfig.me || hostname -I | awk '{print $1}')
 echo -e "${YELLOW}IP вашего сервера: $SERVER_IP${NC}"
 
 echo -e "${YELLOW}Проверяем DNS-записи...${NC}"
+
+# Проверяем наличие dig, если нет - устанавливаем
+if ! command -v dig &> /dev/null; then
+    echo -e "${YELLOW}Устанавливаем dnsutils для проверки DNS...${NC}"
+    sudo apt update && sudo apt install -y dnsutils
+fi
+
 for check_domain in $MAIN_DOMAIN $DOCS_DOMAIN $HELP_DOMAIN; do
-    DOMAIN_IP=$(dig +short $check_domain @8.8.8.8 | tail -n1)
-    echo -e "  - ${check_domain} → ${DOMAIN_IP}"
-    if [ "$SERVER_IP" != "$DOMAIN_IP" ]; then
-        echo -e "${RED}⚠️  ВНИМАНИЕ: DNS-запись для ${check_domain} не указывает на IP-адрес этого сервера!${NC}"
+    DOMAIN_IP=$(dig +short $check_domain @8.8.8.8 2>/dev/null | tail -n1)
+    if [ -n "$DOMAIN_IP" ]; then
+        echo -e "  - ${check_domain} → ${DOMAIN_IP}"
+        if [ "$SERVER_IP" != "$DOMAIN_IP" ]; then
+            echo -e "${RED}⚠️  ВНИМАНИЕ: DNS-запись для ${check_domain} не указывает на IP-адрес этого сервера!${NC}"
+        else
+            echo -e "${GREEN}✔ DNS-запись для ${check_domain} настроена корректно${NC}"
+        fi
+    else
+        echo -e "  - ${check_domain} → ${RED}Не удалось получить IP-адрес${NC}"
+        echo -e "${RED}⚠️  ВНИМАНИЕ: Не удалось проверить DNS-запись для ${check_domain}!${NC}"
     fi
 done
 
@@ -266,7 +280,48 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then echo "Установка прервана."; e
 YOOKASSA_PORT=443
 
 echo -e "${YELLOW}Получаем SSL-сертификаты для всех доменов...${NC}"
-sudo certbot certonly --nginx -d $MAIN_DOMAIN -d $DOCS_DOMAIN -d $HELP_DOMAIN --email $EMAIL --agree-tos --non-interactive
+
+# Создаем временную конфигурацию Nginx для получения сертификатов
+echo -e "${YELLOW}Создаем временную конфигурацию Nginx...${NC}"
+sudo mkdir -p /var/www/certbot
+
+# Создаем временный конфиг для каждого домена
+for domain in $MAIN_DOMAIN $DOCS_DOMAIN $HELP_DOMAIN; do
+    sudo tee /etc/nginx/sites-available/${domain}-temp.conf > /dev/null <<EOF
+server {
+    listen 80;
+    server_name ${domain};
+    
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+    
+    location / {
+        return 200 'OK';
+        add_header Content-Type text/plain;
+    }
+}
+EOF
+    sudo ln -sf /etc/nginx/sites-available/${domain}-temp.conf /etc/nginx/sites-enabled/
+done
+
+# Перезагружаем Nginx
+sudo nginx -t && sudo systemctl reload nginx
+
+# Получаем один сертификат для всех поддоменов
+sudo certbot certonly --webroot -w /var/www/certbot \
+    -d $MAIN_DOMAIN -d $DOCS_DOMAIN -d $HELP_DOMAIN \
+    --email $EMAIL --agree-tos --non-interactive
+
+# Определяем базовое имя сертификата (первый домен)
+CERT_NAME=$MAIN_DOMAIN
+
+# Удаляем временные конфиги
+for domain in $MAIN_DOMAIN $DOCS_DOMAIN $HELP_DOMAIN; do
+    sudo rm -f /etc/nginx/sites-enabled/${domain}-temp.conf
+    sudo rm -f /etc/nginx/sites-available/${domain}-temp.conf
+done
+
 echo -e "${GREEN}✔ SSL-сертификаты успешно получены для всех доменов.${NC}"
 
 echo -e "\n${CYAN}Шаг 4: Настройка Nginx...${NC}"
@@ -282,8 +337,8 @@ server {
     listen [::]:${YOOKASSA_PORT} ssl http2;
     server_name ${MAIN_DOMAIN};
 
-    ssl_certificate /etc/letsencrypt/live/${MAIN_DOMAIN}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${MAIN_DOMAIN}/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/${CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CERT_NAME}/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
@@ -303,8 +358,8 @@ server {
     listen [::]:${YOOKASSA_PORT} ssl http2;
     server_name ${DOCS_DOMAIN};
 
-    ssl_certificate /etc/letsencrypt/live/${DOCS_DOMAIN}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${DOCS_DOMAIN}/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/${CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CERT_NAME}/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
@@ -324,8 +379,8 @@ server {
     listen [::]:${YOOKASSA_PORT} ssl http2;
     server_name ${HELP_DOMAIN};
 
-    ssl_certificate /etc/letsencrypt/live/${HELP_DOMAIN}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${HELP_DOMAIN}/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/${CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CERT_NAME}/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
@@ -342,6 +397,14 @@ server {
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
     }
+}
+
+# HTTP редиректы на HTTPS
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${MAIN_DOMAIN} ${DOCS_DOMAIN} ${HELP_DOMAIN};
+    return 301 https://\$server_name\$request_uri;
 }
 EOF
 
