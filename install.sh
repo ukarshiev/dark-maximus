@@ -142,10 +142,20 @@ update_nginx_config() {
         echo -e "${YELLOW}⚠️  Домены уже настроены, пропускаем замену доменов.${NC}"
     fi
     
-    # ВСЕГДА заменяем пути к сертификатам на Let's Encrypt
-    echo -e "${YELLOW}Заменяем пути к сертификатам на Let's Encrypt...${NC}"
-    sed -i "s|ssl_certificate /etc/nginx/ssl/cert\.pem|ssl_certificate /etc/letsencrypt/live/${main_domain}/fullchain.pem|g" nginx/nginx.conf
-    sed -i "s|ssl_certificate_key /etc/nginx/ssl/key\.pem|ssl_certificate_key /etc/letsencrypt/live/${main_domain}/privkey.pem|g" nginx/nginx.conf
+    # Настраиваем пути к Let's Encrypt сертификатам (отдельные для каждого домена)
+    echo -e "${YELLOW}Настраиваем пути к Let's Encrypt сертификатам...${NC}"
+    
+    # Настраиваем для panel домена
+    sed -i "/server_name.*${main_domain}/,/}/ s|ssl_certificate .*|ssl_certificate /etc/letsencrypt/live/${main_domain}/fullchain.pem;|g" nginx/nginx.conf
+    sed -i "/server_name.*${main_domain}/,/}/ s|ssl_certificate_key .*|ssl_certificate_key /etc/letsencrypt/live/${main_domain}/privkey.pem;|g" nginx/nginx.conf
+    
+    # Настраиваем для docs домена
+    sed -i "/server_name.*${docs_domain}/,/}/ s|ssl_certificate .*|ssl_certificate /etc/letsencrypt/live/${docs_domain}/fullchain.pem;|g" nginx/nginx.conf
+    sed -i "/server_name.*${docs_domain}/,/}/ s|ssl_certificate_key .*|ssl_certificate_key /etc/letsencrypt/live/${docs_domain}/privkey.pem;|g" nginx/nginx.conf
+    
+    # Настраиваем для help домена
+    sed -i "/server_name.*${help_domain}/,/}/ s|ssl_certificate .*|ssl_certificate /etc/letsencrypt/live/${help_domain}/fullchain.pem;|g" nginx/nginx.conf
+    sed -i "/server_name.*${help_domain}/,/}/ s|ssl_certificate_key .*|ssl_certificate_key /etc/letsencrypt/live/${help_domain}/privkey.pem;|g" nginx/nginx.conf
     
     # Проверяем, что замена прошла успешно
     if grep -q "/etc/letsencrypt/live/" nginx/nginx.conf; then
@@ -391,7 +401,7 @@ if command -v ufw &>/dev/null && sudo ufw status | head -1 | grep -qi active; th
     sudo ufw allow 8443/tcp
 fi
 
-echo -e "${YELLOW}Выпускаем SSL-сертификаты (standalone, порт 80)...${NC}"
+echo -e "${YELLOW}Выпускаем Let's Encrypt SSL сертификаты (standalone, порт 80)...${NC}"
 # Останавливаем все сервисы, которые могут занимать порт 80
 sudo systemctl stop nginx 2>/dev/null || true
 sudo "${DC[@]}" stop nginx-proxy 2>/dev/null || true
@@ -399,13 +409,26 @@ sudo "${DC[@]}" stop nginx-proxy 2>/dev/null || true
 # Ждем освобождения порта 80 до 20 секунд
 wait_for_port_free 80
 
-# ВАЖНО: $MAIN_DOMAIN должен быть первым для правильного lineage
+# Выпускаем отдельный Let's Encrypt сертификат для каждого домена
+echo -e "${YELLOW}Выпускаем Let's Encrypt сертификат для ${MAIN_DOMAIN}...${NC}"
 sudo certbot certonly --standalone \
     --preferred-challenges http \
-    -d "$MAIN_DOMAIN" -d "$DOCS_DOMAIN" -d "$HELP_DOMAIN" \
+    -d "$MAIN_DOMAIN" \
     --email "$EMAIL" --agree-tos --non-interactive
 
-echo -e "${GREEN}✔ Сертификаты выпущены.${NC}"
+echo -e "${YELLOW}Выпускаем Let's Encrypt сертификат для ${DOCS_DOMAIN}...${NC}"
+sudo certbot certonly --standalone \
+    --preferred-challenges http \
+    -d "$DOCS_DOMAIN" \
+    --email "$EMAIL" --agree-tos --non-interactive
+
+echo -e "${YELLOW}Выпускаем Let's Encrypt сертификат для ${HELP_DOMAIN}...${NC}"
+sudo certbot certonly --standalone \
+    --preferred-challenges http \
+    -d "$HELP_DOMAIN" \
+    --email "$EMAIL" --agree-tos --non-interactive
+
+echo -e "${GREEN}✔ Let's Encrypt сертификаты выпущены.${NC}"
 
 echo -e "\n${CYAN}Шаг 4: Создание SSL-конфигурации...${NC}"
 create_ssl_config
@@ -452,7 +475,7 @@ name=$(docker ps --filter "name=nginx-proxy" --format "{{.Names}}" | head -1);
 if [ -n "$name" ]; then docker exec "$name" sh -c "nginx -t && nginx -s reload" || docker restart "$name"; fi
 '
 
-# Создаем скрипт для автообновления сертификатов
+# Создаем скрипт для автообновления Let's Encrypt сертификатов
 sudo bash -c "cat > /etc/cron.d/certbot-renew" << EOF
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
@@ -489,6 +512,43 @@ echo -e "✅ Автообновление сертификатов настро�
 echo -e "✅ Мягкий reload nginx при обновлении сертификатов"
 echo -e "✅ Динамическое определение имени контейнера nginx-proxy"
 echo -e "✅ Надежное ожидание освобождения порта 80"
+
+# ДИАГНОСТИЧЕСКАЯ ИНФОРМАЦИЯ
+echo -e "\n${CYAN}🔍 ДИАГНОСТИЧЕСКАЯ ИНФОРМАЦИЯ:${NC}"
+
+echo -e "\n${YELLOW}📋 Созданные Let's Encrypt сертификаты:${NC}"
+for domain in "$MAIN_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN"; do
+    if [ -f "/etc/letsencrypt/live/${domain}/fullchain.pem" ]; then
+        echo -e "   ✅ ${domain}: /etc/letsencrypt/live/${domain}/"
+        # Показываем информацию о сертификате
+        echo -e "      $(openssl x509 -in /etc/letsencrypt/live/${domain}/fullchain.pem -text -noout | grep -E "Subject:|Not After|Issuer:" | head -3)"
+    else
+        echo -e "   ❌ ${domain}: Let's Encrypt сертификат НЕ НАЙДЕН!"
+    fi
+done
+
+echo -e "\n${YELLOW}📄 Конфигурация nginx (ssl_certificate):${NC}"
+grep -A1 "ssl_certificate " nginx/nginx.conf | grep -E "(ssl_certificate|server_name)" | while read line; do
+    if [[ $line =~ server_name ]]; then
+        echo -e "   ${line}"
+    elif [[ $line =~ ssl_certificate ]]; then
+        echo -e "      ${line}"
+    fi
+done
+
+echo -e "\n${YELLOW}🐳 Статус Docker контейнеров:${NC}"
+docker compose ps
+
+echo -e "\n${YELLOW}🔧 Проверка SSL соединений:${NC}"
+for domain in "$MAIN_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN"; do
+    echo -n "   ${domain}: "
+    if timeout 5 openssl s_client -connect "${domain}:443" -servername "${domain}" </dev/null 2>/dev/null | grep -q "Verify return code: 0"; then
+        echo -e "${GREEN}✅ SSL работает корректно${NC}"
+    else
+        echo -e "${RED}❌ Проблемы с SSL${NC}"
+    fi
+done
+
 echo -e "\n${CYAN}🔐 Данные для первого входа в админ-панель:${NC}"
 echo -e "   • Логин:   ${GREEN}admin${NC}"
 echo -e "   • Пароль:  ${GREEN}admin${NC}"
