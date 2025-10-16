@@ -1,5 +1,12 @@
 # История изменений
 
+2.66.21 – 16.10.2025 16:45
+- [Исправление] (Docker) Переработан Dockerfile.codex-docs для автоматической сборки
+  - Добавлен multi-stage build с отдельным stage для сборки codex.docs
+  - Папка dist теперь собирается внутри контейнера командой yarn build-backend
+  - Устранена зависимость от предсобранной папки dist в build context
+  - Исправлена ошибка "failed to calculate checksum of ref ... /codex.docs/dist: not found"
+
 2.66.20 – 16.10.2025 16:35
 - [Исправление] (Docker) Исправлена проблема с копированием папки codex.docs/dist в Dockerfile.codex-docs
   - Изменен .dockerignore: исключается только /dist/ в корне проекта, но не в подпапках

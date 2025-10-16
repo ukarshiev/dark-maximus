@@ -2,7 +2,26 @@
 # Следует best practices из Docker документации
 
 # =========================================
-# Stage 1: Подготовка конфигурации и контента
+# Stage 1: Сборка Codex.docs
+# =========================================
+FROM node:20-alpine AS builder
+
+WORKDIR /build
+
+# Копируем package.json и yarn.lock для установки зависимостей
+COPY codex.docs/package.json codex.docs/yarn.lock ./
+
+# Устанавливаем зависимости
+RUN yarn install --frozen-lockfile
+
+# Копируем исходный код
+COPY codex.docs/ ./
+
+# Собираем проект
+RUN yarn build-backend
+
+# =========================================
+# Stage 2: Подготовка конфигурации и контента
 # =========================================
 FROM alpine:3.22 AS config-builder
 
@@ -11,12 +30,12 @@ WORKDIR /build
 # Копируем конфигурацию Codex.docs
 COPY codex.docs/docs-config.yaml ./docs-config.yaml
 
-# Копируем предсобранный контент
-COPY codex.docs/dist ./dist
+# Копируем собранный контент из builder stage
+COPY --from=builder /build/dist ./dist
 COPY codex.docs/public ./public
 
 # =========================================
-# Stage 2: Codex.docs runtime
+# Stage 3: Codex.docs runtime
 # =========================================
 FROM ghcr.io/codex-team/codex.docs:v2.0.0-rc.8
 
