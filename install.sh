@@ -35,6 +35,24 @@ if [ -z "${DC_BIN}" ]; then
     DC_BIN="docker compose"
 fi
 
+# Проверяем и исправляем проблему с docker-compose
+check_docker_compose() {
+    if command -v docker-compose &> /dev/null; then
+        # Проверяем, работает ли docker-compose (проблема с distutils в Python 3.12)
+        if ! docker-compose --version &> /dev/null; then
+            echo -e "${YELLOW}Обнаружена неработающая версия docker-compose (несовместимость с Python 3.12). Исправляем...${NC}"
+            sudo apt remove -y docker-compose || true
+            sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+            echo -e "${GREEN}✔ docker-compose обновлен до совместимой версии.${NC}"
+            # Обновляем DC_BIN после исправления
+            DC_BIN="docker-compose"
+        fi
+    fi
+}
+
+check_docker_compose
+
 echo -e "${GREEN}--- Запуск скрипта установки/обновления dark-maximus ---${NC}"
 
 if [ -f "$NGINX_CONF_FILE" ]; then
@@ -49,15 +67,18 @@ if [ -f "$NGINX_CONF_FILE" ]; then
 
     cd "$PROJECT_DIR"
 
-    echo -e "\n${CYAN}Шаг 1: Обновление кода из репозитория Git...${NC}"
+    echo -e "\n${CYAN}Шаг 1: Проверка docker-compose...${NC}"
+    check_docker_compose
+    
+    echo -e "\n${CYAN}Шаг 2: Обновление кода из репозитория Git...${NC}"
     git pull
     echo -e "${GREEN}✔ Код успешно обновлен.${NC}"
 
-    echo -e "\n${CYAN}Шаг 2: Пересборка и перезапуск Docker-контейнеров...${NC}"
+    echo -e "\n${CYAN}Шаг 3: Пересборка и перезапуск Docker-контейнеров...${NC}"
     sudo ${DC_BIN} down --remove-orphans
     sudo ${DC_BIN} up -d --build
 
-    echo -e "\n${CYAN}Шаг 3: Обновление админской документации...${NC}"
+    echo -e "\n${CYAN}Шаг 4: Обновление админской документации...${NC}"
     if [ -f "setup-admin-docs.sh" ]; then
         chmod +x setup-admin-docs.sh
         bash setup-admin-docs.sh
