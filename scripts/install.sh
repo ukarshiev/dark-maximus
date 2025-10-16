@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
@@ -221,14 +223,23 @@ fi
 
 DOMAIN=$(echo "$USER_INPUT_DOMAIN" | sed -e 's%^https\?://%%' -e 's%/.*$%%')
 
+# Валидация домена
+if [[ "$DOMAIN" != "localhost" && "$DOMAIN" != *"."* ]]; then
+    echo -e "${RED}Ошибка: Домен должен содержать точку (например, example.com) или быть localhost${NC}"
+    exit 1
+fi
+
 read_input "Введите ваш реальный email (для регистрации SSL-сертификатов на него придет письмо от Let's Encrypt): " EMAIL
 
 echo -e "${GREEN}✔ Основной домен: ${DOMAIN}${NC}"
 
 # Формируем поддомены (исправленная логика)
-MAIN_DOMAIN="panel.${DOMAIN}"
-DOCS_DOMAIN="docs.${DOMAIN}"
-HELP_DOMAIN="help.${DOMAIN}"
+# Берем корневой домен (последние 2 лейбла) для поддоменов
+BASE_DOMAIN=$(echo "$DOMAIN" | awk -F. '{ if (NF>=2) print $(NF-1)"."$NF; else print $0 }')
+
+MAIN_DOMAIN="$DOMAIN"
+DOCS_DOMAIN="docs.$BASE_DOMAIN"
+HELP_DOMAIN="help.$BASE_DOMAIN"
 
 echo -e "${CYAN}Поддомены для документации:${NC}"
 echo -e "  - ${YELLOW}${MAIN_DOMAIN}${NC} (основной бот)"
