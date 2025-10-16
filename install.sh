@@ -197,13 +197,19 @@ else
     exit 1
 fi
 
-for service in docker nginx; do
-    if ! sudo systemctl is-active --quiet "$service"; then
-        echo -e "${YELLOW}Сервис $service не запущен. Запускаем и добавляем в автозагрузку...${NC}"
-        sudo systemctl start "$service"
-        sudo systemctl enable "$service"
-    fi
-done
+# Запускаем только Docker (nginx будет в контейнере)
+if ! sudo systemctl is-active --quiet docker; then
+    echo -e "${YELLOW}Сервис docker не запущен. Запускаем и добавляем в автозагрузку...${NC}"
+    sudo systemctl start docker
+    sudo systemctl enable docker
+fi
+
+# Останавливаем системный nginx, если он запущен (конфликт с Docker nginx-прокси)
+if sudo systemctl is-active --quiet nginx; then
+    echo -e "${YELLOW}Останавливаем системный nginx (будет использоваться Docker nginx-прокси)...${NC}"
+    sudo systemctl stop nginx
+    sudo systemctl disable nginx
+fi
 echo -e "${GREEN}✔ Все системные зависимости установлены.${NC}"
 
 echo -e "\n${CYAN}Шаг 2: Клонирование репозитория...${NC}"
@@ -317,91 +323,27 @@ sudo openssl dhparam -out /etc/letsencrypt/ssl-dhparams.pem 2048
 
 echo -e "${GREEN}✔ SSL-конфигурация создана.${NC}"
 
-echo -e "\n${CYAN}Шаг 5: Настройка Nginx...${NC}"
-echo -e "Создаем конфигурацию Nginx для всех сервисов..."
-sudo rm -rf /etc/nginx/sites-enabled/default || true
-sudo bash -c "cat > $NGINX_CONF_FILE" <<EOF
-# Панель управления
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name ${MAIN_DOMAIN};
+echo -e "\n${CYAN}Шаг 5: Настройка Docker nginx-прокси...${NC}"
+echo -e "Настраиваем nginx-прокси контейнер для маршрутизации поддоменов..."
 
-    ssl_certificate /etc/letsencrypt/live/${MAIN_DOMAIN}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${MAIN_DOMAIN}/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:1488;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-}
-
-# Пользовательская документация
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name ${DOCS_DOMAIN};
-
-    ssl_certificate /etc/letsencrypt/live/${DOCS_DOMAIN}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${DOCS_DOMAIN}/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:3001;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-}
-
-# Админская документация (Codex.docs)
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name ${HELP_DOMAIN};
-
-    ssl_certificate /etc/letsencrypt/live/${HELP_DOMAIN}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${HELP_DOMAIN}/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:3002;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-
-        # WebSocket поддержка для Codex.docs
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-
-# HTTP -> HTTPS редирект для всех трёх доменов
-server {
-    listen 80;
-    listen [::]:80;
-    server_name ${MAIN_DOMAIN} ${DOCS_DOMAIN} ${HELP_DOMAIN};
-    return 301 https://\$host\$request_uri;
-}
-EOF
-
-if [ ! -f "$NGINX_ENABLED_FILE" ]; then
-    sudo ln -s "$NGINX_CONF_FILE" "$NGINX_ENABLED_FILE"
+# Создаем SSL сертификаты для nginx-прокси
+echo -e "${YELLOW}Создаем SSL сертификаты для nginx-прокси...${NC}"
+mkdir -p nginx/ssl
+if [ ! -f "nginx/ssl/cert.pem" ] || [ ! -f "nginx/ssl/key.pem" ]; then
+    echo -e "${YELLOW}Генерируем самоподписанные SSL сертификаты...${NC}"
+    docker run --rm -v "$(pwd)/nginx/ssl:/ssl" alpine sh -c "apk add --no-cache openssl && cd /ssl && openssl genrsa -out key.pem 2048 && openssl req -new -x509 -key key.pem -out cert.pem -days 365 -subj '/C=RU/ST=Moscow/L=Moscow/O=DarkMaximus/OU=IT/CN=${DOMAIN}'"
+    echo -e "${GREEN}✔ SSL сертификаты созданы.${NC}"
+else
+    echo -e "${GREEN}✔ SSL сертификаты уже существуют.${NC}"
 fi
 
-echo -e "${YELLOW}Проверяем и перезагружаем Nginx...${NC}"
-sudo nginx -t && sudo systemctl reload nginx
-echo -e "${GREEN}✔ Конфигурация Nginx применена.${NC}"
+# Обновляем nginx.conf с правильными доменами
+echo -e "${YELLOW}Обновляем конфигурацию nginx-прокси...${NC}"
+sed -i "s/panel\.dark-maximus\.com/${MAIN_DOMAIN}/g" nginx/nginx.conf
+sed -i "s/docs\.dark-maximus\.com/${DOCS_DOMAIN}/g" nginx/nginx.conf
+sed -i "s/help\.dark-maximus\.com/${HELP_DOMAIN}/g" nginx/nginx.conf
+
+echo -e "${GREEN}✔ Docker nginx-прокси настроен.${NC}"
 
 echo -e "\n${CYAN}Шаг 6: Сборка и запуск Docker-контейнеров...${NC}"
 if [ -n "$(sudo ${DC_BIN} ps -q || true)" ]; then
@@ -409,6 +351,18 @@ if [ -n "$(sudo ${DC_BIN} ps -q || true)" ]; then
 fi
 sudo ${DC_BIN} up -d --build
 echo -e "${GREEN}✔ Контейнеры запущены.${NC}"
+
+# Проверяем, что nginx-прокси запустился
+echo -e "${YELLOW}Проверяем статус nginx-прокси...${NC}"
+sleep 5
+if sudo ${DC_BIN} ps | grep -q "nginx-proxy.*Up"; then
+    echo -e "${GREEN}✔ nginx-прокси запущен и работает.${NC}"
+else
+    echo -e "${RED}❌ Ошибка запуска nginx-прокси!${NC}"
+    echo -e "${YELLOW}Логи nginx-прокси:${NC}"
+    sudo ${DC_BIN} logs nginx-proxy
+    exit 1
+fi
 
 echo -e "\n${CYAN}Шаг 7: Развертывание админской документации...${NC}"
 if [ -f "setup-admin-docs.sh" ]; then
@@ -423,9 +377,11 @@ echo -e "\n\n${GREEN}=====================================================${NC}"
 echo -e "${GREEN}      🎉 Установка и запуск успешно завершены! 🎉      ${NC}"
 echo -e "${GREEN}=====================================================${NC}"
 echo -e "\n${CYAN}📱 Доступные сервисы:${NC}"
-echo -e "  - ${YELLOW}Панель управления:${NC} ${GREEN}https://${MAIN_DOMAIN}/login${NC}"
+echo -e "  - ${YELLOW}Панель управления:${NC} ${GREEN}https://${MAIN_DOMAIN}${NC}"
 echo -e "  - ${YELLOW}Пользовательская документация:${NC} ${GREEN}https://${DOCS_DOMAIN}${NC}"
 echo -e "  - ${YELLOW}Админская документация:${NC} ${GREEN}https://${HELP_DOMAIN}${NC}"
+echo -e "\n${YELLOW}⚠️  Примечание: Используются самоподписанные SSL сертификаты для тестирования.${NC}"
+echo -e "   Для продакшена настройте Let's Encrypt сертификаты.${NC}"
 echo -e "\n${CYAN}🔐 Данные для первого входа в админ-панель:${NC}"
 echo -e "   • Логин:   ${GREEN}admin${NC}"
 echo -e "   • Пароль:  ${GREEN}admin${NC}"
