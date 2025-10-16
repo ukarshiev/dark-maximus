@@ -18,7 +18,13 @@ RUN yarn install --frozen-lockfile
 COPY codex.docs/ ./
 
 # Создаем папку dist и собираем проект
-RUN mkdir -p dist && yarn build-backend && ls -la dist/
+RUN mkdir -p dist && \
+    echo "Начинаем сборку проекта..." && \
+    yarn build-backend && \
+    echo "Сборка завершена. Проверяем результат..." && \
+    ls -la dist/ && \
+    test -d dist/backend && echo "✅ Папка dist/backend создана" || echo "❌ ОШИБКА: Папка dist/backend не создана!" && \
+    test -f dist/backend/app.js && echo "✅ Файл dist/backend/app.js создан" || echo "❌ ОШИБКА: Файл dist/backend/app.js не создан!"
 
 # =========================================
 # Stage 2: Подготовка конфигурации и контента
@@ -35,7 +41,10 @@ COPY --from=builder /build/dist ./dist
 COPY codex.docs/public ./public
 
 # Проверяем, что папка dist была скопирована
-RUN ls -la dist/ || echo "Папка dist не найдена!"
+RUN echo "Проверяем скопированную папку dist..." && \
+    ls -la dist/ && \
+    test -d dist/backend && echo "✅ Папка dist/backend скопирована" || echo "❌ ОШИБКА: Папка dist/backend не скопирована!" && \
+    test -f dist/backend/app.js && echo "✅ Файл dist/backend/app.js скопирован" || echo "❌ ОШИБКА: Файл dist/backend/app.js не скопирован!"
 
 # =========================================
 # Stage 3: Codex.docs runtime

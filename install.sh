@@ -35,20 +35,28 @@ if [ -z "${DC_BIN}" ]; then
     DC_BIN="docker compose"
 fi
 
-# Проверяем и исправляем проблему с docker-compose
+# Проверяем и настраиваем Docker Compose
 check_docker_compose() {
-    if command -v docker-compose &> /dev/null; then
-        # Проверяем, работает ли docker-compose (проблема с distutils в Python 3.12)
-        if ! docker-compose --version &> /dev/null; then
-            echo -e "${YELLOW}Обнаружена неработающая версия docker-compose (несовместимость с Python 3.12). Исправляем...${NC}"
-            sudo apt remove -y docker-compose || true
-            sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-            sudo chmod +x /usr/local/bin/docker-compose
-            echo -e "${GREEN}✔ docker-compose обновлен до совместимой версии.${NC}"
-            # Обновляем DC_BIN после исправления
-            DC_BIN="docker-compose"
-        fi
+    # Проверяем Docker Compose v2 (плагин) - приоритетный
+    if docker compose version &> /dev/null; then
+        DC_BIN="docker compose"
+        echo -e "${GREEN}✔ Docker Compose v2 (плагин) работает.${NC}"
+        return
     fi
+    
+    # Проверяем Docker Compose v1 (отдельная утилита)
+    if command -v docker-compose &> /dev/null && docker-compose --version &> /dev/null; then
+        DC_BIN="docker-compose"
+        echo -e "${GREEN}✔ Docker Compose v1 работает.${NC}"
+        return
+    fi
+    
+    # Если ничего не работает, устанавливаем Docker Compose v1 как fallback
+    echo -e "${YELLOW}Docker Compose не найден. Устанавливаем Docker Compose v1...${NC}"
+    sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    sudo chmod +x /usr/local/bin/docker-compose
+    DC_BIN="docker-compose"
+    echo -e "${GREEN}✔ Docker Compose v1 установлен.${NC}"
 }
 
 check_docker_compose
@@ -116,13 +124,36 @@ install_package() {
 }
 
 install_package "git" "git"
-install_package "docker" "docker.io"
-install_package "nginx" "nginx"
-# docker compose v2 может идти в пакете docker-ce-plugin-compose, поддерживаем через $DC_BIN
 install_package "curl" "curl"
+install_package "nginx" "nginx"
 install_package "certbot" "certbot"
 install_package "dig" "dnsutils"
 install_package "awk" "gawk"
+
+# Устанавливаем Docker CE (официальная версия)
+echo -e "${YELLOW}Устанавливаем Docker CE...${NC}"
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Проверяем успешность установки Docker
+if docker --version &> /dev/null; then
+    echo -e "${GREEN}✔ Docker CE установлен и работает.${NC}"
+    docker --version
+else
+    echo -e "${RED}❌ Ошибка установки Docker CE!${NC}"
+    exit 1
+fi
 
 for service in docker nginx; do
     if ! sudo systemctl is-active --quiet "$service"; then
