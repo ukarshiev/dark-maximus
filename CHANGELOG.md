@@ -1,5 +1,11 @@
 # История изменений
 
+2.66.20 – 16.10.2025 16:35
+- [Исправление] (Docker) Исправлена проблема с копированием папки codex.docs/dist в Dockerfile.codex-docs
+  - Изменен .dockerignore: исключается только /dist/ в корне проекта, но не в подпапках
+  - Теперь codex.docs/dist корректно включается в build context
+  - Исправлена ошибка "failed to calculate checksum of ref ... /codex.docs/dist: not found"
+
 2.66.19 – 16.10.2025 16:24
 - [Исправление] (Установка) Автоматическое исправление проблемы с docker-compose в install.sh
   - Добавлена проверка совместимости docker-compose с Python 3.12
