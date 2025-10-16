@@ -97,7 +97,7 @@ install_package() {
 install_package "git" "git"
 install_package "docker" "docker.io"
 install_package "nginx" "nginx"
-# docker compose v2 может идти в пакете docker-ce-plugin-compose, но оставим поддержку через $DC_BIN
+# docker compose v2 может идти в пакете docker-ce-plugin-compose, поддерживаем через $DC_BIN
 install_package "curl" "curl"
 install_package "certbot" "certbot"
 install_package "dig" "dnsutils"
@@ -143,13 +143,13 @@ fi
 
 echo -e "${GREEN}✔ Основной домен: ${DOMAIN}${NC}"
 
-# Поддомены от корня
-MAIN_DOMAIN="$DOMAIN"
+# Поддомены от корня: панель, юзер-доки, админ-доки
+MAIN_DOMAIN="panel.$DOMAIN"
 DOCS_DOMAIN="docs.$DOMAIN"
 HELP_DOMAIN="help.$DOMAIN"
 
 echo -e "${CYAN}Поддомены для документации:${NC}"
-echo -e "  - ${YELLOW}${MAIN_DOMAIN}${NC} (основной бот)"
+echo -e "  - ${YELLOW}${MAIN_DOMAIN}${NC} (панель управления ботом)"
 echo -e "  - ${YELLOW}${DOCS_DOMAIN}${NC} (пользовательская документация)"
 echo -e "  - ${YELLOW}${HELP_DOMAIN}${NC} (админская документация)"
 
@@ -157,10 +157,11 @@ read_input_yn "Использовать эти поддомены? (y/n): "
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     read_input "Введите поддомен для пользовательской документации (docs.example.com): " DOCS_DOMAIN
     read_input "Введите поддомен для админской документации (help.example.com): " HELP_DOMAIN
+    read_input "Введите поддомен для панели управления (panel.example.com): " MAIN_DOMAIN
 fi
 
 echo -e "${GREEN}✔ Домены для работы:${NC}"
-echo -e "  - Основной: ${MAIN_DOMAIN}"
+echo -e "  - Панель: ${MAIN_DOMAIN}"
 echo -e "  - Документация: ${DOCS_DOMAIN}"
 echo -e "  - Админ-документация: ${HELP_DOMAIN}"
 
@@ -202,7 +203,7 @@ echo -e "\n${CYAN}Шаг 4: Настройка Nginx...${NC}"
 echo -e "Создаем конфигурацию Nginx для всех сервисов..."
 sudo rm -rf /etc/nginx/sites-enabled/default || true
 sudo bash -c "cat > $NGINX_CONF_FILE" <<EOF
-# Основной бот
+# Панель управления
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
@@ -213,7 +214,6 @@ server {
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
-    # Прокси на основной бот
     location / {
         proxy_pass http://127.0.0.1:1488;
         proxy_set_header Host \$host;
@@ -305,23 +305,13 @@ echo -e "\n\n${GREEN}=====================================================${NC}"
 echo -e "${GREEN}      🎉 Установка и запуск успешно завершены! 🎉      ${NC}"
 echo -e "${GREEN}=====================================================${NC}"
 echo -e "\n${CYAN}📱 Доступные сервисы:${NC}"
-echo -e "\n${YELLOW}1. Основной бот и админ-панель:${NC}"
-echo -e "   - ${GREEN}https://${MAIN_DOMAIN}/login${NC}"
-echo -e "\n${YELLOW}2. Пользовательская документация:${NC}"
-echo -e "   - ${GREEN}https://${DOCS_DOMAIN}${NC}"
-echo -e "\n${YELLOW}3. Админская документация (Codex.docs):${NC}"
-echo -e "   - ${GREEN}https://${HELP_DOMAIN}${NC}"
+echo -e "  - ${YELLOW}Панель управления:${NC} ${GREEN}https://${MAIN_DOMAIN}/login${NC}"
+echo -e "  - ${YELLOW}Пользовательская документация:${NC} ${GREEN}https://${DOCS_DOMAIN}${NC}"
+echo -e "  - ${YELLOW}Админская документация:${NC} ${GREEN}https://${HELP_DOMAIN}${NC}"
 echo -e "\n${CYAN}🔐 Данные для первого входа в админ-панель:${NC}"
-echo -e "   - Логин:   ${GREEN}admin${NC}"
-echo -e "   - Пароль:  ${GREEN}admin${NC}"
-echo -e "\n${RED}⚠️  ВАЖНО - ПЕРВЫЕ ШАГИ:${NC}"
-echo -e "1. Войдите в админ-панель и ${RED}немедленно смените логин и пароль${NC}."
-echo -e "2. На странице 'Настройки' введите:"
-echo -e "   • Токен Telegram бота"
-echo -e "   • Username бота (без @)"
-echo -e "   • Ваш Telegram ID"
-echo -e "3. Нажмите 'Сохранить все настройки' и затем 'Запустить Бота'."
+echo -e "   • Логин:   ${GREEN}admin${NC}"
+echo -e "   • Пароль:  ${GREEN}admin${NC}"
 echo -e "\n${CYAN}🔗 Вебхуки:${NC}"
-echo -e "   • YooKassa:   ${GREEN}https://${MAIN_DOMAIN}/yookassa-webhook${NC}"
-echo -e "   • CryptoBot:  ${GREEN}https://${MAIN_DOMAIN}/cryptobot-webhook${NC}"
+echo -e "   • YooKassa:  ${GREEN}https://${MAIN_DOMAIN}/yookassa-webhook${NC}"
+echo -e "   • CryptoBot: ${GREEN}https://${MAIN_DOMAIN}/cryptobot-webhook${NC}"
 echo -e "\n"
