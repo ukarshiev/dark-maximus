@@ -146,16 +146,16 @@ update_nginx_config() {
     echo -e "${YELLOW}Настраиваем пути к Let's Encrypt сертификатам...${NC}"
     
     # Настраиваем для panel домена
-    sed -i "/server_name.*${main_domain}/,/}/ s|ssl_certificate .*|ssl_certificate /etc/letsencrypt/live/${main_domain}/fullchain.pem;|g" nginx/nginx.conf
-    sed -i "/server_name.*${main_domain}/,/}/ s|ssl_certificate_key .*|ssl_certificate_key /etc/letsencrypt/live/${main_domain}/privkey.pem;|g" nginx/nginx.conf
+    sed -i "/server_name.*${main_domain}/,/}/ s|ssl_certificate .*|ssl_certificate /etc/letsencrypt/live/${main_domain}.crt;|g" nginx/nginx.conf
+    sed -i "/server_name.*${main_domain}/,/}/ s|ssl_certificate_key .*|ssl_certificate_key /etc/letsencrypt/live/${main_domain}.key;|g" nginx/nginx.conf
     
     # Настраиваем для docs домена
-    sed -i "/server_name.*${docs_domain}/,/}/ s|ssl_certificate .*|ssl_certificate /etc/letsencrypt/live/${docs_domain}/fullchain.pem;|g" nginx/nginx.conf
-    sed -i "/server_name.*${docs_domain}/,/}/ s|ssl_certificate_key .*|ssl_certificate_key /etc/letsencrypt/live/${docs_domain}/privkey.pem;|g" nginx/nginx.conf
+    sed -i "/server_name.*${docs_domain}/,/}/ s|ssl_certificate .*|ssl_certificate /etc/letsencrypt/live/${docs_domain}.crt;|g" nginx/nginx.conf
+    sed -i "/server_name.*${docs_domain}/,/}/ s|ssl_certificate_key .*|ssl_certificate_key /etc/letsencrypt/live/${docs_domain}.key;|g" nginx/nginx.conf
     
     # Настраиваем для help домена
-    sed -i "/server_name.*${help_domain}/,/}/ s|ssl_certificate .*|ssl_certificate /etc/letsencrypt/live/${help_domain}/fullchain.pem;|g" nginx/nginx.conf
-    sed -i "/server_name.*${help_domain}/,/}/ s|ssl_certificate_key .*|ssl_certificate_key /etc/letsencrypt/live/${help_domain}/privkey.pem;|g" nginx/nginx.conf
+    sed -i "/server_name.*${help_domain}/,/}/ s|ssl_certificate .*|ssl_certificate /etc/letsencrypt/live/${help_domain}.crt;|g" nginx/nginx.conf
+    sed -i "/server_name.*${help_domain}/,/}/ s|ssl_certificate_key .*|ssl_certificate_key /etc/letsencrypt/live/${help_domain}.key;|g" nginx/nginx.conf
     
     # Проверяем, что замена прошла успешно
     if grep -q "/etc/letsencrypt/live/" nginx/nginx.conf; then
@@ -441,7 +441,30 @@ update_nginx_config "$MAIN_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN"
 
 echo -e "${GREEN}✔ Docker nginx-прокси настроен для использования Let's Encrypt сертификатов.${NC}"
 
-echo -e "\n${CYAN}Шаг 6: Сборка и запуск Docker-контейнеров...${NC}"
+# Создаем папку ssl-certs и копируем сертификаты
+echo -e "\n${CYAN}Шаг 6: Подготовка SSL сертификатов для Docker...${NC}"
+mkdir -p ssl-certs/live
+
+# Копируем сертификаты из Let's Encrypt в локальную папку
+if [ -f "/etc/letsencrypt/live/${MAIN_DOMAIN}/fullchain.pem" ]; then
+    cp "/etc/letsencrypt/live/${MAIN_DOMAIN}/fullchain.pem" "ssl-certs/live/${MAIN_DOMAIN}.crt"
+    cp "/etc/letsencrypt/live/${MAIN_DOMAIN}/privkey.pem" "ssl-certs/live/${MAIN_DOMAIN}.key"
+    echo -e "${GREEN}✔ Сертификаты для ${MAIN_DOMAIN} скопированы.${NC}"
+fi
+
+if [ -f "/etc/letsencrypt/live/${DOCS_DOMAIN}/fullchain.pem" ]; then
+    cp "/etc/letsencrypt/live/${DOCS_DOMAIN}/fullchain.pem" "ssl-certs/live/${DOCS_DOMAIN}.crt"
+    cp "/etc/letsencrypt/live/${DOCS_DOMAIN}/privkey.pem" "ssl-certs/live/${DOCS_DOMAIN}.key"
+    echo -e "${GREEN}✔ Сертификаты для ${DOCS_DOMAIN} скопированы.${NC}"
+fi
+
+if [ -f "/etc/letsencrypt/live/${HELP_DOMAIN}/fullchain.pem" ]; then
+    cp "/etc/letsencrypt/live/${HELP_DOMAIN}/fullchain.pem" "ssl-certs/live/${HELP_DOMAIN}.crt"
+    cp "/etc/letsencrypt/live/${HELP_DOMAIN}/privkey.pem" "ssl-certs/live/${HELP_DOMAIN}.key"
+    echo -e "${GREEN}✔ Сертификаты для ${HELP_DOMAIN} скопированы.${NC}"
+fi
+
+echo -e "\n${CYAN}Шаг 7: Сборка и запуск Docker-контейнеров...${NC}"
 if [ -n "$(sudo "${DC[@]}" ps -q || true)" ]; then
     sudo "${DC[@]}" down || true
 fi
@@ -460,7 +483,7 @@ else
     exit 1
 fi
 
-echo -e "\n${CYAN}Шаг 7: Настройка автообновления сертификатов...${NC}"
+echo -e "\n${CYAN}Шаг 8: Настройка автообновления сертификатов...${NC}"
 # Сохраняем абсолютный путь к проекту
 PROJECT_ABS_DIR="$(pwd -P)"
 
@@ -491,7 +514,7 @@ sudo systemctl reload cron || sudo service cron reload
 
 echo -e "${GREEN}✔ Автообновление сертификатов настроено.${NC}"
 
-echo -e "\n${CYAN}Шаг 8: Развертывание админской документации...${NC}"
+echo -e "\n${CYAN}Шаг 9: Развертывание админской документации...${NC}"
 if [ -f "setup-admin-docs.sh" ]; then
     chmod +x setup-admin-docs.sh
     bash setup-admin-docs.sh
