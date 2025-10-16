@@ -152,6 +152,9 @@ Thumbs.db
 # Docker
 .dockerignore
 
+# Personal configuration files
+Microsoft.PowerShell_profile.ps1
+
 # SSL certificates
 *.pem
 *.key

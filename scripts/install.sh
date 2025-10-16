@@ -19,6 +19,52 @@ read_input_yn() {
     echo
 }
 
+# Функция проверки занятости порта
+check_port() {
+    local port=$1
+    local service_name=$2
+    
+    if netstat -tuln 2>/dev/null | grep -q ":$port " || ss -tuln 2>/dev/null | grep -q ":$port "; then
+        local process=$(lsof -ti:$port 2>/dev/null | head -1)
+        if [ -n "$process" ]; then
+            local process_name=$(ps -p $process -o comm= 2>/dev/null || echo "unknown")
+            echo -e "${RED}❌ Порт $port занят процессом $process_name (PID: $process)${NC}"
+            echo -e "${YELLOW}   Этот порт нужен для $service_name${NC}"
+            return 1
+        fi
+    fi
+    echo -e "${GREEN}✅ Порт $port свободен${NC}"
+    return 0
+}
+
+# Функция открытия порта в firewall
+open_firewall_port() {
+    local port=$1
+    local protocol=${2:-tcp}
+    
+    # UFW (Ubuntu/Debian)
+    if command -v ufw &> /dev/null && sudo ufw status | grep -q 'Status: active'; then
+        echo -e "${YELLOW}Открываем порт $port в UFW...${NC}"
+        sudo ufw allow $port/$protocol
+        echo -e "${GREEN}✔ Порт $port/$protocol открыт в UFW${NC}"
+    fi
+    
+    # iptables (если UFW не используется)
+    if command -v iptables &> /dev/null; then
+        echo -e "${YELLOW}Открываем порт $port в iptables...${NC}"
+        sudo iptables -A INPUT -p $protocol --dport $port -j ACCEPT 2>/dev/null || true
+        echo -e "${GREEN}✔ Порт $port/$protocol открыт в iptables${NC}"
+    fi
+    
+    # firewalld (CentOS/RHEL)
+    if command -v firewall-cmd &> /dev/null && sudo firewall-cmd --state &> /dev/null; then
+        echo -e "${YELLOW}Открываем порт $port в firewalld...${NC}"
+        sudo firewall-cmd --permanent --add-port=$port/$protocol
+        sudo firewall-cmd --reload
+        echo -e "${GREEN}✔ Порт $port/$protocol открыт в firewalld${NC}"
+    fi
+}
+
 REPO_URL="https://github.com/ukarshiev/dark-maximus.git"
 PROJECT_DIR="dark-maximus"
 NGINX_CONF_FILE="/etc/nginx/sites-available/${PROJECT_DIR}.conf"
@@ -71,6 +117,65 @@ fi
 
 echo -e "\n${YELLOW}Существующая конфигурация не найдена. Запускается первоначальная установка...${NC}"
 
+# Обновление системы (опционально)
+echo -e "\n${YELLOW}Обновление системы может занять 10-30 минут. Продолжить? (y/n): ${NC}"
+read_input_yn
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo -e "${CYAN}Обновление системы...${NC}"
+    sudo apt update
+    sudo apt upgrade -y
+    sudo apt dist-upgrade -y
+    sudo apt autoremove -y
+    sudo apt autoclean
+    echo -e "${GREEN}✔ Система обновлена.${NC}"
+    
+    echo -e "${YELLOW}⚠️  Возможно, потребуется перезагрузка. Перезагрузить сейчас? (y/n): ${NC}"
+    read_input_yn
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}Перезагружаем систему...${NC}"
+        sudo reboot
+    fi
+else
+    echo -e "${YELLOW}⚠️  Пропускаем обновление системы.${NC}"
+fi
+
+# Проверка портов и настройка firewall
+echo -e "\n${CYAN}Шаг 0: Проверка портов и настройка firewall...${NC}"
+
+# Проверяем все необходимые порты
+echo -e "${YELLOW}Проверяем занятость портов...${NC}"
+PORT_CONFLICTS=0
+
+check_port 80 "HTTP (для SSL-сертификатов)" || PORT_CONFLICTS=1
+check_port 443 "HTTPS (основной порт)" || PORT_CONFLICTS=1
+check_port 1488 "Telegram Bot" || PORT_CONFLICTS=1
+check_port 3001 "Пользовательская документация" || PORT_CONFLICTS=1
+check_port 3002 "Админская документация" || PORT_CONFLICTS=1
+
+if [ $PORT_CONFLICTS -eq 1 ]; then
+    echo -e "\n${RED}⚠️  Обнаружены конфликты портов!${NC}"
+    echo -e "${YELLOW}Для решения проблем:${NC}"
+    echo -e "1. Остановите конфликтующие сервисы"
+    echo -e "2. Или измените порты в конфигурации"
+    echo -e "3. Или перезапустите скрипт после решения конфликтов"
+    
+    read_input_yn "Продолжить установку несмотря на конфликты? (y/n): "
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${RED}Установка прервана. Решите конфликты портов и запустите скрипт снова.${NC}"
+        exit 1
+    fi
+fi
+
+# Настраиваем firewall
+echo -e "\n${YELLOW}Настраиваем firewall...${NC}"
+open_firewall_port 80 tcp
+open_firewall_port 443 tcp
+open_firewall_port 1488 tcp
+open_firewall_port 3001 tcp
+open_firewall_port 3002 tcp
+
+echo -e "${GREEN}✔ Проверка портов и настройка firewall завершены.${NC}"
+
 echo -e "\n${CYAN}Шаг 1: Установка системных зависимостей...${NC}"
 install_package() {
     if ! command -v $1 &> /dev/null; then
@@ -107,7 +212,7 @@ echo -e "${GREEN}✔ Репозиторий готов.${NC}"
 
 echo -e "\n${CYAN}Шаг 3: Настройка домена и получение SSL-сертификатов...${NC}"
 
-read_input "Введите ваш основной домен (например, panel.dark-maximus.com): " USER_INPUT_DOMAIN
+read_input "Введите ваш основной домен (например, myvpn.com): " USER_INPUT_DOMAIN
 
 if [ -z "$USER_INPUT_DOMAIN" ]; then
     echo -e "${RED}Ошибка: Домен не может быть пустым. Установка прервана.${NC}"
@@ -116,14 +221,14 @@ fi
 
 DOMAIN=$(echo "$USER_INPUT_DOMAIN" | sed -e 's%^https\?://%%' -e 's%/.*$%%')
 
-read_input "Введите ваш email (для регистрации SSL-сертификатов Let's Encrypt): " EMAIL
+read_input "Введите ваш реальный email (для регистрации SSL-сертификатов на него придет письмо от Let's Encrypt): " EMAIL
 
 echo -e "${GREEN}✔ Основной домен: ${DOMAIN}${NC}"
 
-# Формируем поддомены
-MAIN_DOMAIN=$DOMAIN
-DOCS_DOMAIN="docs.${DOMAIN#*.}"
-HELP_DOMAIN="help.${DOMAIN#*.}"
+# Формируем поддомены (исправленная логика)
+MAIN_DOMAIN="panel.${DOMAIN}"
+DOCS_DOMAIN="docs.${DOMAIN}"
+HELP_DOMAIN="help.${DOMAIN}"
 
 echo -e "${CYAN}Поддомены для документации:${NC}"
 echo -e "  - ${YELLOW}${MAIN_DOMAIN}${NC} (основной бот)"
@@ -132,8 +237,9 @@ echo -e "  - ${YELLOW}${HELP_DOMAIN}${NC} (админская документа
 
 read_input_yn "Использовать эти поддомены? (y/n): "
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    read_input "Введите поддомен для пользовательской документации (docs.your-domain.com): " DOCS_DOMAIN
-    read_input "Введите поддомен для админской документации (help.your-domain.com): " HELP_DOMAIN
+    read_input "Укажите поддомен для панели: " MAIN_DOMAIN
+    read_input "Укажите поддомен для пользовательской документации: " DOCS_DOMAIN
+    read_input "Укажите поддомен для админской документации: " HELP_DOMAIN
 fi
 
 echo -e "${GREEN}✔ Домены для работы:${NC}"
@@ -156,21 +262,14 @@ done
 read_input_yn "Продолжить установку? (y/n): "
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then echo "Установка прервана."; exit 1; fi
 
-if command -v ufw &> /dev/null && sudo ufw status | grep -q 'Status: active'; then
-    echo -e "${YELLOW}Обнаружен активный файрвол (ufw). Открываем порты...${NC}"
-    sudo ufw allow 80/tcp
-    sudo ufw allow 443/tcp
-    sudo ufw allow 1488/tcp
-    sudo ufw allow 8443/tcp
-fi
+# Убираем вопрос про порт YooKassa - используем 443 по умолчанию
+YOOKASSA_PORT=443
 
 echo -e "${YELLOW}Получаем SSL-сертификаты для всех доменов...${NC}"
 sudo certbot certonly --nginx -d $MAIN_DOMAIN -d $DOCS_DOMAIN -d $HELP_DOMAIN --email $EMAIL --agree-tos --non-interactive
 echo -e "${GREEN}✔ SSL-сертификаты успешно получены для всех доменов.${NC}"
 
 echo -e "\n${CYAN}Шаг 4: Настройка Nginx...${NC}"
-read_input "Какой порт вы будете использовать для вебхуков YooKassa? (443 или 8443, рекомендуется 443): " YOOKASSA_PORT_INPUT
-YOOKASSA_PORT=${YOOKASSA_PORT_INPUT:-443}
 
 NGINX_ENABLED_FILE="/etc/nginx/sites-enabled/${PROJECT_DIR}.conf"
 
