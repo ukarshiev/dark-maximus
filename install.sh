@@ -16,11 +16,19 @@ handle_error() {
 trap 'handle_error $LINENO' ERR
 
 read_input() {
-    read -p "$1" "$2" < /dev/tty
+    if [ -t 0 ]; then
+        read -p "$1" "$2" < /dev/tty
+    else
+        read -p "$1" "$2"
+    fi
 }
 
 read_input_yn() {
-    read -p "$1" -n 1 -r REPLY < /dev/tty
+    if [ -t 0 ]; then
+        read -p "$1" -n 1 -r REPLY < /dev/tty
+    else
+        read -p "$1" -n 1 -r REPLY
+    fi
     echo
 }
 
