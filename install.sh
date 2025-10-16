@@ -132,14 +132,28 @@ update_nginx_config() {
     
     echo -e "${YELLOW}Обновляем конфигурацию nginx-прокси...${NC}"
     
-    # Заменяем домены - используем переменные!
-    ensure_replace 'panel\.dark-maximus\.com' "$main_domain" nginx/nginx.conf
-    ensure_replace 'docs\.dark-maximus\.com' "$docs_domain" nginx/nginx.conf
-    ensure_replace 'help\.dark-maximus\.com' "$help_domain" nginx/nginx.conf
+    # Заменяем домены только если это новая установка (есть шаблоны)
+    if grep -q "panel\.dark-maximus\.com" nginx/nginx.conf; then
+        ensure_replace 'panel\.dark-maximus\.com' "$main_domain" nginx/nginx.conf
+        ensure_replace 'docs\.dark-maximus\.com' "$docs_domain" nginx/nginx.conf
+        ensure_replace 'help\.dark-maximus\.com' "$help_domain" nginx/nginx.conf
+        echo -e "${GREEN}✔ Домены заменены в nginx.conf.${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Домены уже настроены, пропускаем замену доменов.${NC}"
+    fi
     
-    # Заменяем пути к сертификатам - используем переменную main_domain!
-    ensure_replace '/etc/nginx/ssl/cert\.pem' "/etc/letsencrypt/live/${main_domain}/fullchain.pem" nginx/nginx.conf
-    ensure_replace '/etc/nginx/ssl/key\.pem' "/etc/letsencrypt/live/${main_domain}/privkey.pem" nginx/nginx.conf
+    # ВСЕГДА заменяем пути к сертификатам на Let's Encrypt
+    echo -e "${YELLOW}Заменяем пути к сертификатам на Let's Encrypt...${NC}"
+    sed -i "s|ssl_certificate /etc/nginx/ssl/cert\.pem|ssl_certificate /etc/letsencrypt/live/${main_domain}/fullchain.pem|g" nginx/nginx.conf
+    sed -i "s|ssl_certificate_key /etc/nginx/ssl/key\.pem|ssl_certificate_key /etc/letsencrypt/live/${main_domain}/privkey.pem|g" nginx/nginx.conf
+    
+    # Проверяем, что замена прошла успешно
+    if grep -q "/etc/letsencrypt/live/" nginx/nginx.conf; then
+        echo -e "${GREEN}✔ Пути к Let's Encrypt сертификатам обновлены.${NC}"
+    else
+        echo -e "${RED}❌ Ошибка: не удалось заменить пути к сертификатам!${NC}"
+        exit 1
+    fi
     
     echo -e "${GREEN}✔ Конфигурация nginx-прокси обновлена.${NC}"
 }
