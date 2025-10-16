@@ -202,7 +202,7 @@ if [ -f "docker-compose.yml" ]; then
     cd "$PROJECT_DIR"
 
     echo -e "\n${CYAN}Шаг 1: Проверка docker-compose...${NC}"
-    check_docker_compose
+    echo -e "${GREEN}✔ Docker Compose уже проверен в начале скрипта.${NC}"
     
     echo -e "\n${CYAN}Шаг 2: Обновление кода из репозитория Git...${NC}"
     git pull
