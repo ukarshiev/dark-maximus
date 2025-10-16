@@ -17,8 +17,8 @@ RUN yarn install --frozen-lockfile
 # Копируем исходный код
 COPY codex.docs/ ./
 
-# Собираем проект
-RUN yarn build-backend
+# Создаем папку dist и собираем проект
+RUN mkdir -p dist && yarn build-backend && ls -la dist/
 
 # =========================================
 # Stage 2: Подготовка конфигурации и контента
@@ -33,6 +33,9 @@ COPY codex.docs/docs-config.yaml ./docs-config.yaml
 # Копируем собранный контент из builder stage
 COPY --from=builder /build/dist ./dist
 COPY codex.docs/public ./public
+
+# Проверяем, что папка dist была скопирована
+RUN ls -la dist/ || echo "Папка dist не найдена!"
 
 # =========================================
 # Stage 3: Codex.docs runtime
