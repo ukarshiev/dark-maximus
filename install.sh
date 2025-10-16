@@ -213,18 +213,21 @@ if [ -f "docker-compose.yml" ]; then
 
     # Извлекаем домены из nginx.conf
     if [ -f "nginx/nginx.conf" ]; then
-        # Ищем домен panel.dark-maximus.com и извлекаем базовый домен
-        EXTRACTED_DOMAIN=$(grep -o 'server_name [^;]*' "nginx/nginx.conf" | grep "panel\." | head -1 | awk '{print $2}' | sed 's/panel\.//')
-        if [ -n "$EXTRACTED_DOMAIN" ]; then
-            MAIN_DOMAIN="panel.$EXTRACTED_DOMAIN"
-            DOCS_DOMAIN="docs.$EXTRACTED_DOMAIN" 
-            HELP_DOMAIN="help.$EXTRACTED_DOMAIN"
+        # Извлекаем домены напрямую из nginx.conf
+        MAIN_DOMAIN=$(grep -o 'server_name [^;]*' "nginx/nginx.conf" | grep "panel\." | head -1 | awk '{print $2}')
+        DOCS_DOMAIN=$(grep -o 'server_name [^;]*' "nginx/nginx.conf" | grep "docs\." | head -1 | awk '{print $2}')
+        HELP_DOMAIN=$(grep -o 'server_name [^;]*' "nginx/nginx.conf" | grep "help\." | head -1 | awk '{print $2}')
+        
+        if [ -n "$MAIN_DOMAIN" ] && [ -n "$DOCS_DOMAIN" ] && [ -n "$HELP_DOMAIN" ]; then
             echo -e "${GREEN}✔ Домены извлечены из существующей конфигурации:${NC}"
             echo -e "   - Панель: ${MAIN_DOMAIN}"
             echo -e "   - Документация: ${DOCS_DOMAIN}"
             echo -e "   - Админ-документация: ${HELP_DOMAIN}"
         else
             echo -e "${YELLOW}⚠️  Не удалось извлечь домены из конфигурации. Используем значения по умолчанию.${NC}"
+            MAIN_DOMAIN=""
+            DOCS_DOMAIN=""
+            HELP_DOMAIN=""
         fi
     fi
 
@@ -243,6 +246,20 @@ if [ -f "docker-compose.yml" ]; then
     # В режиме обновления тоже обновляем nginx.conf если домен сменился
     echo -e "\n${CYAN}Шаг 2.6: Обновление nginx конфигурации...${NC}"
     update_nginx_config "$MAIN_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN"
+
+    # Копируем SSL сертификаты для Docker
+    echo -e "\n${CYAN}Шаг 2.7: Подготовка SSL сертификатов для Docker...${NC}"
+    mkdir -p ssl-certs/live
+    
+    for domain in "$MAIN_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN"; do
+        if [ -f "/etc/letsencrypt/live/${domain}/fullchain.pem" ]; then
+            cp "/etc/letsencrypt/live/${domain}/fullchain.pem" "ssl-certs/live/${domain}.crt"
+            cp "/etc/letsencrypt/live/${domain}/privkey.pem" "ssl-certs/live/${domain}.key"
+            echo -e "${GREEN}✔ Сертификаты для ${domain} скопированы.${NC}"
+        else
+            echo -e "${RED}❌ Сертификат для ${domain} не найден!${NC}"
+        fi
+    done
 
     echo -e "\n${CYAN}Шаг 3: Перезапуск nginx-proxy контейнера...${NC}"
     sudo "${DC[@]}" restart nginx-proxy
@@ -461,23 +478,15 @@ echo -e "\n${CYAN}Шаг 6: Подготовка SSL сертификатов д
 mkdir -p ssl-certs/live
 
 # Копируем сертификаты из Let's Encrypt в локальную папку
-if [ -f "/etc/letsencrypt/live/${MAIN_DOMAIN}/fullchain.pem" ]; then
-    cp "/etc/letsencrypt/live/${MAIN_DOMAIN}/fullchain.pem" "ssl-certs/live/${MAIN_DOMAIN}.crt"
-    cp "/etc/letsencrypt/live/${MAIN_DOMAIN}/privkey.pem" "ssl-certs/live/${MAIN_DOMAIN}.key"
-    echo -e "${GREEN}✔ Сертификаты для ${MAIN_DOMAIN} скопированы.${NC}"
-fi
-
-if [ -f "/etc/letsencrypt/live/${DOCS_DOMAIN}/fullchain.pem" ]; then
-    cp "/etc/letsencrypt/live/${DOCS_DOMAIN}/fullchain.pem" "ssl-certs/live/${DOCS_DOMAIN}.crt"
-    cp "/etc/letsencrypt/live/${DOCS_DOMAIN}/privkey.pem" "ssl-certs/live/${DOCS_DOMAIN}.key"
-    echo -e "${GREEN}✔ Сертификаты для ${DOCS_DOMAIN} скопированы.${NC}"
-fi
-
-if [ -f "/etc/letsencrypt/live/${HELP_DOMAIN}/fullchain.pem" ]; then
-    cp "/etc/letsencrypt/live/${HELP_DOMAIN}/fullchain.pem" "ssl-certs/live/${HELP_DOMAIN}.crt"
-    cp "/etc/letsencrypt/live/${HELP_DOMAIN}/privkey.pem" "ssl-certs/live/${HELP_DOMAIN}.key"
-    echo -e "${GREEN}✔ Сертификаты для ${HELP_DOMAIN} скопированы.${NC}"
-fi
+for domain in "$MAIN_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN"; do
+    if [ -f "/etc/letsencrypt/live/${domain}/fullchain.pem" ]; then
+        cp "/etc/letsencrypt/live/${domain}/fullchain.pem" "ssl-certs/live/${domain}.crt"
+        cp "/etc/letsencrypt/live/${domain}/privkey.pem" "ssl-certs/live/${domain}.key"
+        echo -e "${GREEN}✔ Сертификаты для ${domain} скопированы.${NC}"
+    else
+        echo -e "${RED}❌ Сертификат для ${domain} не найден!${NC}"
+    fi
+done
 
 echo -e "\n${CYAN}Шаг 7: Сборка и запуск Docker-контейнеров...${NC}"
 if [ -n "$(sudo "${DC[@]}" ps -q || true)" ]; then
