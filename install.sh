@@ -19,7 +19,7 @@ read_input() {
     if [ -t 0 ]; then
         read -p "$1" "$2" < /dev/tty
     else
-        read -p "$1" "$2" 2>/dev/null || true
+        read -p "$1" "$2" || true
     fi
 }
 
@@ -27,7 +27,7 @@ read_input_yn() {
     if [ -t 0 ]; then
         read -p "$1" -n 1 -r REPLY < /dev/tty
     else
-        read -p "$1" -n 1 -r REPLY 2>/dev/null || true
+        read -p "$1" -n 1 -r REPLY || true
     fi
     echo
 }
