@@ -82,11 +82,53 @@ if [ -f "$NGINX_CONF_FILE" ]; then
     git pull
     echo -e "${GREEN}✔ Код успешно обновлен.${NC}"
 
-    echo -e "\n${CYAN}Шаг 3: Пересборка и перезапуск Docker-контейнеров...${NC}"
+    echo -e "\n${CYAN}Шаг 2.5: Проверка SSL-конфигурации...${NC}"
+    # Проверяем и создаем SSL-файлы если их нет
+    if [ ! -f "/etc/letsencrypt/options-ssl-nginx.conf" ]; then
+        echo -e "${YELLOW}Создаем отсутствующий файл SSL-конфигурации...${NC}"
+        sudo bash -c "cat > /etc/letsencrypt/options-ssl-nginx.conf" << 'EOF'
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384;
+ssl_prefer_server_ciphers off;
+EOF
+    fi
+
+    if [ ! -f "/etc/letsencrypt/ssl-dhparams.pem" ]; then
+        echo -e "${YELLOW}Создаем отсутствующие DH параметры...${NC}"
+        sudo openssl dhparam -out /etc/letsencrypt/ssl-dhparams.pem 2048
+    fi
+
+    # Извлекаем домены из nginx конфигурации
+    if [ -f "$NGINX_CONF_FILE" ]; then
+        EXTRACTED_DOMAIN=$(grep -o 'server_name [^;]*' "$NGINX_CONF_FILE" | head -1 | awk '{print $2}' | sed 's/panel\.//')
+        if [ -n "$EXTRACTED_DOMAIN" ]; then
+            MAIN_DOMAIN="panel.$EXTRACTED_DOMAIN"
+            DOCS_DOMAIN="docs.$EXTRACTED_DOMAIN" 
+            HELP_DOMAIN="help.$EXTRACTED_DOMAIN"
+        fi
+    fi
+
+    # Если не удалось извлечь домены, используем localhost
+    if [ -z "$MAIN_DOMAIN" ]; then
+        MAIN_DOMAIN="localhost:1488"
+        DOCS_DOMAIN="localhost:3001"
+        HELP_DOMAIN="localhost:3002"
+        PROTOCOL="http"
+    else
+        PROTOCOL="https"
+    fi
+
+    echo -e "${GREEN}✔ SSL-конфигурация проверена.${NC}"
+
+    echo -e "\n${CYAN}Шаг 3: Перезапуск Nginx с SSL-конфигурацией...${NC}"
+    sudo nginx -t && sudo systemctl reload nginx
+    echo -e "${GREEN}✔ Nginx перезапущен с SSL-конфигурацией.${NC}"
+
+    echo -e "\n${CYAN}Шаг 4: Пересборка и перезапуск Docker-контейнеров...${NC}"
     sudo ${DC_BIN} down --remove-orphans
     sudo ${DC_BIN} up -d --build
 
-    echo -e "\n${CYAN}Шаг 4: Обновление админской документации...${NC}"
+    echo -e "\n${CYAN}Шаг 5: Обновление админской документации...${NC}"
     if [ -f "setup-admin-docs.sh" ]; then
         chmod +x setup-admin-docs.sh
         bash setup-admin-docs.sh
@@ -101,11 +143,11 @@ if [ -f "$NGINX_CONF_FILE" ]; then
     echo -e "\nБот был обновлен до последней версии и перезапущен."
     echo -e "\n${CYAN}📱 Доступные сервисы:${NC}"
     echo -e "\n${YELLOW}1. Основной бот и админ-панель:${NC}"
-    echo -e "   - ${GREEN}http://localhost:1488/login${NC}"
+    echo -e "   - ${GREEN}${PROTOCOL}://${MAIN_DOMAIN}/login${NC}"
     echo -e "\n${YELLOW}2. Пользовательская документация:${NC}"
-    echo -e "   - ${GREEN}http://localhost:3001${NC}"
+    echo -e "   - ${GREEN}${PROTOCOL}://${DOCS_DOMAIN}${NC}"
     echo -e "\n${YELLOW}3. Админская документация (Codex.docs):${NC}"
-    echo -e "   - ${GREEN}http://localhost:3002${NC}"
+    echo -e "   - ${GREEN}${PROTOCOL}://${HELP_DOMAIN}${NC}"
     echo -e "\n"
     exit 0
 fi
@@ -251,7 +293,31 @@ sudo certbot certonly --standalone \
 sudo systemctl start nginx
 echo -e "${GREEN}✔ Сертификаты выпущены.${NC}"
 
-echo -e "\n${CYAN}Шаг 4: Настройка Nginx...${NC}"
+echo -e "\n${CYAN}Шаг 4: Создание SSL-конфигурации...${NC}"
+echo -e "Создаем необходимые файлы SSL-конфигурации..."
+
+# Создаем директорию для SSL-конфигурации
+sudo mkdir -p /etc/letsencrypt
+
+# Создаем файл options-ssl-nginx.conf
+sudo bash -c "cat > /etc/letsencrypt/options-ssl-nginx.conf" << 'EOF'
+# This file contains important security parameters. If you modify this file
+# manually, Certbot will be unable to automatically provide future security
+# updates. Instead, Certbot will print a message to the log when it encounters
+# a configuration that would be updated.
+
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384;
+ssl_prefer_server_ciphers off;
+EOF
+
+# Создаем файл ssl-dhparams.pem
+echo -e "${YELLOW}Генерируем DH параметры (это может занять несколько минут)...${NC}"
+sudo openssl dhparam -out /etc/letsencrypt/ssl-dhparams.pem 2048
+
+echo -e "${GREEN}✔ SSL-конфигурация создана.${NC}"
+
+echo -e "\n${CYAN}Шаг 5: Настройка Nginx...${NC}"
 echo -e "Создаем конфигурацию Nginx для всех сервисов..."
 sudo rm -rf /etc/nginx/sites-enabled/default || true
 sudo bash -c "cat > $NGINX_CONF_FILE" <<EOF
@@ -337,14 +403,14 @@ echo -e "${YELLOW}Проверяем и перезагружаем Nginx...${NC}
 sudo nginx -t && sudo systemctl reload nginx
 echo -e "${GREEN}✔ Конфигурация Nginx применена.${NC}"
 
-echo -e "\n${CYAN}Шаг 5: Сборка и запуск Docker-контейнеров...${NC}"
+echo -e "\n${CYAN}Шаг 6: Сборка и запуск Docker-контейнеров...${NC}"
 if [ -n "$(sudo ${DC_BIN} ps -q || true)" ]; then
     sudo ${DC_BIN} down || true
 fi
 sudo ${DC_BIN} up -d --build
 echo -e "${GREEN}✔ Контейнеры запущены.${NC}"
 
-echo -e "\n${CYAN}Шаг 6: Развертывание админской документации...${NC}"
+echo -e "\n${CYAN}Шаг 7: Развертывание админской документации...${NC}"
 if [ -f "setup-admin-docs.sh" ]; then
     chmod +x setup-admin-docs.sh
     bash setup-admin-docs.sh
