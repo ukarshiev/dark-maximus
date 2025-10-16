@@ -189,7 +189,7 @@ wait_for_port_free() {
 
 echo -e "${GREEN}--- Запуск скрипта установки/обновления dark-maximus ---${NC}"
 
-if [ -f "$NGINX_CONF_FILE" ]; then
+if [ -f "docker-compose.yml" ]; then
     echo -e "\n${CYAN}Обнаружена существующая конфигурация. Скрипт запущен в режиме обновления.${NC}"
 
     if [ ! -d "$PROJECT_DIR" ]; then
@@ -211,13 +211,19 @@ if [ -f "$NGINX_CONF_FILE" ]; then
     echo -e "\n${CYAN}Шаг 2.5: Проверка SSL-конфигурации...${NC}"
     create_ssl_config
 
-    # Извлекаем домены из nginx конфигурации
-    if [ -f "$NGINX_CONF_FILE" ]; then
-        EXTRACTED_DOMAIN=$(grep -o 'server_name [^;]*' "$NGINX_CONF_FILE" | head -1 | awk '{print $2}' | sed 's/panel\.//')
+    # Извлекаем домены из nginx.conf
+    if [ -f "nginx/nginx.conf" ]; then
+        EXTRACTED_DOMAIN=$(grep -o 'server_name [^;]*' "nginx/nginx.conf" | head -1 | awk '{print $2}' | sed 's/panel\.//')
         if [ -n "$EXTRACTED_DOMAIN" ]; then
             MAIN_DOMAIN="panel.$EXTRACTED_DOMAIN"
             DOCS_DOMAIN="docs.$EXTRACTED_DOMAIN" 
             HELP_DOMAIN="help.$EXTRACTED_DOMAIN"
+            echo -e "${GREEN}✔ Домены извлечены из существующей конфигурации:${NC}"
+            echo -e "   - Панель: ${MAIN_DOMAIN}"
+            echo -e "   - Документация: ${DOCS_DOMAIN}"
+            echo -e "   - Админ-документация: ${HELP_DOMAIN}"
+        else
+            echo -e "${YELLOW}⚠️  Не удалось извлечь домены из конфигурации. Используем значения по умолчанию.${NC}"
         fi
     fi
 
