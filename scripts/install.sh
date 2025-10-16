@@ -195,6 +195,7 @@ install_package "docker-compose" "docker-compose"
 install_package "nginx" "nginx"
 install_package "curl" "curl"
 install_package "certbot" "certbot python3-certbot-nginx"
+install_package "dig" "dnsutils"
 
 for service in docker nginx; do
     if ! sudo systemctl is-active --quiet $service; then
@@ -221,25 +222,21 @@ if [ -z "$USER_INPUT_DOMAIN" ]; then
     exit 1
 fi
 
-DOMAIN=$(echo "$USER_INPUT_DOMAIN" | sed -e 's%^https\?://%%' -e 's%/.*$%%')
-
-# Валидация домена
-if [[ "$DOMAIN" != "localhost" && "$DOMAIN" != *"."* ]]; then
-    echo -e "${RED}Ошибка: Домен должен содержать точку (например, example.com) или быть localhost${NC}"
-    exit 1
-fi
-
-read_input "Введите ваш реальный email (для регистрации SSL-сертификатов на него придет письмо от Let's Encrypt): " EMAIL
-
-echo -e "${GREEN}✔ Основной домен: ${DOMAIN}${NC}"
-
-# Формируем поддомены (исправленная логика)
-# Берем корневой домен (последние 2 лейбла) для поддоменов
-BASE_DOMAIN=$(echo "$DOMAIN" | awk -F. '{ if (NF>=2) print $(NF-1)"."$NF; else print $0 }')
+DOMAIN=$(echo "$USER_INPUT_DOMAIN" | sed -e 's%^https\?://%%' -e 's%/.*$%%' -e 's/^www\.//')
+BASE_DOMAIN=$(awk -F. '{if(NF>=2)print $(NF-1)"."$NF; else print $0}' <<< "$DOMAIN")
 
 MAIN_DOMAIN="$DOMAIN"
 DOCS_DOMAIN="docs.$BASE_DOMAIN"
 HELP_DOMAIN="help.$BASE_DOMAIN"
+
+read_input "Введите ваш реальный email (для регистрации SSL-сертификатов на него придет письмо от Let's Encrypt): " EMAIL
+
+if [ -z "$EMAIL" ]; then
+    echo -e "${RED}Ошибка: Email не может быть пустым. Установка прервана.${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✔ Основной домен: ${DOMAIN}${NC}"
 
 echo -e "${CYAN}Поддомены для документации:${NC}"
 echo -e "  - ${YELLOW}${MAIN_DOMAIN}${NC} (основной бот)"
