@@ -213,7 +213,8 @@ if [ -f "docker-compose.yml" ]; then
 
     # Извлекаем домены из nginx.conf
     if [ -f "nginx/nginx.conf" ]; then
-        EXTRACTED_DOMAIN=$(grep -o 'server_name [^;]*' "nginx/nginx.conf" | head -1 | awk '{print $2}' | sed 's/panel\.//')
+        # Ищем домен panel.dark-maximus.com и извлекаем базовый домен
+        EXTRACTED_DOMAIN=$(grep -o 'server_name [^;]*' "nginx/nginx.conf" | grep "panel\." | head -1 | awk '{print $2}' | sed 's/panel\.//')
         if [ -n "$EXTRACTED_DOMAIN" ]; then
             MAIN_DOMAIN="panel.$EXTRACTED_DOMAIN"
             DOCS_DOMAIN="docs.$EXTRACTED_DOMAIN" 
