@@ -680,13 +680,6 @@ echo -e "${GREEN}--- Запуск скрипта установки/обновл
 if [ -f "docker-compose.yml" ]; then
     echo -e "\n${CYAN}Обнаружена существующая конфигурация. Скрипт запущен в режиме обновления.${NC}"
 
-    if [ ! -d "$PROJECT_DIR" ]; then
-        echo -e "${RED}Ошибка: Конфигурация существует, но папка проекта '${PROJECT_DIR}' не найдена!${NC}"
-        exit 1
-    fi
-
-    cd "$PROJECT_DIR"
-
     echo -e "\n${CYAN}Шаг 1: Проверка docker-compose...${NC}"
     echo -e "${GREEN}✔ Docker Compose уже проверен в начале скрипта.${NC}"
     
