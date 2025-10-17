@@ -163,7 +163,7 @@ def create_webhook_app(bot_controller_instance):
         if request.method == 'POST':
             # Проверяем CSRF токен
             try:
-                csrf.validate()
+                csrf.protect()
             except Exception as e:
                 flash('Ошибка безопасности. Попробуйте еще раз.', 'error')
                 return render_template('login.html', settings=settings)

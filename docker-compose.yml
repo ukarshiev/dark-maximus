@@ -6,7 +6,7 @@ services:
     container_name: dark-maximus-bot
     restart: unless-stopped
     ports:
-      - '127.0.0.1:1489:1488'
+      - '127.0.0.1:1488:1488'
     volumes:
       - ./users.db:/app/project/users.db
       - ./logs:/app/project/logs
