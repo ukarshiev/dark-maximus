@@ -94,11 +94,13 @@ else
 fi
 
 # Генерируем поддомены
+PANEL_DOMAIN="panel.${MAIN_DOMAIN}"
 DOCS_DOMAIN="docs.${MAIN_DOMAIN}"
 HELP_DOMAIN="help.${MAIN_DOMAIN}"
 
 echo -e "${GREEN}✔ Домены настроены:${NC}"
 echo -e "   - Панель: ${MAIN_DOMAIN}"
+echo -e "   - Панель (поддомен): ${PANEL_DOMAIN}"
 echo -e "   - Документация: ${DOCS_DOMAIN}"
 echo -e "   - Админ-документация: ${HELP_DOMAIN}"
 
@@ -113,7 +115,7 @@ if ! grep -q "upstream bot_backend" /etc/nginx/sites-available/dark-maximus 2>/d
     echo -e "${YELLOW}Создание HTTP nginx конфигурации с upstream серверами...${NC}"
     
     # Создаем HTTP конфигурацию nginx с upstream серверами
-    cat > /etc/nginx/sites-available/dark-maximus << EOF
+    cat > /etc/nginx/sites-available/dark-maximus << 'EOF'
 # Upstream серверы для Docker контейнеров (localhost)
 upstream bot_backend {
     server 127.0.0.1:1488;
@@ -141,12 +143,48 @@ server {
     # Проксирование на bot сервис
     location / {
         proxy_pass http://bot_backend;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_set_header X-Forwarded-Host \$host;
-        proxy_set_header X-Forwarded-Port \$server_port;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        
+        # Таймауты
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+        
+        # Буферизация
+        proxy_buffering on;
+        proxy_buffer_size 4k;
+        proxy_buffers 8 4k;
+    }
+    
+    # Health check
+    location /health {
+        proxy_pass http://bot_backend/health;
+        access_log off;
+    }
+}
+
+# Сервер panel поддомена
+server {
+    listen 80;
+    server_name ${PANEL_DOMAIN};
+    
+    # Ограничение размера загружаемых файлов
+    client_max_body_size 20m;
+    
+    # Проксирование на bot сервис
+    location / {
+        proxy_pass http://bot_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
         
         # Таймауты
         proxy_connect_timeout 30s;
@@ -177,12 +215,12 @@ server {
     # Проксирование на docs сервис
     location / {
         proxy_pass http://docs_backend;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_set_header X-Forwarded-Host \$host;
-        proxy_set_header X-Forwarded-Port \$server_port;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
         
         # Таймауты
         proxy_connect_timeout 30s;
@@ -208,16 +246,16 @@ server {
     # Проксирование на codex-docs сервис
     location / {
         proxy_pass http://codex_docs_backend;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_set_header X-Forwarded-Host \$host;
-        proxy_set_header X-Forwarded-Port \$server_port;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
         
         # WebSocket поддержка с оптимизацией
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_read_timeout 60m;
         proxy_buffering off;
@@ -295,7 +333,7 @@ check_dns() {
 }
 
 DNS_OK=true
-for check_domain in "$MAIN_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN"; do
+for check_domain in "$MAIN_DOMAIN" "$PANEL_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN"; do
     if ! check_dns "$check_domain"; then
         echo -e "${RED}❌ ОШИБКА: DNS для ${check_domain} не указывает на IP этого сервера!${NC}"
         DNS_OK=false
@@ -379,6 +417,14 @@ certbot certonly --standalone \
     --non-interactive \
     -d "$MAIN_DOMAIN"
 
+echo -e "${YELLOW}Получение сертификата для ${PANEL_DOMAIN}...${NC}"
+certbot certonly --standalone \
+    --email "$EMAIL" \
+    --agree-tos \
+    --no-eff-email \
+    --non-interactive \
+    -d "$PANEL_DOMAIN"
+
 echo -e "${YELLOW}Получение сертификата для ${DOCS_DOMAIN}...${NC}"
 certbot certonly --standalone \
     --email "$EMAIL" \
@@ -400,7 +446,7 @@ echo -e "${GREEN}✔ Все SSL-сертификаты получены${NC}"
 echo -e "\n${CYAN}Шаг 6: Создание HTTPS конфигурации nginx...${NC}"
 
 # Создаем HTTPS конфигурацию nginx с улучшенными настройками безопасности
-cat > /etc/nginx/sites-available/dark-maximus-ssl << EOF
+cat > /etc/nginx/sites-available/dark-maximus-ssl << 'EOF'
 # Upstream серверы для Docker контейнеров (localhost)
 upstream bot_backend {
     server 127.0.0.1:1488;
@@ -421,7 +467,7 @@ upstream codex_docs_backend {
 server {
     listen 80;
     server_name ${MAIN_DOMAIN};
-    return 301 https://\$server_name\$request_uri;
+    return 301 https://$server_name$request_uri;
 }
 
 # HTTPS сервер для основного домена (панель)
@@ -440,12 +486,60 @@ server {
     # Проксирование на bot сервис
     location / {
         proxy_pass http://bot_backend;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_set_header X-Forwarded-Host \$host;
-        proxy_set_header X-Forwarded-Port \$server_port;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        
+        # Таймауты
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+        
+        # Буферизация
+        proxy_buffering on;
+        proxy_buffer_size 4k;
+        proxy_buffers 8 4k;
+    }
+    
+    # Health check
+    location /health {
+        proxy_pass http://bot_backend/health;
+        access_log off;
+    }
+}
+
+# HTTP редирект на HTTPS для panel поддомена
+server {
+    listen 80;
+    server_name ${PANEL_DOMAIN};
+    return 301 https://$server_name$request_uri;
+}
+
+# HTTPS сервер для panel поддомена
+server {
+    listen 443 ssl http2;
+    server_name ${PANEL_DOMAIN};
+    
+    # SSL сертификаты
+    ssl_certificate /etc/letsencrypt/live/${PANEL_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${PANEL_DOMAIN}/privkey.pem;
+    include /etc/nginx/snippets/ssl-params.conf;
+    
+    # Ограничение размера загружаемых файлов
+    client_max_body_size 20m;
+    
+    # Проксирование на bot сервис
+    location / {
+        proxy_pass http://bot_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
         
         # Таймауты
         proxy_connect_timeout 30s;
@@ -469,7 +563,7 @@ server {
 server {
     listen 80;
     server_name ${DOCS_DOMAIN};
-    return 301 https://\$server_name\$request_uri;
+    return 301 https://$server_name$request_uri;
 }
 
 # HTTPS сервер для документации
@@ -488,12 +582,12 @@ server {
     # Проксирование на docs сервис
     location / {
         proxy_pass http://docs_backend;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_set_header X-Forwarded-Host \$host;
-        proxy_set_header X-Forwarded-Port \$server_port;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
         
         # Таймауты
         proxy_connect_timeout 30s;
@@ -512,7 +606,7 @@ server {
 server {
     listen 80;
     server_name ${HELP_DOMAIN};
-    return 301 https://\$server_name\$request_uri;
+    return 301 https://$server_name$request_uri;
 }
 
 # HTTPS сервер для админской документации
@@ -531,16 +625,16 @@ server {
     # Проксирование на codex-docs сервис
     location / {
         proxy_pass http://codex_docs_backend;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_set_header X-Forwarded-Host \$host;
-        proxy_set_header X-Forwarded-Port \$server_port;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
         
         # WebSocket поддержка с оптимизацией
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_read_timeout 60m;
         proxy_buffering off;
@@ -647,6 +741,13 @@ else
     echo -e "${RED}❌ HTTPS панель недоступна${NC}"
 fi
 
+# Проверяем panel поддомен
+if curl -f -s -k https://${PANEL_DOMAIN}/health >/dev/null 2>&1; then
+    echo -e "${GREEN}✅ HTTPS панель (поддомен) доступна: https://${PANEL_DOMAIN}${NC}"
+else
+    echo -e "${RED}❌ HTTPS панель (поддомен) недоступна${NC}"
+fi
+
 # Проверяем документацию
 if curl -f -s -k https://${DOCS_DOMAIN}/health >/dev/null 2>&1; then
     echo -e "${GREEN}✅ HTTPS документация доступна: https://${DOCS_DOMAIN}${NC}"
@@ -679,10 +780,13 @@ else
     echo -e "   - Пароль: ${YELLOW}admin${NC} (по умолчанию)"
 fi
 
-echo -e "\n2. Пользовательская документация:"
+echo -e "\n2. Панель (поддомен):"
+echo -e "   - ${GREEN}https://${PANEL_DOMAIN}/login${NC}"
+
+echo -e "\n3. Пользовательская документация:"
 echo -e "   - ${GREEN}https://${DOCS_DOMAIN}${NC}"
 
-echo -e "\n3. Админская документация (Codex.docs):"
+echo -e "\n4. Админская документация (Codex.docs):"
 echo -e "   - ${GREEN}https://${HELP_DOMAIN}${NC}"
 
 echo -e "\n${BLUE}🔧 Полезные команды:${NC}"
