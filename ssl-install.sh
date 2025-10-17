@@ -24,13 +24,18 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# Проверяем, что мы в папке проекта
+# Проверяем, что мы в папке проекта, если нет - переходим в /opt/dark-maximus
 if [ ! -f "docker-compose.yml" ]; then
-    echo -e "${RED}❌ Файл docker-compose.yml не найден!${NC}"
-    echo -e "${YELLOW}Убедитесь, что вы находитесь в папке проекта Dark Maximus.${NC}"
-    echo -e "${YELLOW}Если проект не установлен, сначала запустите:${NC}"
-    echo -e "${CYAN}curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash${NC}"
-    exit 1
+    if [ -f "/opt/dark-maximus/docker-compose.yml" ]; then
+        echo -e "${YELLOW}⚠️  Переходим в папку проекта /opt/dark-maximus${NC}"
+        cd /opt/dark-maximus
+    else
+        echo -e "${RED}❌ Файл docker-compose.yml не найден!${NC}"
+        echo -e "${YELLOW}Убедитесь, что вы находитесь в папке проекта Dark Maximus.${NC}"
+        echo -e "${YELLOW}Если проект не установлен, сначала запустите:${NC}"
+        echo -e "${CYAN}curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash${NC}"
+        exit 1
+    fi
 fi
 
 # Проверяем, что nginx конфигурация существует
