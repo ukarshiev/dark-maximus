@@ -27,8 +27,8 @@ read_input() {
     # Проверяем, запущен ли скрипт через pipe (curl | bash)
     if [ ! -t 0 ]; then
         echo -e "${YELLOW}⚠️  Скрипт запущен через pipe. Для передачи домена используйте один из способов:${NC}"
-        echo -e "${CYAN}   1. Через переменную окружения:${NC}"
-        echo -e "${CYAN}      DOMAIN=example.com curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash${NC}"
+        echo -e "${CYAN}   1. Через переменную окружения (рекомендуется):${NC}"
+        echo -e "${CYAN}      curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash    DOMAIN=example.com${NC}"
         echo -e "${CYAN}   2. Скачайте и запустите локально:${NC}"
         echo -e "${CYAN}      wget https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh${NC}"
         echo -e "${CYAN}      chmod +x install.sh${NC}"
@@ -182,14 +182,14 @@ echo -e "${YELLOW}Проверка источников домена...${NC}"
 echo -e "Количество аргументов: $#"
 echo -e "Переменная DOMAIN: ${DOMAIN:-не установлена}"
 
-if [ $# -gt 0 ] && [ -n "${1:-}" ]; then
-    MAIN_DOMAIN="$1"
-    echo -e "${GREEN}✔ Домен получен из аргументов: ${MAIN_DOMAIN}${NC}"
-elif [ -n "${DOMAIN:-}" ]; then
+if [ -n "${DOMAIN:-}" ]; then
     MAIN_DOMAIN="$DOMAIN"
     echo -e "${GREEN}✔ Домен получен из переменной окружения: ${MAIN_DOMAIN}${NC}"
+elif [ $# -gt 0 ] && [ -n "${1:-}" ]; then
+    MAIN_DOMAIN="$1"
+    echo -e "${GREEN}✔ Домен получен из аргументов: ${MAIN_DOMAIN}${NC}"
 else
-    echo -e "${YELLOW}Аргументы и переменная окружения не найдены, запрашиваем интерактивный ввод...${NC}"
+    echo -e "${YELLOW}Переменная окружения и аргументы не найдены, запрашиваем интерактивный ввод...${NC}"
     # Запрашиваем основной домен
     read_input "Введите основной домен (например: example.com): " MAIN_DOMAIN
 fi

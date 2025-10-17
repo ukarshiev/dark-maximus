@@ -137,6 +137,12 @@ docker compose logs -f bot
 **2. Выполните команду для основной установки:**
 
 ```bash
+curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash    DOMAIN=yourdomain.com
+```
+
+**Или без домена (будет запрошен интерактивно):**
+
+```bash
 curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash
 ```
 
@@ -246,7 +252,7 @@ docker-compose up -d
 **Обновить бота до последней версии:**
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash    DOMAIN=yourdomain.com
 ```
 
 ## 📚 Дополнительные инструкции
