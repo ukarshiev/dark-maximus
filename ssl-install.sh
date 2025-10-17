@@ -384,13 +384,12 @@ ssl_stapling_verify on;
 resolver 8.8.8.8 8.8.4.4 valid=300s;
 resolver_timeout 5s;
 
-# Современные заголовки безопасности
+# Современные заголовки безопасности (без глобального CSP; CSP зададим на уровне server)
 add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
 add_header X-Frame-Options DENY always;
 add_header X-Content-Type-Options nosniff always;
 add_header X-XSS-Protection "1; mode=block" always;
 add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss: https:; frame-ancestors 'none';" always;
 
 # Дополнительные заголовки безопасности
 add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=()" always;
@@ -515,32 +514,38 @@ echo -e "\n${CYAN}Шаг 10: Финальная проверка доступн�
 # Ждем полного запуска
 sleep 5
 
-# Проверяем доступность HTTPS сервисов
+# Проверяем доступность HTTPS сервисов (302/200 считаем ОК)
 echo -e "${YELLOW}Проверка HTTPS доступности...${NC}"
 
-# Проверяем основной домен
-if curl -f -s -k https://${MAIN_DOMAIN}/health >/dev/null 2>&1; then
-    echo -e "${GREEN}✅ HTTPS панель доступна: https://${MAIN_DOMAIN}${NC}"
+check_url_ok() {
+    local url="$1"
+    local code
+    code=$(curl -s -o /dev/null -w '%{http_code}' "$url")
+    if [ "$code" = "200" ] || [ "$code" = "302" ]; then
+        return 0
+    fi
+    return 1
+}
+
+if check_url_ok "https://${MAIN_DOMAIN}"; then
+    echo -e "${GREEN}✅ HTTPS основной сайт доступен: https://${MAIN_DOMAIN}${NC}"
+else
+    echo -e "${RED}❌ HTTPS основной сайт недоступен${NC}"
+fi
+
+if check_url_ok "https://${PANEL_DOMAIN}"; then
+    echo -e "${GREEN}✅ HTTPS панель доступна: https://${PANEL_DOMAIN}${NC}"
 else
     echo -e "${RED}❌ HTTPS панель недоступна${NC}"
 fi
 
-# Проверяем panel поддомен
-if curl -f -s -k https://${PANEL_DOMAIN}/health >/dev/null 2>&1; then
-    echo -e "${GREEN}✅ HTTPS панель (поддомен) доступна: https://${PANEL_DOMAIN}${NC}"
-else
-    echo -e "${RED}❌ HTTPS панель (поддомен) недоступна${NC}"
-fi
-
-# Проверяем документацию
-if curl -f -s -k https://${DOCS_DOMAIN}/health >/dev/null 2>&1; then
+if check_url_ok "https://${DOCS_DOMAIN}"; then
     echo -e "${GREEN}✅ HTTPS документация доступна: https://${DOCS_DOMAIN}${NC}"
 else
     echo -e "${RED}❌ HTTPS документация недоступна${NC}"
 fi
 
-# Проверяем админскую документацию
-if curl -f -s -k https://${HELP_DOMAIN}/ >/dev/null 2>&1; then
+if check_url_ok "https://${HELP_DOMAIN}"; then
     echo -e "${GREEN}✅ HTTPS админ-документация доступна: https://${HELP_DOMAIN}${NC}"
 else
     echo -e "${RED}❌ HTTPS админ-документация недоступна${NC}"

@@ -130,7 +130,7 @@ server {
     # Ограничение размера загружаемых файлов
     client_max_body_size 20m;
 
-    # Проксирование на docs сервис
+    # Проксирование на docs сервис (разрешаем внешние CDN для docsify)
     location / {
         proxy_pass http://docs_backend;
         proxy_set_header Host $host;
@@ -145,6 +145,9 @@ server {
         proxy_send_timeout 30s;
         proxy_read_timeout 30s;
     }
+
+    # Пер-доменный CSP для docs: разрешаем jsdelivr CDN для скриптов/стилей и data: для стилей/шрифтов
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net data:; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss: https:; frame-ancestors 'none';" always;
 
     # Health check
     location /health {
@@ -173,7 +176,7 @@ server {
     # Ограничение размера загружаемых файлов
     client_max_body_size 20m;
 
-    # Проксирование на codex-docs сервис
+    # Проксирование на codex-docs сервис (может требовать внешние ресурсы)
     location / {
         proxy_pass http://codex_docs_backend;
         proxy_set_header Host $host;
@@ -194,6 +197,9 @@ server {
         proxy_connect_timeout 30s;
         proxy_send_timeout 30s;
     }
+
+    # Пер-доменный CSP для help: допускаем безопасные внешние источники при необходимости
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https: data:; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss: https:; frame-ancestors 'none';" always;
 
     # Health check
     location /health {
