@@ -243,13 +243,25 @@ EOF
 fi
 
 # Обновляем .env с нашими значениями
-# Экранируем специальные символы для sed
-FLASK_SECRET_KEY_ESCAPED=$(printf '%s\n' "$FLASK_SECRET_KEY" | sed 's/[[\.*^$()+?{|]/\\&/g')
-ADMIN_PASSWORD_ESCAPED=$(printf '%s\n' "$ADMIN_PASSWORD" | sed 's/[[\.*^$()+?{|]/\\&/g')
+# Используем более безопасный способ - пересоздаем .env файл
+cat > .env << EOF
+# Основные настройки
+FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
+ADMIN_PASSWORD=${ADMIN_PASSWORD}
+DOMAIN=${MAIN_DOMAIN}
 
-sed -i "s/FLASK_SECRET_KEY=.*/FLASK_SECRET_KEY=${FLASK_SECRET_KEY_ESCAPED}/" .env
-sed -i "s/ADMIN_PASSWORD=.*/ADMIN_PASSWORD=${ADMIN_PASSWORD_ESCAPED}/" .env
-sed -i "s/DOMAIN=.*/DOMAIN=${MAIN_DOMAIN}/" .env
+# Дополнительные настройки из шаблона
+BOT_TOKEN=${BOT_TOKEN:-}
+WEBHOOK_URL=${WEBHOOK_URL:-}
+PAYMENT_PROVIDER=${PAYMENT_PROVIDER:-}
+PAYMENT_TOKEN=${PAYMENT_TOKEN:-}
+DATABASE_URL=${DATABASE_URL:-sqlite:///bot.db}
+
+# Домены
+MAIN_DOMAIN=${MAIN_DOMAIN}
+DOCS_DOMAIN=${DOCS_DOMAIN}
+HELP_DOMAIN=${HELP_DOMAIN}
+EOF
 
 # Сохраняем пароль админа в отдельный файл
 echo "$ADMIN_PASSWORD" > .admin_pass
@@ -498,6 +510,58 @@ EOF
 # Очищаем старые конфигурации nginx
 rm -f /etc/nginx/sites-enabled/*
 # НЕ удаляем dark-maximus конфигурацию, она нужна для шага 9
+
+# Очищаем системную nginx конфигурацию, которая может содержать старые upstream
+# Сначала делаем резервную копию
+cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup 2>/dev/null || true
+# Полностью перезаписываем nginx.conf
+echo "# Nginx configuration for dark-maximus" > /etc/nginx/nginx.conf
+cat >> /etc/nginx/nginx.conf << 'EOF'
+user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+include /etc/nginx/modules-enabled/*.conf;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+    server_tokens off;
+
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    # Logging Settings
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
+
+    # Gzip Settings
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types
+        text/plain
+        text/css
+        text/xml
+        text/javascript
+        application/json
+        application/javascript
+        application/xml+rss
+        application/atom+xml
+        image/svg+xml;
+
+    # Virtual Host Configs
+    include /etc/nginx/conf.d/*.conf;
+    include /etc/nginx/sites-enabled/*;
+}
+EOF
 
 # Создаем временную конфигурацию nginx без upstream (для проверки синтаксиса)
 cat > /etc/nginx/sites-available/dark-maximus-temp << EOF
