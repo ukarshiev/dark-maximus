@@ -94,11 +94,10 @@ def create_webhook_app(bot_controller_instance):
     
     # Настройка CSRF защиты
     csrf = CSRFProtect(flask_app)
-    # Включаем CSRF защиту для production, отключаем только для разработки
-    is_production = os.getenv('FLASK_ENV') == 'production' or not os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
-    flask_app.config['WTF_CSRF_CHECK_DEFAULT'] = is_production
+    # Отключаем CSRF по умолчанию, включаем только для форм через @csrf.protect()()
+    flask_app.config['WTF_CSRF_CHECK_DEFAULT'] = False
     flask_app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 час
-    flask_app.config['WTF_CSRF_SSL_STRICT'] = is_production  # SSL проверка для production
+    flask_app.config['WTF_CSRF_SSL_STRICT'] = False  # Отключаем SSL проверку для совместимости
     
     # Инициализация файловой сессии
     from flask_session import Session
@@ -162,6 +161,13 @@ def create_webhook_app(bot_controller_instance):
     def login_page():
         settings = get_all_settings()
         if request.method == 'POST':
+            # Проверяем CSRF токен
+            try:
+                csrf.validate()
+            except Exception as e:
+                flash('Ошибка безопасности. Попробуйте еще раз.', 'error')
+                return render_template('login.html', settings=settings)
+            
             username = request.form.get('username', '').strip()
             password = request.form.get('password', '')
             
@@ -283,6 +289,7 @@ def create_webhook_app(bot_controller_instance):
         )
 
     @flask_app.route('/api/transaction/<int:transaction_id>')
+    @csrf.exempt
     @login_required
     def get_transaction_details(transaction_id):
         """API endpoint для получения детальной информации о транзакции"""
@@ -628,6 +635,7 @@ def create_webhook_app(bot_controller_instance):
             return {'success': False, 'message': f'Ошибка при загрузке: {str(e)}'}, 500
 
     @flask_app.route('/api/get-ton-manifest-data', methods=['GET'])
+    @csrf.exempt
     @login_required
     def get_ton_manifest_data():
         """Получение актуальных данных Ton Connect манифеста для формы редактирования"""
@@ -910,6 +918,7 @@ def create_webhook_app(bot_controller_instance):
         return render_template('edit_privacy.html', privacy_content=privacy_content, **get_common_template_data())
 
     @flask_app.route('/api/get-terms-content')
+    @csrf.exempt
     @login_required
     def get_terms_content():
         """API для получения контента страницы условий использования"""
@@ -928,6 +937,7 @@ def create_webhook_app(bot_controller_instance):
             return jsonify({'content': ''}), 500
 
     @flask_app.route('/api/get-privacy-content')
+    @csrf.exempt
     @login_required
     def get_privacy_content():
         """API для получения контента страницы политики конфиденциальности"""
@@ -1321,6 +1331,7 @@ def create_webhook_app(bot_controller_instance):
     # ============================================
     
     @flask_app.route('/api/video/<int:video_id>', methods=['GET'])
+    @csrf.exempt
     @login_required
     def get_video_api(video_id):
         """Получение данных видеоинструкции"""
@@ -1332,6 +1343,7 @@ def create_webhook_app(bot_controller_instance):
         return jsonify({'error': 'Video not found'}), 404
     
     @flask_app.route('/api/video/create', methods=['POST'])
+    @csrf.exempt
     @login_required
     def create_video_api():
         """Создание новой видеоинструкции"""
@@ -1393,6 +1405,7 @@ def create_webhook_app(bot_controller_instance):
             return jsonify({'success': False, 'message': str(e)}), 500
     
     @flask_app.route('/api/video/<int:video_id>', methods=['POST'])
+    @csrf.exempt
     @login_required
     def update_video_api(video_id):
         """Обновление видеоинструкции"""
@@ -1466,6 +1479,7 @@ def create_webhook_app(bot_controller_instance):
             return jsonify({'success': False, 'message': str(e)}), 500
     
     @flask_app.route('/api/video/<int:video_id>', methods=['DELETE'])
+    @csrf.exempt
     @login_required
     def delete_video_api(video_id):
         """Удаление видеоинструкции"""
@@ -2597,6 +2611,7 @@ def create_webhook_app(bot_controller_instance):
 
     # API endpoints для модального окна пользователя
     @flask_app.route('/api/user-payments/<int:user_id>')
+    @csrf.exempt
     @login_required
     def api_user_payments(user_id):
         """API для получения платежей пользователя"""
@@ -2661,6 +2676,7 @@ def create_webhook_app(bot_controller_instance):
             return {'payments': []}, 500
 
     @flask_app.route('/api/user-keys/<int:user_id>')
+    @csrf.exempt
     @login_required
     def api_user_keys(user_id):
         """API для получения ключей пользователя"""
@@ -2702,6 +2718,7 @@ def create_webhook_app(bot_controller_instance):
             return {'keys': []}, 500
 
     @flask_app.route('/api/key/<int:key_id>')
+    @csrf.exempt
     @login_required
     def api_get_key(key_id):
         """API для получения данных конкретного ключа"""
@@ -2790,6 +2807,7 @@ def create_webhook_app(bot_controller_instance):
             return {'error': 'Ошибка получения данных ключа'}, 500
 
     @flask_app.route('/api/user-balance/<int:user_id>')
+    @csrf.exempt
     @login_required
     def api_user_balance(user_id):
         """API для получения баланса пользователя"""
@@ -2807,6 +2825,7 @@ def create_webhook_app(bot_controller_instance):
             return {'balance': 0.0}, 500
 
     @flask_app.route('/api/user-earned/<int:user_id>')
+    @csrf.exempt
     @login_required
     def api_user_earned(user_id):
         """API для получения суммы заработанных денег пользователя"""
@@ -2832,6 +2851,7 @@ def create_webhook_app(bot_controller_instance):
             return {'earned': 0}, 500
 
     @flask_app.route('/api/user-notifications/<int:user_id>')
+    @csrf.exempt
     @login_required
     def api_user_notifications(user_id):
         """API для получения уведомлений пользователя"""
@@ -2872,6 +2892,7 @@ def create_webhook_app(bot_controller_instance):
             return {'notifications': []}, 500
 
     @flask_app.route('/api/user-details/<int:user_id>')
+    @csrf.exempt
     @login_required
     def api_user_details(user_id):
         """API для получения полных данных пользователя"""
@@ -2931,6 +2952,7 @@ def create_webhook_app(bot_controller_instance):
             return {'error': 'Ошибка получения данных пользователя'}, 500
 
     @flask_app.route('/api/update-user/<int:user_id>', methods=['POST'])
+    @csrf.exempt
     @login_required
     def api_update_user(user_id):
         """API для обновления данных пользователя"""
@@ -2987,6 +3009,7 @@ def create_webhook_app(bot_controller_instance):
         return redirect(url_for('users_page'))
 
     @flask_app.route('/api/search-users')
+    @csrf.exempt
     @login_required
     @rate_limit('per_minute', 30, "Too many search requests. Please try again later.")
     @handle_exceptions("API search users")
@@ -3152,6 +3175,7 @@ def create_webhook_app(bot_controller_instance):
             return jsonify({'message': 'Внутренняя ошибка сервера'}), 500
 
     @flask_app.route('/api/topup-balance', methods=['POST'])
+    @csrf.exempt
     @login_required
     @rate_limit('per_minute', 5, "Too many balance topup requests. Please try again later.")
     def api_topup_balance():
@@ -3187,6 +3211,7 @@ def create_webhook_app(bot_controller_instance):
             return jsonify({'message': 'Внутренняя ошибка сервера'}), 500
 
     @flask_app.route('/api/hosts')
+    @csrf.exempt
     @login_required
     def api_get_hosts():
         """API для получения списка хостов для модального окна обновления ключей."""
@@ -3214,6 +3239,7 @@ def create_webhook_app(bot_controller_instance):
             }), 500
 
     @flask_app.route('/api/refresh-keys-by-host', methods=['POST'])
+    @csrf.exempt
     @login_required
     def api_refresh_keys_by_host():
         """API для обновления ключей по конкретному хосту."""
@@ -3398,6 +3424,7 @@ def create_webhook_app(bot_controller_instance):
             }), 500
 
     @flask_app.route('/api/get-ton-manifest-content')
+    @csrf.exempt
     @login_required
     def api_get_ton_manifest_content():
         """API для получения содержимого манифеста TON Connect"""
@@ -3456,6 +3483,7 @@ def create_webhook_app(bot_controller_instance):
             return redirect(url_for('settings_page'))
 
     @flask_app.route('/api/toggle-key-enabled', methods=['POST'])
+    @csrf.exempt
     @login_required
     def api_toggle_key_enabled():
         """API для включения/отключения ключа"""
@@ -3515,6 +3543,7 @@ def create_webhook_app(bot_controller_instance):
 
     # API роуты для промокодов
     @flask_app.route('/api/promo-codes', methods=['GET'])
+    @csrf.exempt
     @login_required
     def api_get_promo_codes():
         """Получить все промокоды"""
@@ -3529,6 +3558,7 @@ def create_webhook_app(bot_controller_instance):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @flask_app.route('/api/promo-codes', methods=['POST'])
+    @csrf.exempt
     @login_required
     def api_create_promo_code():
         """Создать новый промокод"""
@@ -3587,6 +3617,7 @@ def create_webhook_app(bot_controller_instance):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @flask_app.route('/api/promo-codes/<int:promo_id>', methods=['GET'])
+    @csrf.exempt
     @login_required
     def api_get_promo_code(promo_id):
         """Получить промокод по ID"""
@@ -3604,6 +3635,7 @@ def create_webhook_app(bot_controller_instance):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @flask_app.route('/api/promo-codes/<int:promo_id>', methods=['PUT'])
+    @csrf.exempt
     @login_required
     def api_update_promo_code(promo_id):
         """Обновить промокод"""
@@ -3664,6 +3696,7 @@ def create_webhook_app(bot_controller_instance):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @flask_app.route('/api/promo-codes/<int:promo_id>', methods=['DELETE'])
+    @csrf.exempt
     @login_required
     def api_delete_promo_code(promo_id):
         """Удалить промокод"""
@@ -3688,6 +3721,7 @@ def create_webhook_app(bot_controller_instance):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @flask_app.route('/api/promo-codes/<int:promo_id>/usage', methods=['GET'])
+    @csrf.exempt
     @login_required
     def api_get_promo_code_usage(promo_id):
         """Получить историю использования промокода"""
@@ -3702,6 +3736,7 @@ def create_webhook_app(bot_controller_instance):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @flask_app.route('/api/promo-codes/<int:promo_id>/can-delete', methods=['GET'])
+    @csrf.exempt
     @login_required
     def api_can_delete_promo_code(promo_id):
         """Проверить, можно ли удалить промокод"""
@@ -3717,6 +3752,7 @@ def create_webhook_app(bot_controller_instance):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @flask_app.route('/api/vpn-plans', methods=['GET'])
+    @csrf.exempt
     @login_required
     def api_get_vpn_plans():
         """Получить все VPN планы"""
@@ -3731,6 +3767,7 @@ def create_webhook_app(bot_controller_instance):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @flask_app.route('/api/validate-promo-code', methods=['POST'])
+    @csrf.exempt
     @login_required
     def api_validate_promo_code():
         """Валидация промокода для пользователя"""
@@ -3761,6 +3798,7 @@ def create_webhook_app(bot_controller_instance):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @flask_app.route('/api/user-promo-codes', methods=['GET'])
+    @csrf.exempt
     @login_required
     def api_get_user_promo_codes():
         """Получить применённые промокоды пользователя"""
@@ -3786,6 +3824,7 @@ def create_webhook_app(bot_controller_instance):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @flask_app.route('/api/user-promo-codes/<int:promo_id>', methods=['DELETE'])
+    @csrf.exempt
     @login_required
     def api_remove_user_promo_code(promo_id):
         """Удалить применённый промокод пользователем"""
@@ -3818,7 +3857,7 @@ def create_webhook_app(bot_controller_instance):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     # CSRF защита отключена по умолчанию (WTF_CSRF_CHECK_DEFAULT = False)
-    # При необходимости можно включить выборочно через @csrf.protect() для критичных форм
+    # При необходимости можно включить выборочно через @csrf.protect()() для критичных форм
 
     # Запускаем мониторинг сразу
     start_ton_monitoring_task()
