@@ -51,6 +51,9 @@ RUN echo "Проверяем скопированную папку dist..." && \
 # =========================================
 FROM ghcr.io/codex-team/codex.docs:v2.0.0-rc.8
 
+# Устанавливаем netcat для healthcheck
+RUN apk add --no-cache netcat-openbsd
+
 # Копируем конфигурацию из builder stage
 COPY --from=config-builder /build/docs-config.yaml /usr/src/app/docs-config.yaml
 

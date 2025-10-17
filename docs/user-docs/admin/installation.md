@@ -193,13 +193,16 @@ curl -fsSL https://get.docker.com -o get-docker.sh
 sudo sh get-docker.sh
 ```
 
-**Ошибка: "nginx-proxy не запускается"**
+**Ошибка: "Системный nginx не запускается"**
 ```bash
+# Проверьте статус
+sudo systemctl status nginx
+
 # Проверьте логи
-docker compose logs nginx-proxy
+sudo journalctl -u nginx -f
 
 # Проверьте конфигурацию
-docker exec dark-maximus-nginx-proxy nginx -t
+sudo nginx -t
 ```
 
 ### Проблемы с SSL
@@ -210,12 +213,12 @@ docker exec dark-maximus-nginx-proxy nginx -t
 
 **Ошибка: "Certificate not found"**
 - Проверьте сертификаты: `sudo certbot certificates`
-- Перезапустите nginx: `docker compose restart nginx-proxy`
+- Перезапустите nginx: `sudo systemctl restart nginx`
 
 **Ошибка: "Port 80 in use"**
 ```bash
-# Остановите nginx-proxy
-docker compose stop nginx-proxy
+# Остановите системный nginx
+sudo systemctl stop nginx
 
 # Проверьте, что порт свободен
 ss -ltn "( sport = :80 )"
@@ -245,7 +248,7 @@ sudo certbot certificates
 
 **Тестирование nginx конфигурации:**
 ```bash
-docker exec dark-maximus-nginx-proxy nginx -t
+sudo nginx -t
 ```
   - Healthcheck endpoint
   - Gzip сжатие и кэширование статики

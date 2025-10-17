@@ -12,7 +12,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    nginx-proxy (порт 80/443)               │
+│                Системный nginx (порт 80/443)               │
 │  ┌─────────────────┬─────────────────┬─────────────────┐    │
 │  │ docs.dark-      │ help.dark-      │ panel.dark-     │    │
 │  │ maximus.com     │ maximus.com     │ maximus.com     │    │
@@ -21,6 +21,7 @@
            │                    │                    │
            ▼                    ▼                    ▼
 ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│ localhost:3001  │  │ localhost:3002  │  │ localhost:1488  │
 │   docs:80       │  │ codex-docs:3000 │  │    bot:1488     │
 │   (nginx)       │  │   (Express)     │  │   (Python)      │
 └─────────────────┘  └─────────────────┘  └─────────────────┘
@@ -104,13 +105,14 @@ curl -k -H "Host: panel.dark-maximus.com" -I https://localhost
 
 Эта ошибка возникает, когда:
 1. DNS записи не настроены или не применились
-2. nginx-proxy контейнер не запущен
+2. Системный nginx не запущен
 3. Брандмауэр блокирует порты 80/443
 
 **Решение:**
 1. Проверьте DNS записи: `nslookup docs.dark-maximus.com`
 2. Проверьте статус контейнеров: `docker compose ps`
-3. Проверьте логи: `docker compose logs nginx-proxy`
+3. Проверьте статус nginx: `sudo systemctl status nginx`
+4. Проверьте логи: `sudo journalctl -u nginx -f`
 
 ### Ошибка SSL
 
@@ -130,8 +132,8 @@ curl -k -H "Host: panel.dark-maximus.com" -I https://localhost
 ### Логи
 
 ```bash
-# Логи nginx-proxy
-docker compose logs -f nginx-proxy
+# Логи системного nginx
+sudo journalctl -u nginx -f
 
 # Логи всех сервисов
 docker compose logs -f
@@ -142,8 +144,8 @@ docker compose logs -f
 После изменения nginx конфигурации:
 
 ```bash
-# Перезапуск nginx-proxy
-docker compose restart nginx-proxy
+# Перезапуск системного nginx
+sudo systemctl restart nginx
 
 # Или полный перезапуск
 docker compose up -d --build

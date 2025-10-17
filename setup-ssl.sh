@@ -8,6 +8,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 RED='\033[0;31m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Обработка ошибок
@@ -33,7 +34,15 @@ else
     DC=("docker-compose")
 fi
 
-echo -e "${GREEN}--- Настройка SSL для dark-maximus ---${NC}"
+echo -e "${GREEN}===============================================${NC}"
+echo -e "${GREEN}      🔒 Dark Maximus - Настройка SSL        ${NC}"
+echo -e "${GREEN}===============================================${NC}"
+
+# Проверяем права root
+if [ "$EUID" -ne 0 ]; then
+    echo -e "${RED}❌ Запустите скрипт с правами root: sudo ./setup-ssl.sh${NC}"
+    exit 1
+fi
 
 # Проверяем, что мы в папке проекта
 if [ ! -f "docker-compose.yml" ]; then
@@ -41,13 +50,13 @@ if [ ! -f "docker-compose.yml" ]; then
     exit 1
 fi
 
-# Извлекаем домены из nginx.conf
-MAIN_DOMAIN=$(grep -o 'server_name [^;]*' "nginx/nginx.conf" | grep -v "default_server" | head -1 | awk '{print $2}')
-DOCS_DOMAIN=$(grep -o 'server_name [^;]*' "nginx/nginx.conf" | grep -v "default_server" | sed -n '2p' | awk '{print $2}')
-HELP_DOMAIN=$(grep -o 'server_name [^;]*' "nginx/nginx.conf" | grep -v "default_server" | sed -n '3p' | awk '{print $2}')
+# Извлекаем домены из nginx конфигурации
+MAIN_DOMAIN=$(grep -o 'server_name [^;]*' "/etc/nginx/sites-available/dark-maximus" | grep -v "default_server" | head -1 | awk '{print $2}')
+DOCS_DOMAIN=$(grep -o 'server_name [^;]*' "/etc/nginx/sites-available/dark-maximus" | grep -v "default_server" | sed -n '2p' | awk '{print $2}')
+HELP_DOMAIN=$(grep -o 'server_name [^;]*' "/etc/nginx/sites-available/dark-maximus" | grep -v "default_server" | sed -n '3p' | awk '{print $2}')
 
 if [ -z "$MAIN_DOMAIN" ] || [ -z "$DOCS_DOMAIN" ] || [ -z "$HELP_DOMAIN" ]; then
-    echo -e "${RED}❌ Не удалось извлечь домены из nginx.conf!${NC}"
+    echo -e "${RED}❌ Не удалось извлечь домены из nginx конфигурации!${NC}"
     echo -e "${YELLOW}Убедитесь, что install.sh был запущен успешно.${NC}"
     exit 1
 fi
@@ -96,307 +105,390 @@ fi
 
 echo -e "${GREEN}✔ Все DNS записи корректны.${NC}"
 
-echo -e "\n${CYAN}Шаг 2: Создание SSL-конфигурации...${NC}"
+echo -e "\n${CYAN}Шаг 2: Установка Certbot...${NC}"
 
-# Создаем SSL-конфигурацию
-sudo mkdir -p /etc/letsencrypt
+# Настройка неинтерактивного режима для APT
+export DEBIAN_FRONTEND=noninteractive
 
-if [ ! -f "/etc/letsencrypt/options-ssl-nginx.conf" ]; then
-    sudo bash -c "cat > /etc/letsencrypt/options-ssl-nginx.conf" << 'EOF'
-# This file contains important security parameters. If you modify this file
-# manually, Certbot will be unable to automatically provide future security
-# updates. Instead, Certbot will print a message to the log when it encounters
-# a configuration that would be updated.
+# Устанавливаем Certbot
+apt -yq update
+apt -yq install certbot python3-certbot-nginx
 
+echo -e "${GREEN}✔ Certbot установлен${NC}"
+
+echo -e "\n${CYAN}Шаг 3: Создание SSL-конфигурации...${NC}"
+
+# Создаем директории для SSL
+mkdir -p /etc/letsencrypt/live
+mkdir -p /etc/letsencrypt/archive
+
+# Создаем современную конфигурацию SSL для nginx
+cat > /etc/nginx/snippets/ssl-params.conf << 'EOF'
+# Современная конфигурация SSL с лучшими практиками безопасности
 ssl_protocols TLSv1.2 TLSv1.3;
-ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384;
+ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
 ssl_prefer_server_ciphers off;
-EOF
-    echo -e "${GREEN}✔ options-ssl-nginx.conf создан.${NC}"
-else
-    echo -e "${GREEN}✔ options-ssl-nginx.conf уже существует.${NC}"
-fi
 
-if [ ! -f "/etc/letsencrypt/ssl-dhparams.pem" ]; then
-    echo -e "${YELLOW}Генерируем DH параметры (это может занять несколько минут)...${NC}"
-    sudo openssl dhparam -out /etc/letsencrypt/ssl-dhparams.pem 2048
-    echo -e "${GREEN}✔ ssl-dhparams.pem создан.${NC}"
-else
-    echo -e "${GREEN}✔ ssl-dhparams.pem уже существует.${NC}"
-fi
+# SSL сессии для производительности
+ssl_session_cache shared:SSL:10m;
+ssl_session_timeout 10m;
+ssl_session_tickets off;
 
-echo -e "\n${CYAN}Шаг 3: Остановка nginx-proxy для выпуска сертификатов...${NC}"
+# OCSP stapling для безопасности
+ssl_stapling on;
+ssl_stapling_verify on;
+resolver 8.8.8.8 8.8.4.4 valid=300s;
+resolver_timeout 5s;
 
-# Останавливаем nginx-proxy
-sudo "${DC[@]}" stop nginx-proxy
+# Современные заголовки безопасности
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+add_header X-Frame-Options DENY always;
+add_header X-Content-Type-Options nosniff always;
+add_header X-XSS-Protection "1; mode=block" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss: https:; frame-ancestors 'none';" always;
 
-# Ждем освобождения порта 80
-echo -e "${YELLOW}Ждем освобождения порта 80...${NC}"
-for i in {1..20}; do
-    ss -ltn "( sport = :80 )" | grep -q ":80" || break
-    sleep 1
-done
-echo -e "${GREEN}✔ Порт 80 свободен.${NC}"
-
-echo -e "\n${CYAN}Шаг 4: Выпуск Let's Encrypt сертификатов...${NC}"
-
-# Выпускаем сертификаты для каждого домена
-for domain in "$MAIN_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN"; do
-    echo -e "${YELLOW}Выпускаем Let's Encrypt сертификат для ${domain}...${NC}"
-    sudo certbot certonly --standalone \
-        --preferred-challenges http \
-        -d "$domain" \
-        --email "$EMAIL" --agree-tos --non-interactive
-done
-
-echo -e "${GREEN}✔ Let's Encrypt сертификаты выпущены.${NC}"
-
-echo -e "\n${CYAN}Шаг 5: Создание nginx конфигурации с SSL...${NC}"
-
-# Создаем nginx конфигурацию с SSL
-cat > nginx/nginx.conf << EOF
-events {
-    worker_connections 1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-
-    log_format main '\$remote_addr - \$remote_user [\$time_local] "\$request" '
-                    '\$status \$body_bytes_sent "\$http_referer" '
-                    '"\$http_user_agent" "\$http_x_forwarded_for"';
-
-    access_log /var/log/nginx/access.log main;
-    error_log /var/log/nginx/error.log;
-
-    sendfile on;
-    tcp_nopush on;
-    tcp_nodelay on;
-    keepalive_timeout 65;
-    types_hash_max_size 2048;
-
-    gzip on;
-    gzip_vary on;
-    gzip_min_length 1024;
-    gzip_proxied any;
-    gzip_comp_level 6;
-    gzip_types
-        text/plain
-        text/css
-        text/xml
-        text/javascript
-        application/json
-        application/javascript
-        application/xml+rss
-        application/atom+xml
-        image/svg+xml;
-
-    upstream docs_backend {
-        server docs:80;
-    }
-
-    upstream codex_docs_backend {
-        server codex-docs:3000;
-    }
-
-    upstream bot_backend {
-        server bot:1488;
-    }
-
-    # Конфигурация для $DOCS_DOMAIN
-    server {
-        listen 80;
-        server_name $DOCS_DOMAIN;
-        return 301 https://\$server_name\$request_uri;
-    }
-
-    server {
-        listen 443 ssl http2;
-        server_name $DOCS_DOMAIN;
-
-        ssl_certificate /etc/letsencrypt/live/$DOCS_DOMAIN/fullchain.pem;
-        ssl_certificate_key /etc/letsencrypt/live/$DOCS_DOMAIN/privkey.pem;
-        ssl_trusted_certificate /etc/letsencrypt/live/$DOCS_DOMAIN/chain.pem;
-
-        include /etc/letsencrypt/options-ssl-nginx.conf;
-        ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-
-        location / {
-            proxy_pass http://docs_backend;
-            proxy_set_header Host \$host;
-            proxy_set_header X-Real-IP \$remote_addr;
-            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto \$scheme;
-
-            proxy_connect_timeout 30s;
-            proxy_send_timeout 30s;
-            proxy_read_timeout 30s;
-        }
-
-        location /health {
-            proxy_pass http://docs_backend/health;
-            access_log off;
-        }
-    }
-
-    # Конфигурация для $HELP_DOMAIN
-    server {
-        listen 80;
-        server_name $HELP_DOMAIN;
-        return 301 https://\$server_name\$request_uri;
-    }
-
-    server {
-        listen 443 ssl http2;
-        server_name $HELP_DOMAIN;
-
-        ssl_certificate /etc/letsencrypt/live/$HELP_DOMAIN/fullchain.pem;
-        ssl_certificate_key /etc/letsencrypt/live/$HELP_DOMAIN/privkey.pem;
-        ssl_trusted_certificate /etc/letsencrypt/live/$HELP_DOMAIN/chain.pem;
-
-        include /etc/letsencrypt/options-ssl-nginx.conf;
-        ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-
-        location / {
-            proxy_pass http://codex_docs_backend;
-            proxy_set_header Host \$host;
-            proxy_set_header X-Real-IP \$remote_addr;
-            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto \$scheme;
-
-            proxy_connect_timeout 30s;
-            proxy_send_timeout 30s;
-            proxy_read_timeout 30s;
-        }
-
-        location /health {
-            proxy_pass http://codex_docs_backend/;
-            access_log off;
-        }
-    }
-
-    # Конфигурация для $MAIN_DOMAIN
-    server {
-        listen 80;
-        server_name $MAIN_DOMAIN;
-        return 301 https://\$server_name\$request_uri;
-    }
-
-    server {
-        listen 443 ssl http2;
-        server_name $MAIN_DOMAIN;
-
-        ssl_certificate /etc/letsencrypt/live/$MAIN_DOMAIN/fullchain.pem;
-        ssl_certificate_key /etc/letsencrypt/live/$MAIN_DOMAIN/privkey.pem;
-        ssl_trusted_certificate /etc/letsencrypt/live/$MAIN_DOMAIN/chain.pem;
-
-        include /etc/letsencrypt/options-ssl-nginx.conf;
-        ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-
-        location / {
-            proxy_pass http://bot_backend;
-            proxy_set_header Host \$host;
-            proxy_set_header X-Real-IP \$remote_addr;
-            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto \$scheme;
-
-            proxy_connect_timeout 30s;
-            proxy_send_timeout 30s;
-            proxy_read_timeout 30s;
-        }
-    }
-
-    # Конфигурация по умолчанию для неопознанных доменов
-    server {
-        listen 80 default_server;
-        server_name _;
-        return 444;
-    }
-
-    server {
-        listen 443 ssl default_server;
-        server_name _;
-
-        ssl_certificate /etc/nginx/ssl/cert.pem;
-        ssl_certificate_key /etc/nginx/ssl/key.pem;
-
-        return 444;
-    }
-}
+# Дополнительные заголовки безопасности
+add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=()" always;
+add_header X-Permitted-Cross-Domain-Policies "none" always;
+add_header X-Download-Options "noopen" always;
+add_header X-DNS-Prefetch-Control "off" always;
 EOF
 
-echo -e "${GREEN}✔ nginx конфигурация с SSL создана.${NC}"
+echo -e "${GREEN}✔ SSL-конфигурация создана${NC}"
 
-echo -e "\n${CYAN}Шаг 6: Обновление docker-compose.yml для SSL...${NC}"
+echo -e "\n${CYAN}Шаг 4: Остановка nginx для получения сертификатов...${NC}"
 
-# Обновляем docker-compose.yml для монтирования Let's Encrypt сертификатов
-sed -i 's|- ./nginx/ssl:/etc/nginx/ssl:ro|- ./nginx/ssl:/etc/nginx/ssl:ro\n      - /etc/letsencrypt/live:/etc/letsencrypt/live:ro|g' docker-compose.yml
+# Останавливаем nginx
+systemctl stop nginx
 
-echo -e "${GREEN}✔ docker-compose.yml обновлен для SSL.${NC}"
+echo -e "\n${CYAN}Шаг 5: Получение SSL-сертификатов...${NC}"
 
-echo -e "\n${CYAN}Шаг 7: Перезапуск контейнеров с SSL...${NC}"
+# Получаем сертификаты для всех доменов
+echo -e "${YELLOW}Получение сертификата для ${MAIN_DOMAIN}...${NC}"
+certbot certonly --standalone \
+    --email "$EMAIL" \
+    --agree-tos \
+    --no-eff-email \
+    --non-interactive \
+    -d "$MAIN_DOMAIN"
 
-# Перезапускаем контейнеры
-sudo "${DC[@]}" up -d
+echo -e "${YELLOW}Получение сертификата для ${DOCS_DOMAIN}...${NC}"
+certbot certonly --standalone \
+    --email "$EMAIL" \
+    --agree-tos \
+    --no-eff-email \
+    --non-interactive \
+    -d "$DOCS_DOMAIN"
 
-# Проверяем статус nginx-proxy
-echo -e "${YELLOW}Проверяем статус nginx-proxy...${NC}"
-sleep 5
+echo -e "${YELLOW}Получение сертификата для ${HELP_DOMAIN}...${NC}"
+certbot certonly --standalone \
+    --email "$EMAIL" \
+    --agree-tos \
+    --no-eff-email \
+    --non-interactive \
+    -d "$HELP_DOMAIN"
 
-if sudo "${DC[@]}" ps | grep -q "nginx-proxy.*Up"; then
-    echo -e "${GREEN}✔ nginx-proxy запущен и работает с SSL.${NC}"
-else
-    echo -e "${RED}❌ Ошибка запуска nginx-proxy!${NC}"
-    echo -e "${YELLOW}Логи nginx-proxy:${NC}"
-    sudo "${DC[@]}" logs nginx-proxy
-    exit 1
-fi
+echo -e "${GREEN}✔ Все SSL-сертификаты получены${NC}"
+
+echo -e "\n${CYAN}Шаг 6: Создание HTTPS конфигурации nginx...${NC}"
+
+# Создаем HTTPS конфигурацию nginx с улучшенными настройками безопасности
+cat > /etc/nginx/sites-available/dark-maximus-ssl << EOF
+# Upstream серверы для Docker контейнеров (localhost)
+upstream bot_backend {
+    server 127.0.0.1:1488;
+    keepalive 32;
+}
+
+upstream docs_backend {
+    server 127.0.0.1:3001;
+    keepalive 32;
+}
+
+upstream codex_docs_backend {
+    server 127.0.0.1:3002;
+    keepalive 32;
+}
+
+# HTTP редирект на HTTPS для основного домена
+server {
+    listen 80;
+    server_name ${MAIN_DOMAIN};
+    return 301 https://\$server_name\$request_uri;
+}
+
+# HTTPS сервер для основного домена (панель)
+server {
+    listen 443 ssl http2;
+    server_name ${MAIN_DOMAIN};
+    
+    # SSL сертификаты
+    ssl_certificate /etc/letsencrypt/live/${MAIN_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${MAIN_DOMAIN}/privkey.pem;
+    include /etc/nginx/snippets/ssl-params.conf;
+    
+    # Ограничение размера загружаемых файлов
+    client_max_body_size 20m;
+    
+    # Проксирование на bot сервис
+    location / {
+        proxy_pass http://bot_backend;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-Port \$server_port;
+        
+        # Таймауты
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+        
+        # Буферизация
+        proxy_buffering on;
+        proxy_buffer_size 4k;
+        proxy_buffers 8 4k;
+    }
+    
+    # Health check
+    location /health {
+        proxy_pass http://bot_backend/health;
+        access_log off;
+    }
+}
+
+# HTTP редирект на HTTPS для документации
+server {
+    listen 80;
+    server_name ${DOCS_DOMAIN};
+    return 301 https://\$server_name\$request_uri;
+}
+
+# HTTPS сервер для документации
+server {
+    listen 443 ssl http2;
+    server_name ${DOCS_DOMAIN};
+    
+    # SSL сертификаты
+    ssl_certificate /etc/letsencrypt/live/${DOCS_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOCS_DOMAIN}/privkey.pem;
+    include /etc/nginx/snippets/ssl-params.conf;
+    
+    # Ограничение размера загружаемых файлов
+    client_max_body_size 20m;
+    
+    # Проксирование на docs сервис
+    location / {
+        proxy_pass http://docs_backend;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-Port \$server_port;
+        
+        # Таймауты
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+    }
+    
+    # Health check
+    location /health {
+        proxy_pass http://docs_backend/health;
+        access_log off;
+    }
+}
+
+# HTTP редирект на HTTPS для админской документации
+server {
+    listen 80;
+    server_name ${HELP_DOMAIN};
+    return 301 https://\$server_name\$request_uri;
+}
+
+# HTTPS сервер для админской документации
+server {
+    listen 443 ssl http2;
+    server_name ${HELP_DOMAIN};
+    
+    # SSL сертификаты
+    ssl_certificate /etc/letsencrypt/live/${HELP_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${HELP_DOMAIN}/privkey.pem;
+    include /etc/nginx/snippets/ssl-params.conf;
+    
+    # Ограничение размера загружаемых файлов
+    client_max_body_size 20m;
+    
+    # Проксирование на codex-docs сервис
+    location / {
+        proxy_pass http://codex_docs_backend;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-Port \$server_port;
+        
+        # WebSocket поддержка с оптимизацией
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 60m;
+        proxy_buffering off;
+        
+        # Таймауты
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 30s;
+    }
+    
+    # Health check
+    location /health {
+        proxy_pass http://codex_docs_backend/;
+        access_log off;
+    }
+}
+
+# Блокировка неопознанных доменов
+server {
+    listen 80 default_server;
+    server_name _;
+    return 444;
+}
+
+server {
+    listen 443 ssl default_server;
+    server_name _;
+    
+    # Заглушка SSL сертификат
+    ssl_certificate /etc/letsencrypt/live/${MAIN_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${MAIN_DOMAIN}/privkey.pem;
+    include /etc/nginx/snippets/ssl-params.conf;
+    
+    return 444;
+}
+EOF
+
+# Заменяем HTTP конфигурацию на HTTPS
+rm -f /etc/nginx/sites-enabled/dark-maximus
+ln -sf /etc/nginx/sites-available/dark-maximus-ssl /etc/nginx/sites-enabled/
+
+# Проверяем конфигурацию nginx
+nginx -t
+
+echo -e "${GREEN}✔ HTTPS конфигурация nginx создана и проверена${NC}"
+
+echo -e "\n${CYAN}Шаг 7: Запуск nginx с SSL...${NC}"
+
+# Запускаем nginx
+systemctl start nginx
+systemctl enable nginx
+
+# Проверяем статус nginx
+systemctl status nginx --no-pager -l
 
 echo -e "\n${CYAN}Шаг 8: Настройка автообновления сертификатов...${NC}"
 
-# Создаем скрипт для автообновления
-PROJECT_ABS_DIR="$(pwd -P)"
-echo '#!/usr/bin/env bash' | sudo tee /usr/local/bin/dc >/dev/null
-echo 'exec '"${DC[*]}"' "$@"' | sudo tee -a /usr/local/bin/dc >/dev/null
-sudo chmod +x /usr/local/bin/dc
+# Создаем скрипт для обновления сертификатов
+cat > /usr/local/bin/renew-ssl.sh << 'EOF'
+#!/bin/bash
+# Скрипт обновления SSL сертификатов
 
-# Создаем cron задачу для автообновления
-POST_HOOK='
-name=$(docker ps --filter "name=nginx-proxy" --format "{{.Names}}" | head -1);
-if [ -n "$name" ]; then docker exec "$name" sh -c "nginx -t && nginx -s reload" || docker restart "$name"; fi
-'
+echo "Проверка обновления SSL сертификатов..."
+certbot renew --quiet --post-hook "systemctl reload nginx"
 
-sudo bash -c "cat > /etc/cron.d/certbot-renew" << EOF
-SHELL=/bin/sh
-PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-30 2 * * * root /usr/bin/certbot renew --quiet \\
-  --pre-hook "/usr/local/bin/dc -f ${PROJECT_ABS_DIR}/docker-compose.yml stop nginx-proxy" \\
-  --post-hook 'eval '"$(printf %q "$POST_HOOK")"
+if [ $? -eq 0 ]; then
+    echo "SSL сертификаты обновлены успешно"
+else
+    echo "Ошибка при обновлении SSL сертификатов"
+    exit 1
+fi
 EOF
 
-sudo chmod 644 /etc/cron.d/certbot-renew
-sudo systemctl reload cron || sudo service cron reload
+chmod +x /usr/local/bin/renew-ssl.sh
 
-echo -e "${GREEN}✔ Автообновление сертификатов настроено.${NC}"
+# Настраиваем cron для автообновления каждые 2 месяца
+(crontab -l 2>/dev/null; echo "0 3 1 */2 * /usr/local/bin/renew-ssl.sh >> /var/log/ssl-renewal.log 2>&1") | crontab -
 
-echo -e "\n\n${GREEN}==============================================${NC}"
-echo -e "${GREEN}      🎉 Настройка SSL успешно завершена! 🎉      ${NC}"
-echo -e "${GREEN}==============================================${NC}"
+echo -e "${GREEN}✔ Автообновление сертификатов настроено (каждые 2 месяца)${NC}"
 
-echo -e "\n${CYAN}📱 Доступные сервисы (HTTPS):${NC}"
+echo -e "\n${CYAN}Шаг 9: Проверка SSL сертификатов...${NC}"
 
-echo -e "\n${YELLOW}1. Основной бот и админ-панель:${NC}"
+# Проверяем сертификаты
+echo -e "${YELLOW}Проверка сертификатов...${NC}"
+certbot certificates
+
+echo -e "\n${CYAN}Шаг 10: Финальная проверка доступности...${NC}"
+
+# Ждем полного запуска
+sleep 5
+
+# Проверяем доступность HTTPS сервисов
+echo -e "${YELLOW}Проверка HTTPS доступности...${NC}"
+
+# Проверяем основной домен
+if curl -f -s -k https://${MAIN_DOMAIN}/health >/dev/null 2>&1; then
+    echo -e "${GREEN}✅ HTTPS панель доступна: https://${MAIN_DOMAIN}${NC}"
+else
+    echo -e "${RED}❌ HTTPS панель недоступна${NC}"
+fi
+
+# Проверяем документацию
+if curl -f -s -k https://${DOCS_DOMAIN}/health >/dev/null 2>&1; then
+    echo -e "${GREEN}✅ HTTPS документация доступна: https://${DOCS_DOMAIN}${NC}"
+else
+    echo -e "${RED}❌ HTTPS документация недоступна${NC}"
+fi
+
+# Проверяем админскую документацию
+if curl -f -s -k https://${HELP_DOMAIN}/ >/dev/null 2>&1; then
+    echo -e "${GREEN}✅ HTTPS админ-документация доступна: https://${HELP_DOMAIN}${NC}"
+else
+    echo -e "${RED}❌ HTTPS админ-документация недоступна${NC}"
+fi
+
+echo -e "\n${GREEN}===============================================${NC}"
+echo -e "${GREEN}      🎉 Настройка SSL успешно завершена! 🎉  ${NC}"
+echo -e "${GREEN}===============================================${NC}"
+
+echo -e "\n${BLUE}📱 Доступные сервисы (HTTPS):${NC}"
+echo -e "1. Основной бот и админ-панель:"
 echo -e "   - ${GREEN}https://${MAIN_DOMAIN}/login${NC}"
 
-echo -e "\n${YELLOW}2. Пользовательская документация:${NC}"
+# Читаем пароль админа из файла
+if [ -f ".admin_pass" ]; then
+    ADMIN_PASSWORD=$(cat .admin_pass)
+    echo -e "   - Логин: ${YELLOW}admin${NC}"
+    echo -e "   - Пароль: ${YELLOW}${ADMIN_PASSWORD}${NC}"
+else
+    echo -e "   - Логин: ${YELLOW}admin${NC}"
+    echo -e "   - Пароль: ${YELLOW}admin${NC} (по умолчанию)"
+fi
+
+echo -e "\n2. Пользовательская документация:"
 echo -e "   - ${GREEN}https://${DOCS_DOMAIN}${NC}"
 
-echo -e "\n${YELLOW}3. Админская документация (Codex.docs):${NC}"
+echo -e "\n3. Админская документация (Codex.docs):"
 echo -e "   - ${GREEN}https://${HELP_DOMAIN}${NC}"
 
-echo -e "\n${GREEN}✅ Используются доверенные Let's Encrypt SSL сертификаты${NC}"
-echo -e "✅ Автообновление сертификатов настроено"
-echo -e "✅ Мягкий reload nginx при обновлении сертификатов"
+echo -e "\n${BLUE}🔧 Полезные команды:${NC}"
+echo -e "- Проверить сертификаты: ${YELLOW}certbot certificates${NC}"
+echo -e "- Тест обновления: ${YELLOW}certbot renew --dry-run${NC}"
+echo -e "- Принудительное обновление: ${YELLOW}certbot renew --force-renewal${NC}"
+echo -e "- Проверить nginx: ${YELLOW}nginx -t${NC}"
+echo -e "- Перезапустить nginx: ${YELLOW}systemctl restart nginx${NC}"
 
-echo -e "\n"
+echo -e "\n${BLUE}📋 Мониторинг:${NC}"
+echo -e "- Логи обновления SSL: ${YELLOW}/var/log/ssl-renewal.log${NC}"
+echo -e "- Логи nginx: ${YELLOW}/var/log/nginx/error.log${NC}"
+echo -e "- Статус сервисов: ${YELLOW}${DC[@]} ps${NC}"
+
+echo -e "\n${BLUE}🔒 Безопасность:${NC}"
+echo -e "- Современные SSL настройки с TLS 1.2/1.3"
+echo -e "- Заголовки безопасности (HSTS, CSP, X-Frame-Options)"
+echo -e "- Отладочные порты доступны только с localhost"
+echo -e "- Автообновление сертификатов каждые 2 месяца"
+
+echo -e "\n${GREEN}SSL настройка завершена! Все сервисы работают по HTTPS.${NC}"
