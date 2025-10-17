@@ -39,7 +39,10 @@ read_input() {
     fi
     
     # Интерактивный ввод
-    read -p "$prompt" "$var_name"
+    read -p "$prompt" "$var_name" || {
+        echo -e "${RED}❌ Ошибка ввода. Установка прервана.${NC}"
+        exit 1
+    }
 }
 
 # Выбираем docker compose v1/v2
@@ -58,6 +61,13 @@ if [ "$EUID" -ne 0 ]; then
     echo -e "${RED}❌ Запустите скрипт с правами root: sudo ./install.sh${NC}"
     exit 1
 fi
+
+# Безопасная проверка аргументов командной строки
+# Инициализируем переменные для предотвращения ошибок "unbound variable"
+MAIN_DOMAIN=""
+PANEL_DOMAIN=""
+DOCS_DOMAIN=""
+HELP_DOMAIN=""
 
 # Определяем директорию установки
 INSTALL_DIR="/opt/dark-maximus"
@@ -168,6 +178,10 @@ echo -e "${GREEN}✔ Docker и Docker Compose установлены${NC}"
 echo -e "\n${CYAN}Шаг 3: Настройка доменов...${NC}"
 
 # Получаем домен из аргументов командной строки или переменных окружения
+echo -e "${YELLOW}Проверка источников домена...${NC}"
+echo -e "Количество аргументов: $#"
+echo -e "Переменная DOMAIN: ${DOMAIN:-не установлена}"
+
 if [ $# -gt 0 ] && [ -n "${1:-}" ]; then
     MAIN_DOMAIN="$1"
     echo -e "${GREEN}✔ Домен получен из аргументов: ${MAIN_DOMAIN}${NC}"
@@ -175,6 +189,7 @@ elif [ -n "${DOMAIN:-}" ]; then
     MAIN_DOMAIN="$DOMAIN"
     echo -e "${GREEN}✔ Домен получен из переменной окружения: ${MAIN_DOMAIN}${NC}"
 else
+    echo -e "${YELLOW}Аргументы и переменная окружения не найдены, запрашиваем интерактивный ввод...${NC}"
     # Запрашиваем основной домен
     read_input "Введите основной домен (например: example.com): " MAIN_DOMAIN
 fi
