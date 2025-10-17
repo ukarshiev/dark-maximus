@@ -312,6 +312,10 @@ fi
 
 # Инициализируем базу данных с правильным паролем админа
 echo -e "${YELLOW}Инициализация базы данных с настройками...${NC}"
+
+# Устанавливаем bcrypt если его нет
+pip3 install bcrypt 2>/dev/null || echo "bcrypt уже установлен"
+
 python3 -c "
 import sqlite3
 import bcrypt
@@ -329,8 +333,8 @@ cursor.execute('''
     )
 ''')
 
-# Хешируем пароль админа
-admin_password = os.environ.get('ADMIN_PASSWORD', 'admin')
+# Хешируем пароль админа (используем простой пароль admin)
+admin_password = 'admin'
 hashed_password = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 # Вставляем настройки админа
