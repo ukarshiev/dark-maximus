@@ -493,7 +493,7 @@ EOF
 
 # Очищаем старые конфигурации nginx
 rm -f /etc/nginx/sites-enabled/*
-rm -f /etc/nginx/sites-available/dark-maximus*
+# НЕ удаляем dark-maximus конфигурацию, она нужна для шага 9
 
 # Создаем временную конфигурацию nginx без upstream (для проверки синтаксиса)
 cat > /etc/nginx/sites-available/dark-maximus-temp << EOF
