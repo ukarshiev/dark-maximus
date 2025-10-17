@@ -209,10 +209,57 @@ def _marker_logged(user_id: int, key_id: int, marker_hours: int, notif_type: str
     except Exception:
         return False
 
+def cleanup_duplicate_notifications():
+    """Очищает дублирующиеся уведомления в базе данных."""
+    try:
+        from shop_bot.data_manager.database import DB_FILE
+        import sqlite3
+        from datetime import datetime, timedelta
+        
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            
+            # Удаляем дублирующиеся уведомления, оставляя только самое свежее
+            cursor.execute("""
+                DELETE FROM notifications 
+                WHERE notification_id NOT IN (
+                    SELECT MAX(notification_id) 
+                    FROM notifications 
+                    WHERE type = 'subscription_plan_unavailable'
+                    GROUP BY user_id, key_id, marker_hours
+                ) AND type = 'subscription_plan_unavailable'
+            """)
+            
+            deleted_count = cursor.rowcount
+            if deleted_count > 0:
+                logger.info(f"Cleaned up {deleted_count} duplicate plan unavailable notifications")
+            
+            # Удаляем уведомления старше 7 дней
+            week_ago = datetime.now() - timedelta(days=7)
+            cursor.execute("""
+                DELETE FROM notifications 
+                WHERE created_date < ? AND type IN ('subscription_plan_unavailable', 'subscription_expiry', 'subscription_autorenew_notice')
+            """, (week_ago,))
+            
+            old_deleted = cursor.rowcount
+            if old_deleted > 0:
+                logger.info(f"Cleaned up {old_deleted} old notifications (older than 7 days)")
+            
+            conn.commit()
+            
+    except Exception as e:
+        logger.error(f"Failed to cleanup duplicate notifications: {e}")
+
 async def send_plan_unavailable_notice(bot: Bot, user_id: int, key_id: int, time_left_hours: int, expiry_date: datetime):
     """Уведомление о недоступности тарифа для автопродления."""
     try:
         from datetime import timezone, timedelta
+        
+        # ДОПОЛНИТЕЛЬНАЯ ЗАЩИТА ОТ СПАМА: проверяем, не было ли уже отправлено уведомление
+        if _marker_logged(user_id, key_id, time_left_hours, 'subscription_plan_unavailable'):
+            logger.debug(f"Plan unavailable notice already sent for user {user_id}, key {key_id}, marker {time_left_hours}h. Skipping.")
+            return
+        
         # Проверяем, что время не истекло
         current_time_utc = datetime.now(timezone.utc).replace(tzinfo=None)
         if expiry_date <= current_time_utc:
@@ -429,26 +476,35 @@ async def check_expiring_subscriptions(bot: Bot):
                         if not is_plan_available:
                             # Тариф удален или скрыт - отправляем предупреждение
                             if not _marker_logged(user_id, key_id, hours_mark, 'subscription_plan_unavailable'):
-                                await send_plan_unavailable_notice(bot, user_id, key_id, hours_mark, expiry_date)
-                                notified_users.setdefault(user_id, {}).setdefault(key_id, set()).add(hours_mark)
-                                break
-                            continue
+                                try:
+                                    await send_plan_unavailable_notice(bot, user_id, key_id, hours_mark, expiry_date)
+                                    notified_users.setdefault(user_id, {}).setdefault(key_id, set()).add(hours_mark)
+                                    logger.info(f"Sent plan unavailable notice for user {user_id}, key {key_id}, marker {hours_mark}h")
+                                except Exception as e:
+                                    logger.error(f"Failed to send plan unavailable notice: {e}")
+                            break  # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: выходим из цикла после проверки недоступности тарифа
                         
                         balance_covers = price_to_renew > 0 and user_balance >= price_to_renew
                         if balance_covers:
                             # Подавляем стандартные уведомления. На 24ч — отправляем новый тип, один раз.
                             if hours_mark == 24 and not _marker_logged(user_id, key_id, hours_mark, 'subscription_autorenew_notice'):
-                                await send_autorenew_balance_notice(bot, user_id, key_id, hours_mark, expiry_date, user_balance)
-                                notified_users.setdefault(user_id, {}).setdefault(key_id, set()).add(hours_mark)
-                                break
-                            # 72/48/1 — ничего не отправляем
-                            continue
+                                try:
+                                    await send_autorenew_balance_notice(bot, user_id, key_id, hours_mark, expiry_date, user_balance)
+                                    notified_users.setdefault(user_id, {}).setdefault(key_id, set()).add(hours_mark)
+                                    logger.info(f"Sent autorenew notice for user {user_id}, key {key_id}, marker {hours_mark}h")
+                                except Exception as e:
+                                    logger.error(f"Failed to send autorenew notice: {e}")
+                            break  # ВАЖНО: выходим из цикла после проверки автопродления
                         else:
                             # Обычные уведомления
                             if not _marker_logged(user_id, key_id, hours_mark, 'subscription_expiry'):
-                                await send_subscription_notification(bot, user_id, key_id, hours_mark, expiry_date)
-                                notified_users.setdefault(user_id, {}).setdefault(key_id, set()).add(hours_mark)
-                                break
+                                try:
+                                    await send_subscription_notification(bot, user_id, key_id, hours_mark, expiry_date)
+                                    notified_users.setdefault(user_id, {}).setdefault(key_id, set()).add(hours_mark)
+                                    logger.info(f"Sent subscription expiry notice for user {user_id}, key {key_id}, marker {hours_mark}h")
+                                except Exception as e:
+                                    logger.error(f"Failed to send subscription expiry notice: {e}")
+                            break  # ВАЖНО: выходим из цикла после отправки обычного уведомления
             else:
                 # Ключ уже истек - не отправляем уведомления об истечении
                 logger.debug(f"Key {key_id} for user {user_id} has already expired ({int(time_left.total_seconds())} seconds left). Skipping notifications.")
@@ -682,6 +738,9 @@ async def periodic_subscription_check(bot_controller: BotController):
 
     while True:
         try:
+            # Очищаем дублирующиеся уведомления (раз в цикл)
+            cleanup_duplicate_notifications()
+            
             # Обновляем статус ключей на основе реального времени истечения
             from shop_bot.data_manager.database import update_keys_status_by_expiry
             update_keys_status_by_expiry()

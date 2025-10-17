@@ -21,10 +21,13 @@ RUN if [ ! -f ./docs/index.html ]; then \
 # =========================================
 FROM nginxinc/nginx-unprivileged:alpine3.22
 
+# Переключаемся на root для установки пакетов
+USER root
+
 # Устанавливаем netcat и wget для healthcheck
 RUN apk add --no-cache netcat-openbsd wget
 
-# Используем встроенного не-root пользователя для безопасности
+# Переключаемся обратно на nginx пользователя для безопасности
 USER nginx
 
 # Копируем кастомную конфигурацию Nginx

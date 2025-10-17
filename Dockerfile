@@ -47,43 +47,38 @@ RUN echo "🚀 Начинаем развертывание админской д
     fi && \
     # Создаем quickstart.md если его нет
     if [ ! -f "docs/user-docs/admin/quickstart.md" ]; then \
-        cat > docs/user-docs/admin/quickstart.md << 'EOF'
-# ⚡ Быстрый старт
-
-## 🚀 Первые шаги
-
-1. Зайдите в админ-панель
-2. Настройте Telegram бота
-3. Добавьте серверы 3x-ui
-4. Создайте тарифы
-
-## 📋 Основные настройки
-
-- **Telegram Bot Token**: Получите у @BotFather
-- **Admin Telegram ID**: Ваш ID в Telegram
-- **3x-ui серверы**: Добавьте через панель
-
-## 🔧 Полезные ссылки
-
-- [Полное руководство](guide.md)
-- [Чек-лист безопасности](security.md)
-- [API документация](api.md)
-EOF
+        echo "# ⚡ Быстрый старт" > docs/user-docs/admin/quickstart.md && \
+        echo "" >> docs/user-docs/admin/quickstart.md && \
+        echo "## 🚀 Первые шаги" >> docs/user-docs/admin/quickstart.md && \
+        echo "" >> docs/user-docs/admin/quickstart.md && \
+        echo "1. Зайдите в админ-панель" >> docs/user-docs/admin/quickstart.md && \
+        echo "2. Настройте Telegram бота" >> docs/user-docs/admin/quickstart.md && \
+        echo "3. Добавьте серверы 3x-ui" >> docs/user-docs/admin/quickstart.md && \
+        echo "4. Создайте тарифы" >> docs/user-docs/admin/quickstart.md && \
+        echo "" >> docs/user-docs/admin/quickstart.md && \
+        echo "## 📋 Основные настройки" >> docs/user-docs/admin/quickstart.md && \
+        echo "" >> docs/user-docs/admin/quickstart.md && \
+        echo "- **Telegram Bot Token**: Получите у @BotFather" >> docs/user-docs/admin/quickstart.md && \
+        echo "- **Admin Telegram ID**: Ваш ID в Telegram" >> docs/user-docs/admin/quickstart.md && \
+        echo "- **3x-ui серверы**: Добавьте через панель" >> docs/user-docs/admin/quickstart.md && \
+        echo "" >> docs/user-docs/admin/quickstart.md && \
+        echo "## 🔧 Полезные ссылки" >> docs/user-docs/admin/quickstart.md && \
+        echo "" >> docs/user-docs/admin/quickstart.md && \
+        echo "- [Полное руководство](guide.md)" >> docs/user-docs/admin/quickstart.md && \
+        echo "- [Чек-лист безопасности](security.md)" >> docs/user-docs/admin/quickstart.md && \
+        echo "- [API документация](api.md)" >> docs/user-docs/admin/quickstart.md && \
         echo "✅ Создан quickstart.md"; \
     fi && \
     # Обновляем _sidebar.md если нужно
     if [ -f "docs/user-docs/_sidebar.md" ] && ! grep -q "Админская документация" docs/user-docs/_sidebar.md; then \
-        cat >> docs/user-docs/_sidebar.md << 'EOF'
-
----
-
-* **📖 Админская документация**
-  * [⚡ Быстрый старт](admin/quickstart.md)
-  * [📖 Полное руководство](admin/guide.md)
-  * [🔒 Чек-лист безопасности](admin/security.md)
-  * [🔌 API документация](admin/api.md)
-
-EOF
+        echo "" >> docs/user-docs/_sidebar.md && \
+        echo "---" >> docs/user-docs/_sidebar.md && \
+        echo "" >> docs/user-docs/_sidebar.md && \
+        echo "* **📖 Админская документация**" >> docs/user-docs/_sidebar.md && \
+        echo "  * [⚡ Быстрый старт](admin/quickstart.md)" >> docs/user-docs/_sidebar.md && \
+        echo "  * [📖 Полное руководство](admin/guide.md)" >> docs/user-docs/_sidebar.md && \
+        echo "  * [🔒 Чек-лист безопасности](admin/security.md)" >> docs/user-docs/_sidebar.md && \
+        echo "  * [🔌 API документация](admin/api.md)" >> docs/user-docs/_sidebar.md && \
         echo "✅ Обновлен _sidebar.md"; \
     fi && \
     echo "✅ Админская документация успешно развернута!"
