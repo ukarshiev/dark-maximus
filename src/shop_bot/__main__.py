@@ -7,6 +7,7 @@ import logging
 import threading
 import asyncio
 import signal
+import os
 
 from shop_bot.webhook_server.app import create_webhook_app
 from shop_bot.data_manager.scheduler import periodic_subscription_check
@@ -94,9 +95,13 @@ def main():
         bot_controller.set_loop(loop)
         flask_app.config['EVENT_LOOP'] = loop
         
-        # Отключаем логи Werkzeug
+        # Настраиваем логирование Werkzeug в зависимости от окружения
         import logging
-        logging.getLogger('werkzeug').setLevel(logging.ERROR)
+        werkzeug_logger = logging.getLogger('werkzeug')
+        if os.getenv('FLASK_DEBUG', 'false').lower() == 'true':
+            werkzeug_logger.setLevel(logging.INFO)
+        else:
+            werkzeug_logger.setLevel(logging.ERROR)
         
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(sig, lambda sig=sig: asyncio.create_task(shutdown(sig, loop)))

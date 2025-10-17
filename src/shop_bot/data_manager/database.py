@@ -161,23 +161,25 @@ def initialize_db():
             ''')
 
             # Миграция: добавляем новые поля в таблицу vpn_keys если их нет
-            try:
-                cursor.execute("ALTER TABLE vpn_keys ADD COLUMN subscription TEXT")
-            except sqlite3.OperationalError:
-                # Поле уже существует
-                pass
-
-            try:
-                cursor.execute("ALTER TABLE vpn_keys ADD COLUMN telegram_chat_id INTEGER")
-            except sqlite3.OperationalError:
-                # Поле уже существует
-                pass
-
-            try:
-                cursor.execute("ALTER TABLE vpn_keys ADD COLUMN comment TEXT")
-            except sqlite3.OperationalError:
-                # Поле уже существует
-                pass
+            # Проверяем существование колонок перед добавлением для оптимизации
+            cursor.execute("PRAGMA table_info(vpn_keys)")
+            existing_columns = [row[1] for row in cursor.fetchall()]
+            
+            new_columns = [
+                ("subscription", "TEXT"),
+                ("telegram_chat_id", "INTEGER"),
+                ("comment", "TEXT")
+            ]
+            
+            for column_name, column_type in new_columns:
+                if column_name not in existing_columns:
+                    try:
+                        cursor.execute(f"ALTER TABLE vpn_keys ADD COLUMN {column_name} {column_type}")
+                        logging.info(f" -> The column '{column_name}' is successfully added to vpn_keys table.")
+                    except sqlite3.OperationalError as e:
+                        logging.warning(f" -> Failed to add column '{column_name}': {e}")
+                else:
+                    logging.debug(f" -> The column '{column_name}' already exists in vpn_keys table.")
 
             cursor.execute('''
 

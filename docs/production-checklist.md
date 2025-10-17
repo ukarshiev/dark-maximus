@@ -72,7 +72,6 @@ curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.
 **Скрипт установит:**
 - ✅ Все зависимости
 - ✅ Nginx
-- ✅ SSL сертификаты (Let's Encrypt)
 - ✅ Docker контейнеры
 - ✅ Базовую конфигурацию
 
@@ -85,8 +84,16 @@ curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.
 ### Решение: Nginx + Let's Encrypt
 
 ```bash
-# Автоматическая настройка
-curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/setup-ssl.sh | sudo bash
+# Автоматическая настройка SSL (запускать ПОСЛЕ основной установки)
+curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/ssl-install.sh | sudo bash
+```
+
+**Или вручную:**
+```bash
+# Скачать и запустить SSL скрипт
+curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/setup-ssl.sh -o setup-ssl.sh
+chmod +x setup-ssl.sh
+sudo ./setup-ssl.sh
 ```
 
 ### Настройка 3x-ui после SSL

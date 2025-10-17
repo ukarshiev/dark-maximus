@@ -8,14 +8,14 @@
     ],
     "venvPath": ".",
     "venv": "venv",
-    "pythonVersion": "3.13",
+    "pythonVersion": "3.11",
     "typeCheckingMode": "basic",
     "useLibraryCodeForTypes": true,
     "autoImportCompletions": true,
     "extraPaths": [
         "src"
     ],
-    "pythonPath": "venv/Scripts/python.exe",
+    "pythonPath": "venv/bin/python",
     "reportMissingImports": "warning",
     "reportMissingTypeStubs": false,
     "reportOptionalMemberAccess": "warning",

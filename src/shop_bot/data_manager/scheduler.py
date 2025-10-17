@@ -136,8 +136,7 @@ async def send_subscription_notification(bot: Bot, user_id: int, key_id: int, ti
         builder.button(text="💰 Пополнить баланс", callback_data="topup_root")
         builder.adjust(2)
 
-        await bot.send_message(chat_id=user_id, text=message, reply_markup=builder.as_markup(), parse_mode='Markdown')
-        # Логируем уведомление в БД
+        # Сначала логируем уведомление в БД, чтобы предотвратить дублирование
         try:
             from shop_bot.data_manager.database import log_notification, get_user
             user = get_user(user_id)
@@ -160,6 +159,10 @@ async def send_subscription_notification(bot: Bot, user_id: int, key_id: int, ti
             )
         except Exception as le:
             logger.warning(f"Failed to log notification for user {user_id}: {le}")
+            return  # Не отправляем сообщение, если не удалось записать в БД
+
+        # Теперь отправляем сообщение
+        await bot.send_message(chat_id=user_id, text=message, reply_markup=builder.as_markup(), parse_mode='Markdown')
         logger.info(f"Sent subscription notification to user {user_id} for key {key_id} ({time_left_hours} hours left).")
         
     except Exception as e:
@@ -241,9 +244,7 @@ async def send_plan_unavailable_notice(bot: Bot, user_id: int, key_id: int, time
             "Для продления перейдите в меню: 🛒 Купить → 🔄 Продлить ключ"
         )
 
-        await bot.send_message(chat_id=user_id, text=message)
-
-        # Логируем уведомление в БД
+        # Сначала логируем уведомление в БД, чтобы предотвратить дублирование
         try:
             from shop_bot.data_manager.database import log_notification, get_user
             user = get_user(user_id)
@@ -260,10 +261,16 @@ async def send_plan_unavailable_notice(bot: Bot, user_id: int, key_id: int, time
                     'time_left_hours': time_left_hours,
                     'key_number': key_number,
                     'host_name': host_name
-                }
+                },
+                key_id=key_id,
+                marker_hours=time_left_hours
             )
         except Exception as e:
             logger.warning(f"Failed to log plan unavailable notification: {e}")
+            return  # Не отправляем сообщение, если не удалось записать в БД
+
+        # Теперь отправляем сообщение
+        await bot.send_message(chat_id=user_id, text=message)
 
         logger.info(f"Sent plan unavailable notice to user {user_id} for key {key_id}, time_left={time_left_hours}h")
     except Exception as e:
@@ -322,9 +329,7 @@ async def send_autorenew_balance_notice(bot: Bot, user_id: int, key_id: int, tim
             "❤️ Спасибо, что остаётесь с нами!"
         )
 
-        await bot.send_message(chat_id=user_id, text=message)
-
-        # Логируем уведомление в БД
+        # Сначала логируем уведомление в БД, чтобы предотвратить дублирование
         try:
             from shop_bot.data_manager.database import log_notification, get_user
             user = get_user(user_id)
@@ -349,6 +354,10 @@ async def send_autorenew_balance_notice(bot: Bot, user_id: int, key_id: int, tim
             )
         except Exception as le:
             logger.warning(f"Failed to log autorenew notice for user {user_id}: {le}")
+            return  # Не отправляем сообщение, если не удалось записать в БД
+
+        # Теперь отправляем сообщение
+        await bot.send_message(chat_id=user_id, text=message)
         logger.info(f"Sent autorenew balance notice to user {user_id} for key {key_id} ({time_left_hours} hours left).")
     except Exception as e:
         logger.error(f"Error sending autorenew notice to user {user_id}: {e}")
@@ -444,8 +453,12 @@ async def check_expiring_subscriptions(bot: Bot):
                 # Ключ уже истек - не отправляем уведомления об истечении
                 logger.debug(f"Key {key_id} for user {user_id} has already expired ({int(time_left.total_seconds())} seconds left). Skipping notifications.")
 
+        except KeyError as e:
+            logger.error(f"Missing key data for processing expiry: {e}")
+        except ValueError as e:
+            logger.error(f"Invalid data format for key {key.get('key_id')}: {e}")
         except Exception as e:
-            logger.error(f"Error processing expiry for key {key.get('key_id')}: {e}")
+            logger.error(f"Unexpected error processing expiry for key {key.get('key_id')}: {e}", exc_info=True)
 
 async def perform_auto_renewals(bot: Bot):
     """Автопродление по истечении срока при достаточном балансе."""
@@ -516,6 +529,10 @@ async def perform_auto_renewals(bot: Bot):
                 from shop_bot.bot.handlers import process_successful_payment
                 await process_successful_payment(bot, metadata)
                 logger.info(f"Auto-renewal completed for user {user_id}, key {key_id} on host '{host_name}'.")
+            except ValueError as e:
+                logger.error(f"Invalid data for auto-renewal user {user_id}, key {key_id}: {e}")
+            except KeyError as e:
+                logger.error(f"Missing required data for auto-renewal user {user_id}, key {key_id}: {e}")
             except Exception as e:
                 logger.error(f"Auto-renewal failed for user {user_id}, key {key_id}: {e}", exc_info=True)
     except Exception as e:
@@ -644,6 +661,12 @@ async def sync_keys_with_panels():
                     logger.warning(f"Scheduler: ⚠️ Auto-deletion is disabled. {count_orphans} orphan client(s) will NOT be deleted.")
                     orphan_summary_with_errors.append((host_name, count_orphans))
 
+        except ConnectionError as e:
+            logger.error(f"Scheduler: Connection error while processing host '{host_name}': {e}")
+        except TimeoutError as e:
+            logger.error(f"Scheduler: Timeout error while processing host '{host_name}': {e}")
+        except ValueError as e:
+            logger.error(f"Scheduler: Invalid data while processing host '{host_name}': {e}")
         except Exception as e:
             logger.error(f"Scheduler: An unexpected error occurred while processing host '{host_name}': {e}", exc_info=True)
             

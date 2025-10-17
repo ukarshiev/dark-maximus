@@ -134,15 +134,23 @@ docker compose logs -f bot
 
 **1. Подключитесь к вашему серверу по SSH.**
 
-**2. Выполните команду:**
+**2. Выполните команду для основной установки:**
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash
 ```
 
+**3. Настройте DNS A-записи для всех доменов на IP вашего сервера.**
+
+**4. Запустите SSL настройку (опционально, для HTTPS):**
+
+```bash
+curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/ssl-install.sh | sudo bash
+```
+
 **Если вы обновляли бота, то иснтрукции ниже не появятся!**
 
-**3. Следуйте инструкциям установщика:**
+**5. Следуйте инструкциям установщика:**
 
 Скрипт проверит все зависимости.
 

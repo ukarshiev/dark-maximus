@@ -21,8 +21,8 @@ RUN if [ ! -f ./docs/index.html ]; then \
 # =========================================
 FROM nginxinc/nginx-unprivileged:alpine3.22
 
-# Устанавливаем netcat для healthcheck
-RUN apk add --no-cache netcat-openbsd
+# Устанавливаем netcat и wget для healthcheck
+RUN apk add --no-cache netcat-openbsd wget
 
 # Используем встроенного не-root пользователя для безопасности
 USER nginx

@@ -94,9 +94,11 @@ def create_webhook_app(bot_controller_instance):
     
     # Настройка CSRF защиты
     csrf = CSRFProtect(flask_app)
-    flask_app.config['WTF_CSRF_CHECK_DEFAULT'] = False  # Отключаем по умолчанию
+    # Включаем CSRF защиту для production, отключаем только для разработки
+    is_production = os.getenv('FLASK_ENV') == 'production' or not os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+    flask_app.config['WTF_CSRF_CHECK_DEFAULT'] = is_production
     flask_app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 час
-    flask_app.config['WTF_CSRF_SSL_STRICT'] = False  # Для разработки
+    flask_app.config['WTF_CSRF_SSL_STRICT'] = is_production  # SSL проверка для production
     
     # Инициализация файловой сессии
     from flask_session import Session

@@ -199,8 +199,13 @@ echo -e "\n${CYAN}Шаг 4: Генерация секретов...${NC}"
 FLASK_SECRET_KEY=$(openssl rand -hex 32)
 ADMIN_PASSWORD=$(openssl rand -base64 18)
 
-# Создаем .env файл
-cat > .env << EOF
+# Создаем .env файл на основе шаблона
+if [ -f "config/env.example" ]; then
+    cp config/env.example .env
+    echo -e "${YELLOW}Скопирован шаблон .env из config/env.example${NC}"
+else
+    # Создаем базовый .env файл
+    cat > .env << EOF
 # Dark Maximus Environment Variables
 # Автоматически сгенерировано при установке
 
@@ -212,7 +217,19 @@ ADMIN_PASSWORD=${ADMIN_PASSWORD}
 
 # SSH Port
 SSH_PORT=22
+
+# Domains
+MAIN_DOMAIN=${MAIN_DOMAIN}
+PANEL_DOMAIN=${PANEL_DOMAIN}
+DOCS_DOMAIN=${DOCS_DOMAIN}
+HELP_DOMAIN=${HELP_DOMAIN}
 EOF
+fi
+
+# Обновляем .env с нашими значениями
+sed -i "s/FLASK_SECRET_KEY=.*/FLASK_SECRET_KEY=${FLASK_SECRET_KEY}/" .env
+sed -i "s/ADMIN_PASSWORD=.*/ADMIN_PASSWORD=${ADMIN_PASSWORD}/" .env
+sed -i "s/DOMAIN=.*/DOMAIN=${MAIN_DOMAIN}/" .env
 
 # Сохраняем пароль админа в отдельный файл
 echo "$ADMIN_PASSWORD" > .admin_pass
@@ -220,6 +237,32 @@ chmod 600 .admin_pass
 
 echo -e "${GREEN}✔ Секреты сгенерированы и сохранены в .env${NC}"
 echo -e "${YELLOW}⚠️  Пароль админа сохранен в .admin_pass (только для чтения root)${NC}"
+
+echo -e "\n${CYAN}Шаг 4.1: Создание необходимых директорий...${NC}"
+
+# Создаем необходимые директории
+mkdir -p logs
+mkdir -p backups
+mkdir -p codex.docs/uploads
+mkdir -p codex.docs/db
+mkdir -p sessions
+
+# Устанавливаем правильные права доступа
+chmod 755 logs backups sessions
+chmod 755 codex.docs/uploads codex.docs/db
+
+echo -e "${GREEN}✔ Необходимые директории созданы${NC}"
+
+echo -e "\n${CYAN}Шаг 4.2: Инициализация базы данных...${NC}"
+
+# Создаем пустую базу данных если её нет
+if [ ! -f "users.db" ]; then
+    touch users.db
+    chmod 644 users.db
+    echo -e "${YELLOW}Создана пустая база данных users.db${NC}"
+fi
+
+echo -e "${GREEN}✔ База данных готова${NC}"
 
 echo -e "\n${CYAN}Шаг 5: Создание docker-compose.yml...${NC}"
 
@@ -466,6 +509,54 @@ ufw --force enable
 
 echo -e "${GREEN}✔ UFW настроен безопасно${NC}"
 
+echo -e "\n${CYAN}Шаг 7.1: Настройка logrotate...${NC}"
+
+# Создаем конфигурацию logrotate для логов проекта
+cat > /etc/logrotate.d/dark-maximus << EOF
+${PROJECT_DIR}/logs/*.log {
+    daily
+    missingok
+    rotate 30
+    compress
+    delaycompress
+    notifempty
+    create 644 root root
+    postrotate
+        # Перезапускаем nginx если нужно
+        systemctl reload nginx > /dev/null 2>&1 || true
+    endscript
+}
+EOF
+
+echo -e "${GREEN}✔ Logrotate настроен${NC}"
+
+echo -e "\n${CYAN}Шаг 7.2: Создание systemd сервиса...${NC}"
+
+# Создаем systemd сервис для автозапуска
+cat > /etc/systemd/system/dark-maximus.service << EOF
+[Unit]
+Description=Dark Maximus VPN Bot
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=${PROJECT_DIR}
+ExecStart=/usr/bin/docker compose up -d
+ExecStop=/usr/bin/docker compose down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Перезагружаем systemd и включаем сервис
+systemctl daemon-reload
+systemctl enable dark-maximus.service
+
+echo -e "${GREEN}✔ Systemd сервис создан и включен${NC}"
+
 echo -e "\n${CYAN}Шаг 8: Запуск Docker контейнеров...${NC}"
 
 # Собираем и запускаем контейнеры
@@ -546,6 +637,20 @@ echo -e "\n${GREEN}===============================================${NC}"
 echo -e "${GREEN}      🎉 Установка успешно завершена! 🎉      ${NC}"
 echo -e "${GREEN}===============================================${NC}"
 
+echo -e "\n${BLUE}📋 РЕЗЮМЕ УСТАНОВКИ:${NC}"
+echo -e "✅ Обновлена система и установлены все зависимости"
+echo -e "✅ Установлен Docker и Docker Compose"
+echo -e "✅ Создан .env файл на основе шаблона config/env.example"
+echo -e "✅ Созданы все необходимые директории (logs, backups, sessions)"
+echo -e "✅ Инициализирована база данных users.db"
+echo -e "✅ Настроены 3 контейнера: bot, docs, codex-docs"
+echo -e "✅ Настроен nginx с проксированием на контейнеры"
+echo -e "✅ Настроен UFW файрвол (порты 22, 80, 443)"
+echo -e "✅ Настроен logrotate для ротации логов"
+echo -e "✅ Создан systemd сервис для автозапуска"
+echo -e "✅ Сгенерированы секреты и пароли"
+echo -e "✅ Все сервисы запущены и проверены"
+
 echo -e "\n${BLUE}📱 Доступные сервисы (HTTP):${NC}"
 echo -e "1. Основной бот и админ-панель:"
 echo -e "   - ${GREEN}http://${PANEL_DOMAIN}/login${NC}"
@@ -565,7 +670,7 @@ echo -e "   - Админ-документация: ${GREEN}http://localhost:3002
 
 echo -e "\n${BLUE}🔧 Следующие шаги:${NC}"
 echo -e "1. Настройте DNS A-записи для всех доменов на IP этого сервера"
-echo -e "2. Для настройки SSL запустите: ${YELLOW}DOMAIN=$MAIN_DOMAIN curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/ssl-install.sh | sudo bash${NC}"
+echo -e "2. Для настройки SSL запустите: ${YELLOW}curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/ssl-install.sh | sudo bash -s -- $MAIN_DOMAIN${NC}"
 echo -e "3. Проверьте статус контейнеров: ${YELLOW}cd $PROJECT_DIR && ${DC[@]} ps${NC}"
 echo -e "4. Просмотрите логи: ${YELLOW}cd $PROJECT_DIR && ${DC[@]} logs -f${NC}"
 
@@ -575,6 +680,11 @@ echo -e "- Остановить все сервисы: ${YELLOW}cd $PROJECT_DIR 
 echo -e "- Запустить все сервисы: ${YELLOW}cd $PROJECT_DIR && ${DC[@]} up -d${NC}"
 echo -e "- Перезапустить nginx: ${YELLOW}systemctl restart nginx${NC}"
 echo -e "- Проверить nginx: ${YELLOW}nginx -t${NC}"
+echo -e "- Управление systemd сервисом:"
+echo -e "  - Статус: ${YELLOW}systemctl status dark-maximus${NC}"
+echo -e "  - Запуск: ${YELLOW}systemctl start dark-maximus${NC}"
+echo -e "  - Остановка: ${YELLOW}systemctl stop dark-maximus${NC}"
+echo -e "  - Перезапуск: ${YELLOW}systemctl restart dark-maximus${NC}"
 
 echo -e "\n${BLUE}🔒 Безопасность:${NC}"
 echo -e "- Пароль админа сохранен в: ${YELLOW}$PROJECT_DIR/.admin_pass${NC}"
