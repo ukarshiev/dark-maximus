@@ -13,7 +13,8 @@ NC='\033[0m' # No Color
 
 # Обработка ошибок
 handle_error() {
-    echo -e "\n${RED}Ошибка на строке $1. Установка прервана.${NC}"
+    local line_number="${1:-неизвестно}"
+    echo -e "\n${RED}Ошибка на строке $line_number. Установка прервана.${NC}"
     exit 1
 }
 trap 'handle_error $LINENO' ERR
@@ -167,10 +168,10 @@ echo -e "${GREEN}✔ Docker и Docker Compose установлены${NC}"
 echo -e "\n${CYAN}Шаг 3: Настройка доменов...${NC}"
 
 # Получаем домен из аргументов командной строки или переменных окружения
-if [ -n "$1" ]; then
+if [ $# -gt 0 ] && [ -n "${1:-}" ]; then
     MAIN_DOMAIN="$1"
     echo -e "${GREEN}✔ Домен получен из аргументов: ${MAIN_DOMAIN}${NC}"
-elif [ -n "$DOMAIN" ]; then
+elif [ -n "${DOMAIN:-}" ]; then
     MAIN_DOMAIN="$DOMAIN"
     echo -e "${GREEN}✔ Домен получен из переменной окружения: ${MAIN_DOMAIN}${NC}"
 else
