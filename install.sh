@@ -316,10 +316,10 @@ echo -e "${YELLOW}Инициализация базы данных с настр
 # Устанавливаем зависимости для bcrypt
 echo -e "${YELLOW}Установка зависимостей для bcrypt...${NC}"
 apt-get update -qq >/dev/null 2>&1
-apt-get install -y build-essential cargo python3-pip >/dev/null 2>&1
+apt-get install -y build-essential cargo python3-pip python3-dev >/dev/null 2>&1
 
 # Устанавливаем bcrypt
-pip3 install bcrypt >/dev/null 2>&1 || echo "bcrypt установлен"
+pip3 install --break-system-packages bcrypt >/dev/null 2>&1 || echo "bcrypt установлен"
 
 python3 -c "
 import sqlite3
