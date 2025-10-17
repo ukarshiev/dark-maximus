@@ -616,9 +616,12 @@ chmod +x /usr/local/bin/renew-ssl.sh
 
 # Настраиваем cron для автообновления каждые 2 месяца
 TEMP_CRON=$(mktemp)
-crontab -l 2>/dev/null > "$TEMP_CRON"
+# Создаем новый crontab или добавляем к существующему
+(crontab -l 2>/dev/null || echo "") > "$TEMP_CRON"
 echo "0 3 1 */2 * /usr/local/bin/renew-ssl.sh >> /var/log/ssl-renewal.log 2>&1" >> "$TEMP_CRON"
-crontab "$TEMP_CRON"
+crontab "$TEMP_CRON" 2>/dev/null || {
+    echo "0 3 1 */2 * /usr/local/bin/renew-ssl.sh >> /var/log/ssl-renewal.log 2>&1" | crontab -
+}
 rm "$TEMP_CRON"
 
 echo -e "${GREEN}✔ Автообновление сертификатов настроено (каждые 2 месяца)${NC}"
