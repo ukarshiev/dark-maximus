@@ -43,7 +43,7 @@ export default class Writing {
     /**
      * Create Editor
      */
-    this.nodes.editorWrapper = document.getElementById('codex-editor');
+    this.nodes.editorWrapper = document.getElementById('editorjs');
     if (settings.page) {
       this.page = settings.page;
     }
@@ -101,7 +101,8 @@ export default class Writing {
     } : {};
 
     return new Editor(editorConfig, {
-      headerPlaceholder: 'Enter a title'
+      headerPlaceholder: 'Enter a title',
+      holder: 'editorjs'
     });
   }
 

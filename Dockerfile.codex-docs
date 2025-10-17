@@ -20,11 +20,14 @@ COPY codex.docs/ ./
 # Создаем папку dist и собираем проект
 RUN mkdir -p dist && \
     echo "Начинаем сборку проекта..." && \
-    yarn build-backend && \
+    yarn build-all && \
     echo "Сборка завершена. Проверяем результат..." && \
     ls -la dist/ && \
+    ls -la public/dist/ && \
     test -d dist/backend && echo "✅ Папка dist/backend создана" || echo "❌ ОШИБКА: Папка dist/backend не создана!" && \
-    test -f dist/backend/app.js && echo "✅ Файл dist/backend/app.js создан" || echo "❌ ОШИБКА: Файл dist/backend/app.js не создан!"
+    test -f dist/backend/app.js && echo "✅ Файл dist/backend/app.js создан" || echo "❌ ОШИБКА: Файл dist/backend/app.js не создан!" && \
+    test -d public/dist && echo "✅ Папка public/dist создана" || echo "❌ ОШИБКА: Папка public/dist не создана!" && \
+    test -f public/dist/main.js && echo "✅ Файл public/dist/main.js создан" || echo "❌ ОШИБКА: Файл public/dist/main.js не создан!"
 
 # =========================================
 # Stage 2: Подготовка конфигурации и контента

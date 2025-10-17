@@ -35,6 +35,7 @@ export default class Editor {
    */
   constructor(editorConfig = {}, options = {}) {
     const defaultConfig = {
+      holder: options.holder || 'editorjs',
       tools: {
         header: {
           class: Header,
