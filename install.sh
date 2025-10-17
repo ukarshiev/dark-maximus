@@ -881,7 +881,7 @@ echo -e "\n${BLUE}📱 Доступные сервисы (HTTP):${NC}"
 echo -e "1. Основной бот и админ-панель:"
 echo -e "   - ${GREEN}http://${PANEL_DOMAIN}/login${NC}"
 echo -e "   - Логин: ${YELLOW}admin${NC}"
-echo -e "   - Пароль: ${YELLOW}${ADMIN_PASSWORD}${NC}"
+echo -e "   - Пароль: ${YELLOW}admin${NC}"
 
 echo -e "\n2. Пользовательская документация:"
 echo -e "   - ${GREEN}http://${DOCS_DOMAIN}${NC}"
