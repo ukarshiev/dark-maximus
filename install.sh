@@ -565,7 +565,7 @@ echo -e "   - Админ-документация: ${GREEN}http://localhost:3002
 
 echo -e "\n${BLUE}🔧 Следующие шаги:${NC}"
 echo -e "1. Настройте DNS A-записи для всех доменов на IP этого сервера"
-echo -e "2. Для настройки SSL запустите: ${YELLOW}curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/ssl-install.sh | sudo bash${NC}"
+echo -e "2. Для настройки SSL запустите: ${YELLOW}DOMAIN=$MAIN_DOMAIN curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/ssl-install.sh | sudo bash${NC}"
 echo -e "3. Проверьте статус контейнеров: ${YELLOW}cd $PROJECT_DIR && ${DC[@]} ps${NC}"
 echo -e "4. Просмотрите логи: ${YELLOW}cd $PROJECT_DIR && ${DC[@]} logs -f${NC}"
 

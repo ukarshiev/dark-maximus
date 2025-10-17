@@ -51,8 +51,12 @@ chmod +x setup-ssl.sh
 echo -e "${GREEN}✔ SSL скрипт загружен. Запускаем настройку SSL...${NC}"
 echo -e "${YELLOW}⚠️  Убедитесь, что DNS A-записи для всех доменов настроены!${NC}"
 
-# Запускаем setup-ssl.sh с передачей всех аргументов
-./setup-ssl.sh "$@"
+# Запускаем setup-ssl.sh с передачей всех аргументов или переменной окружения
+if [ -n "$DOMAIN" ]; then
+    ./setup-ssl.sh "$DOMAIN"
+else
+    ./setup-ssl.sh "$@"
+fi
 
 # Удаляем временный файл
 rm -f setup-ssl.sh
