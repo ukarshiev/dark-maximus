@@ -491,9 +491,9 @@ server {
 }
 EOF
 
-# Активируем конфигурацию
-ln -sf /etc/nginx/sites-available/dark-maximus /etc/nginx/sites-enabled/
-rm -f /etc/nginx/sites-enabled/default
+# Очищаем старые конфигурации nginx
+rm -f /etc/nginx/sites-enabled/*
+rm -f /etc/nginx/sites-available/dark-maximus*
 
 # Создаем временную конфигурацию nginx без upstream (для проверки синтаксиса)
 cat > /etc/nginx/sites-available/dark-maximus-temp << EOF
@@ -507,7 +507,6 @@ EOF
 
 # Активируем временную конфигурацию
 ln -sf /etc/nginx/sites-available/dark-maximus-temp /etc/nginx/sites-enabled/dark-maximus
-rm -f /etc/nginx/sites-enabled/default
 
 # Проверяем базовую конфигурацию nginx
 nginx -t || {
