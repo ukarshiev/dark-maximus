@@ -243,8 +243,12 @@ EOF
 fi
 
 # Обновляем .env с нашими значениями
-sed -i "s/FLASK_SECRET_KEY=.*/FLASK_SECRET_KEY=${FLASK_SECRET_KEY}/" .env
-sed -i "s/ADMIN_PASSWORD=.*/ADMIN_PASSWORD=${ADMIN_PASSWORD}/" .env
+# Экранируем специальные символы для sed
+FLASK_SECRET_KEY_ESCAPED=$(printf '%s\n' "$FLASK_SECRET_KEY" | sed 's/[[\.*^$()+?{|]/\\&/g')
+ADMIN_PASSWORD_ESCAPED=$(printf '%s\n' "$ADMIN_PASSWORD" | sed 's/[[\.*^$()+?{|]/\\&/g')
+
+sed -i "s/FLASK_SECRET_KEY=.*/FLASK_SECRET_KEY=${FLASK_SECRET_KEY_ESCAPED}/" .env
+sed -i "s/ADMIN_PASSWORD=.*/ADMIN_PASSWORD=${ADMIN_PASSWORD_ESCAPED}/" .env
 sed -i "s/DOMAIN=.*/DOMAIN=${MAIN_DOMAIN}/" .env
 
 # Сохраняем пароль админа в отдельный файл
