@@ -99,7 +99,7 @@ DOCS_DOMAIN="docs.${MAIN_DOMAIN}"
 HELP_DOMAIN="help.${MAIN_DOMAIN}"
 
 echo -e "${GREEN}✔ Домены настроены:${NC}"
-echo -e "   - Панель: ${MAIN_DOMAIN}"
+echo -e "   - Основной домен: ${MAIN_DOMAIN}"
 echo -e "   - Панель (поддомен): ${PANEL_DOMAIN}"
 echo -e "   - Документация: ${DOCS_DOMAIN}"
 echo -e "   - Админ-документация: ${HELP_DOMAIN}"
@@ -132,39 +132,12 @@ upstream codex_docs_backend {
     keepalive 32;
 }
 
-# Основной сервер (панель)
+# Основной сервер (главный домен → редирект на пользовательскую документацию)
 server {
     listen 80;
     server_name ${MAIN_DOMAIN};
-    
-    # Ограничение размера загружаемых файлов
-    client_max_body_size 20m;
-    
-    # Проксирование на bot сервис
     location / {
-        proxy_pass http://bot_backend;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-        
-        # Таймауты
-        proxy_connect_timeout 30s;
-        proxy_send_timeout 30s;
-        proxy_read_timeout 30s;
-        
-        # Буферизация
-        proxy_buffering on;
-        proxy_buffer_size 4k;
-        proxy_buffers 8 4k;
-    }
-    
-    # Health check
-    location /health {
-        proxy_pass http://bot_backend/health;
-        access_log off;
+        return 302 http://${DOCS_DOMAIN}$request_uri;
     }
 }
 
@@ -556,27 +529,28 @@ echo -e "${GREEN}      🎉 Настройка SSL успешно заверше
 echo -e "${GREEN}===============================================${NC}"
 
 echo -e "\n${BLUE}📱 Доступные сервисы (HTTPS):${NC}"
-echo -e "1. Основной бот и админ-панель:"
-echo -e "   - ${GREEN}https://${MAIN_DOMAIN}/login${NC}"
 
-# Читаем пароль админа из файла
-if [ -f ".admin_pass" ]; then
-    ADMIN_PASSWORD=$(cat .admin_pass)
-    echo -e "   - Логин: ${YELLOW}admin${NC}"
-    echo -e "   - Пароль: ${YELLOW}${ADMIN_PASSWORD}${NC}"
-else
-    echo -e "   - Логин: ${YELLOW}admin${NC}"
-    echo -e "   - Пароль: ${YELLOW}admin${NC} (по умолчанию)"
-fi
-
-echo -e "\n2. Панель (поддомен):"
+# 1. Панель доступна только на поддомене panel.
+echo -e "1. Панель (поддомен):"
 echo -e "   - ${GREEN}https://${PANEL_DOMAIN}/login${NC}"
+echo -e "   - Логин: ${YELLOW}admin${NC}"
+echo -e "   - Пароль: ${YELLOW}admin${NC}"
 
-echo -e "\n3. Пользовательская документация:"
+# 2. Пользовательская документация
+echo -e "\n2. Пользовательская документация:"
 echo -e "   - ${GREEN}https://${DOCS_DOMAIN}${NC}"
 
-echo -e "\n4. Админская документация (Codex.docs):"
+# 3. Админская документация + вывод пароля из конфигурации Codex.docs
+echo -e "\n3. Админская документация (Codex.docs):"
 echo -e "   - ${GREEN}https://${HELP_DOMAIN}${NC}"
+
+# Пытаемся прочитать пароль из codex.docs/docs-config.yaml
+DOCS_ADMIN_PASSWORD=""
+if [ -f "codex.docs/docs-config.yaml" ]; then
+  DOCS_ADMIN_PASSWORD=$(awk '/^auth:/{flag=1;next} /^[^ ]/{flag=0} flag && /password:/{print $2}' codex.docs/docs-config.yaml | tail -n 1)
+fi
+[ -z "$DOCS_ADMIN_PASSWORD" ] && DOCS_ADMIN_PASSWORD="secretpassword"
+echo -e "   - Пароль для редактирования: ${YELLOW}${DOCS_ADMIN_PASSWORD}${NC}"
 
 echo -e "\n${BLUE}🔧 Полезные команды:${NC}"
 echo -e "- Проверить сертификаты: ${YELLOW}certbot certificates${NC}"
