@@ -310,6 +310,94 @@ if [ ! -f "users.db" ]; then
     echo -e "${YELLOW}Создана пустая база данных users.db${NC}"
 fi
 
+# Инициализируем базу данных с правильным паролем админа
+echo -e "${YELLOW}Инициализация базы данных с настройками...${NC}"
+python3 -c "
+import sqlite3
+import bcrypt
+import os
+
+# Подключаемся к базе данных
+conn = sqlite3.connect('users.db')
+cursor = conn.cursor()
+
+# Создаем таблицу настроек если её нет
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS bot_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )
+''')
+
+# Хешируем пароль админа
+admin_password = os.environ.get('ADMIN_PASSWORD', 'admin')
+hashed_password = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+# Вставляем настройки админа
+cursor.execute('INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_login', 'admin'))
+cursor.execute('INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_password', hashed_password))
+
+# Добавляем остальные настройки по умолчанию
+default_settings = {
+    'about_content': None,
+    'terms_url': None,
+    'privacy_url': None,
+    'support_user': None,
+    'support_text': None,
+    'channel_url': None,
+    'force_subscription': 'true',
+    'receipt_email': 'example@example.com',
+    'telegram_bot_token': None,
+    'support_bot_token': None,
+    'telegram_bot_username': None,
+    'trial_enabled': 'true',
+    'trial_duration_days': '3',
+    'enable_referrals': 'true',
+    'referral_percentage': '10',
+    'referral_discount': '5',
+    'minimum_withdrawal': '100',
+    'support_group_id': None,
+    'admin_telegram_id': None,
+    'yookassa_shop_id': None,
+    'yookassa_secret_key': None,
+    'yookassa_test_mode': 'true',
+    'yookassa_test_shop_id': None,
+    'yookassa_test_secret_key': None,
+    'yookassa_api_url': 'https://api.yookassa.ru/v3',
+    'yookassa_test_api_url': 'https://api.test.yookassa.ru/v3',
+    'yookassa_verify_ssl': 'true',
+    'yookassa_test_verify_ssl': 'false',
+    'sbp_enabled': 'false',
+    'cryptobot_token': None,
+    'heleket_merchant_id': None,
+    'heleket_api_key': None,
+    'domain': None,
+    'global_domain': None,
+    'ton_wallet_address': None,
+    'tonapi_key': None,
+    'auto_delete_orphans': 'false',
+    'hidden_mode': '0',
+    'support_enabled': 'true',
+    'minimum_topup': '50',
+    'ton_manifest_name': 'Dark Maximus Shop Bot',
+    'ton_manifest_icon_url': None,
+    'ton_manifest_terms_url': None,
+    'ton_manifest_privacy_url': None,
+    'app_url': None,
+    'logging_bot_token': None,
+    'logging_bot_username': None,
+    'logging_bot_admin_chat_id': None,
+    'logging_bot_level': 'INFO'
+}
+
+for key, value in default_settings.items():
+    cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', (key, value))
+
+conn.commit()
+conn.close()
+print('База данных инициализирована с правильным паролем админа')
+"
+
 echo -e "${GREEN}✔ База данных готова${NC}"
 
 echo -e "\n${CYAN}Шаг 5: Создание docker-compose.yml...${NC}"
