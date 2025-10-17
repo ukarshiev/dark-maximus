@@ -50,16 +50,24 @@ if [ ! -f "docker-compose.yml" ]; then
     exit 1
 fi
 
-# Извлекаем домены из nginx конфигурации
-MAIN_DOMAIN=$(grep -o 'server_name [^;]*' "/etc/nginx/sites-available/dark-maximus" | grep -v "default_server" | head -1 | awk '{print $2}')
-DOCS_DOMAIN=$(grep -o 'server_name [^;]*' "/etc/nginx/sites-available/dark-maximus" | grep -v "default_server" | sed -n '2p' | awk '{print $2}')
-HELP_DOMAIN=$(grep -o 'server_name [^;]*' "/etc/nginx/sites-available/dark-maximus" | grep -v "default_server" | sed -n '3p' | awk '{print $2}')
-
-if [ -z "$MAIN_DOMAIN" ] || [ -z "$DOCS_DOMAIN" ] || [ -z "$HELP_DOMAIN" ]; then
-    echo -e "${RED}❌ Не удалось извлечь домены из nginx конфигурации!${NC}"
-    echo -e "${YELLOW}Убедитесь, что install.sh был запущен успешно.${NC}"
-    exit 1
+# Получаем домен из аргументов командной строки или извлекаем из nginx конфигурации
+if [ -n "$1" ]; then
+    MAIN_DOMAIN="$1"
+    echo -e "${GREEN}✔ Домен получен из аргументов: ${MAIN_DOMAIN}${NC}"
+else
+    # Извлекаем домены из nginx конфигурации
+    MAIN_DOMAIN=$(grep -o 'server_name [^;]*' "/etc/nginx/sites-available/dark-maximus" | grep -v "default_server" | head -1 | awk '{print $2}')
+    if [ -z "$MAIN_DOMAIN" ]; then
+        echo -e "${RED}❌ Не удалось извлечь домен из nginx конфигурации!${NC}"
+        echo -e "${YELLOW}Убедитесь, что install.sh был запущен успешно.${NC}"
+        echo -e "${YELLOW}Или передайте домен как аргумент: ./setup-ssl.sh example.com${NC}"
+        exit 1
+    fi
 fi
+
+# Генерируем поддомены
+DOCS_DOMAIN="docs.${MAIN_DOMAIN}"
+HELP_DOMAIN="help.${MAIN_DOMAIN}"
 
 echo -e "${GREEN}✔ Домены извлечены из конфигурации:${NC}"
 echo -e "   - Панель: ${MAIN_DOMAIN}"
@@ -410,7 +418,11 @@ EOF
 chmod +x /usr/local/bin/renew-ssl.sh
 
 # Настраиваем cron для автообновления каждые 2 месяца
-(crontab -l 2>/dev/null; echo "0 3 1 */2 * /usr/local/bin/renew-ssl.sh >> /var/log/ssl-renewal.log 2>&1") | crontab -
+TEMP_CRON=$(mktemp)
+crontab -l 2>/dev/null > "$TEMP_CRON"
+echo "0 3 1 */2 * /usr/local/bin/renew-ssl.sh >> /var/log/ssl-renewal.log 2>&1" >> "$TEMP_CRON"
+crontab "$TEMP_CRON"
+rm "$TEMP_CRON"
 
 echo -e "${GREEN}✔ Автообновление сертификатов настроено (каждые 2 месяца)${NC}"
 
