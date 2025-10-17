@@ -102,12 +102,9 @@ echo -e "   - Панель: ${MAIN_DOMAIN}"
 echo -e "   - Документация: ${DOCS_DOMAIN}"
 echo -e "   - Админ-документация: ${HELP_DOMAIN}"
 
-# Запрашиваем email для Let's Encrypt
-read_input "Введите ваш email (для регистрации SSL-сертификатов Let's Encrypt): " EMAIL
-if [ -z "$EMAIL" ]; then
-    EMAIL="admin@${MAIN_DOMAIN}"
-    echo -e "${YELLOW}Используем email по умолчанию: ${EMAIL}${NC}"
-fi
+# Устанавливаем email для Let's Encrypt
+EMAIL="admin@${MAIN_DOMAIN}"
+echo -e "${YELLOW}Используем email по умолчанию: ${EMAIL}${NC}"
 
 echo -e "\n${CYAN}Шаг 0: Проверка и создание HTTP nginx конфигурации...${NC}"
 
