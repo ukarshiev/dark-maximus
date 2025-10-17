@@ -495,10 +495,28 @@ EOF
 ln -sf /etc/nginx/sites-available/dark-maximus /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 
-# Проверяем конфигурацию nginx
-nginx -t
+# Создаем временную конфигурацию nginx без upstream (для проверки синтаксиса)
+cat > /etc/nginx/sites-available/dark-maximus-temp << EOF
+# Временная конфигурация nginx (без upstream)
+server {
+    listen 80 default_server;
+    server_name _;
+    return 444;
+}
+EOF
 
-echo -e "${GREEN}✔ nginx конфигурация создана и проверена${NC}"
+# Активируем временную конфигурацию
+ln -sf /etc/nginx/sites-available/dark-maximus-temp /etc/nginx/sites-enabled/dark-maximus
+rm -f /etc/nginx/sites-enabled/default
+
+# Проверяем базовую конфигурацию nginx
+nginx -t || {
+    echo -e "${RED}❌ Ошибка в базовой конфигурации nginx${NC}"
+    nginx -t
+    exit 1
+}
+
+echo -e "${GREEN}✔ Временная nginx конфигурация создана и проверена${NC}"
 
 echo -e "\n${CYAN}Шаг 7: Настройка UFW (файрвол)...${NC}"
 
@@ -611,7 +629,19 @@ timeout 60 bash -c 'until nc -z 127.0.0.1 3002; do sleep 2; done' || {
 echo -e "\n${CYAN}Статус контейнеров:${NC}"
 ${DC[@]} ps
 
-echo -e "\n${CYAN}Шаг 9: Запуск nginx...${NC}"
+echo -e "\n${CYAN}Шаг 9: Активация полной nginx конфигурации...${NC}"
+
+# Активируем полную конфигурацию nginx с upstream серверами
+echo -e "${YELLOW}Активация полной конфигурации nginx...${NC}"
+ln -sf /etc/nginx/sites-available/dark-maximus /etc/nginx/sites-enabled/dark-maximus
+
+# Проверяем конфигурацию nginx теперь, когда контейнеры запущены
+echo -e "${YELLOW}Проверка конфигурации nginx...${NC}"
+nginx -t || {
+    echo -e "${RED}❌ Ошибка в конфигурации nginx${NC}"
+    nginx -t
+    exit 1
+}
 
 # Перезапускаем nginx
 systemctl enable nginx

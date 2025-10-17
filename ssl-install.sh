@@ -52,21 +52,26 @@ if [ ! -f "docker-compose.yml" ]; then
     if [ -f "/opt/dark-maximus/docker-compose.yml" ]; then
         echo -e "${YELLOW}⚠️  Переходим в папку проекта /opt/dark-maximus${NC}"
         cd /opt/dark-maximus
+        PROJECT_DIR="/opt/dark-maximus"
     else
-    echo -e "${RED}❌ Файл docker-compose.yml не найден!${NC}"
-    echo -e "${YELLOW}Убедитесь, что вы находитесь в папке проекта Dark Maximus.${NC}"
-    echo -e "${YELLOW}Если проект не установлен, сначала запустите:${NC}"
-    echo -e "${CYAN}curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash${NC}"
-    exit 1
+        echo -e "${RED}❌ Файл docker-compose.yml не найден!${NC}"
+        echo -e "${YELLOW}Убедитесь, что вы находитесь в папке проекта Dark Maximus.${NC}"
+        echo -e "${YELLOW}Если проект не установлен, сначала запустите:${NC}"
+        echo -e "${CYAN}curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash -s -- domain.com${NC}"
+        exit 1
     fi
+else
+    PROJECT_DIR="$(pwd)"
 fi
 
-# Проверяем, что nginx конфигурация существует
-if [ ! -f "/etc/nginx/sites-available/dark-maximus" ]; then
-    echo -e "${RED}❌ Nginx конфигурация не найдена!${NC}"
+echo -e "${GREEN}✔ Рабочая директория: ${PROJECT_DIR}${NC}"
+
+# Проверяем, что nginx установлен
+if ! command -v nginx >/dev/null 2>&1; then
+    echo -e "${RED}❌ Nginx не установлен!${NC}"
     echo -e "${YELLOW}Убедитесь, что основная установка была завершена успешно.${NC}"
     echo -e "${YELLOW}Запустите сначала:${NC}"
-    echo -e "${CYAN}curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash${NC}"
+    echo -e "${CYAN}curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash -s -- domain.com${NC}"
     exit 1
 fi
 
@@ -75,12 +80,15 @@ if [ -n "$1" ]; then
     MAIN_DOMAIN="$1"
     echo -e "${GREEN}✔ Домен получен из аргументов: ${MAIN_DOMAIN}${NC}"
 else
-    # Извлекаем домены из nginx конфигурации
-    MAIN_DOMAIN=$(grep -o 'server_name [^;]*' "/etc/nginx/sites-available/dark-maximus" | grep -v "default_server" | head -1 | awk '{print $2}')
+    # Извлекаем домены из nginx конфигурации (если она существует)
+    if [ -f "/etc/nginx/sites-available/dark-maximus" ]; then
+        MAIN_DOMAIN=$(grep -o 'server_name [^;]*' "/etc/nginx/sites-available/dark-maximus" | grep -v "default_server" | head -1 | awk '{print $2}')
+    fi
+    
     if [ -z "$MAIN_DOMAIN" ]; then
-        echo -e "${RED}❌ Не удалось извлечь домен из nginx конфигурации!${NC}"
-        echo -e "${YELLOW}Убедитесь, что install.sh был запущен успешно.${NC}"
-        echo -e "${YELLOW}Или передайте домен как аргумент: curl -sSL ... | sudo bash -s -- example.com${NC}"
+        echo -e "${RED}❌ Домен не указан!${NC}"
+        echo -e "${YELLOW}Передайте домен как аргумент:${NC}"
+        echo -e "${CYAN}curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/ssl-install.sh | sudo bash -s -- example.com${NC}"
         exit 1
     fi
 fi
@@ -99,6 +107,179 @@ read_input "Введите ваш email (для регистрации SSL-се�
 if [ -z "$EMAIL" ]; then
     EMAIL="admin@${MAIN_DOMAIN}"
     echo -e "${YELLOW}Используем email по умолчанию: ${EMAIL}${NC}"
+fi
+
+echo -e "\n${CYAN}Шаг 0: Проверка и создание HTTP nginx конфигурации...${NC}"
+
+# Проверяем, есть ли HTTP конфигурация с upstream серверами
+if ! grep -q "upstream bot_backend" /etc/nginx/sites-available/dark-maximus 2>/dev/null; then
+    echo -e "${YELLOW}Создание HTTP nginx конфигурации с upstream серверами...${NC}"
+    
+    # Создаем HTTP конфигурацию nginx с upstream серверами
+    cat > /etc/nginx/sites-available/dark-maximus << EOF
+# Upstream серверы для Docker контейнеров (localhost)
+upstream bot_backend {
+    server 127.0.0.1:1488;
+    keepalive 32;
+}
+
+upstream docs_backend {
+    server 127.0.0.1:3001;
+    keepalive 32;
+}
+
+upstream codex_docs_backend {
+    server 127.0.0.1:3002;
+    keepalive 32;
+}
+
+# Основной сервер (панель)
+server {
+    listen 80;
+    server_name ${MAIN_DOMAIN};
+    
+    # Ограничение размера загружаемых файлов
+    client_max_body_size 20m;
+    
+    # Проксирование на bot сервис
+    location / {
+        proxy_pass http://bot_backend;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-Port \$server_port;
+        
+        # Таймауты
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+        
+        # Буферизация
+        proxy_buffering on;
+        proxy_buffer_size 4k;
+        proxy_buffers 8 4k;
+    }
+    
+    # Health check
+    location /health {
+        proxy_pass http://bot_backend/health;
+        access_log off;
+    }
+}
+
+# Сервер документации
+server {
+    listen 80;
+    server_name ${DOCS_DOMAIN};
+    
+    # Ограничение размера загружаемых файлов
+    client_max_body_size 20m;
+    
+    # Проксирование на docs сервис
+    location / {
+        proxy_pass http://docs_backend;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-Port \$server_port;
+        
+        # Таймауты
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+    }
+    
+    # Health check
+    location /health {
+        proxy_pass http://docs_backend/health;
+        access_log off;
+    }
+}
+
+# Сервер админской документации
+server {
+    listen 80;
+    server_name ${HELP_DOMAIN};
+    
+    # Ограничение размера загружаемых файлов
+    client_max_body_size 20m;
+    
+    # Проксирование на codex-docs сервис
+    location / {
+        proxy_pass http://codex_docs_backend;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-Port \$server_port;
+        
+        # WebSocket поддержка с оптимизацией
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 60m;
+        proxy_buffering off;
+        
+        # Таймауты
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 30s;
+    }
+    
+    # Health check
+    location /health {
+        proxy_pass http://codex_docs_backend/;
+        access_log off;
+    }
+}
+
+# Блокировка неопознанных доменов
+server {
+    listen 80 default_server;
+    server_name _;
+    return 444;
+}
+EOF
+    
+    echo -e "${GREEN}✔ HTTP nginx конфигурация создана${NC}"
+else
+    echo -e "${GREEN}✔ HTTP nginx конфигурация уже существует${NC}"
+fi
+
+# Проверяем, что контейнеры запущены
+echo -e "${YELLOW}Проверка запущенных контейнеров...${NC}"
+if ! nc -z 127.0.0.1 1488 2>/dev/null; then
+    echo -e "${YELLOW}⚠️  Контейнеры не запущены. Запускаем...${NC}"
+    cd "$PROJECT_DIR"
+    ${DC[@]} up -d
+    
+    # Ждем запуска контейнеров
+    echo -e "${YELLOW}Ожидание запуска контейнеров...${NC}"
+    timeout 120 bash -c 'until nc -z 127.0.0.1 1488; do sleep 2; done' || {
+        echo -e "${RED}❌ Bot сервис не запустился в течение 2 минут${NC}"
+        ${DC[@]} logs bot
+        exit 1
+    }
+    
+    timeout 60 bash -c 'until nc -z 127.0.0.1 3001; do sleep 2; done' || {
+        echo -e "${RED}❌ Docs сервис не запустился в течение 1 минуты${NC}"
+        ${DC[@]} logs docs
+        exit 1
+    }
+    
+    timeout 60 bash -c 'until nc -z 127.0.0.1 3002; do sleep 2; done' || {
+        echo -e "${RED}❌ Codex-docs сервис не запустился в течение 1 минуты${NC}"
+        ${DC[@]} logs codex-docs
+        exit 1
+    }
+    
+    echo -e "${GREEN}✔ Контейнеры запущены${NC}"
+else
+    echo -e "${GREEN}✔ Контейнеры уже запущены${NC}"
 fi
 
 echo -e "\n${CYAN}Шаг 1: Проверка DNS записей...${NC}"
@@ -399,9 +580,8 @@ server {
 }
 EOF
 
-# Заменяем HTTP конфигурацию на HTTPS
-rm -f /etc/nginx/sites-enabled/dark-maximus
-ln -sf /etc/nginx/sites-available/dark-maximus-ssl /etc/nginx/sites-enabled/
+# Активируем HTTPS конфигурацию
+ln -sf /etc/nginx/sites-available/dark-maximus-ssl /etc/nginx/sites-enabled/dark-maximus
 
 # Проверяем конфигурацию nginx
 nginx -t
