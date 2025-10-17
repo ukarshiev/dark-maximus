@@ -313,8 +313,13 @@ fi
 # Инициализируем базу данных с правильным паролем админа
 echo -e "${YELLOW}Инициализация базы данных с настройками...${NC}"
 
-# Устанавливаем bcrypt если его нет
-pip3 install bcrypt 2>/dev/null || echo "bcrypt уже установлен"
+# Устанавливаем зависимости для bcrypt
+echo -e "${YELLOW}Установка зависимостей для bcrypt...${NC}"
+apt-get update -qq >/dev/null 2>&1
+apt-get install -y build-essential cargo python3-pip >/dev/null 2>&1
+
+# Устанавливаем bcrypt
+pip3 install bcrypt >/dev/null 2>&1 || echo "bcrypt установлен"
 
 python3 -c "
 import sqlite3
