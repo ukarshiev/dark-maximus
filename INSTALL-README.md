@@ -8,8 +8,9 @@ curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.
 ```
 
 Этот скрипт:
-- Установит все необходимые зависимости (Docker, nginx, certbot)
-- Создаст самоподписанные SSL сертификаты
+- Автоматически клонирует репозиторий в `/opt/dark-maximus`
+- Установит все необходимые зависимости (Docker, nginx, git)
+- Проверит наличие всех необходимых файлов проекта
 - Настроит nginx-прокси для работы по HTTP
 - Запустит все сервисы
 
@@ -17,7 +18,7 @@ curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.
 После успешной установки и настройки DNS записей:
 
 ```bash
-cd dark-maximus
+cd /opt/dark-maximus
 chmod +x setup-ssl.sh
 sudo ./setup-ssl.sh
 ```
@@ -68,12 +69,14 @@ sudo ./setup-ssl.sh
 
 ### Проверка статуса контейнеров:
 ```bash
+cd /opt/dark-maximus
 docker compose ps
 ```
 
-### Проверка логов nginx-прокси:
+### Проверка логов сервисов:
 ```bash
-docker compose logs nginx-proxy
+cd /opt/dark-maximus
+docker compose logs -f
 ```
 
 ### Проверка SSL сертификатов:
@@ -88,9 +91,9 @@ docker exec dark-maximus-nginx-proxy nginx -t
 
 ## Устранение проблем
 
-### Если nginx-прокси не запускается:
-1. Проверьте логи: `docker compose logs nginx-proxy`
-2. Проверьте конфигурацию: `docker exec dark-maximus-nginx-proxy nginx -t`
+### Если nginx не запускается:
+1. Проверьте логи: `cd /opt/dark-maximus && docker compose logs`
+2. Проверьте конфигурацию: `nginx -t`
 3. Убедитесь, что порты 80/443 свободны
 
 ### Если SSL не работает:
@@ -99,8 +102,8 @@ docker exec dark-maximus-nginx-proxy nginx -t
 3. Проверьте монтирование volume в docker-compose.yml
 
 ### Если сервисы недоступны:
-1. Проверьте статус всех контейнеров: `docker compose ps`
-2. Проверьте логи конкретного сервиса: `docker compose logs service_name`
+1. Проверьте статус всех контейнеров: `cd /opt/dark-maximus && docker compose ps`
+2. Проверьте логи конкретного сервиса: `cd /opt/dark-maximus && docker compose logs service_name`
 3. Убедитесь, что все контейнеры в статусе "Up" или "healthy"
 
 ## Автообновление
