@@ -20,11 +20,25 @@ trap 'handle_error $LINENO' ERR
 
 # Функции для ввода
 read_input() {
-    if [ -t 0 ]; then
-        read -p "$1" "$2" < /dev/tty
-    else
-        read -p "$1" "$2" || true
+    local prompt="$1"
+    local var_name="$2"
+    
+    # Проверяем, запущен ли скрипт через pipe (curl | bash)
+    if [ ! -t 0 ]; then
+        echo -e "${YELLOW}⚠️  Скрипт запущен через pipe. Для передачи домена используйте один из способов:${NC}"
+        echo -e "${CYAN}   1. Через переменную окружения:${NC}"
+        echo -e "${CYAN}      DOMAIN=example.com curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash${NC}"
+        echo -e "${CYAN}   2. Скачайте и запустите локально:${NC}"
+        echo -e "${CYAN}      wget https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh${NC}"
+        echo -e "${CYAN}      chmod +x install.sh${NC}"
+        echo -e "${CYAN}      sudo ./install.sh example.com${NC}"
+        echo -e "${CYAN}   3. Или запустите в директории проекта:${NC}"
+        echo -e "${CYAN}      cd /opt/dark-maximus && sudo ./install.sh example.com${NC}"
+        exit 1
     fi
+    
+    # Интерактивный ввод
+    read -p "$prompt" "$var_name"
 }
 
 # Выбираем docker compose v1/v2
@@ -152,8 +166,18 @@ echo -e "${GREEN}✔ Docker и Docker Compose установлены${NC}"
 
 echo -e "\n${CYAN}Шаг 3: Настройка доменов...${NC}"
 
-# Запрашиваем основной домен
-read_input "Введите основной домен (например: example.com): " MAIN_DOMAIN
+# Получаем домен из аргументов командной строки или переменных окружения
+if [ -n "$1" ]; then
+    MAIN_DOMAIN="$1"
+    echo -e "${GREEN}✔ Домен получен из аргументов: ${MAIN_DOMAIN}${NC}"
+elif [ -n "$DOMAIN" ]; then
+    MAIN_DOMAIN="$DOMAIN"
+    echo -e "${GREEN}✔ Домен получен из переменной окружения: ${MAIN_DOMAIN}${NC}"
+else
+    # Запрашиваем основной домен
+    read_input "Введите основной домен (например: example.com): " MAIN_DOMAIN
+fi
+
 if [ -z "$MAIN_DOMAIN" ]; then
     echo -e "${RED}❌ Домен не может быть пустым!${NC}"
     exit 1
