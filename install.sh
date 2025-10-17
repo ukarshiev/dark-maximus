@@ -83,7 +83,23 @@ cd "$INSTALL_DIR"
 echo -e "${YELLOW}Клонирование репозитория...${NC}"
 if [ -d ".git" ]; then
     echo -e "${YELLOW}Репозиторий уже существует, обновляем...${NC}"
-    git pull origin main
+    
+    # Настраиваем git для слияния
+    git config pull.rebase false
+    
+    # Проверяем, есть ли локальные изменения
+    if ! git diff --quiet; then
+        echo -e "${YELLOW}Обнаружены локальные изменения, сохраняем их...${NC}"
+        git add .
+        git commit -m "Auto-save local changes before update" || true
+    fi
+    
+    # Обновляем репозиторий
+    git pull origin main || {
+        echo -e "${RED}❌ Ошибка при обновлении репозитория. Попробуем принудительное обновление...${NC}"
+        git fetch origin main
+        git reset --hard origin/main
+    }
 else
     git clone https://github.com/ukarshiev/dark-maximus.git .
 fi
