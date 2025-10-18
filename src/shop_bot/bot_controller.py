@@ -13,7 +13,7 @@ from aiogram.enums import ParseMode
 
 from shop_bot.data_manager import database
 from shop_bot.bot.handlers import get_user_router
-from shop_bot.bot.middlewares import BanMiddleware
+from shop_bot.bot.middlewares import BanMiddleware, PerformanceMiddleware, RateLimitMiddleware
 from shop_bot.bot import handlers, support_handlers
 from shop_bot.bot.support_handlers import get_support_router
 
@@ -101,7 +101,12 @@ class BotController:
             logger.warning("🟢 ShopBot: Запуск бота...")
             self.shop_bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
             self.shop_dp = Dispatcher()
-            self.shop_dp.update.middleware(BanMiddleware())
+            
+            # Добавляем middleware в правильном порядке
+            self.shop_dp.update.outer_middleware(PerformanceMiddleware(log_slow_requests=True, slow_threshold=0.5))
+            self.shop_dp.update.outer_middleware(RateLimitMiddleware(max_requests_per_minute=30))
+            self.shop_dp.update.outer_middleware(BanMiddleware())
+            
             self.shop_dp.include_router(get_user_router())
 
             self.shop_is_running = True

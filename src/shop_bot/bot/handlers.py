@@ -53,6 +53,7 @@ from shop_bot.config import (
     get_key_info_text, CHOOSE_PAYMENT_METHOD_MESSAGE, HOWTO_CHOOSE_OS_MESSAGE, get_purchase_success_text, get_payment_method_message_with_plan,
     VIDEO_INSTRUCTIONS_ENABLED, get_video_instruction_path, has_video_instruction, VIDEO_INSTRUCTIONS_DIR
 )
+from shop_bot.utils.performance_monitor import measure_performance
 
 from pathlib import Path
 
@@ -67,6 +68,7 @@ user_router = Router()
 
 # Добавляем обработчик ошибок для admin_router
 @admin_router.error()
+@measure_performance("admin_router_error")
 async def admin_router_error_handler(event: ErrorEvent):
     """Глобальный обработчик ошибок для admin_router"""
     logger.critical(
@@ -488,6 +490,7 @@ def get_user_router() -> Router:
     user_router = Router()
 
     @user_router.message(CommandStart())
+    @measure_performance("start_handler")
     async def start_handler(message: types.Message, state: FSMContext, bot: Bot, command: CommandObject):
         user_id = message.from_user.id
         username = message.from_user.username or message.from_user.full_name
@@ -541,6 +544,7 @@ def get_user_router() -> Router:
         await show_terms_agreement_screen(message, state)
 
     @user_router.callback_query(F.data == "check_subscription_and_agree")
+    @measure_performance("check_subscription_and_agree")
     async def check_subscription_and_agree_handler(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
         user_id = callback.from_user.id
         channel_url = get_setting("channel_url")
@@ -595,6 +599,7 @@ def get_user_router() -> Router:
                 raise e
 
     @user_router.callback_query(F.data == "revoke_consent")
+    @measure_performance("revoke_consent")
     async def revoke_consent_handler(callback: types.CallbackQuery):
         """Обработчик отзыва согласия пользователя"""
         user_id = callback.from_user.id
@@ -609,6 +614,7 @@ def get_user_router() -> Router:
         await show_main_menu(callback.message)
 
     @user_router.callback_query(F.data == "agree_to_terms")
+    @measure_performance("agree_to_terms")
     async def agree_to_terms_handler(callback: types.CallbackQuery, state: FSMContext):
         """Обработчик согласия с документами"""
         user_id = callback.from_user.id
@@ -631,6 +637,7 @@ def get_user_router() -> Router:
                 await callback.message.answer("🏠 <b>Главное меню</b>\n\nВыберите действие:", reply_markup=keyboards.get_main_reply_keyboard(is_admin))
 
     @user_router.callback_query(F.data == "check_subscription")
+    @measure_performance("check_subscription")
     async def check_subscription_handler(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
         """Обработчик проверки подписки на канал"""
         user_id = callback.from_user.id
@@ -664,16 +671,19 @@ def get_user_router() -> Router:
             await show_subscription_required_message(callback, channel_url)
 
     @user_router.message(Onboarding.waiting_for_terms_agreement)
+    @measure_performance("terms_agreement_fallback")
     async def terms_agreement_fallback_handler(message: types.Message):
         await message.answer("Пожалуйста, ознакомьтесь с документами и нажмите кнопку согласия в сообщении выше.")
 
     @user_router.message(Onboarding.waiting_for_subscription)
+    @measure_performance("subscription_fallback")
     async def subscription_fallback_handler(message: types.Message):
         await message.answer("Пожалуйста, подпишитесь на канал и нажмите кнопку проверки в сообщении выше.")
 
     @user_router.message(F.text == "🏠 Главное меню")
     @documents_consent_required
     @subscription_required
+    @measure_performance("main_menu_handler")
     async def main_menu_handler(message: types.Message):
         # Обновляем/навешиваем актуальную Reply Keyboard на чат
         user_id = message.from_user.id
@@ -687,6 +697,7 @@ def get_user_router() -> Router:
     @user_router.callback_query(F.data == "back_to_main_menu")
     @documents_consent_required
     @subscription_required
+    @measure_performance("back_to_main_menu")
     async def back_to_main_menu_handler(callback: types.CallbackQuery):
         await callback.answer()
         # Гарантируем, что у пользователя установлена актуальная Reply Keyboard
@@ -703,6 +714,7 @@ def get_user_router() -> Router:
     @user_router.message(F.text == "🛒 Купить")
     @documents_consent_required
     @subscription_required
+    @measure_performance("buy_message_handler")
     async def buy_message_handler(message: types.Message):
         """Обработчик кнопки 'Купить' - показывает меню выбора услуг"""
         user_id = message.from_user.id
@@ -719,6 +731,7 @@ def get_user_router() -> Router:
     @user_router.message(F.text == "🛒 Купить VPN")
     @documents_consent_required
     @subscription_required
+    @measure_performance("buy_vpn_message")
     async def buy_vpn_message_handler(message: types.Message):
         """Обработчик кнопки 'Купить VPN' - показывает меню выбора услуг (для совместимости со старыми клавиатурами)"""
         user_id = message.from_user.id
@@ -735,6 +748,7 @@ def get_user_router() -> Router:
     @user_router.callback_query(F.data == "buy_new_vpn")
     @documents_consent_required
     @subscription_required
+    @measure_performance("buy_new_vpn")
     async def buy_new_vpn_handler(callback: types.CallbackQuery):
         """Обработчик кнопки 'Купить новый VPN'"""
         await callback.answer()
@@ -760,6 +774,7 @@ def get_user_router() -> Router:
     @user_router.callback_query(F.data == "buy_vpn_root")
     @documents_consent_required
     @subscription_required
+    @measure_performance("buy_vpn_root")
     async def buy_vpn_root_handler(callback: types.CallbackQuery):
         await callback.answer()
         user_id = callback.from_user.id
@@ -784,12 +799,14 @@ def get_user_router() -> Router:
     @user_router.message(F.text == "⁉️ Помощь и поддержка")
     @documents_consent_required
     @subscription_required
+    @measure_performance("help_center_message")
     async def help_center_message_handler(message: types.Message):
         await message.answer("⁉️ Помощь и поддержка:", reply_markup=keyboards.create_help_center_keyboard())
 
     @user_router.callback_query(F.data == "help_center")
     @documents_consent_required
     @subscription_required
+    @measure_performance("help_center")
     async def help_center_callback_handler(callback: types.CallbackQuery):
         await callback.answer()
         await callback.message.edit_text("⁉️ Помощь и поддержка:", reply_markup=keyboards.create_help_center_keyboard())
@@ -797,6 +814,7 @@ def get_user_router() -> Router:
     @user_router.message(F.text == "💰Пополнить баланс")
     @documents_consent_required
     @subscription_required
+    @measure_performance("topup_message")
     async def topup_message_handler(message: types.Message, state: FSMContext):
         await state.clear()
         await message.answer(
@@ -807,6 +825,7 @@ def get_user_router() -> Router:
     @user_router.callback_query(F.data == "topup_root")
     @documents_consent_required
     @subscription_required
+    @measure_performance("topup_root")
     async def topup_root_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         await state.clear()
@@ -819,6 +838,7 @@ def get_user_router() -> Router:
         {"topup_amount_179","topup_amount_300","topup_amount_500"}
     ))
     @registration_required
+    @measure_performance("topup_select_preset")
     async def topup_select_preset_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         mapping = {
@@ -836,6 +856,7 @@ def get_user_router() -> Router:
 
     @user_router.callback_query(F.data == "topup_amount_custom")
     @registration_required
+    @measure_performance("topup_custom_amount")
     async def topup_custom_amount_prompt(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         await callback.message.edit_text(
@@ -844,6 +865,7 @@ def get_user_router() -> Router:
         await state.set_state(TopupProcess.waiting_for_custom_amount)
 
     @user_router.message(TopupProcess.waiting_for_custom_amount)
+    @measure_performance("topup_custom_amount_receive")
     async def topup_custom_amount_receive(message: types.Message, state: FSMContext):
         try:
             amount = int(message.text.strip())
@@ -866,6 +888,7 @@ def get_user_router() -> Router:
 
     @user_router.callback_query(TopupProcess.waiting_for_payment_method, F.data == "topup_back_to_amounts")
     @registration_required
+    @measure_performance("topup_back_to_amounts")
     async def topup_back_to_amounts(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         await state.clear()
@@ -876,6 +899,7 @@ def get_user_router() -> Router:
     @user_router.message(F.text == "👤 Мой профиль")
     @documents_consent_required
     @subscription_required
+    @measure_performance("profile_handler")
     async def profile_handler_message(message: types.Message):
         user_id = message.from_user.id
         user_db_data = get_user(user_id)
@@ -928,6 +952,7 @@ def get_user_router() -> Router:
     @user_router.callback_query(F.data == "trial_period")
     @documents_consent_required
     @subscription_required
+    @measure_performance("trial_period_callback")
     async def trial_period_callback_handler(callback: types.CallbackQuery):
         """Обработчик кнопки 'Пробный период' из меню профиля"""
         await callback.answer()
@@ -969,6 +994,7 @@ def get_user_router() -> Router:
     @user_router.callback_query(F.data == "promo_code")
     @documents_consent_required
     @subscription_required
+    @measure_performance("promo_code")
     async def promo_code_handler(callback: types.CallbackQuery):
         """Обработчик кнопки 'Промокод'"""
         await callback.answer()
@@ -983,6 +1009,7 @@ def get_user_router() -> Router:
     @user_router.callback_query(F.data == "my_promo_codes")
     @documents_consent_required
     @subscription_required
+    @measure_performance("my_promo_codes")
     async def my_promo_codes_handler(callback: types.CallbackQuery):
         """Обработчик кнопки 'Мои промокоды' в профиле"""
         await callback.answer()
@@ -1032,6 +1059,7 @@ def get_user_router() -> Router:
     @user_router.callback_query(F.data.startswith("remove_promo_"))
     @documents_consent_required
     @subscription_required
+    @measure_performance("remove_promo_code")
     async def remove_promo_code_handler(callback: types.CallbackQuery):
         """Обработчик удаления применённого промокода"""
         await callback.answer()
@@ -1099,6 +1127,7 @@ def get_user_router() -> Router:
     @user_router.message(F.text == "🆓 Пробный период")
     @documents_consent_required
     @subscription_required
+    @measure_performance("trial_period_message")
     async def trial_period_message_handler(message: types.Message):
         """Обработчик кнопки 'Пробный период' из главного меню"""
         user_id = message.from_user.id
@@ -1271,6 +1300,7 @@ def get_user_router() -> Router:
     @user_router.message(F.text == "⚙️ Админ-панель")
     @documents_consent_required
     @subscription_required
+    @measure_performance("admin_panel_message")
     async def admin_panel_message(message: types.Message):
         """Обработчик для админ-панели"""
         user_id = message.from_user.id
@@ -1287,6 +1317,7 @@ def get_user_router() -> Router:
     @user_router.callback_query(F.data == "show_profile")
     @documents_consent_required
     @subscription_required
+    @measure_performance("profile_handler_callback")
     async def profile_handler_callback(callback: types.CallbackQuery):
         await callback.answer()
         user_id = callback.from_user.id
@@ -1326,6 +1357,7 @@ def get_user_router() -> Router:
 
     @user_router.callback_query(F.data == "start_broadcast")
     @registration_required
+    @measure_performance("start_broadcast")
     async def start_broadcast_handler(callback: types.CallbackQuery, state: FSMContext):
         if str(callback.from_user.id) != ADMIN_ID:
             await callback.answer("У вас нет прав.", show_alert=True)
@@ -1341,6 +1373,7 @@ def get_user_router() -> Router:
         await state.set_state(Broadcast.waiting_for_message)
 
     @user_router.message(Broadcast.waiting_for_message)
+    @measure_performance("broadcast_message_received")
     async def broadcast_message_received_handler(message: types.Message, state: FSMContext):
         await state.update_data(message_to_send=message.model_dump_json())
         
@@ -1351,6 +1384,7 @@ def get_user_router() -> Router:
         await state.set_state(Broadcast.waiting_for_button_option)
 
     @user_router.callback_query(Broadcast.waiting_for_button_option, F.data == "broadcast_add_button")
+    @measure_performance("add_button_prompt")
     async def add_button_prompt_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         await callback.message.edit_text(
@@ -1360,6 +1394,7 @@ def get_user_router() -> Router:
         await state.set_state(Broadcast.waiting_for_button_text)
 
     @user_router.message(Broadcast.waiting_for_button_text)
+    @measure_performance("button_text_received")
     async def button_text_received_handler(message: types.Message, state: FSMContext):
         await state.update_data(button_text=message.text)
         await message.answer(
@@ -1369,6 +1404,7 @@ def get_user_router() -> Router:
         await state.set_state(Broadcast.waiting_for_button_url)
 
     @user_router.message(Broadcast.waiting_for_button_url)
+    @measure_performance("button_url_received")
     async def button_url_received_handler(message: types.Message, state: FSMContext, bot: Bot):
         url_to_check = message.text
 
@@ -1389,6 +1425,7 @@ def get_user_router() -> Router:
         await show_broadcast_preview(message, state, bot)
 
     @user_router.callback_query(Broadcast.waiting_for_button_option, F.data == "broadcast_skip_button")
+    @measure_performance("skip_button")
     async def skip_button_handler(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
         await callback.answer()
         await state.update_data(button_text=None, button_url=None)
@@ -1423,6 +1460,7 @@ def get_user_router() -> Router:
         await state.set_state(Broadcast.waiting_for_confirmation)
 
     @user_router.callback_query(Broadcast.waiting_for_confirmation, F.data == "confirm_broadcast")
+    @measure_performance("confirm_broadcast")
     async def confirm_broadcast_handler(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
         await callback.message.edit_text("⏳ Начинаю рассылку... Это может занять некоторое время.")
         
@@ -1477,6 +1515,7 @@ def get_user_router() -> Router:
         await show_main_menu(callback.message)
 
     @user_router.callback_query(StateFilter(Broadcast), F.data == "cancel_broadcast")
+    @measure_performance("cancel_broadcast")
     async def cancel_broadcast_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer("Рассылка отменена.")
         await state.clear()
@@ -1489,6 +1528,7 @@ def get_user_router() -> Router:
 
     @user_router.callback_query(F.data == "show_referral_program")
     @registration_required
+    @measure_performance("referral_program")
     async def referral_program_handler(callback: types.CallbackQuery):
         await callback.answer()
         user_id = callback.from_user.id
@@ -2145,6 +2185,7 @@ def get_user_router() -> Router:
     @user_router.callback_query(F.data == "show_about")
     @documents_consent_required
     @subscription_required
+    @measure_performance("about")
     async def about_handler(callback: types.CallbackQuery):
         await callback.answer()
         
@@ -2181,6 +2222,7 @@ def get_user_router() -> Router:
 
     @user_router.callback_query(F.data == "show_help")
     @registration_required
+    @measure_performance("help")
     async def help_handler(callback: types.CallbackQuery):
         await callback.answer()
         from shop_bot.data_manager.database import get_setting
@@ -2244,6 +2286,7 @@ def get_user_router() -> Router:
 
     @user_router.callback_query(F.data == "manage_keys")
     @registration_required
+    @measure_performance("manage_keys")
     async def manage_keys_handler(callback: types.CallbackQuery):
         await callback.answer()
         user_id = callback.from_user.id
@@ -2258,6 +2301,7 @@ def get_user_router() -> Router:
     @user_router.callback_query(F.data == "get_trial")
     @documents_consent_required
     @registration_required
+    @measure_performance("trial_period")
     async def trial_period_handler(callback: types.CallbackQuery, state: FSMContext):
         user_id = callback.from_user.id
         user_db_data = get_user(user_id)
@@ -2306,6 +2350,7 @@ def get_user_router() -> Router:
 
     @user_router.callback_query(F.data.startswith("select_host_trial_"))
     @registration_required
+    @measure_performance("trial_host_selection")
     async def trial_host_selection_handler(callback: types.CallbackQuery):
         await callback.answer()
         host_name = callback.data[len("select_host_trial_"):]
@@ -2485,6 +2530,7 @@ def get_user_router() -> Router:
 
     @user_router.callback_query(F.data.startswith("show_key_"))
     @registration_required
+    @measure_performance("show_key")
     async def show_key_handler(callback: types.CallbackQuery):
         key_id_to_show = int(callback.data.split("_")[2])
         await callback.message.edit_text("Загружаю информацию о ключе...")
@@ -2534,6 +2580,7 @@ def get_user_router() -> Router:
 
     @user_router.callback_query(F.data.startswith("copy_key_"))
     @registration_required
+    @measure_performance("copy_key")
     async def copy_key_handler(callback: types.CallbackQuery):
         await callback.answer("Подготавливаю ключ для копирования...")
         key_id = int(callback.data.split("_")[2])
@@ -2616,30 +2663,35 @@ def get_user_router() -> Router:
 
     @user_router.callback_query(F.data == "howto_android")
     @registration_required
+    @measure_performance("howto_android")
     async def howto_android_handler(callback: types.CallbackQuery):
         await callback.answer()
         await _send_instruction_with_video(callback, 'android', keyboards.create_howto_vless_keyboard)
 
     @user_router.callback_query(F.data == "howto_ios")
     @registration_required
+    @measure_performance("howto_ios")
     async def howto_ios_handler(callback: types.CallbackQuery):
         await callback.answer()
         await _send_instruction_with_video(callback, 'ios', keyboards.create_howto_vless_keyboard)
 
     @user_router.callback_query(F.data == "howto_macos")
     @registration_required
+    @measure_performance("howto_macos")
     async def howto_macos_handler(callback: types.CallbackQuery):
         await callback.answer()
         await _send_instruction_with_video(callback, 'macos', keyboards.create_howto_vless_keyboard)
 
     @user_router.callback_query(F.data == "howto_windows")
     @registration_required
+    @measure_performance("howto_windows")
     async def howto_windows_handler(callback: types.CallbackQuery):
         await callback.answer()
         await _send_instruction_with_video(callback, 'windows', keyboards.create_howto_vless_keyboard)
 
     @user_router.callback_query(F.data == "howto_linux")
     @registration_required
+    @measure_performance("howto_linux")
     async def howto_linux_handler(callback: types.CallbackQuery):
         await callback.answer()
         await _send_instruction_with_video(callback, 'linux', keyboards.create_howto_vless_keyboard)
@@ -2647,6 +2699,7 @@ def get_user_router() -> Router:
     
     @user_router.callback_query(F.data == "back_to_instructions")
     @registration_required
+    @measure_performance("back_to_instructions")
     async def back_to_instructions_handler(callback: types.CallbackQuery):
         """Возврат к выбору типа инструкции"""
         await callback.answer()
@@ -2659,6 +2712,7 @@ def get_user_router() -> Router:
 
     @user_router.callback_query(F.data == "buy_new_key")
     @registration_required
+    @measure_performance("buy_new_key")
     async def buy_new_key_handler(callback: types.CallbackQuery):
         await callback.answer()
         user_id = callback.from_user.id
@@ -2701,6 +2755,7 @@ def get_user_router() -> Router:
 
     @user_router.callback_query(F.data.startswith("extend_key_"))
     @registration_required
+    @measure_performance("extend_key")
     async def extend_key_handler(callback: types.CallbackQuery):
         await callback.answer()
 
@@ -2745,6 +2800,7 @@ def get_user_router() -> Router:
 
     @user_router.callback_query(F.data.startswith("buy_"))
     @registration_required
+    @measure_performance("plan_selection")
     async def plan_selection_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         
@@ -2766,6 +2822,7 @@ def get_user_router() -> Router:
         await state.set_state(PaymentProcess.waiting_for_email)
 
     @user_router.callback_query(PaymentProcess.waiting_for_email, F.data == "back_to_plans")
+    @measure_performance("back_to_plans")
     async def back_to_plans_handler(callback: types.CallbackQuery, state: FSMContext):
         data = await state.get_data()
         await state.clear()
@@ -2780,6 +2837,7 @@ def get_user_router() -> Router:
             await back_to_main_menu_handler(callback)
 
     @user_router.message(PaymentProcess.waiting_for_email)
+    @measure_performance("process_email")
     async def process_email_handler(message: types.Message, state: FSMContext):
         if is_valid_email(message.text):
             await state.update_data(customer_email=message.text)
@@ -2818,6 +2876,7 @@ def get_user_router() -> Router:
             await message.answer("❌ Неверный формат email. Попробуйте еще раз.")
 
     @user_router.callback_query(PaymentProcess.waiting_for_email, F.data == "skip_email")
+    @measure_performance("skip_email")
     async def skip_email_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         await state.update_data(customer_email=None)
@@ -2854,6 +2913,7 @@ def get_user_router() -> Router:
 
     # ====== Topup flow payments via Stars and TON Connect ======
     @user_router.callback_query(TopupProcess.waiting_for_payment_method, F.data == "topup_pay_stars")
+    @measure_performance("topup_pay_stars")
     async def topup_pay_stars(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer("Подготовка оплаты через Stars...")
         data = await state.get_data()
@@ -2891,6 +2951,7 @@ def get_user_router() -> Router:
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
 
     @user_router.callback_query(TopupProcess.waiting_for_payment_method, F.data == "confirm_stars_payment")
+    @measure_performance("confirm_topup_stars_payment")
     async def confirm_topup_stars_payment(callback: types.CallbackQuery, state: FSMContext):
         """Обработчик подтверждения оплаты звездами для пополнения"""
         await callback.answer("Создаю счет на пополнение через Stars...")
@@ -2945,6 +3006,7 @@ def get_user_router() -> Router:
             await state.clear()
 
     @user_router.callback_query(TopupProcess.waiting_for_payment_method, F.data == "topup_stars_payment_failed")
+    @measure_performance("topup_stars_payment_failed")
     async def topup_stars_payment_failed(callback: types.CallbackQuery, state: FSMContext):
         """Обработчик кнопки 'Не удалось заплатить' для пополнения"""
         from src.shop_bot.bot.keyboards import create_stars_payment_failed_keyboard
@@ -2960,6 +3022,7 @@ def get_user_router() -> Router:
 
     @user_router.callback_query(TopupProcess.waiting_for_payment_method, F.data == "topup_back_to_payment_methods")
     @registration_required
+    @measure_performance("topup_back_to_payment_methods")
     async def topup_back_to_payment_methods(callback: types.CallbackQuery, state: FSMContext):
         """Возврат к выбору методов оплаты для пополнения"""
         await callback.answer()
@@ -2978,6 +3041,7 @@ def get_user_router() -> Router:
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
 
     @user_router.callback_query(TopupProcess.waiting_for_payment_method, F.data == "topup_pay_tonconnect")
+    @measure_performance("topup_pay_tonconnect")
     async def topup_pay_tonconnect(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer("Готовлю оплату через TON Connect...")
         data = await state.get_data()
@@ -3104,6 +3168,7 @@ def get_user_router() -> Router:
         await state.set_state(PaymentProcess.waiting_for_payment_method)
         
     @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "apply_promo_code")
+    @measure_performance("apply_promo_code")
     async def apply_promo_code_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         await callback.message.edit_text(
@@ -3114,6 +3179,7 @@ def get_user_router() -> Router:
         await state.set_state(PaymentProcess.waiting_for_promo_code)
 
     @user_router.message(PaymentProcess.waiting_for_promo_code)
+    @measure_performance("process_promo_code")
     async def process_promo_code_handler(message: types.Message, state: FSMContext):
         promo_code = message.text.strip()
         
@@ -3190,6 +3256,7 @@ def get_user_router() -> Router:
             )
 
     @user_router.callback_query(PaymentProcess.waiting_for_promo_code, F.data == "back_to_payment_methods")
+    @measure_performance("back_to_payment_methods")
     async def back_to_payment_methods_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         data = await state.get_data()
@@ -3222,6 +3289,7 @@ def get_user_router() -> Router:
         await state.set_state(PaymentProcess.waiting_for_payment_method)
 
     @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "back_to_email_prompt")
+    @measure_performance("back_to_email_prompt")
     async def back_to_email_prompt_handler(callback: types.CallbackQuery, state: FSMContext):
         # Удаляем применённый промокод при отмене покупки
         data = await state.get_data()
@@ -3264,6 +3332,7 @@ def get_user_router() -> Router:
 
 
     @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "pay_yookassa")
+    @measure_performance("create_yookassa_payment")
     async def create_yookassa_payment_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer("Создаю ссылку на оплату...")
         
@@ -3539,6 +3608,7 @@ def get_user_router() -> Router:
             await state.clear()
 
     @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "pay_cryptobot")
+    @measure_performance("create_cryptobot_invoice")
     async def create_cryptobot_invoice_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer("Создаю счет в Crypto Pay...")
         
@@ -3628,6 +3698,7 @@ def get_user_router() -> Router:
             await state.clear()
         
     @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "pay_heleket")
+    @measure_performance("create_heleket_invoice")
     async def create_heleket_invoice_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer("Создаю счет Heleket...")
         
@@ -3679,6 +3750,7 @@ def get_user_router() -> Router:
             await callback.message.edit_text("❌ Не удалось создать счет Heleket. Попробуйте другой способ оплаты.")
 
     @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "pay_tonconnect")
+    @measure_performance("create_ton_invoice")
     async def create_ton_invoice_handler(callback: types.CallbackQuery, state: FSMContext):
         logger.info(f"User {callback.from_user.id}: Entered create_ton_invoice_handler.")
         data = await state.get_data()
@@ -3936,6 +4008,7 @@ def get_user_router() -> Router:
             await state.clear()
 
     @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "pay_stars")
+    @measure_performance("create_stars_invoice")
     async def create_stars_invoice_handler(callback: types.CallbackQuery, state: FSMContext):
         logger.info(f"User {callback.from_user.id}: Entered create_stars_invoice_handler.")
         try:
@@ -4087,6 +4160,7 @@ def get_user_router() -> Router:
             await state.clear()
 
     @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "stars_payment_failed")
+    @measure_performance("stars_payment_failed")
     async def stars_payment_failed(callback: types.CallbackQuery, state: FSMContext):
         """Обработчик кнопки 'Не удалось заплатить' для покупки тарифа"""
         from src.shop_bot.bot.keyboards import create_stars_payment_failed_keyboard
@@ -4102,6 +4176,7 @@ def get_user_router() -> Router:
 
     @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "back_to_payment_methods")
     @registration_required
+    @measure_performance("back_to_payment_methods")
     async def back_to_payment_methods(callback: types.CallbackQuery, state: FSMContext):
         """Возврат к выбору методов оплаты для покупки тарифа"""
         await callback.answer()
@@ -4146,6 +4221,7 @@ def get_user_router() -> Router:
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
 
     @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "pay_balance")
+    @measure_performance("pay_with_balance")
     async def pay_with_internal_balance(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer("Проверяю баланс и оформляю покупку...")
         try:
@@ -4222,6 +4298,7 @@ def get_user_router() -> Router:
 
     @user_router.message(F.text)
     @registration_required
+    @measure_performance("promo_code_text")
     async def promo_code_text_handler(message: types.Message, state: FSMContext):
         """Обработчик текстовых сообщений для промокодов"""
         from shop_bot.data_manager.database import validate_promo_code
@@ -4325,6 +4402,7 @@ def get_user_router() -> Router:
             pass
 
     @user_router.pre_checkout_query()
+    @measure_performance("pre_checkout")
     async def pre_checkout_handler(pre_checkout_query: types.PreCheckoutQuery):
         """Обработчик pre-checkout для Telegram Stars"""
         logger.info(f"Pre-checkout query received: {pre_checkout_query.id}")
@@ -4380,6 +4458,7 @@ def get_user_router() -> Router:
             await pre_checkout_query.answer(ok=False, error_message="Внутренняя ошибка сервера")
 
     @user_router.message(F.content_type == types.ContentType.SUCCESSFUL_PAYMENT)
+    @measure_performance("successful_payment")
     async def successful_payment_handler(message: types.Message):
         """Обработчик успешного платежа через Telegram Stars"""
         logger.info(f"Successful payment received from user {message.from_user.id}")
@@ -4458,6 +4537,7 @@ def get_user_router() -> Router:
     # Обработчики для сброса триала
     @user_router.callback_query(F.data == "admin_reset_trial")
     @registration_required
+    @measure_performance("admin_reset_trial")
     async def admin_reset_trial_handler(callback: types.CallbackQuery, state: FSMContext):
         """Обработчик для начала процесса сброса триала"""
         await callback.answer()
@@ -4523,6 +4603,7 @@ def get_user_router() -> Router:
 
     @user_router.callback_query(F.data == "confirm_trial_reset")
     @registration_required
+    @measure_performance("confirm_trial_reset")
     async def confirm_trial_reset_handler(callback: types.CallbackQuery, state: FSMContext):
         """Обработчик подтверждения сброса триала"""
         await callback.answer()
@@ -4569,6 +4650,7 @@ def get_user_router() -> Router:
 
     @user_router.callback_query(F.data == "cancel_trial_reset")
     @registration_required
+    @measure_performance("cancel_trial_reset")
     async def cancel_trial_reset_handler(callback: types.CallbackQuery, state: FSMContext):
         """Обработчик отмены сброса триала"""
         await callback.answer()
@@ -4579,6 +4661,7 @@ def get_user_router() -> Router:
         await callback.message.edit_text(text, reply_markup=keyboard)
 
     @user_router.error()
+    @measure_performance("user_router_error")
     async def user_router_error_handler(event: ErrorEvent):
         """Глобальный обработчик ошибок для user_router"""
         logger.critical(

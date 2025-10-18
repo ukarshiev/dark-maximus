@@ -293,6 +293,37 @@
 					</small>
 				</div>
 			</section>
+
+			<section class="settings-section">
+				<h2>Мониторинг</h2>
+				<div class="form-group">
+					<label class="checkbox-label" for="monitoring_enabled" title="Включить/выключить мониторинг производительности бота">
+						<input type="hidden" name="monitoring_enabled" value="false" />
+						<input type="checkbox" id="monitoring_enabled" name="monitoring_enabled" value="true" {% if settings.monitoring_enabled == 'true' or settings.monitoring_enabled is none %}checked{% endif %} />
+						<span>Включить мониторинг</span>
+					</label>
+				</div>
+				<div class="form-group">
+					<label for="monitoring_max_metrics">Максимум метрик в памяти:</label>
+					<input type="number" id="monitoring_max_metrics" name="monitoring_max_metrics" min="100" step="100" value="{{ settings.monitoring_max_metrics or 1000 }}" title="Максимальное количество сохраняемых метрик в памяти" />
+				</div>
+				<div class="form-group">
+					<label for="monitoring_slow_threshold">Порог медленности (сек):</label>
+					<input type="number" id="monitoring_slow_threshold" name="monitoring_slow_threshold" min="0.1" step="0.1" value="{{ settings.monitoring_slow_threshold or 1.0 }}" title="Запросы дольше порога считаются медленными" />
+				</div>
+				<div class="form-group">
+					<label for="monitoring_cleanup_hours">Интервал очистки старых метрик:</label>
+					<select id="monitoring_cleanup_hours" name="monitoring_cleanup_hours" title="Через сколько часов удалять старые метрики">
+						{% set opts = ['0.5','1','2','6','12','24'] %}
+						{% for h in opts %}
+							<option value="{{ h }}" {% if (settings.monitoring_cleanup_hours or '24') == h %}selected{% endif %}>{{ h }} ч</option>
+						{% endfor %}
+					</select>
+				</div>
+				<div class="form-group">
+					<a href="/api/monitoring/export" class="button" title="Скачать метрики в JSON" target="_blank">Экспортировать метрики (JSON)</a>
+				</div>
+			</section>
 			
 			<button type="submit" class="button button-primary" data-size="md" title="Сохранить настройки панели">
 				<i class="fas fa-save"></i>

@@ -1,9 +1,30 @@
 {% extends "base.html" %} 
 {% block title %}dark-maximus.com{% endblock %}
 {% block header_title %}Главная{% endblock %}
-{%
-block content %}
 
+{% block header_buttons %}
+    <!-- Кнопка обновления -->
+    <button onclick="refreshPage()" class="button button-refresh" style="margin-right: 8px;" title="Обновить данные статистики">
+        <i class="fas fa-sync-alt"></i>
+        Обновить
+    </button>
+{% endblock %}
+
+{% block content %}
+
+<!-- Вкладки -->
+<div class="tabs-container">
+    <div class="tabs">
+        <a href="{{ url_for('dashboard_page') }}" class="tab active">
+            <i class="icon">📊</i>
+            Статистика
+        </a>
+        <a href="{{ url_for('performance_page') }}" class="tab">
+            <i class="icon">⚡</i>
+            Мониторинг
+        </a>
+    </div>
+</div>
 
 <section class="stats-section">
 	<div class="stats-grid">
@@ -39,6 +60,17 @@ block content %}
 		<div class="chart-container">
 			<h3>Новые пользователи и ключи</h3>
 			<canvas id="combinedChart"></canvas>
+		</div>
+	</div>
+</section>
+
+<!-- Мониторинг производительности -->
+<section class="analytics-section">
+	<h2>Мониторинг за последние 24 часа</h2>
+	<div class="charts-grid">
+		<div class="chart-container">
+			<h3>Производительность системы</h3>
+			<canvas id="monitoringChart"></canvas>
 		</div>
 	</div>
 </section>
@@ -183,7 +215,192 @@ block content %}
 				}
 			}
 		});
+		
+		// Инициализация графика мониторинга
+		loadMonitoringChart();
 	});
+	
+	// Функция загрузки данных мониторинга и создания графика
+	async function loadMonitoringChart() {
+		try {
+			const response = await fetch('/api/monitoring/hourly-stats?hours=24');
+			if (!response.ok) {
+				throw new Error('Ошибка загрузки данных мониторинга');
+			}
+			
+			const data = await response.json();
+			createMonitoringChart(data);
+		} catch (error) {
+			console.error('Ошибка загрузки данных мониторинга:', error);
+			// Создаем пустой график при ошибке
+			createMonitoringChart({
+				hours: [],
+				total_operations: [],
+				avg_response_time: [],
+				slow_operations: [],
+				error_count: []
+			});
+		}
+	}
+	
+	// Функция создания графика мониторинга
+	function createMonitoringChart(data) {
+		const monitoringCtx = document.getElementById('monitoringChart').getContext('2d');
+		new Chart(monitoringCtx, {
+			type: 'line',
+			data: {
+				labels: data.hours || [],
+				datasets: [{
+					label: 'Всего операций в час',
+					data: data.total_operations || [],
+					borderColor: '#4CAF50',
+					backgroundColor: 'rgba(76, 175, 80, 0.1)',
+					tension: 0.4,
+					pointRadius: 4,
+					pointHoverRadius: 6,
+					borderWidth: 2,
+					yAxisID: 'y'
+				}, {
+					label: 'Среднее время ответа (с)',
+					data: data.avg_response_time || [],
+					borderColor: '#2196F3',
+					backgroundColor: 'rgba(33, 150, 243, 0.1)',
+					tension: 0.4,
+					pointRadius: 4,
+					pointHoverRadius: 6,
+					borderWidth: 2,
+					yAxisID: 'y1'
+				}, {
+					label: 'Медленных операций в час',
+					data: data.slow_operations || [],
+					borderColor: '#FF9800',
+					backgroundColor: 'rgba(255, 152, 0, 0.1)',
+					tension: 0.4,
+					pointRadius: 4,
+					pointHoverRadius: 6,
+					borderWidth: 2,
+					yAxisID: 'y'
+				}, {
+					label: 'Ошибок в час',
+					data: data.error_count || [],
+					borderColor: '#F44336',
+					backgroundColor: 'rgba(244, 67, 54, 0.1)',
+					tension: 0.4,
+					pointRadius: 4,
+					pointHoverRadius: 6,
+					borderWidth: 2,
+					yAxisID: 'y'
+				}]
+			},
+			options: {
+				responsive: true,
+				maintainAspectRatio: false,
+				layout: {
+					padding: {
+						top: 5,
+						right: 5,
+						bottom: 5,
+						left: 5
+					}
+				},
+				plugins: {
+					legend: {
+						display: true,
+						position: 'top',
+						labels: {
+							font: {
+								size: 12
+							},
+							usePointStyle: true,
+							padding: 15
+						}
+					}
+				},
+				scales: {
+					x: {
+						display: true,
+						title: {
+							display: true,
+							text: 'Время',
+							font: {
+								size: 10
+							}
+						},
+						ticks: {
+							font: {
+								size: 9
+							},
+							maxRotation: 45,
+							padding: 3
+						},
+						grid: {
+							display: true,
+							drawBorder: true
+						}
+					},
+					y: {
+						display: true,
+						beginAtZero: true,
+						title: {
+							display: true,
+							text: 'Количество',
+							font: {
+								size: 10
+							}
+						},
+						ticks: {
+							font: {
+								size: 9
+							},
+							padding: 3,
+							stepSize: 1
+						},
+						grid: {
+							display: true,
+							drawBorder: true
+						}
+					},
+					y1: {
+						display: true,
+						position: 'right',
+						beginAtZero: true,
+						title: {
+							display: true,
+							text: 'Секунды',
+							font: { size: 10 }
+						},
+						ticks: {
+							font: {
+								size: 9
+							},
+							padding: 3,
+							callback: function(value) {
+								return value.toFixed(3) + 'с';
+							}
+						}
+					}
+				},
+				interaction: {
+					intersect: false,
+					mode: 'index'
+				},
+				elements: {
+					point: {
+						radius: 4,
+						hoverRadius: 6
+					},
+					line: {
+						tension: 0.4
+					}
+				}
+			}
+		});
+	}
+	
+	// Функция обновления страницы
+	function refreshPage() {
+		window.location.reload();
+	}
 </script>
 
 {% endblock %}

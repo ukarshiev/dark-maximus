@@ -12,7 +12,9 @@ import os
 from shop_bot.webhook_server.app import create_webhook_app
 from shop_bot.data_manager.scheduler import periodic_subscription_check
 from shop_bot.data_manager import database
+from shop_bot.data_manager.async_database import initialize_async_db, close_async_db
 from shop_bot.data_manager.backup import initialize_backup_system, shutdown_backup_system
+from shop_bot.utils.performance_monitor import get_performance_monitor, start_metrics_cleanup
 from shop_bot.bot_controller import BotController
 from shop_bot.utils import setup_logging, app_logger, security_logger, payment_logger, database_logger
 
@@ -25,6 +27,10 @@ def main():
 
     database.initialize_db()
     logger.info("Database initialization check complete.")
+    
+    # Инициализация асинхронной БД
+    asyncio.run(initialize_async_db())
+    logger.info("Async database initialized.")
     
     # Инициализация Telegram Logger Handler
     try:
@@ -73,6 +79,9 @@ def main():
         
         # Останавливаем систему бэкапов
         shutdown_backup_system()
+        
+        # Закрываем асинхронную БД
+        await close_async_db()
         
         status = bot_controller.get_status()
         if status.get("shop_bot_running"):
@@ -154,6 +163,10 @@ def main():
         logger.info("Application is running. Bots are managed automatically and via web panel.")
         
         asyncio.create_task(periodic_subscription_check(bot_controller))
+        
+        # Запускаем мониторинг производительности
+        asyncio.create_task(start_metrics_cleanup())
+        logger.info("Performance monitoring started.")
 
         await asyncio.Future()
 

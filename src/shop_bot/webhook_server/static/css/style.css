@@ -474,6 +474,13 @@ h4 {
 	background-color: var(--warning-color);
 }
 
+.button-refresh {
+	background-color: #17a2b8;
+}
+.button-refresh:hover {
+	background-color: #138496;
+}
+
 .button-disabled {
     background-color: var(--muted);
 	cursor: not-allowed;
@@ -5583,4 +5590,88 @@ body:not(.admin-panel) .legal-document {
 
 .modern-toggle input:disabled + .toggle-slider:before {
     cursor: not-allowed;
+}
+
+/* Стили для вкладок */
+.tabs-container {
+    margin-bottom: 2rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: -1px;
+}
+
+.tab {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 1.5rem;
+    background: transparent;
+    color: var(--muted);
+    text-decoration: none;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    transition: all 0.2s ease;
+    font-weight: 500;
+    font-size: 0.95rem;
+    position: relative;
+}
+
+.tab:hover {
+    color: var(--light-color);
+    background: var(--bg-hover);
+    text-decoration: none;
+}
+
+.tab.active {
+    color: var(--light-color);
+    background: var(--bg-surface);
+    border-color: var(--border-color);
+    border-bottom-color: var(--bg-surface);
+    position: relative;
+    z-index: 1;
+}
+
+.tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: var(--bg-surface);
+}
+
+.tab .icon {
+    font-size: 1.1rem;
+    opacity: 0.8;
+}
+
+.tab.active .icon {
+    opacity: 1;
+}
+
+@media (max-width: 768px) {
+    .tabs {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    
+    .tab {
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        margin-bottom: 0.25rem;
+    }
+    
+    .tab.active {
+        border-bottom-color: var(--border-color);
+    }
+    
+    .tab.active::after {
+        display: none;
+    }
 }

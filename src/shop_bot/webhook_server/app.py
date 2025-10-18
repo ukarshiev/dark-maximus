@@ -42,6 +42,7 @@ from shop_bot.data_manager.database import (
 )
 from shop_bot.data_manager.scheduler import send_subscription_notification
 from shop_bot.ton_monitor import start_ton_monitoring
+from shop_bot.utils.performance_monitor import get_performance_monitor, get_performance_report, measure_performance
 
 _bot_controller = None
 
@@ -54,7 +55,9 @@ ALL_SETTINGS_KEYS = [
     "stars_enabled", "stars_conversion_rate",
     "heleket_merchant_id", "heleket_api_key", "domain", "global_domain", "referral_percentage",
     "referral_discount", "ton_wallet_address", "tonapi_key", "force_subscription", "trial_enabled", "trial_duration_days", "enable_referrals", "minimum_withdrawal",
-    "support_group_id", "support_bot_token", "ton_monitoring_enabled", "hidden_mode", "support_enabled"
+    "support_group_id", "support_bot_token", "ton_monitoring_enabled", "hidden_mode", "support_enabled",
+    # Настройки мониторинга производительности
+    "monitoring_enabled", "monitoring_max_metrics", "monitoring_slow_threshold", "monitoring_cleanup_hours"
 ]
 
 def create_webhook_app(bot_controller_instance):
@@ -85,6 +88,12 @@ def create_webhook_app(bot_controller_instance):
     # Безопасное получение секретного ключа из переменных окружения
     import secrets
     flask_app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(32))
+    
+    # Настройка для автоматической перезагрузки шаблонов
+    flask_app.jinja_env.auto_reload = True
+    flask_app.config['TEMPLATES_AUTO_RELOAD'] = True
+    flask_app.config['DEBUG'] = True
+    flask_app.jinja_env.cache = None
     
     # Настройка постоянного хранения сессий в файловой системе
     flask_app.config['SESSION_TYPE'] = 'filesystem'
@@ -135,6 +144,26 @@ def create_webhook_app(bot_controller_instance):
                 'hidden_mode': False,
                 'project_version': ''
             }
+
+    @flask_app.template_filter('timestamp_to_datetime')
+    def timestamp_to_datetime(timestamp):
+        """Конвертирует timestamp в datetime объект"""
+        if timestamp is None:
+            return None
+        try:
+            return datetime.fromtimestamp(timestamp)
+        except (ValueError, TypeError):
+            return None
+
+    @flask_app.template_filter('strftime')
+    def strftime_filter(dt, format_string):
+        """Фильтр для форматирования datetime в строку"""
+        if dt is None:
+            return 'N/A'
+        try:
+            return dt.strftime(format_string)
+        except (AttributeError, ValueError):
+            return 'N/A'
 
     def login_required(f):
         @wraps(f)
@@ -252,6 +281,102 @@ def create_webhook_app(bot_controller_instance):
             chart_data=chart_data,
             **common_data
         )
+
+    @flask_app.route('/performance')
+    @login_required
+    def performance_page():
+        """Страница мониторинга производительности"""
+        try:
+            async def get_performance_data():
+                monitor = get_performance_monitor()
+                settings = get_all_settings()
+                # Применяем настройки к монитору при каждом заходе на страницу
+                try:
+                    await monitor.apply_settings(
+                        enabled=(settings.get('monitoring_enabled', 'true') == 'true'),
+                        max_metrics=int(settings.get('monitoring_max_metrics') or 1000),
+                        slow_threshold=float(settings.get('monitoring_slow_threshold') or 1.0)
+                    )
+                except Exception:
+                    pass
+                
+                # Получаем сводку по производительности
+                performance_summary = await monitor.get_performance_summary()
+                
+                # Получаем медленные операции
+                slow_operations = await monitor.get_slow_operations(limit=20)
+                
+                # Получаем последние ошибки
+                recent_errors = await monitor.get_recent_errors(limit=20)
+                
+                # Получаем статистику по операциям
+                operation_stats = {}
+                for operation in performance_summary.get('top_operations', []):
+                    op_name = operation['operation']
+                    operation_stats[op_name] = await monitor.get_operation_stats(op_name)
+                
+                return performance_summary, slow_operations, recent_errors, operation_stats, settings
+            
+            # Запускаем асинхронную функцию
+            performance_summary, slow_operations, recent_errors, operation_stats, settings = asyncio.run(get_performance_data())
+            
+            common_data = get_common_template_data()
+            
+            return render_template(
+                'performance.html',
+                performance_summary=performance_summary,
+                slow_operations=slow_operations,
+                recent_errors=recent_errors,
+                operation_stats=operation_stats,
+                monitoring_enabled=(settings.get('monitoring_enabled', 'true') == 'true'),
+                **common_data
+            )
+        except Exception as e:
+            logger.error(f"Error in performance_page: {e}")
+            flash('Ошибка при загрузке данных мониторинга', 'danger')
+            return redirect(url_for('dashboard_page'))
+
+    @flask_app.route('/api/monitoring/toggle', methods=['POST'])
+    @login_required
+    def api_toggle_monitoring():
+        try:
+            enabled = request.form.get('enabled') or request.json.get('enabled')
+            value = 'true' if str(enabled).lower() in ['true', '1', 'on'] else 'false'
+            update_setting('monitoring_enabled', value)
+            # Применяем немедленно
+            monitor = get_performance_monitor()
+            asyncio.run(monitor.set_enabled(value == 'true'))
+            return {'success': True, 'enabled': (value == 'true')}
+        except Exception as e:
+            logger.error(f"Failed to toggle monitoring: {e}")
+            return {'success': False, 'message': str(e)}, 500
+
+    @flask_app.route('/api/monitoring/export', methods=['GET'])
+    @login_required
+    def api_export_monitoring():
+        try:
+            monitor = get_performance_monitor()
+            data = asyncio.run(monitor.export_metrics_json())
+            return json.dumps(data, ensure_ascii=False), 200, {'Content-Type': 'application/json; charset=utf-8'}
+        except Exception as e:
+            logger.error(f"Failed to export metrics: {e}")
+            return {'success': False, 'message': str(e)}, 500
+
+    @flask_app.route('/api/monitoring/hourly-stats', methods=['GET'])
+    @login_required
+    def api_hourly_stats():
+        """API endpoint для получения статистики мониторинга по часам"""
+        try:
+            hours = request.args.get('hours', 24, type=int)
+            if hours < 1 or hours > 168:  # Ограничиваем от 1 часа до недели
+                hours = 24
+            
+            monitor = get_performance_monitor()
+            data = asyncio.run(monitor.get_hourly_stats_for_charts(hours))
+            return json.dumps(data, ensure_ascii=False), 200, {'Content-Type': 'application/json; charset=utf-8'}
+        except Exception as e:
+            logger.error(f"Failed to get hourly stats: {e}")
+            return {'success': False, 'message': str(e)}, 500
 
     @flask_app.route('/transactions')
     @login_required
@@ -434,7 +559,7 @@ def create_webhook_app(bot_controller_instance):
     @login_required
     def save_panel_settings():
         """Сохранение настроек панели - v2.1"""
-        panel_keys = ['panel_login', 'global_domain']
+        panel_keys = ['panel_login', 'global_domain', 'monitoring_max_metrics', 'monitoring_slow_threshold', 'monitoring_cleanup_hours']
         
         # Пароль отдельно, если указан
         if 'panel_password' in request.form and request.form.get('panel_password'):
@@ -447,9 +572,11 @@ def create_webhook_app(bot_controller_instance):
         for key in panel_keys:
             update_setting(key, request.form.get(key, ''))
         
-        # Обработка чекбокса auto_delete_orphans
+        # Обработка чекбоксов
         auto_delete_orphans = 'true' if 'auto_delete_orphans' in request.form else 'false'
         update_setting('auto_delete_orphans', auto_delete_orphans)
+        monitoring_enabled = 'true' if 'monitoring_enabled' in request.form else 'false'
+        update_setting('monitoring_enabled', monitoring_enabled)
         
         flash('Настройки панели успешно сохранены!', 'success')
         return redirect(url_for('settings_page', tab='panel'))
@@ -1861,6 +1988,7 @@ def create_webhook_app(bot_controller_instance):
         return redirect(url_for('settings_page', tab='servers'))
 
     @flask_app.route('/yookassa-webhook', methods=['POST'])
+    @measure_performance("yookassa_webhook")
     def yookassa_webhook_handler():
         try:
             event_json = request.json
@@ -1901,6 +2029,7 @@ def create_webhook_app(bot_controller_instance):
             return 'Error', 500
         
     @flask_app.route('/cryptobot-webhook', methods=['POST'])
+    @measure_performance("cryptobot_webhook")
     def cryptobot_webhook_handler():
         try:
             request_data = request.json
@@ -1947,6 +2076,7 @@ def create_webhook_app(bot_controller_instance):
             return 'Error', 500
         
     @flask_app.route('/heleket-webhook', methods=['POST'])
+    @measure_performance("heleket_webhook")
     def heleket_webhook_handler():
         try:
             data = request.json
@@ -1987,6 +2117,7 @@ def create_webhook_app(bot_controller_instance):
             return 'Error', 500
         
     @flask_app.route('/ton-webhook', methods=['POST'])
+    @measure_performance("ton_webhook")
     def ton_webhook_handler():
         try:
             data = request.json

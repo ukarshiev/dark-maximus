@@ -375,7 +375,8 @@ def create_qr_keyboard(key_id: int) -> InlineKeyboardMarkup:
 
 def create_howto_vless_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="🎬 Видеоинструкции", callback_data="video_instructions_list")
+    # Кнопка "Видеоинструкции" скрыта, так как функционал не работает
+    # builder.button(text="🎬 Видеоинструкции", callback_data="video_instructions_list")
     builder.button(text="📱 Android", callback_data="howto_android")
     builder.button(text="📱 iOS", callback_data="howto_ios")
     builder.button(text="💻 Windows", callback_data="howto_windows")
@@ -387,7 +388,8 @@ def create_howto_vless_keyboard() -> InlineKeyboardMarkup:
 
 def create_howto_vless_keyboard_key(key_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="🎬 Видеоинструкции", callback_data="video_instructions_list")
+    # Кнопка "Видеоинструкции" скрыта, так как функционал не работает
+    # builder.button(text="🎬 Видеоинструкции", callback_data="video_instructions_list")
     builder.button(text="📱 Android", callback_data="howto_android")
     builder.button(text="📱 iOS", callback_data="howto_ios")
     builder.button(text="💻 Windows", callback_data="howto_windows")

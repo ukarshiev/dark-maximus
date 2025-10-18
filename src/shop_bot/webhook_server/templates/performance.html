@@ -1,0 +1,449 @@
+{% extends "base.html" %}
+{% block title %}Мониторинг производительности - dark-maximus.com{% endblock %}
+{% block header_title %}Мониторинг производительности{% endblock %}
+
+{% block header_buttons %}
+    <!-- Toggle мониторинга в правой части header только на этой странице -->
+    <div class="toggle-container" style="margin-right: 8px;" title="Включить или выключить мониторинг производительности">
+        <label class="modern-toggle">
+            <input type="checkbox" id="monitoring_enabled_toggle" {% if monitoring_enabled %}checked{% endif %} onchange="toggleMonitoringEnabled()">
+            <span class="toggle-slider"></span>
+        </label>
+    </div>
+    <!-- Кнопка обновления -->
+    <button onclick="refreshPage()" class="button button-refresh" style="margin-right: 8px;" title="Обновить данные мониторинга">
+        <i class="fas fa-sync-alt"></i>
+        Обновить
+    </button>
+{% endblock %}
+
+{% block content %}
+
+<!-- Вкладки -->
+<div class="tabs-container">
+    <div class="tabs">
+        <a href="{{ url_for('dashboard_page') }}" class="tab">
+            <i class="icon">📊</i>
+            Статистика
+        </a>
+        <a href="{{ url_for('performance_page') }}" class="tab active">
+            <i class="icon">⚡</i>
+            Мониторинг
+        </a>
+    </div>
+</div>
+
+<!-- Общая статистика -->
+<section class="stats-section">
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>Всего операций</h3>
+            <p class="stat-number">{{ performance_summary.total_operations or 0 }}</p>
+        </div>
+        <div class="stat-card">
+            <h3>Среднее время ответа</h3>
+            <p class="stat-number">{{ "%.3f"|format(performance_summary.avg_response_time or 0) }}с</p>
+        </div>
+        <div class="stat-card">
+            <h3>Медленных операций</h3>
+            <p class="stat-number">{{ performance_summary.slow_operations or 0 }}</p>
+        </div>
+        <div class="stat-card">
+            <h3>Процент ошибок</h3>
+            <p class="stat-number">{{ "%.1f"|format(performance_summary.error_rate or 0) }}%</p>
+        </div>
+    </div>
+</section>
+
+<!-- Вкладки аналитики -->
+<div class="analytics-tabs-container">
+    <div class="analytics-tabs">
+        <button class="analytics-tab active" onclick="switchAnalyticsTab('top-operations')" title="Показать топ операций по времени выполнения">
+            <i class="icon">⏱️</i>
+            Топ по времени выполнения
+        </button>
+        <button class="analytics-tab" onclick="switchAnalyticsTab('top-users')" title="Показать топ активных пользователей">
+            <i class="icon">👥</i>
+            Топ активных пользователей
+        </button>
+        <button class="analytics-tab" onclick="switchAnalyticsTab('slow-operations')" title="Показать медленные операции">
+            <i class="icon">🐌</i>
+            Медленные операции
+        </button>
+        <button class="analytics-tab" onclick="switchAnalyticsTab('recent-errors')" title="Показать последние ошибки">
+            <i class="icon">❌</i>
+            Последние ошибки
+        </button>
+    </div>
+</div>
+
+<!-- Вкладка: Топ операций по времени выполнения -->
+<div id="tab-top-operations" class="analytics-tab-content active">
+    <section class="analytics-section">
+        <h2>Топ операций по времени выполнения</h2>
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Операция</th>
+                        <th>Количество</th>
+                        <th>Среднее время</th>
+                        <th>Общее время</th>
+                        <th>Медленных</th>
+                        <th>Ошибок</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for operation in performance_summary.top_operations[:20] %}
+                    <tr>
+                        <td><code>{{ operation.operation }}</code></td>
+                        <td>{{ operation.count }}</td>
+                        <td>{{ "%.3f"|format(operation.avg_time) }}с</td>
+                        <td>{{ "%.3f"|format(operation.total_time) }}с</td>
+                        <td>
+                            {% if operation_stats.get(operation.operation) %}
+                                {{ operation_stats[operation.operation].slow_count or 0 }}
+                            {% else %}
+                                0
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if operation_stats.get(operation.operation) %}
+                                {{ operation_stats[operation.operation].error_count or 0 }}
+                            {% else %}
+                                0
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<!-- Вкладка: Топ пользователей по активности -->
+<div id="tab-top-users" class="analytics-tab-content">
+    <section class="analytics-section">
+        <h2>Топ пользователей по активности</h2>
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Пользователь ID</th>
+                        <th>Username</th>
+                        <th>Полное имя</th>
+                        <th>Количество запросов</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in performance_summary.top_users[:20] %}
+                    <tr>
+                        <td>{{ user.user_id }}</td>
+                        <td>
+                            <div class="user-info">
+                                <div class="cell-inline">
+                                    <div class="cell-left">
+                                        <span>{{ user.username or 'N/A' }}</span>
+                                    </div>
+                                    <div class="cell-actions">
+                                        <button class="modal-action-btn" data-size="xs" onclick="openUserModal({{ user.user_id }}, '{{ user.username or 'N/A' }}', false, 0)" title="Открыть карточку пользователя">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>{{ user.fullname or 'N/A' }}</td>
+                        <td>{{ user.request_count }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<!-- Вкладка: Медленные операции -->
+<div id="tab-slow-operations" class="analytics-tab-content">
+    <section class="analytics-section">
+        <h2>Медленные операции (>1с)</h2>
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Время</th>
+                        <th>Операция</th>
+                        <th>Длительность</th>
+                        <th>Пользователь</th>
+                        <th>Статус</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for op in slow_operations[:20] %}
+                    <tr>
+                        <td>{{ op.timestamp | timestamp_to_datetime | strftime('%H:%M:%S') if op.timestamp else 'N/A' }}</td>
+                        <td><code>{{ op.operation }}</code></td>
+                        <td class="text-danger">{{ "%.3f"|format(op.duration) }}с</td>
+                        <td>{{ op.user_id or 'N/A' }}</td>
+                        <td>
+                            {% if op.success %}
+                                <span class="status-success">✓</span>
+                            {% else %}
+                                <span class="status-error">✗</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<!-- Вкладка: Последние ошибки -->
+<div id="tab-recent-errors" class="analytics-tab-content">
+    <section class="analytics-section">
+        <h2>Последние ошибки</h2>
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Время</th>
+                        <th>Операция</th>
+                        <th>Длительность</th>
+                        <th>Пользователь</th>
+                        <th>Ошибка</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for error in recent_errors[:20] %}
+                    <tr>
+                        <td>{{ error.timestamp | timestamp_to_datetime | strftime('%H:%M:%S') if error.timestamp else 'N/A' }}</td>
+                        <td><code>{{ error.operation }}</code></td>
+                        <td>{{ "%.3f"|format(error.duration) }}с</td>
+                        <td>{{ error.user_id or 'N/A' }}</td>
+                        <td class="text-danger">{{ error.error or 'Unknown error' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<style>
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+    transition: transform 0.2s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+}
+
+.stat-card h3 {
+    margin: 0 0 0.5rem 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.stat-number {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.analytics-section {
+    margin-bottom: 2rem;
+}
+
+.analytics-section h2 {
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.table-container {
+    overflow-x: auto;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card-bg);
+}
+
+.data-table th,
+.data-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.data-table th {
+    background: var(--bg-secondary);
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.data-table td {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.data-table tr:hover {
+    background: var(--bg-secondary);
+}
+
+.text-danger {
+    color: #dc3545 !important;
+    font-weight: 600;
+}
+
+.status-success {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.status-error {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+code {
+    background: var(--bg-secondary);
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+}
+
+/* Стили для вкладок аналитики */
+.analytics-tabs-container {
+    margin-bottom: 2rem;
+}
+
+.analytics-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+
+.analytics-tab {
+    background: none;
+    border: none;
+    padding: 0.75rem 1rem;
+    border-radius: 8px 8px 0 0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    position: relative;
+}
+
+.analytics-tab:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.analytics-tab.active {
+    background: var(--primary-color);
+    color: white;
+    font-weight: 600;
+}
+
+.analytics-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--primary-color);
+}
+
+.analytics-tab-content {
+    display: none;
+}
+
+.analytics-tab-content.active {
+    display: block;
+}
+
+.analytics-tab .icon {
+    font-size: 1rem;
+}
+</style>
+
+<script>
+async function toggleMonitoringEnabled() {
+    const checkbox = document.getElementById('monitoring_enabled_toggle');
+    try {
+        const formData = new FormData();
+        formData.append('enabled', checkbox.checked ? 'true' : 'false');
+        const res = await fetch('/api/monitoring/toggle', { method: 'POST', body: formData });
+        if (!res.ok) {
+            console.error('Ошибка переключения мониторинга');
+        }
+        window.location.reload();
+    } catch (e) {
+        console.error('Ошибка переключения мониторинга', e);
+    }
+}
+
+function refreshPage() {
+    window.location.reload();
+}
+
+function switchAnalyticsTab(tabName) {
+    // Скрыть все вкладки
+    const allTabs = document.querySelectorAll('.analytics-tab-content');
+    allTabs.forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Убрать активный класс со всех кнопок
+    const allButtons = document.querySelectorAll('.analytics-tab');
+    allButtons.forEach(button => {
+        button.classList.remove('active');
+    });
+    
+    // Показать выбранную вкладку
+    const selectedTab = document.getElementById(`tab-${tabName}`);
+    if (selectedTab) {
+        selectedTab.classList.add('active');
+    }
+    
+    // Активировать соответствующую кнопку
+    const selectedButton = document.querySelector(`[onclick="switchAnalyticsTab('${tabName}')"]`);
+    if (selectedButton) {
+        selectedButton.classList.add('active');
+    }
+}
+</script>
+
+{% endblock %}
