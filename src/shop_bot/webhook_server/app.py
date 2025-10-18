@@ -3979,6 +3979,156 @@ def create_webhook_app(bot_controller_instance):
     # CSRF защита отключена по умолчанию (WTF_CSRF_CHECK_DEFAULT = False)
     # При необходимости можно включить выборочно через @csrf.protect()() для критичных форм
 
+    # API для работы с базой данных
+    @flask_app.route('/api/database/stats')
+    @login_required
+    def get_database_stats():
+        """Получение статистики таблиц базы данных"""
+        try:
+            with sqlite3.connect(DB_FILE) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                # Список всех таблиц
+                tables = [
+                    'users', 'transactions', 'vpn_keys', 'promo_codes', 
+                    'promo_code_usage', 'notifications', 'video_instructions',
+                    'bot_settings', 'xui_hosts', 'hosts', 'plans', 'support_threads'
+                ]
+                
+                stats = {}
+                
+                for table in tables:
+                    try:
+                        # Получаем количество записей
+                        cursor.execute(f"SELECT COUNT(*) as count FROM {table}")
+                        count = cursor.fetchone()['count']
+                        
+                        # Получаем размер таблицы (примерно)
+                        cursor.execute(f"SELECT COUNT(*) * 1024 as size FROM {table}")  # Примерная оценка
+                        size_bytes = cursor.fetchone()['size']
+                        
+                        # Форматируем размер
+                        if size_bytes < 1024:
+                            size_str = f"{size_bytes} B"
+                        elif size_bytes < 1024 * 1024:
+                            size_str = f"{size_bytes / 1024:.1f} KB"
+                        else:
+                            size_str = f"{size_bytes / (1024 * 1024):.1f} MB"
+                        
+                        stats[table] = {
+                            'count': count,
+                            'size': size_str
+                        }
+                    except sqlite3.Error as e:
+                        # Если таблица не существует, устанавливаем нулевые значения
+                        stats[table] = {
+                            'count': 0,
+                            'size': '0 B'
+                        }
+                
+                return jsonify({
+                    'success': True,
+                    'tables': stats
+                })
+                
+        except Exception as e:
+            logger.error(f"Ошибка получения статистики БД: {e}")
+            return jsonify({
+                'success': False,
+                'message': str(e)
+            }), 500
+
+    @flask_app.route('/api/database/delete-table/<table_name>', methods=['DELETE'])
+    @login_required
+    def delete_table_data(table_name):
+        """Удаление всех данных из указанной таблицы"""
+        try:
+            # Список разрешенных таблиц
+            allowed_tables = [
+                'users', 'transactions', 'vpn_keys', 'promo_codes', 
+                'promo_code_usage', 'notifications', 'video_instructions',
+                'bot_settings', 'xui_hosts', 'hosts', 'plans', 'support_threads'
+            ]
+            
+            if table_name not in allowed_tables:
+                return jsonify({
+                    'success': False,
+                    'message': 'Таблица не найдена или удаление запрещено'
+                }), 404
+            
+            with sqlite3.connect(DB_FILE) as conn:
+                cursor = conn.cursor()
+                
+                # Получаем количество записей до удаления
+                cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+                count_before = cursor.fetchone()[0]
+                
+                # Удаляем все записи из таблицы
+                cursor.execute(f"DELETE FROM {table_name}")
+                deleted_count = cursor.rowcount
+                
+                # Выполняем VACUUM для очистки WAL
+                cursor.execute("VACUUM")
+                
+                conn.commit()
+                
+                logger.info(f"Удалено {deleted_count} записей из таблицы {table_name}")
+                
+                return jsonify({
+                    'success': True,
+                    'deleted_count': deleted_count,
+                    'message': f'Удалено {deleted_count} записей из таблицы {table_name}'
+                })
+                
+        except sqlite3.Error as e:
+            logger.error(f"Ошибка SQL при удалении из таблицы {table_name}: {e}")
+            return jsonify({
+                'success': False,
+                'message': f'Ошибка базы данных: {str(e)}'
+            }), 500
+        except Exception as e:
+            logger.error(f"Ошибка удаления из таблицы {table_name}: {e}")
+            return jsonify({
+                'success': False,
+                'message': str(e)
+            }), 500
+
+    @flask_app.route('/api/database/download')
+    @login_required
+    def download_database():
+        """Скачивание резервной копии базы данных"""
+        try:
+            from flask import send_file
+            import tempfile
+            import shutil
+            from datetime import datetime
+            
+            # Создаем временную копию базы данных
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            temp_filename = f"database_backup_{timestamp}.db"
+            temp_path = tempfile.mktemp(suffix=f"_{temp_filename}")
+            
+            # Копируем базу данных во временный файл
+            shutil.copy2(DB_FILE, temp_path)
+            
+            logger.info(f"Создана резервная копия базы данных: {temp_filename}")
+            
+            # Отправляем файл для скачивания
+            return send_file(
+                temp_path,
+                as_attachment=True,
+                download_name=temp_filename,
+                mimetype='application/octet-stream'
+            )
+            
+        except Exception as e:
+            logger.error(f"Ошибка создания резервной копии БД: {e}")
+            return jsonify({
+                'success': False,
+                'message': f'Ошибка создания резервной копии: {str(e)}'
+            }), 500
+
     # Запускаем мониторинг сразу
     start_ton_monitoring_task()
 

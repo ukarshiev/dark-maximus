@@ -22,6 +22,10 @@
 			<i class="fas fa-credit-card"></i>
 			Платежные системы
 		</button>
+    	<button class="nav-button" onclick="showTab('database', this)" title="Управление базой данных">
+			<i class="fas fa-database"></i>
+			База данных
+		</button>
     </div>
 
 <div class="settings-container">
@@ -921,6 +925,49 @@
 		</form>
 	</div>
 
+	<!-- Вкладка "База данных" -->
+	<div id="database-tab" class="settings-tab">
+		<section class="settings-section">
+			<div class="host-header section-top">
+				<h2>Управление базой данных</h2>
+				<div class="host-actions">
+					<button type="button" class="button button-primary" data-size="md" title="Скачать резервную копию базы данных" onclick="downloadDatabase()">
+						<i class="fas fa-download"></i>
+						Скачать базу
+					</button>
+					<button type="button" class="button button-secondary" data-size="md" title="Обновить статистику таблиц" onclick="refreshDatabaseStats()">
+						<i class="fas fa-sync-alt"></i>
+						Обновить
+					</button>
+				</div>
+			</div>
+			
+			<div class="database-warning">
+				<div class="alert alert-warning">
+					<i class="fas fa-exclamation-triangle"></i>
+					<strong>Внимание!</strong> Удаление данных из таблиц необратимо. Убедитесь, что у вас есть резервная копия базы данных.
+				</div>
+			</div>
+
+			<div class="database-tables-container">
+				<table class="database-tables-table">
+					<thead>
+						<tr>
+							<th>Таблица</th>
+							<th>Описание</th>
+							<th>Записей</th>
+							<th>Размер</th>
+							<th>Действия</th>
+						</tr>
+					</thead>
+					<tbody id="database-tables-tbody">
+						<!-- Данные будут загружены через JavaScript -->
+					</tbody>
+				</table>
+			</div>
+		</section>
+	</div>
+
 </div>
 
 <style>
@@ -1188,6 +1235,144 @@
 
 .form-help a:hover {
     text-decoration: underline;
+}
+
+/* Стили для вкладки "База данных" */
+.database-warning {
+    margin-bottom: 20px;
+}
+
+.database-tables-container {
+    overflow-x: auto;
+    border-radius: 8px;
+    border: 1px solid #4a5058;
+}
+
+.database-tables-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--bg-surface);
+}
+
+.database-tables-table th,
+.database-tables-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #4a5058;
+    text-align: left;
+}
+
+.database-tables-table thead th {
+    background: #32383f;
+    position: sticky;
+    top: 0;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.database-tables-table tbody tr:hover {
+    background: #363c43;
+}
+
+.database-tables-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.table-name {
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+.table-description {
+    color: #bdc3c7;
+    font-size: 14px;
+}
+
+.table-count {
+    font-weight: 500;
+    color: #ffffff;
+}
+
+.table-size {
+    color: #95a5a6;
+    font-size: 14px;
+}
+
+.table-actions {
+    text-align: right;
+}
+
+.delete-table-btn {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.3s ease;
+}
+
+.delete-table-btn:hover {
+    background: #c82333;
+}
+
+.delete-table-btn:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+}
+
+.loading-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Стили для alert-сообщений */
+.alert {
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.alert-warning {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+}
+
+.alert-danger {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+.alert i {
+    font-size: 16px;
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 768px) {
+    .database-tables-table th,
+    .database-tables-table td {
+        padding: 8px 12px;
+        font-size: 14px;
+    }
+    
+    .table-description {
+        display: none;
+    }
 }
 
 </style>
@@ -2043,6 +2228,212 @@ async function testLoggingBot() {
         button.innerHTML = originalText;
     }
 }
+
+// Функции для работы с базой данных
+
+// Данные таблиц базы данных
+const DATABASE_TABLES = [
+    { name: 'users', description: 'Пользователи', icon: 'fas fa-users' },
+    { name: 'transactions', description: 'Платежи', icon: 'fas fa-credit-card' },
+    { name: 'vpn_keys', description: 'VPN ключи', icon: 'fas fa-key' },
+    { name: 'promo_codes', description: 'Промокоды', icon: 'fas fa-ticket-alt' },
+    { name: 'promo_code_usage', description: 'Использованные промокоды', icon: 'fas fa-history' },
+    { name: 'notifications', description: 'Уведомления', icon: 'fas fa-bell' },
+    { name: 'video_instructions', description: 'ВидеоИнструкции', icon: 'fas fa-video' },
+    { name: 'bot_settings', description: 'Настройки', icon: 'fas fa-cog' },
+    { name: 'xui_hosts', description: 'Хосты XUI', icon: 'fas fa-server' },
+    { name: 'hosts', description: 'Хосты', icon: 'fas fa-server' },
+    { name: 'plans', description: 'Тарифы', icon: 'fas fa-list-alt' },
+    { name: 'support_threads', description: 'Запросы в саппорт', icon: 'fas fa-comments' }
+];
+
+// Загрузка статистики таблиц базы данных
+async function loadDatabaseStats() {
+    const tbody = document.getElementById('database-tables-tbody');
+    if (!tbody) return;
+    
+    // Показываем индикатор загрузки
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;"><div class="loading-spinner"></div> Загрузка статистики...</td></tr>';
+    
+    try {
+        const response = await fetch('/api/database/stats');
+        const data = await response.json();
+        
+        if (data.success) {
+            renderDatabaseTables(data.tables);
+        } else {
+            throw new Error(data.message || 'Ошибка загрузки статистики');
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки статистики:', error);
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #dc3545; padding: 20px;">Ошибка загрузки статистики</td></tr>';
+    }
+}
+
+// Отображение таблиц базы данных
+function renderDatabaseTables(tablesData) {
+    const tbody = document.getElementById('database-tables-tbody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    DATABASE_TABLES.forEach(table => {
+        const tableData = tablesData[table.name] || { count: 0, size: '0 KB' };
+        
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <i class="${table.icon}" style="color: var(--primary-color);"></i>
+                    <span class="table-name">${table.name}</span>
+                </div>
+            </td>
+            <td class="table-description">${table.description}</td>
+            <td class="table-count">${tableData.count.toLocaleString()}</td>
+            <td class="table-size">${tableData.size}</td>
+            <td class="table-actions">
+                <button class="delete-table-btn" onclick="confirmDeleteTable('${table.name}', '${table.description}')" 
+                        ${tableData.count === 0 ? 'disabled' : ''} 
+                        title="Удалить все записи из таблицы ${table.name}">
+                    <i class="fas fa-trash"></i>
+                    Удалить
+                </button>
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+// Подтверждение удаления таблицы
+function confirmDeleteTable(tableName, tableDescription) {
+    const modalHtml = `
+    <div class="modal-backdrop">
+        <div class="modal">
+            <div class="modal-content" style="max-width: 500px;">
+                <div class="modal-header">
+                    <h3>Подтверждение удаления</h3>
+                    <span class="close" onclick="closeModal()">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger" style="margin-bottom: 20px;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Внимание!</strong> Это действие необратимо!
+                    </div>
+                    <p>Вы действительно хотите удалить <strong>все записи</strong> из таблицы <code>${tableName}</code>?</p>
+                    <p><strong>Описание:</strong> ${tableDescription}</p>
+                    <div class="form-group" style="margin-top: 20px;">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="confirmDeleteCheckbox" required>
+                            <span>Я понимаю, что это действие необратимо и подтверждаю удаление</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="button button-secondary" onclick="closeModal()" title="Отменить удаление">
+                        <i class="fas fa-times"></i>
+                        Отмена
+                    </button>
+                    <button type="button" class="button button-danger" onclick="deleteTable('${tableName}')" id="deleteConfirmBtn" disabled title="Удалить все записи из таблицы">
+                        <i class="fas fa-trash"></i>
+                        Удалить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>`;
+    
+    showModal(modalHtml);
+    
+    // Обработчик для чекбокса подтверждения
+    document.getElementById('confirmDeleteCheckbox').addEventListener('change', function() {
+        document.getElementById('deleteConfirmBtn').disabled = !this.checked;
+    });
+}
+
+// Удаление таблицы
+async function deleteTable(tableName) {
+    const deleteBtn = document.getElementById('deleteConfirmBtn');
+    const originalText = deleteBtn.innerHTML;
+    
+    // Показываем индикатор загрузки
+    deleteBtn.disabled = true;
+    deleteBtn.innerHTML = '<div class="loading-spinner"></div> Удаление...';
+    
+    try {
+        const response = await fetch(`/api/database/delete-table/${tableName}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification(`Таблица ${tableName} успешно очищена. Удалено ${data.deleted_count} записей.`, 'success');
+            closeModal();
+            loadDatabaseStats(); // Обновляем статистику
+        } else {
+            throw new Error(data.message || 'Ошибка удаления');
+        }
+    } catch (error) {
+        console.error('Ошибка удаления таблицы:', error);
+        showNotification('Ошибка при удалении данных: ' + error.message, 'error');
+    } finally {
+        // Восстанавливаем кнопку
+        deleteBtn.disabled = false;
+        deleteBtn.innerHTML = originalText;
+    }
+}
+
+// Скачивание базы данных
+async function downloadDatabase() {
+    const downloadBtn = document.querySelector('button[onclick="downloadDatabase()"]');
+    const originalText = downloadBtn.innerHTML;
+    
+    // Показываем индикатор загрузки
+    downloadBtn.disabled = true;
+    downloadBtn.innerHTML = '<div class="loading-spinner"></div> Подготовка...';
+    
+    try {
+        // Создаем ссылку для скачивания
+        const link = document.createElement('a');
+        link.href = '/api/database/download';
+        link.download = `database_backup_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.db`;
+        
+        // Добавляем ссылку в DOM и кликаем по ней
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        showNotification('Начато скачивание базы данных', 'success');
+        
+    } catch (error) {
+        console.error('Ошибка скачивания базы данных:', error);
+        showNotification('Ошибка при скачивании базы данных: ' + error.message, 'error');
+    } finally {
+        // Восстанавливаем кнопку
+        downloadBtn.disabled = false;
+        downloadBtn.innerHTML = originalText;
+    }
+}
+
+// Обновление статистики базы данных
+function refreshDatabaseStats() {
+    loadDatabaseStats();
+}
+
+// Инициализация при переключении на вкладку "База данных"
+document.addEventListener('DOMContentLoaded', function() {
+    // Перехватываем переключение вкладок
+    const originalShowTab = window.showTab;
+    window.showTab = function(tabName, el) {
+        originalShowTab(tabName, el);
+        
+        // Если переключились на вкладку "База данных", загружаем статистику
+        if (tabName === 'database') {
+            loadDatabaseStats();
+        }
+    };
+});
 
 </script>
 
