@@ -4068,10 +4068,12 @@ def create_webhook_app(bot_controller_instance):
                 cursor.execute(f"DELETE FROM {table_name}")
                 deleted_count = cursor.rowcount
                 
-                # Выполняем VACUUM для очистки WAL
-                cursor.execute("VACUUM")
-                
                 conn.commit()
+            
+            # Выполняем VACUUM вне транзакции для очистки WAL
+            with sqlite3.connect(DB_FILE) as conn:
+                cursor = conn.cursor()
+                cursor.execute("VACUUM")
                 
                 logger.info(f"Удалено {deleted_count} записей из таблицы {table_name}")
                 

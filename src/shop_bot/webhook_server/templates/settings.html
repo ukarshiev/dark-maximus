@@ -1915,7 +1915,9 @@ function openHtmlEditor(pageType) {
 // Функция для загрузки текущего контента
 function loadCurrentContent(pageType) {
     const apiUrl = pageType === 'terms' ? '/api/get-terms-content' : '/api/get-privacy-content';
-    fetch(apiUrl)
+    fetch(apiUrl, {
+        credentials: 'same-origin'
+    })
         .then(response => response.json())
         .then(data => {
             document.getElementById('html_content').value = data.content || '';
@@ -2070,7 +2072,9 @@ function openTonManifestEditor() {
 function loadTonManifestData() {
     console.log('Начинаем загрузку данных манифеста...');
     
-    fetch('/api/get-ton-manifest-data')
+    fetch('/api/get-ton-manifest-data', {
+        credentials: 'same-origin'
+    })
         .then(response => {
             console.log('Ответ сервера:', response.status);
             return response.json();
@@ -2256,7 +2260,9 @@ async function loadDatabaseStats() {
     tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;"><div class="loading-spinner"></div> Загрузка статистики...</td></tr>';
     
     try {
-        const response = await fetch('/api/database/stats');
+        const response = await fetch('/api/database/stats', {
+            credentials: 'same-origin'
+        });
         const data = await response.json();
         
         if (data.success) {
@@ -2362,7 +2368,8 @@ async function deleteTable(tableName) {
     
     try {
         const response = await fetch(`/api/database/delete-table/${tableName}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            credentials: 'same-origin'
         });
         
         const data = await response.json();
