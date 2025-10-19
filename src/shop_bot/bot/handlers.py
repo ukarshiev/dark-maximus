@@ -475,7 +475,11 @@ def get_user_router() -> Router:
         username = message.from_user.username or message.from_user.full_name
         referrer_id = None
 
-        logger.info(f"START HANDLER: User {user_id} ({username}) started bot")
+        print(f"DEBUG: MAIN BOT START HANDLER CALLED for user {user_id} ({username})")
+        logger.info(f"MAIN BOT START HANDLER: User {user_id} ({username}) started bot")
+        
+        # Принудительно выводим в консоль для отладки
+        print(f"FORCE DEBUG: START HANDLER EXECUTING for user {user_id}")
 
         if command.args and command.args.startswith('ref_'):
             try:
@@ -489,11 +493,11 @@ def get_user_router() -> Router:
         register_user_if_not_exists(user_id, username, referrer_id, message.from_user.full_name)
         user_data = get_user(user_id)
 
-        # Проверяем настройки
-        is_subscription_forced = get_setting("force_subscription") == "true"
-        channel_url = get_setting("channel_url")
+        # Получаем настройки
         terms_url = get_setting("terms_url")
         privacy_url = get_setting("privacy_url")
+        channel_url = get_setting("channel_url")
+        is_subscription_forced = get_setting("force_subscription") == "true"
         
         logger.info(f"START HANDLER: Settings - force_subscription: {is_subscription_forced}, channel_url: {channel_url}, terms_url: {terms_url}, privacy_url: {privacy_url}")
         
@@ -503,52 +507,32 @@ def get_user_router() -> Router:
         if privacy_url and (privacy_url.startswith("http://localhost") or privacy_url.startswith("https://localhost")):
             privacy_url = None
 
-        # Если документы не настроены, считаем что пользователь согласился
-        if not terms_url or not privacy_url:
-            logger.info(f"START HANDLER: Documents not configured, setting agreed_to_documents=True for user {user_id}")
-            set_documents_agreed(user_id)
-        
-        # Если подписка не принудительная или канал не настроен, считаем что пользователь подписан
-        if not is_subscription_forced or not channel_url:
-            logger.info(f"START HANDLER: Subscription not forced or channel not configured, setting subscription_status=subscribed for user {user_id}")
-            set_subscription_status(user_id, 'subscribed')
-        
-        # Проверяем, прошел ли пользователь все необходимые проверки
-        user_data = get_user(user_id)  # Обновляем данные после возможных изменений
+        # Получаем текущий статус пользователя
         agreed_to_documents = user_data.get('agreed_to_documents', False)
         subscription_status = user_data.get('subscription_status', 'not_subscribed')
         
         logger.info(f"START HANDLER: User {user_id} status - agreed_to_documents: {agreed_to_documents}, subscription_status: {subscription_status}")
         
-        # Если все проверки пройдены, показываем главное меню
-        if agreed_to_documents and (not is_subscription_forced or subscription_status == 'subscribed'):
-            logger.info(f"START HANDLER: All checks passed for user {user_id}, showing main menu")
-            is_admin = str(user_id) == ADMIN_ID
-            await message.answer(
-                f"👋 Снова здравствуйте, {html.bold(message.from_user.full_name)}!",
-                reply_markup=keyboards.get_main_reply_keyboard(is_admin)
-            )
-            await show_main_menu(message)
-            return
-
-        # Если не все проверки пройдены, начинаем онбординг
-        if not agreed_to_documents and (terms_url and privacy_url):
+        # ПРОВЕРКА 1: Согласие с документами
+        if not agreed_to_documents and terms_url and privacy_url:
             logger.info(f"START HANDLER: User {user_id} needs to agree to documents, showing terms screen")
-            # Показываем экран согласия с документами
             await show_terms_agreement_screen(message, state)
-        elif agreed_to_documents and is_subscription_forced and channel_url and subscription_status != 'subscribed':
+            return
+        
+        # ПРОВЕРКА 2: Подписка на канал
+        if is_subscription_forced and channel_url and subscription_status != 'subscribed':
             logger.info(f"START HANDLER: User {user_id} needs to subscribe, showing subscription screen")
-            # Показываем экран проверки подписки
             await show_subscription_screen(message, state)
-        else:
-            logger.info(f"START HANDLER: Settings incomplete for user {user_id}, showing main menu")
-            # Если настройки неполные, показываем главное меню
-            is_admin = str(user_id) == ADMIN_ID
-            await message.answer(
-                f"👋 Снова здравствуйте, {html.bold(message.from_user.full_name)}!",
-                reply_markup=keyboards.get_main_reply_keyboard(is_admin)
-            )
-            await show_main_menu(message)
+            return
+        
+        # Если все проверки пройдены, показываем главное меню
+        logger.info(f"START HANDLER: All checks passed for user {user_id}, showing main menu")
+        is_admin = str(user_id) == ADMIN_ID
+        await message.answer(
+            f"👋 Добро пожаловать, {html.bold(message.from_user.full_name)}!",
+            reply_markup=keyboards.get_main_reply_keyboard(is_admin)
+        )
+        await show_main_menu(message)
 
     @user_router.callback_query(F.data == "check_subscription_and_agree")
     @measure_performance("check_subscription_and_agree")
@@ -4382,7 +4366,6 @@ def get_user_router() -> Router:
         return
 
     @user_router.message(F.text)
-    @registration_required
     @measure_performance("promo_code_text")
     async def promo_code_text_handler(message: types.Message, state: FSMContext):
         """Обработчик текстовых сообщений для промокодов"""
@@ -4391,15 +4374,29 @@ def get_user_router() -> Router:
         user_id = message.from_user.id
         text = message.text.strip()
         
+        print(f"DEBUG: TEXT HANDLER CALLED for user {user_id}, text: '{text}'")
+        logger.info(f"TEXT HANDLER: User {user_id} sent text: '{text}'")
+        
+        # ИСКЛЮЧАЕМ КОМАНДУ /start - она должна обрабатываться специализированным обработчиком
+        if text == '/start':
+            print(f"DEBUG: TEXT HANDLER: Ignoring /start command for user {user_id}")
+            return
+        
+        # Проверяем, зарегистрирован ли пользователь
+        user_data = get_user(user_id)
+        if not user_data:
+            await message.answer("Пожалуйста, для начала работы со мной, отправьте команду /start")
+            return
+        
         # Расширенный список кнопок главного меню и интерфейса
         interface_buttons = [
-            "🏠 Главное меню", "🛒 Купить", "🛒 Купить VPN", "🛒 Купить новый VPN", 
+            "🏠 Главное меню", "🛒 Купить", "🛒 Купить VPN", "🛒 Купить новый VPN",
             "👤 Мой профиль", "🔑 Мои ключи", "💰Пополнить баланс", "💳 Пополнить баланс",
-            "🤝 Реферальная программа", "❓ Инструкция как пользоваться", 
-            "🆘 Поддержка", "ℹ️ О проекте", "⚙️ Админ-панель", "🆓 Пробный период", 
+            "🤝 Реферальная программа", "❓ Инструкция как пользоваться",
+            "🆘 Поддержка", "ℹ️ О проекте", "⚙️ Админ-панель", "🆓 Пробный период",
             "⁉️ Помощь и поддержка", "➕ Купить новый ключ", "🔄 Продлить ключ"
         ]
-        
+
         # Проверяем, является ли сообщение промокодом
         # Промокод должен быть:
         # 1. Не командой (не начинается с /)
@@ -4410,32 +4407,32 @@ def get_user_router() -> Router:
         # 6. НЕ быть обычными словами (исключения для известных промокодов)
         is_command = text.startswith('/')
         is_interface_button = text in interface_buttons
-        
+
         # Исключаем обычные русские слова, которые точно не промокоды
         common_russian_words = {
             'долбаёб', 'привет', 'пока', 'спасибо', 'пожалуйста', 'хорошо', 'плохо',
             'да', 'нет', 'может', 'быть', 'это', 'тот', 'эта', 'то', 'как', 'что',
             'где', 'когда', 'почему', 'зачем', 'кто', 'чей', 'какой', 'какая'
         }
-        
+
         is_common_word = text.lower() in common_russian_words
-        
+
         # Проверяем формат промокода: только буквы, цифры и специальные символы, без пробелов
         has_spaces = ' ' in text
         is_promo_format = (
-            len(text) >= 3 and len(text) <= 20 and 
+            len(text) >= 3 and len(text) <= 20 and
             not has_spaces and  # Промокоды не содержат пробелов
             not is_common_word and  # Исключаем обычные слова
             text.replace('_', '').replace('-', '').replace('%', '').replace('₽', '').replace('Р', '').isalnum() and
             any(c.isalnum() for c in text)
         )
-        
+
         # Обрабатываем как промокод только если это соответствует формату промокода
         if not is_command and not is_interface_button and is_promo_format:
-            
+
             # Валидируем промокод
             result = validate_promo_code(text, "shop")
-            
+
             if result['valid']:
                 # Промокод найден - ЗАПИСЫВАЕМ ИСПОЛЬЗОВАНИЕ СРАЗУ
                 try:
@@ -4458,7 +4455,7 @@ def get_user_router() -> Router:
                             logger.error(f"Failed to record promo code usage via text handler: {text} for user {user_id}")
                 except Exception as e:
                     logger.error(f"Error recording promo code usage via text handler: {e}", exc_info=True)
-                
+
                 # Промокод найден
                 response_text = f"{result['message']}\n\n{result['description']}\n\n"
                 response_text += "💡 <b>Как использовать:</b>\n"
@@ -4466,7 +4463,7 @@ def get_user_router() -> Router:
                 response_text += "2. Выберите '🛒 Купить новый VPN'\n"
                 response_text += "3. При оформлении заказа введите этот промокод\n\n"
                 response_text += "Промокод будет автоматически применен к заказу!"
-                
+
                 await message.answer(response_text, reply_markup=keyboards.create_back_to_menu_keyboard())
             else:
                 # Промокод не найден - показываем сообщение только если это действительно похоже на промокод
@@ -4477,8 +4474,8 @@ def get_user_router() -> Router:
                     reply_markup=keyboards.create_back_to_menu_keyboard()
                 )
             return
-        
-        # Если это не промокод, передаем в общий обработчик
+
+        # Если это не промокод, проверяем команды
         if message.text.startswith('/'):
             await message.answer("Такой команды не существует. Попробуйте /start.")
         else:

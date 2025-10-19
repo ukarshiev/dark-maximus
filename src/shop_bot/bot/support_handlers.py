@@ -10,12 +10,89 @@ from aiogram import Bot, Router, F, types
 from aiogram.filters import CommandStart, Command
 from aiogram.enums import ParseMode
 from aiogram.types import ErrorEvent
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from shop_bot.data_manager import database
 
 logger = logging.getLogger(__name__)
 
 router = Router()
+
+# Состояния для онбординга
+class Onboarding(StatesGroup):
+    waiting_for_terms_agreement = State()
+    waiting_for_subscription = State()
+
+async def show_terms_agreement_screen(message: types.Message, state: FSMContext):
+    """Показывает экран согласия с документами"""
+    terms_url = database.get_setting("terms_url")
+    privacy_url = database.get_setting("privacy_url")
+    
+    # Проверяем, что URL не localhost
+    if terms_url and (terms_url.startswith("http://localhost") or terms_url.startswith("https://localhost")):
+        terms_url = None
+    if privacy_url and (privacy_url.startswith("http://localhost") or privacy_url.startswith("https://localhost")):
+        privacy_url = None
+    
+    if not terms_url or not privacy_url:
+        # Если документы не настроены, переходим к проверке подписки
+        await show_subscription_screen(message, state)
+        return
+    
+    text = (
+        "<b>🎉 Добро пожаловать!</b>\n\n"
+        "Ознакомьтесь с документами ниже и примите их:\n\n"
+        "• Условия использования\n"
+        "• Политика конфиденциальности\n\n"
+        "После ознакомления нажмите кнопку согласия."
+    )
+    
+    # Создаем клавиатуру с кнопками
+    builder = InlineKeyboardBuilder()
+    if terms_url:
+        builder.button(text="📄 Условия использования", url=terms_url)
+    if privacy_url:
+        builder.button(text="🔒 Политика конфиденциальности", url=privacy_url)
+    builder.button(text="✅ Я согласен с документами", callback_data="agree_to_terms")
+    builder.adjust(1)
+    
+    await message.answer(text, reply_markup=builder.as_markup())
+    await state.set_state(Onboarding.waiting_for_terms_agreement)
+
+async def show_subscription_screen(message: types.Message, state: FSMContext):
+    """Показывает экран проверки подписки на канал"""
+    channel_url = database.get_setting("channel_url")
+    is_subscription_forced = database.get_setting("force_subscription") == "true"
+    
+    if not is_subscription_forced or not channel_url:
+        # Если подписка не принудительная, завершаем онбординг
+        await process_successful_onboarding(message, state)
+        return
+    
+    text = (
+        "<b>📢 Проверка подписки</b>\n\n"
+        "Для доступа ко всем функциям, пожалуйста, подпишитесь на наш канал.\n\n"
+        "После подписки нажмите кнопку ниже."
+    )
+    
+    # Создаем клавиатуру с кнопками
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📢 Перейти в канал", url=channel_url)
+    builder.button(text="✅ Я подписался", callback_data="check_subscription_and_agree")
+    builder.adjust(1)
+    
+    await message.answer(text, reply_markup=builder.as_markup())
+    await state.set_state(Onboarding.waiting_for_subscription)
+
+async def process_successful_onboarding(message: types.Message, state: FSMContext):
+    """Завершает процесс онбординга"""
+    await message.answer("✅ Спасибо! Доступ предоставлен.")
+    user_id = message.from_user.id
+    database.set_documents_agreed(user_id)
+    database.set_subscription_status(user_id, 'subscribed')
+    await state.clear()
 
 async def get_user_summary(user_id: int, username: str) -> str:
     keys = database.get_user_keys(user_id)
@@ -183,6 +260,9 @@ def get_support_router() -> Router:
         user_id = message.from_user.id
         username = message.from_user.username or message.from_user.full_name
         
+        print(f"DEBUG: SUPPORT BOT START HANDLER CALLED for user {user_id} ({username})")
+        logger.info(f"SUPPORT BOT START HANDLER: User {user_id} ({username}) started support bot")
+        
         thread_id = database.get_support_thread_id(user_id)
         
         if not thread_id:
@@ -245,6 +325,10 @@ def get_support_router() -> Router:
     @support_router.message(F.chat.type == "private")
     async def from_user_to_admin(message: types.Message, bot: Bot):
         user_id = message.from_user.id
+        text = message.text or "NO_TEXT"
+        
+        print(f"DEBUG: SUPPORT BOT PRIVATE MESSAGE HANDLER for user {user_id}, text: '{text}'")
+        
         thread_id = database.get_support_thread_id(user_id)
         support_group_id = database.get_setting("support_group_id")
         

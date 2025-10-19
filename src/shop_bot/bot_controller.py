@@ -60,6 +60,7 @@ class BotController:
     async def _start_polling(self, bot, dp, name):
         logger.info(f"BotController: Polling task for '{name}' has been started.")
         try:
+            print(f"DEBUG: Starting polling for {name} with bot {bot.id}")
             await dp.start_polling(bot)
         except asyncio.CancelledError:
             logger.info(f"BotController: Polling task for '{name}' was cancelled.")
