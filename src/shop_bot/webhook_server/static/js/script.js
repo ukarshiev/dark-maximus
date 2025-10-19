@@ -652,7 +652,8 @@ document.addEventListener('DOMContentLoaded', function () {
 })
 
 // Функции для модального окна пользователя
-let currentUserId = null
+// Объявляем переменную в глобальной области видимости
+window.currentUserId = window.currentUserId || null;
 
 function initializeUserModal() {
 	// Закрытие модального окна при клике вне его
@@ -1068,7 +1069,7 @@ function applyHiddenMode() {
 }
 
 function openUserModal(userId, username, isBanned, keysCount) {
-	currentUserId = userId
+	window.currentUserId = userId
 	
 	// Заполняем основную информацию пользователя (будет обновлено при загрузке данных)
 	const modalUserIdEl = document.getElementById('modalUserId')
@@ -1184,7 +1185,7 @@ function closeUserModal() {
 	// Ждем завершения анимации перед скрытием
 	setTimeout(() => {
 		drawer.style.display = 'none'
-		currentUserId = null
+		window.currentUserId = null
 	}, 300)
 }
 
@@ -1444,12 +1445,12 @@ function showErrorInDrawer(message) {
 // ============================================
 
 function banUser() {
-	if (currentUserId && confirm('Вы уверены, что хотите забанить этого пользователя? Он не сможет пользоваться ботом.')) {
+	if (window.currentUserId && confirm('Вы уверены, что хотите забанить этого пользователя? Он не сможет пользоваться ботом.')) {
 		// Создаем форму и отправляем POST запрос
 		const form = document.createElement('form')
 		form.method = 'POST'
         // Совместить с существующим Flask-роутом /users/ban/<int:user_id>
-        form.action = `/users/ban/${currentUserId}`
+        form.action = `/users/ban/${window.currentUserId}`
 		
 		document.body.appendChild(form)
 		form.submit()
@@ -1457,12 +1458,12 @@ function banUser() {
 }
 
 function unbanUser() {
-	if (currentUserId && confirm('Вы уверены, что хотите разбанить этого пользователя?')) {
+	if (window.currentUserId && confirm('Вы уверены, что хотите разбанить этого пользователя?')) {
 		// Создаем форму и отправляем POST запрос
 		const form = document.createElement('form')
 		form.method = 'POST'
         // Совместить с существующим Flask-роутом /users/unban/<int:user_id>
-        form.action = `/users/unban/${currentUserId}`
+        form.action = `/users/unban/${window.currentUserId}`
 		
 		document.body.appendChild(form)
 		form.submit()
@@ -1470,12 +1471,12 @@ function unbanUser() {
 }
 
 function revokeKeys() {
-	if (currentUserId && confirm('ВНИМАНИЕ! Это действие удалит ВСЕ ключи пользователя с серверов. Вы уверены?')) {
+	if (window.currentUserId && confirm('ВНИМАНИЕ! Это действие удалит ВСЕ ключи пользователя с серверов. Вы уверены?')) {
 		// Создаем форму и отправляем POST запрос
 		const form = document.createElement('form')
 		form.method = 'POST'
         // Совместить с существующим Flask-роутом /users/revoke/<int:user_id>
-        form.action = `/users/revoke/${currentUserId}`
+        form.action = `/users/revoke/${window.currentUserId}`
 		
 		document.body.appendChild(form)
 		form.submit()
@@ -1483,11 +1484,11 @@ function revokeKeys() {
 }
 
 function revokeConsent() {
-	if (currentUserId && confirm('Вы уверены, что хотите отозвать согласие этого пользователя с документами?')) {
+	if (window.currentUserId && confirm('Вы уверены, что хотите отозвать согласие этого пользователя с документами?')) {
 		// Создаем форму и отправляем POST запрос
 		const form = document.createElement('form')
 		form.method = 'POST'
-        form.action = `/users/revoke-consent/${currentUserId}`
+        form.action = `/users/revoke-consent/${window.currentUserId}`
 		
 		document.body.appendChild(form)
 		form.submit()
@@ -1996,7 +1997,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Функция сохранения изменений пользователя
 async function saveUserChanges() {
-	if (!currentUserId) return
+	if (!window.currentUserId) return
 	
 	const fioInput = document.getElementById('detailFioInput')
 	const emailInput = document.getElementById('detailEmailInput')
@@ -2017,7 +2018,7 @@ async function saveUserChanges() {
 	}
 	
 	try {
-		const response = await fetch(`/api/update-user/${currentUserId}`, {
+		const response = await fetch(`/api/update-user/${window.currentUserId}`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',

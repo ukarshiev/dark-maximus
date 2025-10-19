@@ -53,7 +53,7 @@ ALL_SETTINGS_KEYS = [
     "yookassa_secret_key", "yookassa_test_mode", "yookassa_test_shop_id", 
     "yookassa_test_secret_key", "yookassa_api_url", "yookassa_test_api_url", "yookassa_verify_ssl", "yookassa_test_verify_ssl", "sbp_enabled", "receipt_email", "cryptobot_token",
     "stars_enabled", "stars_conversion_rate",
-    "heleket_merchant_id", "heleket_api_key", "domain", "global_domain", "referral_percentage",
+    "heleket_merchant_id", "heleket_api_key", "domain", "global_domain", "docs_domain", "codex_docs_domain", "referral_percentage",
     "referral_discount", "ton_wallet_address", "tonapi_key", "force_subscription", "trial_enabled", "trial_duration_days", "enable_referrals", "minimum_withdrawal",
     "support_group_id", "support_bot_token", "ton_monitoring_enabled", "hidden_mode", "support_enabled",
     # Настройки мониторинга производительности
@@ -224,19 +224,38 @@ def create_webhook_app(bot_controller_instance):
         
         # Формируем динамические URL-ы для Wiki и базы знаний
         global_domain = settings.get('global_domain', '')
-        if global_domain:
+        docs_domain = settings.get('docs_domain', '')
+        codex_docs_domain = settings.get('codex_docs_domain', '')
+        
+        # URL для Вики (docs)
+        if docs_domain:
             # Убираем слэш в конце если есть
-            global_domain = global_domain.rstrip('/')
+            docs_domain = docs_domain.rstrip('/')
             # Проверяем, есть ли уже протокол
+            if not docs_domain.startswith(('http://', 'https://')):
+                docs_domain = f'https://{docs_domain}'
+            wiki_url = docs_domain
+        else:
+            # Если домен не настроен, используем localhost
+            wiki_url = 'http://localhost:3001'
+        
+        # URL для базы знаний (codex-docs)
+        if codex_docs_domain:
+            # Убираем слэш в конце если есть
+            codex_docs_domain = codex_docs_domain.rstrip('/')
+            # Проверяем, есть ли уже протокол
+            if not codex_docs_domain.startswith(('http://', 'https://')):
+                codex_docs_domain = f'https://{codex_docs_domain}'
+            knowledge_base_url = codex_docs_domain
+        elif global_domain:
+            # Если codex_docs_domain не настроен, но есть global_domain, используем его
+            global_domain = global_domain.rstrip('/')
             if not global_domain.startswith(('http://', 'https://')):
                 global_domain = f'https://{global_domain}'
             knowledge_base_url = f'{global_domain}:3002'
         else:
-            # Если домен не настроен, используем localhost
+            # Если домены не настроены, используем localhost
             knowledge_base_url = 'http://localhost:3002'
-        
-        # Вики всегда использует localhost
-        wiki_url = 'http://localhost:3001'
         
         return {
             "bot_status": bot_status, 
@@ -559,7 +578,7 @@ def create_webhook_app(bot_controller_instance):
     @login_required
     def save_panel_settings():
         """Сохранение настроек панели - v2.1"""
-        panel_keys = ['panel_login', 'global_domain', 'monitoring_max_metrics', 'monitoring_slow_threshold', 'monitoring_cleanup_hours']
+        panel_keys = ['panel_login', 'global_domain', 'docs_domain', 'codex_docs_domain', 'monitoring_max_metrics', 'monitoring_slow_threshold', 'monitoring_cleanup_hours']
         
         # Пароль отдельно, если указан
         if 'panel_password' in request.form and request.form.get('panel_password'):
@@ -1071,6 +1090,22 @@ def create_webhook_app(bot_controller_instance):
             logger.error(f"Failed to read privacy file: {e}")
             return jsonify({'content': ''}), 500
 
+    @flask_app.route('/api/update-video-instructions-display', methods=['POST'])
+    @login_required
+    def update_video_instructions_display():
+        """API для обновления настройки отображения кнопки 'Видеоинструкции' в боте"""
+        try:
+            data = request.get_json()
+            show_in_bot = data.get('show_in_bot', False)
+            
+            from shop_bot.data_manager.database import set_video_instructions_display_setting
+            set_video_instructions_display_setting(show_in_bot)
+            
+            return jsonify({'success': True})
+        except Exception as e:
+            logger.error(f"Failed to update video instructions display setting: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     @flask_app.route('/debug')
     @login_required
     def debug_page():
@@ -1171,8 +1206,9 @@ def create_webhook_app(bot_controller_instance):
         
         # Если mode='video', показываем видеоинструкции
         if mode == 'video':
-            from shop_bot.data_manager.database import get_all_video_instructions
+            from shop_bot.data_manager.database import get_all_video_instructions, get_video_instructions_display_setting
             videos = get_all_video_instructions()
+            video_instructions_show_in_bot = get_video_instructions_display_setting()
             logger.info(f"Video mode: found {len(videos)} videos")
             common_data = get_common_template_data()
             return render_template(
@@ -1180,6 +1216,7 @@ def create_webhook_app(bot_controller_instance):
                 mode='video',
                 videos=videos,
                 active_tab='video',
+                video_instructions_show_in_bot=video_instructions_show_in_bot,
                 **common_data
             )
 
@@ -1187,10 +1224,18 @@ def create_webhook_app(bot_controller_instance):
             try:
                 platform = request.form.get('platform', active_tab)
                 new_content = request.form.get('instructions_content', '')
+                show_in_bot = request.form.get('show_in_bot') == 'on'
+                
+                # Сохраняем текст инструкции
                 file_path = get_file_for(platform)
                 with open(file_path, 'w', encoding='utf-8') as f:
                     f.write(new_content)
-                flash('Инструкции сохранены.', 'success')
+                
+                # Сохраняем настройку отображения в боте
+                from shop_bot.data_manager.database import set_instruction_display_setting
+                set_instruction_display_setting(platform, show_in_bot)
+                
+                flash('Инструкции и настройки сохранены.', 'success')
                 return redirect(url_for('instructions_page', tab=platform))
             except Exception as e:
                 logger.error(f"Failed to write instructions: {e}")
@@ -1213,11 +1258,16 @@ def create_webhook_app(bot_controller_instance):
             logger.error(f"Failed to read instruction file: {e}")
             instructions_text = ''
 
+        # Получаем настройку отображения в боте для текущей платформы
+        from shop_bot.data_manager.database import get_instruction_display_setting
+        show_in_bot = get_instruction_display_setting(active_tab)
+
         return render_template(
             'instructions.html',
             mode='text',
             active_tab=active_tab,
             instructions_text=instructions_text,
+            show_in_bot=show_in_bot,
             **get_common_template_data()
         )
 

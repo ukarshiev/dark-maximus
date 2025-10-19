@@ -175,6 +175,26 @@ h4 {
 	margin-bottom: 20px;
 }
 
+.input-with-button {
+	display: flex;
+	gap: 8px;
+	align-items: flex-end;
+}
+
+.input-with-button input {
+	flex: 1;
+}
+
+.input-with-button .button-sm {
+	padding: 8px 12px;
+	font-size: 14px;
+	height: 44px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 44px;
+}
+
 .form-group label {
 	display: block;
 	margin-bottom: 8px;
@@ -5674,4 +5694,13 @@ body:not(.admin-panel) .legal-document {
     .tab.active::after {
         display: none;
     }
+}
+
+/* Скрываем legend для форм в настройках */
+form fieldset legend {
+    position: absolute;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
 }

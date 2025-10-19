@@ -2715,6 +2715,98 @@ def get_user_router() -> Router:
             disable_web_page_preview=True
         )
 
+    @user_router.callback_query(F.data == "video_instructions_list")
+    @registration_required
+    @measure_performance("video_instructions_list")
+    async def video_instructions_list_handler(callback: types.CallbackQuery):
+        """Показывает список видеоинструкций"""
+        await callback.answer()
+        
+        from shop_bot.data_manager.database import get_all_video_instructions
+        videos = get_all_video_instructions()
+        
+        if not videos:
+            await callback.message.edit_text(
+                "🎬 <b>Видеоинструкции</b>\n\n"
+                "В данный момент видеоинструкции отсутствуют.",
+                reply_markup=keyboards.create_back_to_instructions_keyboard(),
+                parse_mode="HTML"
+            )
+            return
+        
+        text = "🎬 <b>Видеоинструкции</b>\n\n"
+        for i, video in enumerate(videos, 1):
+            text += f"{i}. <b>{video['title']}</b>\n"
+            if video.get('file_size_mb'):
+                text += f"   📁 Размер: {video['file_size_mb']:.2f} МБ\n"
+            text += f"   📅 Загружено: {video['created_at']}\n\n"
+        
+        text += "Выберите видеоинструкцию для просмотра:"
+        
+        # Создаем клавиатуру с видеоинструкциями
+        builder = InlineKeyboardBuilder()
+        for video in videos:
+            builder.button(
+                text=f"▶️ {video['title']}", 
+                callback_data=f"show_video_{video['video_id']}"
+            )
+        builder.button(text="⬅️ Назад к инструкциям", callback_data="back_to_instructions")
+        builder.adjust(1)
+        
+        await callback.message.edit_text(
+            text,
+            reply_markup=builder.as_markup(),
+            parse_mode="HTML"
+        )
+
+    @user_router.callback_query(F.data.startswith("show_video_"))
+    @registration_required
+    @measure_performance("show_video")
+    async def show_video_handler(callback: types.CallbackQuery):
+        """Показывает конкретное видеоинструкцию"""
+        await callback.answer()
+        
+        try:
+            video_id = int(callback.data.split("_")[2])
+            from shop_bot.data_manager.database import get_video_instruction_by_id
+            
+            video = get_video_instruction_by_id(video_id)
+            if not video:
+                await callback.message.edit_text(
+                    "❌ Видеоинструкция не найдена.",
+                    reply_markup=keyboards.create_back_to_instructions_keyboard()
+                )
+                return
+            
+            # Отправляем видео если файл существует
+            from pathlib import Path
+            video_path = Path(PROJECT_ROOT) / "src" / "shop_bot" / "webhook_server" / "uploads" / "videos" / video['filename']
+            
+            if video_path.exists():
+                with open(video_path, 'rb') as video_file:
+                    video_input = BufferedInputFile(video_file.read(), filename=video['filename'])
+                    await callback.message.answer_video(
+                        video=video_input,
+                        caption=f"🎬 <b>{video['title']}</b>\n\n"
+                               f"📅 Загружено: {video['created_at']}",
+                        reply_markup=keyboards.create_back_to_instructions_keyboard(),
+                        parse_mode="HTML"
+                    )
+                # Удаляем предыдущее сообщение
+                await callback.message.delete()
+            else:
+                await callback.message.edit_text(
+                    f"❌ Файл видеоинструкции '{video['title']}' не найден.",
+                    reply_markup=keyboards.create_back_to_instructions_keyboard()
+                )
+                
+        except Exception as e:
+            logger.error(f"Error showing video {video_id}: {e}")
+            await callback.message.edit_text(
+                "❌ Ошибка при загрузке видеоинструкции.",
+                reply_markup=keyboards.create_back_to_instructions_keyboard()
+            )
+
     @user_router.callback_query(F.data == "buy_new_key")
     @registration_required
     @measure_performance("buy_new_key")

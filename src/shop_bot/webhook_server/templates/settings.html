@@ -70,11 +70,12 @@
 						id="host_username"
 						name="host_username"
 						required
+						autocomplete="username"
 					/>
 				</div>
 				<div class="form-group password-wrapper">
 					<label for="host_pass">Пароль XUI:</label>
-					<input type="password" id="host_pass" name="host_pass" required />
+					<input type="password" id="host_pass" name="host_pass" required autocomplete="current-password" />
 					<button type="button" class="toggle-password" title="Показать/скрыть пароль">
 						<i class="fas fa-eye"></i>
 					</button>
@@ -227,20 +228,61 @@
 
 	<!-- Вкладка "Панель" -->
 	<div id="panel-tab" class="settings-tab">
-		<form action="{{ url_for('save_panel_settings') }}" method="post">
-			<section class="settings-section">
-				<h2>Глобальные параметры</h2>
+		<form action="{{ url_for('save_panel_settings') }}" method="post" role="form" aria-label="Настройки панели" data-form-purpose="panel-settings" novalidate>
+			<fieldset>
+				<legend>Настройки панели</legend>
+				<section class="settings-section">
+					<h2>Глобальные параметры</h2>
 				<div class="form-group">
 					<label for="global_domain">Домен приложения:</label>
-					<input
-						type="url"
-						id="global_domain"
-						name="global_domain"
-						value="{{ settings.global_domain or '' }}"
-						placeholder="https://your-domain.com"
-						title="Основной домен приложения для всех внешних ссылок"
-					/>
+					<div class="input-with-button">
+						<input
+							type="url"
+							id="global_domain"
+							name="global_domain"
+							value="{{ settings.global_domain or '' }}"
+							placeholder="https://your-domain.com"
+							title="Основной домен приложения для всех внешних ссылок"
+						/>
+						<button type="button" class="button button-secondary button-sm" onclick="openDomain('global_domain')" title="Открыть домен в новой вкладке">
+							<i class="fas fa-external-link-alt"></i>
+						</button>
+					</div>
 					<small class="text-muted">Используется для генерации ссылок в боте, TON Connect манифесте и других внешних интеграциях</small>
+				</div>
+				<div class="form-group">
+					<label for="docs_domain">Домен docs для Вики:</label>
+					<div class="input-with-button">
+						<input
+							type="url"
+							id="docs_domain"
+							name="docs_domain"
+							value="{{ settings.docs_domain or '' }}"
+							placeholder="https://docs.dark-maximus.com"
+							title="Домен для Wiki документации"
+						/>
+						<button type="button" class="button button-secondary button-sm" onclick="openDomain('docs_domain')" title="Открыть домен в новой вкладке">
+							<i class="fas fa-external-link-alt"></i>
+						</button>
+					</div>
+					<small class="text-muted">Если не указан, будет использоваться localhost:3001</small>
+				</div>
+				<div class="form-group">
+					<label for="codex_docs_domain">Домен codex-docs для Базы знаний:</label>
+					<div class="input-with-button">
+						<input
+							type="url"
+							id="codex_docs_domain"
+							name="codex_docs_domain"
+							value="{{ settings.codex_docs_domain or '' }}"
+							placeholder="https://help.dark-maximus.com"
+							title="Домен для базы знаний"
+						/>
+						<button type="button" class="button button-secondary button-sm" onclick="openDomain('codex_docs_domain')" title="Открыть домен в новой вкладке">
+							<i class="fas fa-external-link-alt"></i>
+						</button>
+					</div>
+					<small class="text-muted">Если не указан, будет использоваться localhost:3002</small>
 				</div>
 			</section>
 			
@@ -255,13 +297,14 @@
 						value="{{ settings.panel_login or '' }}"
 						required
 						title="Логин для входа в административную панель"
+						autocomplete="username"
 					/>
 				</div>
 				<div class="form-group password-wrapper">
 					<label for="panel_password"
 						>Новый пароль (оставьте пустым, чтобы не менять):</label
 					>
-					<input type="password" id="panel_password" name="panel_password" title="Новый пароль для входа в панель" />
+					<input type="password" id="panel_password" name="panel_password" title="Новый пароль для входа в панель" autocomplete="new-password" />
 					<button type="button" class="toggle-password" title="Показать/скрыть пароль">
 						<i class="fas fa-eye"></i>
 					</button>
@@ -333,14 +376,17 @@
 				<i class="fas fa-save"></i>
 				Сохранить настройки панели
 			</button>
+			</fieldset>
 		</form>
 	</div>
 
 	<!-- Вкладка "Бот" -->
 	<div id="bot-tab" class="settings-tab">
-		<form action="{{ url_for('save_bot_settings') }}" method="post">
-		<section class="settings-section">
-			<h2>Бот магазина</h2>
+		<form action="{{ url_for('save_bot_settings') }}" method="post" role="form" aria-label="Настройки ботов" data-form-purpose="bot-settings" novalidate>
+			<fieldset>
+				<legend>Настройки ботов</legend>
+				<section class="settings-section">
+					<h2>Бот магазина</h2>
 			<div class="form-group password-wrapper">
 				<label for="telegram_bot_token">Токен бота:</label>
 				<input
@@ -348,6 +394,7 @@
 					id="telegram_bot_token"
 					name="telegram_bot_token"
 					value="{{ settings.telegram_bot_token or '' }}"
+					autocomplete="off"
 					required
 				/>
 				<button type="button" class="toggle-password" title="Показать/скрыть пароль">
@@ -401,6 +448,7 @@
 					id="support_bot_token"
 					name="support_bot_token"
 					value="{{ settings.support_bot_token or '' }}"
+					autocomplete="off"
 				/>
 				<button type="button" class="toggle-password" title="Показать/скрыть пароль">
 					<i class="fas fa-eye"></i>
@@ -432,6 +480,7 @@
 					id="logging_bot_token"
 					name="logging_bot_token"
 					value="{{ settings.logging_bot_token or '' }}"
+					autocomplete="off"
 					placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
 					title="Токен Telegram бота для отправки логов"
 				/>
@@ -622,14 +671,17 @@
 				<i class="fas fa-save"></i>
 				Сохранить настройки бота
 			</button>
+			</fieldset>
 		</form>
 	</div>
 
 	<!-- Вкладка "Платежные системы" -->
 	<div id="payments-tab" class="settings-tab">
-		<form action="{{ url_for('save_payment_settings') }}" method="post">
-			<section class="settings-section">
-				<h2>Настройки Платежных Систем</h2>
+		<form action="{{ url_for('save_payment_settings') }}" method="post" role="form" aria-label="Настройки платежных систем" data-form-purpose="payment-settings" novalidate>
+			<fieldset>
+				<legend>Настройки платежных систем</legend>
+				<section class="settings-section">
+					<h2>Настройки Платежных Систем</h2>
 				<div class="payment-systems-grid">
 					<!-- Колонка 1 -->
 					<div class="payment-column">
@@ -688,6 +740,7 @@
 									id="tonapi_key"
 									name="tonapi_key"
 									value="{{ settings.tonapi_key or '' }}"
+									autocomplete="off"
 								/>
 								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
 									<i class="fas fa-eye"></i>
@@ -804,6 +857,7 @@
 									id="yookassa_secret_key"
 									name="yookassa_secret_key"
 									value="{{ settings.yookassa_secret_key or '' }}"
+									autocomplete="off"
 									title="Секретный ключ для API YooKassa"
 								/>
 								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
@@ -852,6 +906,7 @@
 									id="yookassa_test_secret_key"
 									name="yookassa_test_secret_key"
 									value="{{ settings.yookassa_test_secret_key or '' }}"
+									autocomplete="off"
 									title="Секретный ключ для тестового API YooKassa"
 								/>
 								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
@@ -873,6 +928,7 @@
 									id="cryptobot_token"
 									name="cryptobot_token"
 									value="{{ settings.cryptobot_token or '' }}"
+									autocomplete="off"
 								/>
 								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
 									<i class="fas fa-eye"></i>
@@ -899,6 +955,7 @@
 									id="heleket_api_key"
 									name="heleket_api_key"
 									value="{{ settings.heleket_api_key or '' }}"
+									autocomplete="off"
 								/>
 								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
 									<i class="fas fa-eye"></i>
@@ -922,6 +979,7 @@
 			<button type="submit" class="button button-primary">
 				Сохранить настройки платежных систем
 			</button>
+			</fieldset>
 		</form>
 	</div>
 
@@ -1479,7 +1537,7 @@ function openHostModal(name='', url='', user='', pass='', inbound='', code=''){
             <span class="close" onclick="closeModal()">&times;</span>
           </div>
           <div class="modal-body">
-            <form method="post" action="${name? '/edit-host' : '/add-host'}">
+            <form method="post" action="${name? '/edit-host' : '/add-host'}" role="form">
               ${name? `<input type="hidden" name="old_host_name" value="${name}">` : ''}
               <div class="form-group"><label>Название</label><input type="text" name="host_name" value="${name}" required></div>
               <div class="form-group"><label>URL панели XUI</label><input type="url" name="host_url" value="${url}" placeholder="https://host:port/secret" required></div>
@@ -1528,7 +1586,7 @@ function openPlanModal(planId, name, months, days, price, traffic, hostName, hou
             <span class="close" onclick="closeModal()">&times;</span>
           </div>
           <div class="modal-body">
-            <form method="post" action="${action}">
+            <form method="post" action="${action}" role="form">
               ${hiddenHost}
               <div class="form-group"><label>Название</label><input type="text" name="plan_name" value="${name||''}" placeholder="Напр. Базовый" required title="Введите название тарифа"></div>
               <div class="form-group"><label>Месяцы</label><input type="number" name="months" value="${months||''}" placeholder="0" title="Укажите количество месяцев"></div>
@@ -1673,7 +1731,7 @@ function openContentModal(fieldId, fieldLabel, fieldType) {
             <span class="close" onclick="closeModal()">&times;</span>
           </div>
           <div class="modal-body">
-            <form id="contentEditForm">
+            <form id="contentEditForm" role="form">
               <div class="form-group">
                 <label for="contentValue">${fieldLabel}:</label>
                 ${isTextarea ? 
@@ -1725,7 +1783,7 @@ function openContentModalWithAutoSave(fieldId, fieldLabel, fieldType) {
             <span class="close" onclick="closeModal()">&times;</span>
           </div>
           <div class="modal-body">
-            <form id="contentEditForm">
+            <form id="contentEditForm" role="form">
               <div class="form-group">
                 <label for="contentValue">${fieldLabel}:</label>
                 ${isTextarea ? 
@@ -1837,7 +1895,7 @@ function openHtmlEditor(pageType) {
                 <span class="close" onclick="closeHtmlEditor()">&times;</span>
             </div>
             <div class="modal-body">
-                <form id="htmlEditForm" method="POST" action="/edit-${pageType}">
+                <form id="htmlEditForm" method="POST" action="/edit-${pageType}" role="form">
                     <div class="form-group">
                         <label for="html_content">HTML-код страницы:</label>
                         <textarea 
@@ -1958,7 +2016,7 @@ function openTonManifestEditor() {
                 <span class="close" onclick="closeTonManifestEditor()">&times;</span>
             </div>
             <div class="modal-body">
-                <form id="tonManifestForm" class="ton-manifest-form">
+                <form id="tonManifestForm" class="ton-manifest-form" role="form">
                     <div class="form-group">
                         <label for="ton_manifest_name">Название приложения:</label>
                         <input type="text" id="ton_manifest_name" name="ton_manifest_name" 
@@ -2441,6 +2499,38 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 });
+
+// Функция для открытия домена в новой вкладке
+function openDomain(inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) {
+        console.error('Поле ввода не найдено:', inputId);
+        return;
+    }
+    
+    let url = input.value.trim();
+    
+    // Если поле пустое, показываем сообщение
+    if (!url) {
+        showNotification('Сначала введите домен в поле', 'warning');
+        input.focus();
+        return;
+    }
+    
+    // Проверяем, есть ли протокол
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://' + url;
+    }
+    
+    // Открываем в новой вкладке
+    try {
+        window.open(url, '_blank');
+        showNotification('Открываю домен в новой вкладке', 'success');
+    } catch (error) {
+        console.error('Ошибка открытия домена:', error);
+        showNotification('Ошибка открытия домена: ' + error.message, 'error');
+    }
+}
 
 </script>
 

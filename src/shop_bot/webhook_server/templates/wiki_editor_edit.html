@@ -294,7 +294,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Настраиваем кнопку предпросмотра для простого редактора
         document.getElementById('previewBtn').addEventListener('click', function() {
-            const wikiUrl = 'http://localhost:3001';
+            const wikiUrl = '{{ wiki_url }}';
             console.log('🔍 Открываем предпросмотр Wiki:', wikiUrl);
             
             // Проверяем доступность Wiki сервера

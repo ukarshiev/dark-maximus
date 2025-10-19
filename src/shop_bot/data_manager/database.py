@@ -5847,6 +5847,49 @@ def video_instruction_exists(filename: str):
         return False
 
 
+# ============================================
+# Функции для работы с настройками отображения инструкций
+# ============================================
+
+def get_instruction_display_setting(platform: str) -> bool:
+    """Получает настройку отображения инструкции для платформы в боте"""
+    try:
+        key = f"instruction_{platform}_show_in_bot"
+        value = get_setting(key)
+        return value == "true" if value else True  # По умолчанию включено
+    except Exception as e:
+        logging.error(f"Failed to get instruction display setting for {platform}: {e}")
+        return True
+
+def set_instruction_display_setting(platform: str, show_in_bot: bool):
+    """Устанавливает настройку отображения инструкции для платформы в боте"""
+    try:
+        key = f"instruction_{platform}_show_in_bot"
+        value = "true" if show_in_bot else "false"
+        update_setting(key, value)
+        logging.info(f"Updated instruction display setting for {platform}: {show_in_bot}")
+    except Exception as e:
+        logging.error(f"Failed to set instruction display setting for {platform}: {e}")
+
+def get_video_instructions_display_setting() -> bool:
+    """Получает настройку отображения кнопки 'Видеоинструкции' в боте"""
+    try:
+        value = get_setting("video_instructions_show_in_bot")
+        return value == "true" if value else True  # По умолчанию включено
+    except Exception as e:
+        logging.error(f"Failed to get video instructions display setting: {e}")
+        return True
+
+def set_video_instructions_display_setting(show_in_bot: bool):
+    """Устанавливает настройку отображения кнопки 'Видеоинструкции' в боте"""
+    try:
+        value = "true" if show_in_bot else "false"
+        update_setting("video_instructions_show_in_bot", value)
+        logging.info(f"Updated video instructions display setting: {show_in_bot}")
+    except Exception as e:
+        logging.error(f"Failed to set video instructions display setting: {e}")
+
+
 
 
 

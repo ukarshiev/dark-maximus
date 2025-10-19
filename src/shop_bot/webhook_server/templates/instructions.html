@@ -4,15 +4,12 @@
 <!-- Cache-buster: v2.54.0-{{ range(1, 10000)|random }} -->
 
 {% block header_buttons %}
-<!-- Кнопка "Создать видео" скрыта, так как функционал видеоинструкций не работает -->
-<!--
 {% if mode == 'video' %}
 <button class="button button-primary" data-size="sm" onclick="openVideoDrawer()" title="Создать новую видеоинструкцию">
     <i class="fas fa-plus-circle"></i>
     Создать видео
 </button>
 {% endif %}
--->
 {% endblock %}
 
 {% block content %}
@@ -25,21 +22,33 @@
         <i class="fas fa-file-alt"></i>
         Текст
     </a>
-    <!-- Вкладка "Видео" скрыта, так как функционал не работает -->
-    <!--
     <a class="nav-button {% if mode=='video' %}active{% endif %}" 
        href="{{ url_for('instructions_page', tab='video', mode='video') }}" 
        title="Видеоинструкции">
         <i class="fas fa-video"></i>
         Видео
     </a>
-    -->
 </div>
 
 {% if mode == 'video' %}
 <!-- Режим видеоинструкций -->
 <section class="settings-section settings-section--fluid">
-    <h2 style="margin-bottom:16px;">Видеоинструкции</h2>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2 style="margin: 0;">Видеоинструкции</h2>
+        
+        <!-- Toggle для отображения кнопки "Видеоинструкции" в боте -->
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <div class="toggle-container" title="Включить или выключить отображение кнопки 'Видеоинструкции' в боте">
+                    <label class="modern-toggle">
+                        <input type="checkbox" id="video_instructions_show_in_bot" {% if video_instructions_show_in_bot %}checked{% endif %} onchange="toggleVideoInstructionsShowInBot()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <span style="color: var(--text-color); font-weight: 500;">Отобразить кнопку в боте</span>
+            </label>
+        </div>
+    </div>
     
     <div class="table-scroll-x">
         <table class="users-table">
@@ -142,6 +151,20 @@
     <h2 style="margin-bottom:10px;">Текст инструкции: {{ active_tab|capitalize }}</h2>
     <form method="post">
         <input type="hidden" name="platform" value="{{ active_tab }}" />
+        
+        <!-- Toggle для отображения в боте -->
+        <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 12px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <div class="toggle-container" title="Включить или выключить отображение этой инструкции в боте">
+                    <label class="modern-toggle">
+                        <input type="checkbox" name="show_in_bot" {% if show_in_bot %}checked{% endif %} onchange="toggleShowInBot()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <span style="color: var(--text-color); font-weight: 500;">Отобразить в боте</span>
+            </label>
+        </div>
+        
         <textarea name="instructions_content" class="textarea-changelog" spellcheck="false" autocomplete="off" autocapitalize="off" style="background:var(--bg-surface);color:#e9ecef;border:1px solid var(--border-color);min-height:400px;max-height:600px;height:450px;width:100%;box-sizing:border-box;font-family:monospace;resize:vertical;" title="Введите текст инструкции для выбранной платформы">{{ instructions_text }}</textarea>
         <div style="margin-top: 12px; display: flex; gap: 8px;">
             <button type="submit" class="button button-start" data-size="md" title="Сохранить изменения инструкций">
@@ -203,6 +226,44 @@ function showNotification(message, type = 'info') {
     `;
     document.body.appendChild(notification);
     setTimeout(() => notification.remove(), 2000);
+}
+
+// Функция для переключения отображения инструкции в боте
+function toggleShowInBot() {
+    // Эта функция будет обрабатываться на сервере при отправке формы
+}
+
+// Функция для переключения отображения кнопки "Видеоинструкции" в боте
+function toggleVideoInstructionsShowInBot() {
+    const checkbox = document.getElementById('video_instructions_show_in_bot');
+    const showInBot = checkbox.checked;
+    
+    // Отправляем AJAX запрос для сохранения настройки
+    fetch('/api/update-video-instructions-display', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            show_in_bot: showInBot
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Настройка сохранена', 'success');
+        } else {
+            showNotification('Ошибка при сохранении настройки', 'error');
+            // Возвращаем checkbox в предыдущее состояние
+            checkbox.checked = !showInBot;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Ошибка при сохранении настройки', 'error');
+        // Возвращаем checkbox в предыдущее состояние
+        checkbox.checked = !showInBot;
+    });
 }
 </script>
 

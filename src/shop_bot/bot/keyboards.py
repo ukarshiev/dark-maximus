@@ -375,28 +375,63 @@ def create_qr_keyboard(key_id: int) -> InlineKeyboardMarkup:
 
 def create_howto_vless_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    # Кнопка "Видеоинструкции" скрыта, так как функционал не работает
-    # builder.button(text="🎬 Видеоинструкции", callback_data="video_instructions_list")
-    builder.button(text="📱 Android", callback_data="howto_android")
-    builder.button(text="📱 iOS", callback_data="howto_ios")
-    builder.button(text="💻 Windows", callback_data="howto_windows")
-    builder.button(text="🖥 MacOS", callback_data="howto_macos")
-    builder.button(text="🐧 Linux", callback_data="howto_linux")
+    
+    # Сначала добавляем кнопки платформ (всегда в одном порядке)
+    from shop_bot.data_manager.database import get_instruction_display_setting
+    
+    if get_instruction_display_setting('android'):
+        builder.button(text="📱 Android", callback_data="howto_android")
+    if get_instruction_display_setting('ios'):
+        builder.button(text="📱 iOS", callback_data="howto_ios")
+    if get_instruction_display_setting('windows'):
+        builder.button(text="💻 Windows", callback_data="howto_windows")
+    if get_instruction_display_setting('macos'):
+        builder.button(text="🖥 MacOS", callback_data="howto_macos")
+    if get_instruction_display_setting('linux'):
+        builder.button(text="🐧 Linux", callback_data="howto_linux")
+    
+    # Добавляем кнопку "Видеоинструкции" если она включена (после платформ)
+    from shop_bot.data_manager.database import get_video_instructions_display_setting
+    if get_video_instructions_display_setting():
+        builder.button(text="🎬 Видеоинструкции", callback_data="video_instructions_list")
+    
+    # Кнопка "Назад в меню" всегда в конце
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
-    builder.adjust(1, 2, 3, 1)
+    
+    # Настройка расположения: 2 кнопки в первом ряду, 3 во втором, остальные по 1
+    builder.adjust(2, 3, 1, 1)
     return builder.as_markup()
 
 def create_howto_vless_keyboard_key(key_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    # Кнопка "Видеоинструкции" скрыта, так как функционал не работает
-    # builder.button(text="🎬 Видеоинструкции", callback_data="video_instructions_list")
-    builder.button(text="📱 Android", callback_data="howto_android")
-    builder.button(text="📱 iOS", callback_data="howto_ios")
-    builder.button(text="💻 Windows", callback_data="howto_windows")
-    builder.button(text="🖥 MacOS", callback_data="howto_macos")
-    builder.button(text="🐧 Linux", callback_data="howto_linux")
+    
+    # Добавляем кнопку "Видеоинструкции" если она включена
+    from shop_bot.data_manager.database import get_video_instructions_display_setting
+    if get_video_instructions_display_setting():
+        builder.button(text="🎬 Видеоинструкции", callback_data="video_instructions_list")
+    
+    # Добавляем кнопки платформ только если они включены
+    from shop_bot.data_manager.database import get_instruction_display_setting
+    
+    if get_instruction_display_setting('android'):
+        builder.button(text="📱 Android", callback_data="howto_android")
+    if get_instruction_display_setting('ios'):
+        builder.button(text="📱 iOS", callback_data="howto_ios")
+    if get_instruction_display_setting('windows'):
+        builder.button(text="💻 Windows", callback_data="howto_windows")
+    if get_instruction_display_setting('macos'):
+        builder.button(text="🖥 MacOS", callback_data="howto_macos")
+    if get_instruction_display_setting('linux'):
+        builder.button(text="🐧 Linux", callback_data="howto_linux")
+    
     builder.button(text="⬅️ Назад к ключу", callback_data=f"show_key_{key_id}")
     builder.adjust(1, 2, 3, 1)
+    return builder.as_markup()
+
+def create_back_to_instructions_keyboard() -> InlineKeyboardMarkup:
+    """Создает клавиатуру для возврата к инструкциям"""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="⬅️ Назад к инструкциям", callback_data="back_to_instructions")
     return builder.as_markup()
 
 def create_user_promo_codes_keyboard(user_promo_codes: list) -> InlineKeyboardMarkup:
