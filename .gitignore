@@ -166,6 +166,8 @@ Microsoft.PowerShell_profile.ps1
 *.bak
 *.backup
 backups/
+backups/*.db.gz
+backups/*.db
 
 # Video files (large files not suitable for Git)
 video_instructions/videos/*.mp4
