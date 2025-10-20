@@ -243,10 +243,16 @@ async def start_handler_optimized(message: types.Message, state: FSMContext, com
         # Проверяем согласие с документами
         if not user_data.get('agreed_to_documents'):
             # Показываем форму согласия
-            terms_url = await get_setting_async("terms_url")
-            privacy_url = await get_setting_async("privacy_url")
+            from shop_bot.data_manager.database import get_global_domain
+            domain = get_global_domain()
             
-            if terms_url and not (terms_url.startswith("http://localhost") or terms_url.startswith("https://localhost")):
+            terms_url = None
+            privacy_url = None
+            if domain and not domain.startswith("http://localhost") and not domain.startswith("https://localhost"):
+                terms_url = f"{domain.rstrip('/')}/terms"
+                privacy_url = f"{domain.rstrip('/')}/privacy"
+            
+            if terms_url and privacy_url:
                 keyboard = keyboards.get_terms_agreement_keyboard(terms_url, privacy_url)
                 await message.answer(
                     "📋 <b>Согласие с условиями</b>\n\n"

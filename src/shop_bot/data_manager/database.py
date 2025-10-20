@@ -68,6 +68,8 @@ def initialize_db():
 
                     agreed_to_documents INTEGER DEFAULT 0,
 
+                    subscription_status TEXT DEFAULT 'not_checked',
+
                     registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
                     is_banned INTEGER DEFAULT 0,
@@ -448,13 +450,13 @@ def initialize_db():
 
                 "ton_manifest_name": "Dark Maximus Shop Bot",
 
-                "ton_manifest_url": "https://paris.dark-maximus.com",
+                "ton_manifest_url": "https://panel.dark-maximus.com",
 
-                "ton_manifest_icon_url": "https://paris.dark-maximus.com/static/logo.png",
+                "ton_manifest_icon_url": "https://panel.dark-maximus.com/static/logo.png",
 
-                "ton_manifest_terms_url": "https://paris.dark-maximus.com/terms",
+                "ton_manifest_terms_url": "https://panel.dark-maximus.com/terms",
 
-                "ton_manifest_privacy_url": "https://paris.dark-maximus.com/privacy",
+                "ton_manifest_privacy_url": "https://panel.dark-maximus.com/privacy",
 
             }
 
@@ -2916,6 +2918,26 @@ def set_documents_agreed(telegram_id: int):
     except sqlite3.Error as e:
 
         logging.error(f"Failed to set documents agreed for user {telegram_id}: {e}")
+
+
+
+def set_terms_agreed(telegram_id: int):
+
+    try:
+
+        with sqlite3.connect(DB_FILE) as conn:
+
+            cursor = conn.cursor()
+
+            cursor.execute("UPDATE users SET agreed_to_terms = 1 WHERE telegram_id = ?", (telegram_id,))
+
+            conn.commit()
+
+            logging.info(f"User {telegram_id} has agreed to terms.")
+
+    except sqlite3.Error as e:
+
+        logging.error(f"Failed to set terms agreed for user {telegram_id}: {e}")
 
 
 

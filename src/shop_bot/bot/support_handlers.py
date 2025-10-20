@@ -15,6 +15,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from shop_bot.data_manager import database
+from shop_bot.bot.handlers import process_successful_onboarding
 
 logger = logging.getLogger(__name__)
 
@@ -27,14 +28,14 @@ class Onboarding(StatesGroup):
 
 async def show_terms_agreement_screen(message: types.Message, state: FSMContext):
     """Показывает экран согласия с документами"""
-    terms_url = database.get_setting("terms_url")
-    privacy_url = database.get_setting("privacy_url")
+    from shop_bot.data_manager.database import get_global_domain
+    domain = get_global_domain()
     
-    # Проверяем, что URL не localhost
-    if terms_url and (terms_url.startswith("http://localhost") or terms_url.startswith("https://localhost")):
-        terms_url = None
-    if privacy_url and (privacy_url.startswith("http://localhost") or privacy_url.startswith("https://localhost")):
-        privacy_url = None
+    terms_url = None
+    privacy_url = None
+    if domain and not domain.startswith("http://localhost") and not domain.startswith("https://localhost"):
+        terms_url = f"{domain.rstrip('/')}/terms"
+        privacy_url = f"{domain.rstrip('/')}/privacy"
     
     if not terms_url or not privacy_url:
         # Если документы не настроены, переходим к проверке подписки
@@ -52,9 +53,9 @@ async def show_terms_agreement_screen(message: types.Message, state: FSMContext)
     # Создаем клавиатуру с кнопками
     builder = InlineKeyboardBuilder()
     if terms_url:
-        builder.button(text="📄 Условия использования", url=terms_url)
+        builder.button(text="📄 Условия использования", web_app={"url": terms_url})
     if privacy_url:
-        builder.button(text="🔒 Политика конфиденциальности", url=privacy_url)
+        builder.button(text="🔒 Политика конфиденциальности", web_app={"url": privacy_url})
     builder.button(text="✅ Я согласен с документами", callback_data="agree_to_terms")
     builder.adjust(1)
     
@@ -86,13 +87,7 @@ async def show_subscription_screen(message: types.Message, state: FSMContext):
     await message.answer(text, reply_markup=builder.as_markup())
     await state.set_state(Onboarding.waiting_for_subscription)
 
-async def process_successful_onboarding(message: types.Message, state: FSMContext):
-    """Завершает процесс онбординга"""
-    await message.answer("✅ Спасибо! Доступ предоставлен.")
-    user_id = message.from_user.id
-    database.set_documents_agreed(user_id)
-    database.set_subscription_status(user_id, 'subscribed')
-    await state.clear()
+# Функция process_successful_onboarding перенесена в handlers.py
 
 async def get_user_summary(user_id: int, username: str) -> str:
     keys = database.get_user_keys(user_id)

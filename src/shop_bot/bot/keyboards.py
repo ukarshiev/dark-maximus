@@ -56,7 +56,6 @@ def create_profile_menu_keyboard(total_keys_count: int | None = None, trial_used
     builder.button(text=f"🔑 Мои ключи{keys_suffix}", callback_data="manage_keys")
     
     builder.button(text="💳 Пополнить баланс", callback_data="topup_root")
-    builder.button(text="🎫 Применить промокод", callback_data="my_promo_codes")
     if get_setting("enable_referrals") == "true":
         builder.button(text="🤝 Реферальная программа", callback_data="show_referral_program")
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
@@ -213,9 +212,9 @@ def create_about_keyboard(channel_url: str | None, terms_url: str | None, privac
     if channel_url:
         builder.button(text="📰 Наш канал", url=channel_url)
     if terms_url:
-        builder.button(text="📄 Условия использования", url=terms_url)
+        builder.button(text="📄 Условия использования", web_app={"url": terms_url})
     if privacy_url:
-        builder.button(text="🔒 Политика конфиденциальности", url=privacy_url)
+        builder.button(text="🔒 Политика конфиденциальности", web_app={"url": privacy_url})
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
     builder.adjust(1)
     return builder.as_markup()
@@ -468,23 +467,23 @@ def create_welcome_keyboard(channel_url: str | None, is_subscription_forced: boo
 
     if channel_url and terms_url and privacy_url and is_subscription_forced:
         builder.button(text="📢 Перейти в канал", url=channel_url)
-        builder.button(text="📄 Условия использования", url=terms_url)
-        builder.button(text="🔒 Политика конфиденциальности", url=privacy_url)
+        builder.button(text="📄 Условия использования", web_app={"url": terms_url})
+        builder.button(text="🔒 Политика конфиденциальности", web_app={"url": privacy_url})
         builder.button(text="✅ Я подписался", callback_data="check_subscription_and_agree")
     elif channel_url and terms_url and privacy_url:
         builder.button(text="📢 Наш канал (не обязательно)", url=channel_url)
-        builder.button(text="📄 Условия использования", url=terms_url)
-        builder.button(text="🔒 Политика конфиденциальности", url=privacy_url)
+        builder.button(text="📄 Условия использования", web_app={"url": terms_url})
+        builder.button(text="🔒 Политика конфиденциальности", web_app={"url": privacy_url})
         builder.button(text="✅ Принимаю условия", callback_data="check_subscription_and_agree")
     elif terms_url and privacy_url:
-        builder.button(text="📄 Условия использования", url=terms_url)
-        builder.button(text="🔒 Политика конфиденциальности", url=privacy_url)
+        builder.button(text="📄 Условия использования", web_app={"url": terms_url})
+        builder.button(text="🔒 Политика конфиденциальности", web_app={"url": privacy_url})
         builder.button(text="✅ Принимаю условия", callback_data="check_subscription_and_agree")
     elif terms_url:
-        builder.button(text="📄 Условия использования", url=terms_url)
+        builder.button(text="📄 Условия использования", web_app={"url": terms_url})
         builder.button(text="✅ Принимаю условия", callback_data="check_subscription_and_agree")
     elif privacy_url:
-        builder.button(text="🔒 Политика конфиденциальности", url=privacy_url)
+        builder.button(text="🔒 Политика конфиденциальности", web_app={"url": privacy_url})
         builder.button(text="✅ Принимаю условия", callback_data="check_subscription_and_agree")
     else:
         builder.button(text="📢 Наш канал (не обязательно)", url=channel_url)
@@ -501,8 +500,8 @@ def get_buy_button() -> InlineKeyboardButton:
 def create_terms_agreement_keyboard(terms_url: str, privacy_url: str) -> InlineKeyboardMarkup:
     """Создает клавиатуру для согласия с документами"""
     builder = InlineKeyboardBuilder()
-    builder.button(text="📄 Условия использования", url=terms_url)
-    builder.button(text="🔒 Политика конфиденциальности", url=privacy_url)
+    builder.button(text="📄 Условия использования", web_app={"url": terms_url})
+    builder.button(text="🔒 Политика конфиденциальности", web_app={"url": privacy_url})
     builder.button(text="✅ Принимаю условия", callback_data="agree_to_terms")
     builder.adjust(1, 1, 1)
     return builder.as_markup()

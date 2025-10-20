@@ -116,8 +116,9 @@ class KeyPurchase(StatesGroup):
     waiting_for_plan_selection = State()
 
 class Onboarding(StatesGroup):
-    waiting_for_terms_agreement = State()  # Новое состояние для согласия с документами
-    waiting_for_subscription = State()     # Новое состояние для проверки подписки
+    waiting_for_terms_agreement = State()     # Состояние для согласия с условиями
+    waiting_for_documents_agreement = State() # Состояние для согласия с политикой
+    waiting_for_subscription = State()        # Состояние для проверки подписки
 
 class PaymentProcess(StatesGroup):
     waiting_for_email = State()
@@ -315,7 +316,7 @@ async def check_user_subscription(user_id: int, bot: Bot, channel_url: str) -> t
     try:
         if '@' not in channel_url and 't.me/' not in channel_url:
             logger.error(f"Неверный формат URL канала: {channel_url}")
-            return True, "Неверный формат URL канала"
+            return False, "Неверный формат URL канала"
         
         channel_id = '@' + channel_url.split('/')[-1] if 't.me/' in channel_url else channel_url
         
@@ -334,14 +335,19 @@ async def check_user_subscription(user_id: int, bot: Bot, channel_url: str) -> t
         except TelegramBadRequest as e:
             if "member list is inaccessible" in str(e):
                 # Если бот не может получить доступ к списку участников, 
-                # считаем что пользователь подписан (доверяем пользователю)
-                logger.warning(f"Не удалось проверить подписку для user_id {user_id} на канал {channel_url}: {e}. Считаем пользователя подписанным.")
-                return True, ""
+                # НЕ доверяем пользователю - возвращаем False
+                logger.warning(f"Не удалось проверить подписку для user_id {user_id} на канал {channel_url}: {e}. Требуется подписка.")
+                set_subscription_status(user_id, 'not_subscribed')
+                return False, "Не удалось проверить подписку. Пожалуйста, убедитесь, что вы подписаны на канал."
             else:
-                raise e
+                # Другие ошибки Telegram API - тоже не доверяем
+                logger.error(f"Ошибка Telegram API при проверке подписки для user_id {user_id} на канал {channel_url}: {e}")
+                set_subscription_status(user_id, 'not_subscribed')
+                return False, f"Ошибка проверки подписки: {str(e)}"
                 
     except Exception as e:
         logger.error(f"Ошибка при проверке подписки для user_id {user_id} на канал {channel_url}: {e}")
+        set_subscription_status(user_id, 'not_subscribed')
         return False, f"Не удалось проверить подписку. Убедитесь, что бот является администратором канала. Попробуйте позже."
 
 def subscription_required(f):
@@ -415,14 +421,15 @@ def documents_consent_required(f):
         
         # Проверяем согласие с документами
         if not user_data.get('agreed_to_documents', False):
-            terms_url = get_setting("terms_url")
-            privacy_url = get_setting("privacy_url")
+            # Получаем домен из настроек для динамического формирования URL
+            from shop_bot.data_manager.database import get_global_domain
+            domain = get_global_domain()
             
-            # Проверяем, что URL не localhost
-            if terms_url and (terms_url.startswith("http://localhost") or terms_url.startswith("https://localhost")):
-                terms_url = None
-            if privacy_url and (privacy_url.startswith("http://localhost") or privacy_url.startswith("https://localhost")):
-                privacy_url = None
+            terms_url = None
+            privacy_url = None
+            if domain and not domain.startswith("http://localhost") and not domain.startswith("https://localhost"):
+                terms_url = f"{domain.rstrip('/')}/terms"
+                privacy_url = f"{domain.rstrip('/')}/privacy"
             
             if not terms_url or not privacy_url:
                 # Если документы не настроены, разрешаем доступ
@@ -437,9 +444,9 @@ def documents_consent_required(f):
             # Создаем клавиатуру с кнопками
             builder = InlineKeyboardBuilder()
             if terms_url:
-                builder.button(text="📄 Условия использования", url=terms_url)
+                builder.button(text="📄 Условия использования", web_app={"url": terms_url})
             if privacy_url:
-                builder.button(text="🔒 Политика конфиденциальности", url=privacy_url)
+                builder.button(text="🔒 Политика конфиденциальности", web_app={"url": privacy_url})
             builder.button(text="✅ Я согласен с документами", callback_data="agree_to_terms")
             builder.adjust(1)
             
@@ -494,8 +501,15 @@ def get_user_router() -> Router:
         user_data = get_user(user_id)
 
         # Получаем настройки
-        terms_url = get_setting("terms_url")
-        privacy_url = get_setting("privacy_url")
+        from shop_bot.data_manager.database import get_global_domain
+        domain = get_global_domain()
+        
+        terms_url = None
+        privacy_url = None
+        if domain and not domain.startswith("http://localhost") and not domain.startswith("https://localhost"):
+            terms_url = f"{domain.rstrip('/')}/terms"
+            privacy_url = f"{domain.rstrip('/')}/privacy"
+            
         channel_url = get_setting("channel_url")
         is_subscription_forced = get_setting("force_subscription") == "true"
         
@@ -508,18 +522,34 @@ def get_user_router() -> Router:
             privacy_url = None
 
         # Получаем текущий статус пользователя
+        agreed_to_terms = user_data.get('agreed_to_terms', False)
         agreed_to_documents = user_data.get('agreed_to_documents', False)
         subscription_status = user_data.get('subscription_status', 'not_subscribed')
         
-        logger.info(f"START HANDLER: User {user_id} status - agreed_to_documents: {agreed_to_documents}, subscription_status: {subscription_status}")
+        logger.info(f"START HANDLER: User {user_id} status - agreed_to_terms: {agreed_to_terms}, agreed_to_documents: {agreed_to_documents}, subscription_status: {subscription_status}")
         
-        # ПРОВЕРКА 1: Согласие с документами
-        if not agreed_to_documents and terms_url and privacy_url:
-            logger.info(f"START HANDLER: User {user_id} needs to agree to documents, showing terms screen")
+        # ПРОВЕРКА 1: Согласие с условиями
+        if not agreed_to_terms and terms_url:
+            logger.info(f"START HANDLER: User {user_id} needs to agree to terms, showing terms screen")
             await show_terms_agreement_screen(message, state)
             return
         
-        # ПРОВЕРКА 2: Подписка на канал
+        # ПРОВЕРКА 2: Согласие с документами
+        if not agreed_to_documents and privacy_url:
+            logger.info(f"START HANDLER: User {user_id} needs to agree to documents, showing documents screen")
+            await show_documents_agreement_screen(message, state)
+            return
+        
+        # Если URL не настроены, устанавливаем согласия автоматически
+        if not terms_url and not privacy_url:
+            if not agreed_to_terms:
+                set_terms_agreed(user_id)
+                logger.info(f"START HANDLER: User {user_id} terms agreement set automatically (no URL configured)")
+            if not agreed_to_documents:
+                set_documents_agreed(user_id)
+                logger.info(f"START HANDLER: User {user_id} documents agreement set automatically (no URL configured)")
+        
+        # ПРОВЕРКА 3: Подписка на канал
         if is_subscription_forced and channel_url and subscription_status != 'subscribed':
             logger.info(f"START HANDLER: User {user_id} needs to subscribe, showing subscription screen")
             await show_subscription_screen(message, state)
@@ -637,6 +667,44 @@ def get_user_router() -> Router:
                     await callback.message.edit_text("🏠 <b>Главное меню</b>\n\nВыберите действие:", reply_markup=None)
                 except Exception:
                     await callback.message.answer("🏠 <b>Главное меню</b>\n\nВыберите действие:", reply_markup=keyboards.get_main_reply_keyboard(is_admin))
+
+    @user_router.callback_query(F.data == "agree_to_terms_only")
+    @measure_performance("agree_to_terms_only")
+    async def agree_to_terms_only_handler(callback: types.CallbackQuery, state: FSMContext):
+        """Обработчик согласия только с условиями"""
+        user_id = callback.from_user.id
+        logger.info(f"User {user_id} agreed to terms only")
+        
+        # Устанавливаем согласие с условиями
+        set_terms_agreed(user_id)
+        await callback.answer("✅ Согласие с условиями получено!")
+        
+        # Переходим к проверке документов
+        await callback.message.delete()
+        await show_documents_agreement_screen(callback.message, state)
+
+    @user_router.callback_query(F.data == "agree_to_documents_only")
+    @measure_performance("agree_to_documents_only")
+    async def agree_to_documents_only_handler(callback: types.CallbackQuery, state: FSMContext):
+        """Обработчик согласия только с политикой конфиденциальности"""
+        user_id = callback.from_user.id
+        logger.info(f"User {user_id} agreed to documents only")
+        
+        # Устанавливаем согласие с документами
+        set_documents_agreed(user_id)
+        await callback.answer("✅ Согласие с политикой получено!")
+        
+        # Проверяем, нужна ли подписка
+        is_subscription_forced = get_setting("force_subscription") == "true"
+        channel_url = get_setting("channel_url")
+        
+        if is_subscription_forced and channel_url:
+            # Нужно проверить подписку
+            await callback.message.delete()
+            await show_subscription_screen(callback.message, state)
+        else:
+            # Подписка не требуется - завершаем онбординг
+            await process_successful_onboarding(callback, state)
 
     @user_router.callback_query(F.data == "check_subscription")
     @measure_performance("check_subscription")
@@ -5006,19 +5074,30 @@ async def _start_ton_connect_process(user_id: int, transaction_payload: dict, me
     wallets = connector.get_wallets()
     return await connector.connect(wallets[0])
 
-async def process_successful_onboarding(callback: types.CallbackQuery, state: FSMContext):
-    await callback.answer("✅ Спасибо! Доступ предоставлен.")
-    user_id = callback.from_user.id
-    set_documents_agreed(user_id)
+async def process_successful_onboarding(message_or_callback, state: FSMContext):
+    """Завершает процесс онбординга"""
+    if hasattr(message_or_callback, 'answer'):
+        await message_or_callback.answer("✅ Спасибо! Доступ предоставлен.")
+    else:
+        await message_or_callback.answer("✅ Спасибо! Доступ предоставлен.")
     
-    # Устанавливаем статус подписки как подписан
+    user_id = message_or_callback.from_user.id
+    
+    # НЕ устанавливаем согласия автоматически - они должны быть установлены пользователем
+    # Только устанавливаем статус подписки как подписан
     set_subscription_status(user_id, 'subscribed')
     
     await state.clear()
-    await callback.message.delete()
-    is_admin = str(user_id) == ADMIN_ID
-    await callback.message.answer("Приятного использования!", reply_markup=keyboards.get_main_reply_keyboard(is_admin))
-    await show_main_menu(callback.message)
+    
+    if hasattr(message_or_callback, 'message'):
+        await message_or_callback.message.delete()
+        is_admin = str(user_id) == ADMIN_ID
+        await message_or_callback.message.answer("Приятного использования!", reply_markup=keyboards.get_main_reply_keyboard(is_admin))
+        await show_main_menu(message_or_callback.message)
+    else:
+        is_admin = str(user_id) == ADMIN_ID
+        await message_or_callback.answer("Приятного использования!", reply_markup=keyboards.get_main_reply_keyboard(is_admin))
+        await show_main_menu(message_or_callback)
 
 async def is_url_reachable(url: str) -> bool:
     pattern = re.compile(
@@ -5664,32 +5743,62 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
             logger.error(f"Failed to revert transaction status: {revert_error}")
 
 async def show_terms_agreement_screen(message: types.Message, state: FSMContext):
-    """Показывает экран согласия с документами"""
-    terms_url = get_setting("terms_url")
-    privacy_url = get_setting("privacy_url")
+    """Показывает экран согласия с условиями использования"""
+    from shop_bot.data_manager.database import get_global_domain
+    domain = get_global_domain()
     
-    # Проверяем, что URL не localhost
-    if terms_url and (terms_url.startswith("http://localhost") or terms_url.startswith("https://localhost")):
-        terms_url = None
-    if privacy_url and (privacy_url.startswith("http://localhost") or privacy_url.startswith("https://localhost")):
-        privacy_url = None
+    terms_url = None
+    if domain and not domain.startswith("http://localhost") and not domain.startswith("https://localhost"):
+        terms_url = f"{domain.rstrip('/')}/terms"
     
-    if not terms_url or not privacy_url:
-        # Если документы не настроены, переходим к проверке подписки
+    if not terms_url:
+        # Если условия не настроены, переходим к проверке документов
+        await show_documents_agreement_screen(message, state)
+        return
+    
+    text = (
+        "<b>📄 Согласие с условиями</b>\n\n"
+        "Для использования бота необходимо ознакомиться с условиями использования.\n\n"
+        "После ознакомления нажмите кнопку согласия."
+    )
+    
+    # Создаем клавиатуру только с условиями
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📄 Условия использования", web_app={"url": terms_url})
+    builder.button(text="✅ Я согласен с условиями", callback_data="agree_to_terms_only")
+    builder.adjust(1)
+    
+    await message.answer(text, reply_markup=builder.as_markup())
+    await state.set_state(Onboarding.waiting_for_terms_agreement)
+
+async def show_documents_agreement_screen(message: types.Message, state: FSMContext):
+    """Показывает экран согласия с политикой конфиденциальности"""
+    from shop_bot.data_manager.database import get_global_domain
+    domain = get_global_domain()
+    
+    privacy_url = None
+    if domain and not domain.startswith("http://localhost") and not domain.startswith("https://localhost"):
+        privacy_url = f"{domain.rstrip('/')}/privacy"
+    
+    if not privacy_url:
+        # Если политика не настроена, переходим к проверке подписки
         await show_subscription_screen(message, state)
         return
     
     text = (
-        "<b>🎉 Добро пожаловать!</b>\n\n"
-        "Ознакомьтесь с документами ниже и примите их:\n\n"
-        "• Условия использования\n"
-        "• Политика конфиденциальности\n\n"
+        "<b>🔒 Согласие с политикой конфиденциальности</b>\n\n"
+        "Для использования бота необходимо ознакомиться с политикой конфиденциальности.\n\n"
         "После ознакомления нажмите кнопку согласия."
     )
     
-    keyboard = keyboards.create_terms_agreement_keyboard(terms_url, privacy_url)
-    await message.answer(text, reply_markup=keyboard)
-    await state.set_state(Onboarding.waiting_for_terms_agreement)
+    # Создаем клавиатуру только с политикой
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🔒 Политика конфиденциальности", web_app={"url": privacy_url})
+    builder.button(text="✅ Я согласен с политикой", callback_data="agree_to_documents_only")
+    builder.adjust(1)
+    
+    await message.answer(text, reply_markup=builder.as_markup())
+    await state.set_state(Onboarding.waiting_for_documents_agreement)
 
 async def show_subscription_screen(message: types.Message, state: FSMContext):
     """Показывает экран проверки подписки на канал"""
@@ -5711,27 +5820,4 @@ async def show_subscription_screen(message: types.Message, state: FSMContext):
     await message.answer(text, reply_markup=keyboard)
     await state.set_state(Onboarding.waiting_for_subscription)
 
-async def process_successful_onboarding_v2(message_or_callback, state: FSMContext):
-    """Завершает процесс онбординга"""
-    if hasattr(message_or_callback, 'answer'):
-        await message_or_callback.answer("✅ Спасибо! Доступ предоставлен.")
-    else:
-        await message_or_callback.answer("✅ Спасибо! Доступ предоставлен.")
-    
-    user_id = message_or_callback.from_user.id
-    set_documents_agreed(user_id)
-    
-    # Устанавливаем статус подписки как подписан
-    set_subscription_status(user_id, 'subscribed')
-    
-    await state.clear()
-    
-    if hasattr(message_or_callback, 'message'):
-        await message_or_callback.message.delete()
-        is_admin = str(user_id) == ADMIN_ID
-        await message_or_callback.message.answer("Приятного использования!", reply_markup=keyboards.get_main_reply_keyboard(is_admin))
-        await show_main_menu(message_or_callback.message)
-    else:
-        is_admin = str(user_id) == ADMIN_ID
-        await message_or_callback.answer("Приятного использования!", reply_markup=keyboards.get_main_reply_keyboard(is_admin))
-        await show_main_menu(message_or_callback)
+# Функция process_successful_onboarding_v2 удалена - используется основная process_successful_onboarding
