@@ -100,7 +100,10 @@ class BotController:
 
         try:
             logger.warning("🟢 ShopBot: Запуск бота...")
-            self.shop_bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+            # Увеличиваем таймауты сети для устойчивости к временному лага Telegram
+            from aiohttp import ClientTimeout
+            network_timeout = ClientTimeout(total=30, connect=10, sock_read=20)
+            self.shop_bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML), session_kwargs={"timeout": network_timeout})
             self.shop_dp = Dispatcher()
             
             # Добавляем middleware в правильном порядке
@@ -186,7 +189,9 @@ class BotController:
 
         try:
             logger.warning("🟢 SupportBot: Запуск бота...")
-            self.support_bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+            from aiohttp import ClientTimeout
+            network_timeout = ClientTimeout(total=30, connect=10, sock_read=20)
+            self.support_bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML), session_kwargs={"timeout": network_timeout})
             self.support_dp = Dispatcher()
             
             support_handlers.user_bot = self.shop_bot

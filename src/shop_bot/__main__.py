@@ -103,6 +103,15 @@ def main():
         loop = asyncio.get_running_loop()
         bot_controller.set_loop(loop)
         flask_app.config['EVENT_LOOP'] = loop
+
+        # Подключаем loop к TelegramLoggerHandler, если он уже создан
+        try:
+            for h in logging.getLogger().handlers:
+                set_loop = getattr(h, 'set_loop', None)
+                if callable(set_loop):
+                    set_loop(loop)
+        except Exception:
+            pass
         
         # Настраиваем логирование Werkzeug в зависимости от окружения
         import logging

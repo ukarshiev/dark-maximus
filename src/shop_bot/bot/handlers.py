@@ -842,7 +842,25 @@ def get_user_router() -> Router:
         await callback.message.edit_text(
             "Выберите сервер, на котором хотите приобрести ключ:",
             # Назад ведёт к выбору услуги
-            reply_markup=keyboards.create_host_selection_keyboard(hosts_with_plans, action="new", total_keys_count=len(user_keys) if user_keys else 0, back_to="buy_vpn_root")
+            reply_markup=keyboards.create_host_selection_keyboard(hosts_with_plans, action="new", total_keys_count=len(user_keys) if user_keys else 0, back_to="buy_vpn_service_selection")
+        )
+
+    @user_router.callback_query(F.data == "buy_vpn_service_selection")
+    @documents_consent_required
+    @subscription_required
+    @measure_performance("buy_vpn_service_selection")
+    async def buy_vpn_service_selection_handler(callback: types.CallbackQuery):
+        """Обработчик кнопки 'Назад' - возврат к выбору услуги"""
+        await callback.answer()
+        user_id = callback.from_user.id
+        user_keys = get_user_keys(user_id)
+        user_db_data = get_user(user_id)
+        trial_used = user_db_data.get('trial_used', 1) if user_db_data else 1
+        total_keys_count = len(user_keys) if user_keys else 0
+        
+        await callback.message.edit_text(
+            "Выберите услугу:",
+            reply_markup=keyboards.create_service_selection_keyboard(trial_used, total_keys_count)
         )
 
     @user_router.callback_query(F.data == "buy_vpn_root")
@@ -938,14 +956,25 @@ def get_user_router() -> Router:
     @measure_performance("topup_custom_amount")
     async def topup_custom_amount_prompt(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
+        # Создаем клавиатуру с кнопкой "Назад"
+        back_keyboard = InlineKeyboardBuilder()
+        back_keyboard.button(text="⬅️ Назад", callback_data="topup_back_to_amounts")
+        back_keyboard.adjust(1)
+        
         await callback.message.edit_text(
-            "Введите сумму пополнения в рублях (целое число)"
+            "Введите сумму пополнения в рублях (целое число)",
+            reply_markup=back_keyboard.as_markup()
         )
         await state.set_state(TopupProcess.waiting_for_custom_amount)
 
     @user_router.message(TopupProcess.waiting_for_custom_amount)
     @measure_performance("topup_custom_amount_receive")
     async def topup_custom_amount_receive(message: types.Message, state: FSMContext):
+        # Создаем клавиатуру с кнопкой "Назад" для случаев ошибки
+        back_keyboard = InlineKeyboardBuilder()
+        back_keyboard.button(text="⬅️ Назад", callback_data="topup_back_to_amounts")
+        back_keyboard.adjust(1)
+        
         try:
             amount = int(message.text.strip())
             try:
@@ -953,10 +982,16 @@ def get_user_router() -> Router:
             except Exception:
                 min_topup = 50
             if amount < min_topup:
-                await message.answer(f"Минимальная сумма пополнения {min_topup} RUB. Введите другую сумму:")
+                await message.answer(
+                    f"Минимальная сумма пополнения {min_topup} RUB. Введите другую сумму:",
+                    reply_markup=back_keyboard.as_markup()
+                )
                 return
         except Exception:
-            await message.answer("Введите корректное целое число в рублях:")
+            await message.answer(
+                "Введите корректное целое число в рублях:",
+                reply_markup=back_keyboard.as_markup()
+            )
             return
         await state.update_data(topup_amount=amount)
         await message.answer(
@@ -964,6 +999,18 @@ def get_user_router() -> Router:
             reply_markup=keyboards.create_topup_payment_methods_keyboard()
         )
         await state.set_state(TopupProcess.waiting_for_payment_method)
+
+    @user_router.callback_query(TopupProcess.waiting_for_custom_amount, F.data == "topup_back_to_amounts")
+    @registration_required
+    @measure_performance("topup_back_from_custom_amount")
+    async def topup_back_from_custom_amount(callback: types.CallbackQuery, state: FSMContext):
+        """Обработчик кнопки 'Назад' при вводе пользовательской суммы"""
+        await callback.answer()
+        await state.clear()
+        await callback.message.edit_text(
+            "Выберите сумму пополнения:",
+            reply_markup=keyboards.create_topup_amounts_keyboard()
+        )
 
     @user_router.callback_query(TopupProcess.waiting_for_payment_method, F.data == "topup_back_to_amounts")
     @registration_required
@@ -1115,7 +1162,7 @@ def get_user_router() -> Router:
             # Если несколько хостов, показываем выбор
             await callback.message.edit_text(
                 "Выберите сервер для создания пробного ключа:",
-                reply_markup=keyboards.create_host_selection_keyboard(hosts, action="trial")
+                reply_markup=keyboards.create_host_selection_keyboard(hosts, action="trial", back_to="buy_vpn_service_selection")
             )
 
     @user_router.callback_query(F.data == "promo_code")
@@ -1289,7 +1336,7 @@ def get_user_router() -> Router:
             # Если несколько хостов, показываем выбор
             await message.answer(
                 "Выберите сервер для создания пробного ключа:",
-                reply_markup=keyboards.create_host_selection_keyboard(hosts, action="trial")
+                reply_markup=keyboards.create_host_selection_keyboard(hosts, action="trial", back_to="buy_vpn_service_selection")
             )
 
     @user_router.message(F.text == "🤝 Реферальная программа")
@@ -2967,10 +3014,14 @@ def get_user_router() -> Router:
 
     @user_router.callback_query(F.data.startswith("select_host_new_"))
     @registration_required
-    async def select_host_for_purchase_handler(callback: types.CallbackQuery):
+    async def select_host_for_purchase_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         user_id = callback.from_user.id
         host_name = callback.data[len("select_host_new_"):]
+        
+        # Сохраняем host_name в состоянии для возможности возврата
+        await state.update_data(selected_host=host_name)
+        
         plans = get_plans_for_host(host_name)
         
         # Фильтруем тарифы по режиму отображения для данного пользователя
@@ -3056,13 +3107,33 @@ def get_user_router() -> Router:
     @measure_performance("back_to_plans")
     async def back_to_plans_handler(callback: types.CallbackQuery, state: FSMContext):
         data = await state.get_data()
-        await state.clear()
-        
         action = data.get('action')
+        host_name = data.get('host_name')
+        key_id = data.get('key_id', 0)
+        user_id = callback.from_user.id
 
-        if action == 'new':
-            await buy_new_key_handler(callback)
-        elif action == 'extend':
+        # Очищаем состояние, но сохраняем selected_host для возможности дальнейшего возврата
+        selected_host = data.get('selected_host')
+        await state.clear()
+        if selected_host:
+            await state.update_data(selected_host=selected_host)
+
+        if action == 'new' and host_name:
+            # Возвращаемся к выбору тарифа для конкретного хоста
+            plans = get_plans_for_host(host_name)
+            plans = filter_plans_by_display_mode(plans, user_id)
+            
+            if not plans:
+                await callback.message.edit_text(f"❌ Для сервера \"{host_name}\" не настроены доступные тарифы.")
+                return
+            
+            await callback.message.edit_text(
+                "Выберите тариф для нового ключа:", 
+                reply_markup=keyboards.create_plans_keyboard(plans, action="new", host_name=host_name)
+            )
+        elif action == 'extend' and key_id:
+            # Для продления возвращаемся к extend_key_handler через изменение callback.data
+            callback.data = f"extend_key_{key_id}"
             await extend_key_handler(callback)
         else:
             await back_to_main_menu_handler(callback)

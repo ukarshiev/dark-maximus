@@ -2001,8 +2001,24 @@ def filter_plans_by_display_mode(plans: list[dict], user_id: int) -> list[dict]:
 
 
 def _normalize_bot_value(bot: str) -> str:
-
-    return (bot or "").strip().lower()
+    """Нормализует и валидирует значение бота.
+    
+    Args:
+        bot: Название бота (должно быть 'shop')
+        
+    Returns:
+        Нормализованное значение бота в нижнем регистре
+        
+    Raises:
+        ValueError: Если бот не 'shop'
+    """
+    normalized = (bot or "").strip().lower()
+    
+    # Валидация: поддерживаем только 'shop' бота
+    if normalized and normalized != 'shop':
+        raise ValueError(f"Неподдерживаемый тип бота: '{bot}'. Допустимые значения: 'shop'")
+    
+    return normalized
 
 
 

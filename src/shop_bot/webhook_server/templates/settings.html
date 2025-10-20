@@ -466,6 +466,20 @@
 					value="{{ settings.support_group_id or '' }}"
 				/>
 			</div>
+			<div class="form-group" style="margin-top: 20px;">
+				<label style="display: block; margin-bottom: 10px; font-weight: 600;">Диагностика бота поддержки:</label>
+				<div style="display: flex; gap: 10px; flex-wrap: wrap;">
+					<button type="button" class="button button-secondary" onclick="checkSupportConfig()" title="Проверить конфигурацию бота поддержки (ID группы, токен, темы)">
+						<i class="fas fa-cog"></i>
+						Проверить конфигурацию
+					</button>
+					<button type="button" class="button button-secondary" onclick="testSupportBot()" title="Протестировать бота поддержки (доступ к группе, права, отправка сообщения)">
+						<i class="fas fa-vial"></i>
+						Тест бота
+					</button>
+				</div>
+				<div id="support-diagnostic-result" style="margin-top: 15px;"></div>
+			</div>
 		</section>
 		<section class="settings-section">
 			<h2>Бот для логов</h2>
@@ -2286,6 +2300,80 @@ async function testLoggingBot() {
         showNotification('Ошибка при отправке тестового сообщения', 'error');
     } finally {
         // Восстанавливаем кнопку
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
+
+// Функция для проверки конфигурации бота поддержки
+async function checkSupportConfig() {
+    const resultDiv = document.getElementById('support-diagnostic-result');
+    resultDiv.innerHTML = '<p style="color: #666;">⏳ Проверка конфигурации...</p>';
+    
+    const button = event.target.closest('button');
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Проверка...';
+    
+    try {
+        const response = await fetch('/api/support/check-config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            resultDiv.innerHTML = `<pre style="padding: 15px; border-radius: 5px; white-space: pre-wrap; font-family: monospace; font-size: 13px; line-height: 1.6; border: 1px solid var(--border-color, #ddd); color: var(--text-color, inherit);">${data.message}</pre>`;
+            showNotification('Проверка конфигурации завершена', 'success');
+        } else {
+            resultDiv.innerHTML = `<p style="color: #d32f2f;">❌ ${data.message}</p>`;
+            showNotification('Ошибка: ' + data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка:', error);
+        resultDiv.innerHTML = `<p style="color: #d32f2f;">❌ Ошибка при выполнении запроса: ${error}</p>`;
+        showNotification('Ошибка при проверке конфигурации', 'error');
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
+
+// Функция для тестирования бота поддержки
+async function testSupportBot() {
+    const resultDiv = document.getElementById('support-diagnostic-result');
+    resultDiv.innerHTML = '<p style="color: #666;">⏳ Тестирование бота...</p>';
+    
+    const button = event.target.closest('button');
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Тестирование...';
+    
+    try {
+        const response = await fetch('/api/support/check-test', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            resultDiv.innerHTML = `<pre style="padding: 15px; border-radius: 5px; white-space: pre-wrap; font-family: monospace; font-size: 13px; line-height: 1.6; border: 1px solid var(--border-color, #ddd); color: var(--text-color, inherit);">${data.message}</pre>`;
+            showNotification('Тестирование завершено', 'success');
+        } else {
+            resultDiv.innerHTML = `<p style="color: #d32f2f;">❌ ${data.message}</p>`;
+            showNotification('Ошибка: ' + data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Ошибка:', error);
+        resultDiv.innerHTML = `<p style="color: #d32f2f;">❌ Ошибка при выполнении запроса: ${error}</p>`;
+        showNotification('Ошибка при тестировании бота', 'error');
+    } finally {
         button.disabled = false;
         button.innerHTML = originalText;
     }

@@ -74,6 +74,12 @@ class TelegramLoggerHandler(logging.Handler):
             self.setLevel(logging.DEBUG)
         else:
             self.setLevel(logging.ERROR)
+        # Ссылка на event loop, если доступен
+        self._loop: asyncio.AbstractEventLoop | None = None
+
+    def set_loop(self, loop: asyncio.AbstractEventLoop):
+        """Устанавливает event loop для запуска фоновых задач логгера"""
+        self._loop = loop
     
     def emit(self, record: logging.LogRecord):
         """
@@ -98,7 +104,18 @@ class TelegramLoggerHandler(logging.Handler):
             
             # Запускаем асинхронную отправку если не запущена
             if not self._sending:
-                asyncio.create_task(self._process_queue())
+                loop = self._loop
+                if loop is not None and loop.is_running():
+                    # Потокобезопасный запуск на заданном цикле событий
+                    asyncio.run_coroutine_threadsafe(self._process_queue(), loop)
+                else:
+                    # Пытаемся использовать текущий running loop, если вызов из async-кода
+                    try:
+                        running_loop = asyncio.get_running_loop()
+                        running_loop.create_task(self._process_queue())
+                    except RuntimeError:
+                        # Нет активного цикла событий — оставляем в очереди, обработаем позже
+                        pass
                 
         except Exception as e:
             # Не логируем ошибки обработчика, чтобы избежать рекурсии

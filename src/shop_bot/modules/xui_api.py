@@ -18,6 +18,11 @@ from shop_bot.data_manager.database import get_host, get_key_by_email, DB_FILE
 
 logger = logging.getLogger(__name__)
 
+# Карантин для проблемных хостов: при повторных сбоях временно пропускаем хост,
+# чтобы не засорять логи и не тратить время на заведомо недоступные панели.
+_host_quarantine_until: dict[str, float] = {}
+_HOST_QUARANTINE_SECONDS = 15 * 60  # 15 минут
+
 # Кэш для subURI настроек
 _sub_uri_cache = {}
 
@@ -93,7 +98,17 @@ def get_sub_uri_from_panel(host_url: str, username: str, password: str) -> str |
 def login_to_host(host_url: str, username: str, password: str, inbound_id: int, max_retries: int = 3) -> tuple[Api | None, Inbound | None]:
     """Подключение к хосту с механизмом повторных попыток"""
     import time
-    
+    import time as _time
+    from time import time as _now
+
+    # Проверяем карантин: если хост в карантине — пропускаем попытки
+    quarantine_until = _host_quarantine_until.get(host_url)
+    if quarantine_until and _now() < quarantine_until:
+        remaining = int(quarantine_until - _now())
+        logger.warning(f"Host '{host_url}' is quarantined for {remaining}s, skipping login.")
+        return None, None
+
+    last_error: Exception | None = None
     for attempt in range(max_retries):
         try:
             api = Api(host=host_url, username=username, password=password)
@@ -109,6 +124,7 @@ def login_to_host(host_url: str, username: str, password: str, inbound_id: int, 
             return api, target_inbound
             
         except Exception as e:
+            last_error = e
             logger.warning(f"Login attempt {attempt + 1}/{max_retries} failed for host '{host_url}': {e}")
             
             if attempt < max_retries - 1:
@@ -117,6 +133,9 @@ def login_to_host(host_url: str, username: str, password: str, inbound_id: int, 
                 time.sleep(wait_time)
             else:
                 logger.error(f"All {max_retries} login attempts failed for host '{host_url}': {e}", exc_info=True)
+                # Ставим хост в карантин
+                _host_quarantine_until[host_url] = _now() + _HOST_QUARANTINE_SECONDS
+                logger.warning(f"Host '{host_url}' moved to quarantine for {_HOST_QUARANTINE_SECONDS}s due to repeated failures.")
                 
     return None, None
 

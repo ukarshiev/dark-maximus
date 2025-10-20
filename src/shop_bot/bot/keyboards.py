@@ -258,7 +258,11 @@ def create_plans_keyboard(plans: list[dict], action: str, host_name: str, key_id
         suffix = (" · "+"; ".join(suffix_parts)) if suffix_parts else ""
         text = f"{plan['plan_name']} - {plan['price']:.0f} RUB{suffix} · Трафик: {traffic_str}"
         builder.button(text=text, callback_data=callback_data)
-    back_callback = "manage_keys" if action == "extend" else "buy_new_key"
+    # Для extend возвращаемся к списку ключей, для new - к списку серверов
+    if action == "extend":
+        back_callback = f"show_key_{key_id}" if key_id else "manage_keys"
+    else:
+        back_callback = "buy_new_key"
     builder.button(text="⬅️ Назад", callback_data=back_callback)
     builder.adjust(1) 
     return builder.as_markup()

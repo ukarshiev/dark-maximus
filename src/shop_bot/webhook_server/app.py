@@ -28,6 +28,7 @@ from shop_bot.bot import handlers
 from shop_bot.security import rate_limit, get_client_ip
 from shop_bot.security.validators import InputValidator, ValidationError
 from shop_bot.utils import handle_exceptions
+from shop_bot.data_manager import database
 from shop_bot.data_manager.database import (
     get_all_settings, update_setting, get_all_hosts, get_plans_for_host,
     create_host, delete_host, create_plan, delete_plan, get_user_count,
@@ -692,6 +693,170 @@ def create_webhook_app(bot_controller_instance):
             
         except Exception as e:
             logger.error(f"Error testing logging bot: {e}")
+            return jsonify({'success': False, 'message': f'Ошибка: {str(e)}'}), 500
+
+    @flask_app.route('/api/support/check-config', methods=['POST'])
+    @login_required
+    def api_support_check_config():
+        """API для проверки конфигурации бота поддержки"""
+        try:
+            if not bot_controller_instance.support_bot or not bot_controller_instance.support_is_running:
+                return jsonify({
+                    'success': False,
+                    'message': '❌ Бот поддержки не запущен. Запустите его сначала.'
+                }), 400
+            
+            # Получаем настройки
+            support_group_id = database.get_setting("support_group_id")
+            support_bot_token = database.get_setting("support_bot_token")
+            
+            config_info = "🔧 Конфигурация бота поддержки:\n\n"
+            config_info += f"📋 Support Group ID: {support_group_id or 'Не настроено'}\n"
+            config_info += f"🔑 Support Bot Token: {'Настроено' if support_bot_token else 'Не настроено'}\n\n"
+            
+            if not support_group_id:
+                config_info += "❌ Ошибка: ID группы поддержки не настроен\n"
+                return jsonify({'success': True, 'message': config_info})
+            elif not support_bot_token:
+                config_info += "❌ Ошибка: Токен бота поддержки не настроен\n"
+                return jsonify({'success': True, 'message': config_info})
+            
+            # Выполняем асинхронную проверку
+            async def check_config():
+                bot = bot_controller_instance.support_bot
+                try:
+                    chat_info = await bot.get_chat(support_group_id)
+                    result = f"✅ Группа найдена: {chat_info.title}\n"
+                    
+                    # Проверяем темы
+                    try:
+                        test_topic = await bot.create_forum_topic(
+                            chat_id=support_group_id, 
+                            name="Тестовая тема для проверки"
+                        )
+                        await bot.delete_forum_topic(
+                            chat_id=support_group_id, 
+                            message_thread_id=test_topic.message_thread_id
+                        )
+                        result += "📊 Тип: Темы включены\n"
+                        result += "✅ Статус: Группа настроена корректно\n"
+                    except Exception as forum_error:
+                        result += "📊 Тип: Обычная группа\n"
+                        result += "❌ Ошибка: Темы не включены в группе!\n"
+                        result += "💡 Решение: Включите функцию 'Темы' в настройках группы\n"
+                    
+                    return result
+                except Exception as e:
+                    error_msg = f"❌ Ошибка доступа к группе: {e}\n"
+                    if "upgraded to a supergroup" in str(e):
+                        error_msg += "💡 ВАЖНО: Группа была мигрирована в супергруппу!\n"
+                        error_msg += "• При включении тем Telegram автоматически мигрирует группу\n"
+                        error_msg += "• Новый ID обычно начинается с -100\n"
+                        error_msg += "• Обновите ID группы в настройках\n"
+                    else:
+                        error_msg += "💡 Решение: Убедитесь, что бот добавлен в группу и имеет права администратора\n"
+                    return error_msg
+            
+            import asyncio
+            loop = bot_controller_instance._loop
+            if loop and loop.is_running():
+                future = asyncio.run_coroutine_threadsafe(check_config(), loop)
+                check_result = future.result(timeout=30)
+            else:
+                check_result = "❌ Ошибка: Event loop не запущен"
+            config_info += check_result
+            
+            return jsonify({'success': True, 'message': config_info})
+            
+        except Exception as e:
+            logger.error(f"Error in api_support_check_config: {e}")
+            return jsonify({'success': False, 'message': f'Ошибка: {str(e)}'}), 500
+
+    @flask_app.route('/api/support/check-test', methods=['POST'])
+    @login_required
+    def api_support_check_test():
+        """API для тестирования бота поддержки"""
+        try:
+            if not bot_controller_instance.support_bot or not bot_controller_instance.support_is_running:
+                return jsonify({
+                    'success': False,
+                    'message': '❌ Бот поддержки не запущен. Запустите его сначала.'
+                }), 400
+            
+            # Получаем настройки
+            support_group_id = database.get_setting("support_group_id")
+            support_bot_token = database.get_setting("support_bot_token")
+            
+            test_info = "🧪 Тест бота поддержки:\n\n"
+            test_info += f"📋 Support Group ID: {support_group_id or 'Не настроено'}\n"
+            test_info += f"🔑 Support Bot Token: {'Настроено' if support_bot_token else 'Не настроено'}\n\n"
+            
+            if not support_group_id:
+                test_info += "❌ Ошибка: ID группы поддержки не настроен\n"
+                return jsonify({'success': True, 'message': test_info})
+            elif not support_bot_token:
+                test_info += "❌ Ошибка: Токен бота поддержки не настроен\n"
+                return jsonify({'success': True, 'message': test_info})
+            
+            # Выполняем асинхронный тест
+            async def test_bot():
+                bot = bot_controller_instance.support_bot
+                try:
+                    chat_info = await bot.get_chat(support_group_id)
+                    result = f"✅ Группа найдена: {chat_info.title}\n"
+                    result += f"📊 Тип группы: {chat_info.type}\n"
+                    result += f"🆔 ID группы: {chat_info.id}\n"
+                    
+                    # Проверяем права бота
+                    try:
+                        bot_member = await bot.get_chat_member(support_group_id, bot.id)
+                        result += f"👤 Статус бота: {bot_member.status}\n"
+                        
+                        if bot_member.status in ['administrator', 'creator']:
+                            result += "✅ Права: Бот является администратором\n"
+                        else:
+                            result += "❌ Права: Бот не является администратором\n"
+                            result += "💡 Решение: Сделайте бота администратором группы\n"
+                    except Exception as member_error:
+                        result += f"❌ Ошибка проверки прав: {member_error}\n"
+                    
+                    # Тест отправки сообщения
+                    result += "\n🧪 Тест отправки сообщения:\n"
+                    try:
+                        await bot.send_message(
+                            chat_id=support_group_id,
+                            text="🧪 Тестовое сообщение от бота поддержки (через веб-панель)",
+                            disable_notification=True
+                        )
+                        result += "✅ Сообщение отправлено успешно\n"
+                    except Exception as send_error:
+                        result += f"❌ Ошибка отправки: {send_error}\n"
+                    
+                    return result
+                except Exception as e:
+                    error_msg = f"❌ Ошибка доступа к группе: {e}\n"
+                    error_msg += "💡 Возможные решения:\n"
+                    error_msg += "• Убедитесь, что ID группы правильный\n"
+                    error_msg += "• Проверьте, что бот добавлен в группу\n"
+                    if "upgraded to a supergroup" in str(e):
+                        error_msg += "• ВАЖНО: Группа была мигрирована в супергруппу!\n"
+                        error_msg += "• Новый ID обычно начинается с -100\n"
+                        error_msg += "• Обновите ID группы в настройках\n"
+                    return error_msg
+            
+            import asyncio
+            loop = bot_controller_instance._loop
+            if loop and loop.is_running():
+                future = asyncio.run_coroutine_threadsafe(test_bot(), loop)
+                test_result = future.result(timeout=30)
+            else:
+                test_result = "❌ Ошибка: Event loop не запущен"
+            test_info += test_result
+            
+            return jsonify({'success': True, 'message': test_info})
+            
+        except Exception as e:
+            logger.error(f"Error in api_support_check_test: {e}")
             return jsonify({'success': False, 'message': f'Ошибка: {str(e)}'}), 500
 
     @flask_app.route('/save-ton-manifest-settings', methods=['POST'])
@@ -3743,8 +3908,8 @@ def create_webhook_app(bot_controller_instance):
                 return jsonify({'success': False, 'message': 'Бот обязателен'}), 400
             
             # Валидация бота
-            if data.get('bot') not in ['shop', 'support']:
-                return jsonify({'success': False, 'message': 'Неверный тип бота. Допустимые значения: shop, support'}), 400
+            if data.get('bot') not in ['shop']:
+                return jsonify({'success': False, 'message': 'Неверный тип бота. Допустимые значения: shop'}), 400
             
             # Валидация vpn_plan_id (может быть массивом или одиночным значением)
             vpn_plan_id = data.get('vpn_plan_id')
@@ -3820,8 +3985,8 @@ def create_webhook_app(bot_controller_instance):
                 return jsonify({'success': False, 'message': 'Бот обязателен'}), 400
             
             # Валидация бота
-            if data.get('bot') not in ['shop', 'support']:
-                return jsonify({'success': False, 'message': 'Неверный тип бота. Допустимые значения: shop, support'}), 400
+            if data.get('bot') not in ['shop']:
+                return jsonify({'success': False, 'message': 'Неверный тип бота. Допустимые значения: shop'}), 400
             
             # Валидация vpn_plan_id (может быть массивом или одиночным значением)
             vpn_plan_id = data.get('vpn_plan_id')
