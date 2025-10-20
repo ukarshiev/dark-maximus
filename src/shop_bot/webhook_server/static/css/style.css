@@ -654,20 +654,7 @@ body.login-page {
 	margin-top: 55px; /* Учитываем высоту header-panel */
 }
 
-.login-container {
-	width: 100%;
-	max-width: 400px;
-	padding: 30px 40px;
-		background: var(--bg-surface);
-	border-radius: 8px;
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.login-container h1 {
-	text-align: center;
-	margin-bottom: 25px;
-	color: var(--light-color);
-}
+/* Старые стили login-container удалены - теперь используется новая структура */
 
 /* Старые стили навигации удалены - теперь используется боковое меню */
 
@@ -1929,6 +1916,12 @@ body.login-page {
 	display: flex;
 	align-items: center;
 	padding: 0 20px;
+	transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Специальные стили для страницы авторизации */
+.header-panel-login {
+	left: 0; /* На странице авторизации занимает всю ширину */
 }
 
 /* Левая часть header-panel - название и поиск */
@@ -2566,14 +2559,111 @@ body.login-page {
 	border-top: 1px solid #333;
 }
 
+/* ===== СОВРЕМЕННЫЕ BREAKPOINTS ПО СТАНДАРТАМ MATERIAL DESIGN ===== */
+/* 
+ * xs: 0px - 599px (мобильные)
+ * sm: 600px - 899px (планшеты в портретной ориентации)
+ * md: 900px - 1199px (планшеты в альбомной ориентации, маленькие десктопы)
+ * lg: 1200px - 1535px (десктопы)
+ * xl: 1536px+ (большие десктопы)
+ */
+
+/* Планшеты в альбомной ориентации и маленькие десктопы (900px - 1199px) */
+@media (max-width: 1199px) and (min-width: 900px) {
+	.sidebar {
+		width: 260px;
+	}
+	
+	.header-panel {
+		left: 260px;
+	}
+	
+	.main-content {
+		margin-left: 260px;
+		padding: 3px;
+	}
+	
+	.sidebar.sidebar-collapsed {
+		width: 60px;
+	}
+	
+	.sidebar.sidebar-collapsed ~ .header-panel {
+		left: 60px;
+	}
+	
+	.main-content.sidebar-collapsed {
+		margin-left: 60px;
+	}
+	
+	/* Убираем горизонтальный скролл */
+	.main-content {
+		overflow-x: hidden;
+	}
+	
+	/* Адаптируем карточки статистики */
+	.stats-grid {
+		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+		gap: 15px;
+	}
+	
+	/* Адаптируем графики */
+	.chart-container {
+		overflow-x: auto;
+	}
+}
+
+/* Планшеты в портретной ориентации (600px - 899px) */
+@media (max-width: 899px) and (min-width: 600px) {
+	.sidebar {
+		width: 240px;
+	}
+	
+	.header-panel {
+		left: 240px;
+	}
+	
+	.main-content {
+		margin-left: 240px;
+		padding: 2px;
+	}
+	
+	.sidebar.sidebar-collapsed {
+		width: 60px;
+	}
+	
+	.sidebar.sidebar-collapsed ~ .header-panel {
+		left: 60px;
+	}
+	
+	.main-content.sidebar-collapsed {
+		margin-left: 60px;
+	}
+	
+	/* Убираем горизонтальный скролл */
+	.main-content {
+		overflow-x: hidden;
+	}
+	
+	/* Адаптируем карточки статистики */
+	.stats-grid {
+		grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+		gap: 12px;
+	}
+	
+	/* Адаптируем графики */
+	.chart-container {
+		overflow-x: auto;
+	}
+}
+
 @media (max-width: 1200px) {
 	.main-content {
 		padding: 3px;
 	}
 }
 
-/* Адаптивность для мобильных устройств */
-@media (max-width: 768px) {
+/* Мобильные устройства (до 599px) */
+@media (max-width: 599px) {
 	.header-panel {
 		left: 0; /* На мобильных занимает всю ширину */
 		display: flex;
@@ -2600,6 +2690,22 @@ body.login-page {
 	.header-panel-right .button i {
 		font-size: 13px;
 		margin-right: 4px;
+	}
+	
+	/* Скрываем текст кнопок на мобильных, оставляем только иконки */
+	.header-panel-right .button span,
+	.header-panel-right .button .button-text {
+		display: none;
+	}
+	
+	.header-panel-right .button {
+		padding: 6px 8px;
+		min-width: 32px;
+		justify-content: center;
+	}
+	
+	.header-panel-right .button i {
+		margin-right: 0;
 	}
 	
 	/* Показываем кнопку бургерного меню на мобильных */
@@ -2636,6 +2742,7 @@ body.login-page {
 		padding: 2px;
 		width: 100%;
 		min-height: auto; /* Убираем фиксированную минимальную высоту */
+		overflow-x: hidden; /* Убираем горизонтальный скролл */
 	}
 	
 	.container {
@@ -2672,7 +2779,8 @@ body.login-page {
 	}
 }
 
-@media (max-width: 480px) {
+/* Очень маленькие экраны (до 479px) */
+@media (max-width: 479px) {
 	/* На очень маленьких экранах sidebar занимает всю ширину */
 	.sidebar {
 		width: 100%;
@@ -2698,6 +2806,7 @@ body.login-page {
 		width: 100%;
 		padding: 1px;
 		min-height: auto; /* Убираем фиксированную минимальную высоту */
+		overflow-x: hidden; /* Убираем горизонтальный скролл */
 	}
 	
 	/* Еще больше уменьшаем отступы для маленьких экранов */
@@ -4059,6 +4168,209 @@ body.login-page {
 .rem-green {
 	color: #4caf50;
 	font-weight: 600;
+}
+
+/* Стили для страницы авторизации */
+/* ===== СТРАНИЦА АВТОРИЗАЦИИ - НОВЫЙ ДИЗАЙН ===== */
+.login-page {
+	background: var(--bg-page);
+	min-height: 100vh;
+	display: flex;
+	flex-direction: column;
+}
+
+.login-main {
+	flex: 1;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	padding: 20px;
+	margin-top: 55px; /* Учитываем высоту header-panel */
+}
+
+.login-container {
+	background: #151f31;
+	border-radius: 12px;
+	padding: 50px;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+	width: 100%;
+	max-width: 500px; /* login-form-wrapper (400px) + 100px */
+}
+
+.login-form-wrapper {
+	width: 100%;
+	max-width: 400px;
+}
+
+.login-form {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+}
+
+/* Улучшенные стили для flash сообщений на странице авторизации */
+.login-form-wrapper .flash {
+	margin-bottom: 16px;
+	padding: 12px 16px;
+	border-radius: 8px;
+	font-size: 14px;
+	font-weight: 500;
+	animation: slideInDown 0.3s ease-out;
+}
+
+@keyframes slideInDown {
+	from {
+		opacity: 0;
+		transform: translateY(-10px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.login-form .form-group {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.login-form label {
+	color: var(--light-color);
+	font-weight: 500;
+	font-size: 14px;
+}
+
+.login-form input {
+	background: var(--bg-surface);
+	border: 2px solid var(--border-color);
+	border-radius: 8px;
+	padding: 12px 16px;
+	color: var(--light-color);
+	font-size: 16px;
+	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	width: 100%;
+	position: relative;
+}
+
+.login-form input:focus {
+	outline: none;
+	border-color: var(--primary-color);
+	box-shadow: 0 0 0 3px rgba(0, 135, 113, 0.1);
+	transform: translateY(-1px);
+}
+
+.login-form input:hover:not(:focus) {
+	border-color: var(--muted-hover);
+	transform: translateY(-1px);
+}
+
+.login-form input::placeholder {
+	color: var(--muted);
+}
+
+.login-button {
+	background: var(--primary-color);
+	border: none;
+	border-radius: 8px;
+	padding: 14px 24px;
+	color: white;
+	font-size: 16px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	width: 100%;
+	position: relative;
+	overflow: hidden;
+}
+
+.login-button::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: -100%;
+	width: 100%;
+	height: 100%;
+	background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+	transition: left 0.5s;
+}
+
+.login-button:hover {
+	background: var(--primary-hover);
+	transform: translateY(-2px);
+	box-shadow: 0 6px 20px rgba(0, 135, 113, 0.4);
+}
+
+.login-button:hover::before {
+	left: 100%;
+}
+
+.login-button:active {
+	transform: translateY(-1px);
+	background: var(--primary-active);
+	box-shadow: 0 4px 12px rgba(0, 135, 113, 0.3);
+}
+
+.login-button:focus {
+	outline: none;
+	box-shadow: 0 0 0 3px rgba(0, 135, 113, 0.3);
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 599px) {
+	.login-main {
+		margin-top: 55px;
+		padding: 15px;
+	}
+	
+	.login-container {
+		padding: 30px;
+		max-width: 100%;
+	}
+	
+	.login-form-wrapper {
+		max-width: 100%;
+	}
+	
+	.login-form input {
+		font-size: 16px; /* Предотвращает зум на iOS */
+		padding: 12px 14px;
+		max-width: 100%;
+	}
+	
+	.login-button {
+		padding: 14px 20px;
+		font-size: 16px;
+	}
+}
+
+@media (max-width: 479px) {
+	.login-main {
+		margin-top: 55px;
+		padding: 10px;
+	}
+	
+	.login-container {
+		padding: 20px;
+	}
+	
+	.login-form {
+		gap: 16px;
+	}
+	
+	.login-form input {
+		padding: 10px 12px;
+		font-size: 16px;
+	}
+	
+	.login-button {
+		padding: 12px 16px;
+		font-size: 14px;
+	}
 }
 
 /* Стили для страниц terms и privacy */

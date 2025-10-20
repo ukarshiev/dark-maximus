@@ -336,11 +336,16 @@ document.addEventListener('DOMContentLoaded', function () {
 		const headerBurger = document.getElementById('headerBurger');
 		const sidebar = document.getElementById('sidebar');
 		
-		if (!sidebar) return;
+		// Проверяем, находимся ли мы на странице авторизации
+		const isLoginPage = document.body.classList.contains('login-page');
+		
+		if (!sidebar && !isLoginPage) return;
 		
 		// Загружаем сохраненное состояние меню
 		const savedState = localStorage.getItem('sidebarState');
-		const isMobile = window.innerWidth <= 768;
+		const isMobile = window.innerWidth <= 599;
+		const isTablet = window.innerWidth <= 899 && window.innerWidth >= 600;
+		const isDesktop = window.innerWidth >= 900;
 		
 		// Применяем сохраненное состояние при загрузке страницы (только для десктопа)
 		if (savedState && !isMobile) {
@@ -353,15 +358,25 @@ document.addEventListener('DOMContentLoaded', function () {
 		}
 		
 		// На мобильных устройствах sidebar скрыт по умолчанию
-		if (isMobile) {
+		if (isMobile && sidebar) {
 			sidebar.classList.remove('sidebar-mobile-open');
+		}
+		
+		// Специальная обработка для страницы авторизации
+		if (isLoginPage) {
+			const headerPanel = document.querySelector('.header-panel');
+			if (headerPanel) {
+				// На странице авторизации header-panel всегда занимает всю ширину
+				headerPanel.style.left = '0';
+				headerPanel.classList.add('header-panel-login');
+			}
 		}
 		
 		// Функция переключения меню для мобильных устройств
 		// На мобильных устройствах sidebar полностью скрыт через CSS
 		function toggleSidebarMobile() {
 			// На мобильных устройствах sidebar скрыт, ничего не делаем
-			if (window.innerWidth <= 768) {
+			if (window.innerWidth <= 599) {
 				return;
 			}
 		}
@@ -390,7 +405,14 @@ document.addEventListener('DOMContentLoaded', function () {
 			// Возвращаем header-panel на место после sidebar
 			const headerPanel = document.querySelector('.header-panel');
 			if (headerPanel) {
-				headerPanel.style.left = '280px';
+				// Определяем ширину sidebar в зависимости от размера экрана
+				let sidebarWidth = '280px'; // По умолчанию для десктопа
+				if (window.innerWidth <= 1199 && window.innerWidth >= 900) {
+					sidebarWidth = '260px'; // Планшеты в альбомной ориентации
+				} else if (window.innerWidth <= 899 && window.innerWidth >= 600) {
+					sidebarWidth = '240px'; // Планшеты в портретной ориентации
+				}
+				headerPanel.style.left = sidebarWidth;
 			}
 			// Сохраняем состояние
 			localStorage.setItem('sidebarState', JSON.stringify({ hidden: false, collapsed: false }));
@@ -422,7 +444,14 @@ document.addEventListener('DOMContentLoaded', function () {
 				mainContent.classList.remove('sidebar-collapsed');
 			}
 			if (headerPanel) {
-				headerPanel.style.left = '280px';
+				// Определяем ширину sidebar в зависимости от размера экрана
+				let sidebarWidth = '280px'; // По умолчанию для десктопа
+				if (window.innerWidth <= 1199 && window.innerWidth >= 900) {
+					sidebarWidth = '260px'; // Планшеты в альбомной ориентации
+				} else if (window.innerWidth <= 899 && window.innerWidth >= 600) {
+					sidebarWidth = '240px'; // Планшеты в портретной ориентации
+				}
+				headerPanel.style.left = sidebarWidth;
 			}
 			// Сохраняем состояние
 			localStorage.setItem('sidebarState', JSON.stringify({ hidden: false, collapsed: false }));
@@ -434,7 +463,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		// Обработчик события для бургера в боковом меню (только для десктопа)
 		if (sidebarBurger) {
 			sidebarBurger.addEventListener('click', function() {
-				if (window.innerWidth > 768) {
+				if (window.innerWidth > 599) {
 					// На десктопе переключаем между развернутым, свернутым и скрытым состояниями
 					if (sidebar.classList.contains('sidebar-hidden')) {
 						// Если скрыт, показываем развернутым
@@ -453,7 +482,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		// Обработчик события для бургера в header (для мобильных устройств)
 		if (headerBurger) {
 			headerBurger.addEventListener('click', function() {
-				if (window.innerWidth <= 768) {
+				if (window.innerWidth <= 599) {
 					// На мобильных переключаем sidebar
 					sidebar.classList.toggle('sidebar-mobile-open');
 					headerBurger.classList.toggle('burger-active');
@@ -471,7 +500,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		// Обработчик события для бургера в sidebar (для мобильных устройств)
 		if (sidebarBurger) {
 			sidebarBurger.addEventListener('click', function() {
-				if (window.innerWidth <= 768) {
+				if (window.innerWidth <= 599) {
 					// На мобильных переключаем sidebar
 					sidebar.classList.toggle('sidebar-mobile-open');
 					if (headerBurger) {
@@ -490,7 +519,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		
 		// Закрытие меню при клике на overlay
 		document.addEventListener('click', function(e) {
-			if (window.innerWidth <= 768) {
+			if (window.innerWidth <= 599) {
 				// На мобильных закрываем sidebar при клике вне его
 				if (sidebar.classList.contains('sidebar-mobile-open') && 
 					!sidebar.contains(e.target) && 
@@ -518,9 +547,21 @@ document.addEventListener('DOMContentLoaded', function () {
 		
 		// Адаптация при изменении размера окна
 		window.addEventListener('resize', function() {
-			if (window.innerWidth > 768) {
+			const headerPanel = document.querySelector('.header-panel');
+			
+			// Специальная обработка для страницы авторизации
+			if (isLoginPage && headerPanel) {
+				// На странице авторизации header-panel всегда занимает всю ширину
+				headerPanel.style.left = '0';
+				headerPanel.classList.add('header-panel-login');
+				return;
+			}
+			
+			if (window.innerWidth > 599) {
 				// На десктопе убираем мобильные классы и блокировку скролла
-				sidebar.classList.remove('sidebar-mobile-open');
+				if (sidebar) {
+					sidebar.classList.remove('sidebar-mobile-open');
+				}
 				if (headerBurger) {
 					headerBurger.classList.remove('burger-active');
 				}
@@ -540,11 +581,18 @@ document.addEventListener('DOMContentLoaded', function () {
 				}
 			} else {
 				// На мобильных устройствах скрываем sidebar по умолчанию
-				sidebar.classList.remove('sidebar-mobile-open');
+				if (sidebar) {
+					sidebar.classList.remove('sidebar-mobile-open');
+				}
 				if (headerBurger) {
 					headerBurger.classList.remove('burger-active');
 				}
 				document.body.style.overflow = '';
+				
+				// На мобильных устройствах header-panel занимает всю ширину
+				if (headerPanel) {
+					headerPanel.style.left = '0';
+				}
 			}
 		});
 	}

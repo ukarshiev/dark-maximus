@@ -11,31 +11,40 @@
 	</head>
 	<body class="login-page">
 		<!-- Закрепленная панель в head -->
-		<header class="header-panel">
-			<!-- Пока пустая панель для будущих элементов -->
+		<header class="header-panel header-panel-login">
+			<div class="header-panel-left">
+				<div class="header-title">Панель управления</div>
+			</div>
+			<div class="header-panel-right">
+				<!-- Пустая правая часть для симметрии -->
+			</div>
 		</header>
 		
-		<div class="login-container">
+		<!-- Форма авторизации с контейнером -->
+		<main class="login-main">
+			<div class="login-container">
+				<div class="login-form-wrapper">
+					{% with messages = get_flashed_messages(with_categories=true) %} {% if
+					messages %} {% for category, message in messages %}
+					<div class="flash flash-{{ category }}">{{ message }}</div>
+					{% endfor %} {% endif %} {% endwith %}
 
-			{% with messages = get_flashed_messages(with_categories=true) %} {% if
-			messages %} {% for category, message in messages %}
-			<div class="flash flash-{{ category }}">{{ message }}</div>
-			{% endfor %} {% endif %} {% endwith %}
-
-		<form method="post">
-			<div class="form-group">
-				<label for="username">Логин:</label>
-					<input type="text" id="username" name="username" required title="Введите логин для входа в панель управления" />
+					<form method="post" class="login-form">
+						<div class="form-group">
+							<label for="username">Логин:</label>
+							<input type="text" id="username" name="username" required title="Введите логин для входа в панель управления" />
+						</div>
+						<div class="form-group">
+							<label for="password">Пароль:</label>
+							<input type="password" id="password" name="password" required title="Введите пароль для входа в панель управления" />
+						</div>
+						<button type="submit" class="button button-primary login-button" title="Войти в панель управления">
+							<i class="fas fa-sign-in-alt"></i>
+							Войти
+						</button>
+					</form>
 				</div>
-				<div class="form-group">
-					<label for="password">Пароль:</label>
-					<input type="password" id="password" name="password" required title="Введите пароль для входа в панель управления" />
-				</div>
-				<button type="submit" class="button button-primary" data-size="lg" style="width: 100%" title="Войти в панель управления">
-					<i class="fas fa-sign-in-alt"></i>
-					Войти
-				</button>
-			</form>
-		</div>
+			</div>
+		</main>
 	</body>
 </html>

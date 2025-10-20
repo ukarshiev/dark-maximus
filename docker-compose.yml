@@ -11,6 +11,10 @@ services:
       - ./users.db:/app/project/users.db
       - ./logs:/app/project/logs
       - ./backups:/app/project/backups
+      # Volume-маппинги для исходного кода (позволяют изменения без пересборки)
+      - ./src:/app/project/src
+      - ./src/shop_bot/webhook_server/templates:/app/project/src/shop_bot/webhook_server/templates
+      - ./src/shop_bot/webhook_server/static:/app/project/src/shop_bot/webhook_server/static
     environment:
       - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
     healthcheck:

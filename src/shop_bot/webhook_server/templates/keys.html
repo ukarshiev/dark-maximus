@@ -5,11 +5,11 @@
 {% block header_buttons %}
 <button class="button button-secondary" data-size="sm" onclick="openHostRefreshModal()" id="hostRefreshBtn" title="Обновить ключи по выбранному хосту">
 	<i class="fas fa-server"></i>
-	<span>Обновить по хосту</span>
+	<span class="button-text">Обновить по хосту</span>
 </button>
 <button class="button button-secondary" data-size="sm" onclick="refreshKeys()" id="headerRefreshBtn" title="Обновить все ключи из 3x-ui панелей">
 	<i class="fas fa-sync-alt" id="headerRefreshIcon"></i>
-	<span id="headerRefreshText">Обновить все ключи</span>
+	<span class="button-text" id="headerRefreshText">Обновить все ключи</span>
 </button>
 {% endblock %}
 

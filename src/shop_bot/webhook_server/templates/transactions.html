@@ -5,11 +5,11 @@
 {% block header_buttons %}
 <button class="button button-primary" data-size="sm" onclick="openTopupBalanceModal()" title="Пополнить баланс пользователя">
 	<i class="fas fa-plus-circle"></i>
-	Пополнить баланс
+	<span class="button-text">Пополнить баланс</span>
 </button>
 <button class="button button-secondary" data-size="sm" onclick="refreshTransactions()" id="headerRefreshBtn" title="Обновить список транзакций">
 	<i class="fas fa-sync-alt" id="headerRefreshIcon"></i>
-	<span id="headerRefreshText">Обновить</span>
+	<span class="button-text" id="headerRefreshText">Обновить</span>
 </button>
 {% endblock %}
 {%

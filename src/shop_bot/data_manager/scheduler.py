@@ -20,7 +20,7 @@ from shop_bot.data_manager import database
 from shop_bot.modules import xui_api
 from shop_bot.bot import keyboards
 
-CHECK_INTERVAL_SECONDS = 300
+CHECK_INTERVAL_SECONDS = 3600
 NOTIFY_BEFORE_HOURS = {72, 48, 24, 1}
 notified_users = {}
 
