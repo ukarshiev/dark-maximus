@@ -258,6 +258,11 @@ def update_client_quota_on_host(host_name: str, email: str, traffic_bytes: int) 
 
 def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days_to_add: float, comment: str | None = None, traffic_gb: float | None = None, sub_id: str | None = None, telegram_chat_id: int | None = None) -> tuple[str | None, int | None]:
     try:
+        # Нормализуем days_to_add, т.к. настройки могут вернуть строку
+        try:
+            days_to_add = float(days_to_add)
+        except Exception:
+            days_to_add = 0.0
         inbound_to_modify = api.inbound.get_by_id(inbound_id)
         if not inbound_to_modify:
             raise ValueError(f"Could not find inbound with ID {inbound_id}")

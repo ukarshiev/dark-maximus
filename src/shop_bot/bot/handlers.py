@@ -841,7 +841,8 @@ def get_user_router() -> Router:
         user_keys = get_user_keys(user_id)
         await callback.message.edit_text(
             "Выберите сервер, на котором хотите приобрести ключ:",
-            reply_markup=keyboards.create_host_selection_keyboard(hosts_with_plans, action="new", total_keys_count=len(user_keys) if user_keys else 0)
+            # Назад ведёт к выбору услуги
+            reply_markup=keyboards.create_host_selection_keyboard(hosts_with_plans, action="new", total_keys_count=len(user_keys) if user_keys else 0, back_to="buy_vpn_root")
         )
 
     @user_router.callback_query(F.data == "buy_vpn_root")
@@ -866,7 +867,8 @@ def get_user_router() -> Router:
         user_keys = get_user_keys(user_id)
         await callback.message.edit_text(
             "Выберите сервер, на котором хотите приобрести ключ:",
-            reply_markup=keyboards.create_host_selection_keyboard(hosts_with_plans, action="new", total_keys_count=len(user_keys) if user_keys else 0)
+            # Назад ведёт к выбору услуги
+            reply_markup=keyboards.create_host_selection_keyboard(hosts_with_plans, action="new", total_keys_count=len(user_keys) if user_keys else 0, back_to="buy_vpn_root")
         )
 
     @user_router.message(F.text == "⁉️ Помощь и поддержка")
@@ -890,6 +892,8 @@ def get_user_router() -> Router:
     @measure_performance("topup_message")
     async def topup_message_handler(message: types.Message, state: FSMContext):
         await state.clear()
+        # Запоминаем источник входа в пополнение (главное меню)
+        await state.update_data(topup_origin="main")
         await message.answer(
             "Выберите сумму пополнения:",
             reply_markup=keyboards.create_topup_amounts_keyboard()
@@ -902,6 +906,8 @@ def get_user_router() -> Router:
     async def topup_root_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         await state.clear()
+        # Запоминаем источник входа в пополнение (профиль)
+        await state.update_data(topup_origin="profile")
         await callback.message.edit_text(
             "Выберите сумму пополнения:",
             reply_markup=keyboards.create_topup_amounts_keyboard()
@@ -969,6 +975,54 @@ def get_user_router() -> Router:
             "Выберите сумму пополнения:",
             reply_markup=keyboards.create_topup_amounts_keyboard()
         )
+
+    @user_router.callback_query(F.data == "topup_back_to_origin")
+    @registration_required
+    @measure_performance("topup_back_to_origin")
+    async def topup_back_to_origin_handler(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        data = await state.get_data()
+        origin = data.get("topup_origin", "main")
+        await state.clear()
+        if origin == "profile":
+            # Возврат в профиль
+            user_id = callback.from_user.id
+            user_db_data = get_user(user_id)
+            user_keys = get_user_keys(user_id)
+            if not user_db_data:
+                await callback.message.edit_text("Не удалось получить данные профиля.")
+                return
+            username = html.bold(user_db_data.get('username', 'Пользователь'))
+            total_spent, total_months = user_db_data.get('total_spent', 0), user_db_data.get('total_months', 0)
+            from shop_bot.data_manager.database import get_user_balance, get_setting
+            balance = get_user_balance(user_id)
+            now = datetime.now()
+            active_keys = [key for key in user_keys if datetime.fromisoformat(key['expiry_date']) > now]
+            if active_keys:
+                latest_key = max(active_keys, key=lambda k: datetime.fromisoformat(k['expiry_date']))
+                latest_expiry_date = datetime.fromisoformat(latest_key['expiry_date'])
+                time_left = latest_expiry_date - now
+                vpn_status_text = get_vpn_active_text(time_left.days, time_left.seconds // 3600)
+            elif user_keys: vpn_status_text = VPN_INACTIVE_TEXT
+            else: vpn_status_text = VPN_NO_DATA_TEXT
+            trial_used = user_db_data.get('trial_used', 1) if user_db_data else 1
+            referral_balance = user_db_data.get('referral_balance', 0)
+            show_referral = get_setting("enable_referrals") == "true"
+            referral_link = None
+            referral_percentage = None
+            if show_referral:
+                bot_username = (await callback.bot.get_me()).username
+                referral_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
+                referral_percentage = get_setting("referral_percentage") or "10"
+            final_text = get_profile_text(username, balance, total_spent, total_months, vpn_status_text, referral_balance, show_referral, referral_link, referral_percentage)
+            await callback.message.edit_text(final_text, reply_markup=keyboards.create_profile_menu_keyboard(total_keys_count=len(user_keys or []), trial_used=trial_used))
+        else:
+            # Возврат в главное меню
+            try:
+                await callback.message.edit_text("🏠 <b>Главное меню</b>\n\nВыберите действие:", reply_markup=None)
+            except Exception:
+                pass
+            await show_main_menu(callback.message)
     @user_router.message(F.text == "👤 Мой профиль")
     @documents_consent_required
     @subscription_required
@@ -1259,11 +1313,12 @@ def get_user_router() -> Router:
         builder = InlineKeyboardBuilder()
         if balance >= 100:
             builder.button(text="💸 Оставить заявку на вывод средств", callback_data="withdraw_request")
-        builder.button(text="⬅️ Назад", callback_data="back_to_main_menu")
+        # Возврат в профиль
+        builder.button(text="⬅️ Назад", callback_data="show_profile")
         builder.adjust(1)
         await message.answer(text, reply_markup=builder.as_markup())
 
-    @user_router.message(F.text == "❓ Инструкция как пользоваться")
+    @user_router.message(F.text == "🌐 Как настроить VPN❓")
     @registration_required
     async def howto_message(message: types.Message):
         await message.answer(
@@ -1625,7 +1680,8 @@ def get_user_router() -> Router:
         builder = InlineKeyboardBuilder()
         if balance >= 100:
             builder.button(text="💸 Оставить заявку на вывод средств", callback_data="withdraw_request")
-        builder.button(text="⬅️ Назад", callback_data="back_to_main_menu")
+        # Возврат в профиль
+        builder.button(text="⬅️ Назад", callback_data="show_profile")
         builder.adjust(1)
         await callback.message.edit_text(
             text, reply_markup=builder.as_markup()
@@ -2439,6 +2495,11 @@ def get_user_router() -> Router:
             trial_duration = get_setting("trial_duration_days")
             if trial_duration is None:
                 trial_duration = "7"  # Значение по умолчанию - 7 дней
+            # Нормализуем к числу (float для timedelta, int для сохранения)
+            try:
+                trial_duration_float = float(trial_duration)
+            except Exception:
+                trial_duration_float = 7.0
             
             # Получаем host_code для триального ключа
             try:
@@ -2452,7 +2513,7 @@ def get_user_router() -> Router:
             result = await xui_api.create_or_update_key_on_host(
                 host_name=host_name,
                 email=f"user{user_id}-key{key_number}-trial@{host_code}.bot",
-                days_to_add=trial_duration,
+                days_to_add=trial_duration_float,
                 comment=f"{user_id}",
                 telegram_chat_id=user_id
             )
@@ -2463,7 +2524,7 @@ def get_user_router() -> Router:
             # Устанавливаем флаг использования триала
             set_trial_used(user_id)
             # Устанавливаем количество дней из админки
-            set_trial_days_given(user_id, int(trial_duration))
+            set_trial_days_given(user_id, int(trial_duration_float))
             # Увеличиваем счетчик повторных использований
             increment_trial_reuses(user_id)
             
@@ -2524,6 +2585,11 @@ def get_user_router() -> Router:
             trial_duration = get_setting("trial_duration_days")
             if trial_duration is None:
                 trial_duration = "7"  # Значение по умолчанию - 7 дней
+            # Нормализуем к числу (float для timedelta, int для сохранения)
+            try:
+                trial_duration_float = float(trial_duration)
+            except Exception:
+                trial_duration_float = 7.0
             
             # Получаем host_code для триального ключа
             try:
@@ -2537,7 +2603,7 @@ def get_user_router() -> Router:
             result = await xui_api.create_or_update_key_on_host(
                 host_name=host_name,
                 email=f"user{user_id}-key{key_number}-trial@{host_code}.bot",
-                days_to_add=trial_duration,
+                days_to_add=trial_duration_float,
                 comment=f"{user_id}",
                 telegram_chat_id=user_id
             )
@@ -2548,7 +2614,7 @@ def get_user_router() -> Router:
             # Устанавливаем флаг использования триала
             set_trial_used(user_id)
             # Устанавливаем количество дней из админки
-            set_trial_days_given(user_id, int(trial_duration))
+            set_trial_days_given(user_id, int(trial_duration_float))
             # Увеличиваем счетчик повторных использований
             increment_trial_reuses(user_id)
             
@@ -4552,7 +4618,7 @@ def get_user_router() -> Router:
         interface_buttons = [
             "🏠 Главное меню", "🛒 Купить", "🛒 Купить VPN", "🛒 Купить новый VPN",
             "👤 Мой профиль", "🔑 Мои ключи", "💰Пополнить баланс", "💳 Пополнить баланс",
-            "🤝 Реферальная программа", "❓ Инструкция как пользоваться",
+            "🤝 Реферальная программа", "🌐 Как настроить VPN❓",
             "🆘 Поддержка", "ℹ️ О проекте", "⚙️ Админ-панель", "🆓 Пробный период",
             "⁉️ Помощь и поддержка", "➕ Купить новый ключ", "🔄 Продлить ключ"
         ]

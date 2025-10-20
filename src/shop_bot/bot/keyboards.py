@@ -87,7 +87,7 @@ def create_help_center_keyboard() -> InlineKeyboardMarkup:
         support_enabled = False
     if support_enabled:
         builder.button(text="🆘 Поддержка", callback_data="show_help")
-    builder.button(text="❓ Инструкция как пользоваться", callback_data="howto_vless")
+    builder.button(text="🌐 Как настроить VPN❓", callback_data="howto_vless")
     builder.button(text="ℹ️ О проекте", callback_data="show_about")
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
     builder.adjust(1)
@@ -99,7 +99,8 @@ def create_topup_amounts_keyboard() -> InlineKeyboardMarkup:
     builder.button(text="300 рублей", callback_data="topup_amount_300")
     builder.button(text="500 рублей", callback_data="topup_amount_500")
     builder.button(text="Ввести другую сумму", callback_data="topup_amount_custom")
-    builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
+    # Возврат учитывает origin через состояние в обработчике
+    builder.button(text="⬅️ Назад", callback_data="topup_back_to_origin")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -158,7 +159,7 @@ def create_stars_payment_failed_keyboard(is_topup: bool = False) -> InlineKeyboa
     
     # Кнопка "Назад в меню"
     callback_data = "topup_back_to_payment_methods" if is_topup else "back_to_payment_methods"
-    builder.button(text="Назад в меню", callback_data=callback_data)
+    builder.button(text="Назад", callback_data=callback_data)
     
     builder.adjust(1)
     return builder.as_markup()
@@ -215,23 +216,29 @@ def create_about_keyboard(channel_url: str | None, terms_url: str | None, privac
         builder.button(text="📄 Условия использования", web_app={"url": terms_url})
     if privacy_url:
         builder.button(text="🔒 Политика конфиденциальности", web_app={"url": privacy_url})
-    builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
+    # Возврат в центр помощи
+    builder.button(text="⬅️ Назад", callback_data="help_center")
     builder.adjust(1)
     return builder.as_markup()
     
 def create_support_keyboard(support_user: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="🆘 Написать в поддержку", url=support_user)
-    builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
+    builder.button(text="⬅️ Назад", callback_data="help_center")
     builder.adjust(1)
     return builder.as_markup()
 
-def create_host_selection_keyboard(hosts: list, action: str, total_keys_count: int | None = None) -> InlineKeyboardMarkup:
+def create_host_selection_keyboard(hosts: list, action: str, total_keys_count: int | None = None, back_to: str | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for host in hosts:
         callback_data = f"select_host_{action}_{host['host_name']}"
         builder.button(text=host['host_name'], callback_data=callback_data)
-    builder.button(text="⬅️ Назад", callback_data="manage_keys" if action == 'new' else "back_to_main_menu")
+    # Возможность переопределить точку возврата
+    if back_to:
+        back_callback = back_to
+    else:
+        back_callback = "manage_keys" if action == 'new' else "back_to_main_menu"
+    builder.button(text="⬅️ Назад", callback_data=back_callback)
     builder.adjust(1)
     return builder.as_markup()
 
@@ -349,7 +356,7 @@ def create_keys_management_keyboard(keys: list, trial_used: int = 1) -> InlineKe
         builder.button(text="🆓 Пробный период", callback_data="trial_period")
     
     builder.button(text="➕ Купить новый ключ", callback_data="buy_new_key")
-    builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
+    builder.button(text="⬅️ Назад", callback_data="show_profile")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -358,7 +365,7 @@ def create_key_info_keyboard(key_id: int) -> InlineKeyboardMarkup:
     builder.button(text="🔄 Продлить этот ключ", callback_data=f"extend_key_{key_id}")
     builder.button(text="📑 Скопировать ключ", callback_data=f"copy_key_{key_id}")    
     builder.button(text="📱 Сканировать QR ключа", callback_data=f"show_qr_{key_id}")
-    builder.button(text="❓ Инструкция как пользоваться", callback_data=f"howto_vless_{key_id}")
+    builder.button(text="🌐 Как настроить VPN❓", callback_data=f"howto_vless_{key_id}")
     builder.button(text="⬅️ Назад к списку ключей", callback_data="manage_keys")
     builder.adjust(1, 2, 1, 1)
     return builder.as_markup()
@@ -367,7 +374,7 @@ def create_qr_keyboard(key_id: int) -> InlineKeyboardMarkup:
     """Клавиатура для QR-кода ключа"""
     builder = InlineKeyboardBuilder()
     builder.button(text="📑 Скопировать ключ", callback_data=f"copy_key_{key_id}")
-    builder.button(text="❓ Инструкция как пользоваться", callback_data=f"howto_vless_{key_id}")
+    builder.button(text="🌐 Как настроить VPN❓", callback_data=f"howto_vless_{key_id}")
     builder.button(text="⬅️ Назад к списку ключей", callback_data="manage_keys")
     builder.adjust(1, 1, 1)
     return builder.as_markup()
@@ -394,8 +401,8 @@ def create_howto_vless_keyboard() -> InlineKeyboardMarkup:
     if get_video_instructions_display_setting():
         builder.button(text="🎬 Видеоинструкции", callback_data="video_instructions_list")
     
-    # Кнопка "Назад в меню" всегда в конце
-    builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
+    # Кнопка возврата в центр помощи
+    builder.button(text="⬅️ Назад", callback_data="help_center")
     
     # Настройка расположения: 2 кнопки в первом ряду, 3 во втором, остальные по 1
     builder.adjust(2, 3, 1, 1)
@@ -444,8 +451,8 @@ def create_user_promo_codes_keyboard(user_promo_codes: list) -> InlineKeyboardMa
             callback_data=f"remove_promo_{promo['usage_id']}"
         )
     
-    # Кнопка "Назад в меню"
-    builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
+    # Возврат в профиль
+    builder.button(text="⬅️ Назад", callback_data="show_profile")
     
     # Настраиваем расположение кнопок (по 1 в ряд)
     builder.adjust(1)

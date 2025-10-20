@@ -147,11 +147,13 @@ docs/
 - API документация
 - Структура базы данных
 - Архитектура проекта
+ - Диаграммы меню бота
 
 **Файлы:**
 - `docs/api/*.md`
 - `docs/database.md`
 - `docs/architecture-rules.md`
+ - `docs/technical/reference/menu-uml.md`
 
 ### 4. Explanations (Объяснения)
 Концептуальная информация
