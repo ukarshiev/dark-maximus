@@ -4,6 +4,7 @@
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<title>Вход в Панель управления</title>
+		<link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}" />
 		<link
 			rel="stylesheet"
 			href="{{ url_for('static', filename='css/style.css', v=project_version or '1') }}?t=20241221"
@@ -32,11 +33,11 @@
 					<form method="post" class="login-form">
 						<div class="form-group">
 							<label for="username">Логин:</label>
-							<input type="text" id="username" name="username" required title="Введите логин для входа в панель управления" />
+							<input type="text" id="username" name="username" autocomplete="username" required title="Введите логин для входа в панель управления" />
 						</div>
 						<div class="form-group">
 							<label for="password">Пароль:</label>
-							<input type="password" id="password" name="password" required title="Введите пароль для входа в панель управления" />
+							<input type="password" id="password" name="password" autocomplete="current-password" required title="Введите пароль для входа в панель управления" />
 						</div>
 						<button type="submit" class="button button-primary login-button" title="Войти в панель управления">
 							<i class="fas fa-sign-in-alt"></i>

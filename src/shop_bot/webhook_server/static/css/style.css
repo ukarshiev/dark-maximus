@@ -1806,10 +1806,10 @@ body.login-page {
 	.form-group input[type='number'],
 	.form-group select,
 	.textarea-small {
-		height: 80px !important;
-		min-height: 80px;
-		font-size: 12px;
-		padding: 8px;
+		height: 44px !important;
+		min-height: 44px;
+		font-size: 14px;
+		padding: 8px 12px;
 	}
 	
 	.textarea-medium {
@@ -1859,10 +1859,10 @@ body.login-page {
 	.form-group input[type='number'],
 	.form-group select,
 	.textarea-small {
-		height: 60px !important;
-		min-height: 60px;
-		font-size: 10px;
-		padding: 6px;
+		height: 44px !important;
+		min-height: 44px;
+		font-size: 14px;
+		padding: 8px 12px;
 	}
 	
 	.textarea-medium {
@@ -1922,6 +1922,8 @@ body.login-page {
 /* Специальные стили для страницы авторизации */
 .header-panel-login {
 	left: 0; /* На странице авторизации занимает всю ширину */
+	right: 0; /* Занимает всю ширину экрана */
+	width: 100%; /* Принудительно устанавливаем полную ширину */
 }
 
 /* Левая часть header-panel - название и поиск */
@@ -1930,6 +1932,8 @@ body.login-page {
 	align-items: center;
 	gap: 20px;
 	flex: 1;
+	min-width: 0;
+	overflow: hidden;
 }
 
 /* Правая часть header-panel - кнопки */
@@ -1999,6 +2003,10 @@ body.login-page {
 	font-weight: 600;
 	color: var(--light-color);
 	flex: 1;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
 }
 
 .container {
@@ -4245,12 +4253,14 @@ body.login-page {
 	background: var(--bg-surface);
 	border: 2px solid var(--border-color);
 	border-radius: 8px;
-	padding: 12px 16px;
+	padding: 8px 12px;
 	color: var(--light-color);
 	font-size: 16px;
 	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 	width: 100%;
 	position: relative;
+	height: 44px;
+	box-sizing: border-box;
 }
 
 .login-form input:focus {
@@ -4258,11 +4268,13 @@ body.login-page {
 	border-color: var(--primary-color);
 	box-shadow: 0 0 0 3px rgba(0, 135, 113, 0.1);
 	transform: translateY(-1px);
+	height: 44px;
 }
 
 .login-form input:hover:not(:focus) {
 	border-color: var(--muted-hover);
 	transform: translateY(-1px);
+	height: 44px;
 }
 
 .login-form input::placeholder {
@@ -4338,8 +4350,9 @@ body.login-page {
 	
 	.login-form input {
 		font-size: 16px; /* Предотвращает зум на iOS */
-		padding: 12px 14px;
+		padding: 8px 12px;
 		max-width: 100%;
+		height: 44px;
 	}
 	
 	.login-button {
@@ -4363,8 +4376,9 @@ body.login-page {
 	}
 	
 	.login-form input {
-		padding: 10px 12px;
+		padding: 8px 12px;
 		font-size: 16px;
+		height: 44px;
 	}
 	
 	.login-button {

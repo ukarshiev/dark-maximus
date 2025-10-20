@@ -393,8 +393,8 @@
 					type="password"
 					id="telegram_bot_token"
 					name="telegram_bot_token"
+					autocomplete="new-password"
 					value="{{ settings.telegram_bot_token or '' }}"
-					autocomplete="off"
 					required
 				/>
 				<button type="button" class="toggle-password" title="Показать/скрыть пароль">
@@ -447,8 +447,8 @@
 					type="password"
 					id="support_bot_token"
 					name="support_bot_token"
+					autocomplete="new-password"
 					value="{{ settings.support_bot_token or '' }}"
-					autocomplete="off"
 				/>
 				<button type="button" class="toggle-password" title="Показать/скрыть пароль">
 					<i class="fas fa-eye"></i>
@@ -479,8 +479,8 @@
 					type="password"
 					id="logging_bot_token"
 					name="logging_bot_token"
+					autocomplete="new-password"
 					value="{{ settings.logging_bot_token or '' }}"
-					autocomplete="off"
 					placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
 					title="Токен Telegram бота для отправки логов"
 				/>
@@ -739,8 +739,8 @@
 									type="password"
 									id="tonapi_key"
 									name="tonapi_key"
+									autocomplete="new-password"
 									value="{{ settings.tonapi_key or '' }}"
-									autocomplete="off"
 								/>
 								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
 									<i class="fas fa-eye"></i>
@@ -856,8 +856,8 @@
 									type="password"
 									id="yookassa_secret_key"
 									name="yookassa_secret_key"
+									autocomplete="new-password"
 									value="{{ settings.yookassa_secret_key or '' }}"
-									autocomplete="off"
 									title="Секретный ключ для API YooKassa"
 								/>
 								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
@@ -905,8 +905,8 @@
 									type="password"
 									id="yookassa_test_secret_key"
 									name="yookassa_test_secret_key"
+									autocomplete="new-password"
 									value="{{ settings.yookassa_test_secret_key or '' }}"
-									autocomplete="off"
 									title="Секретный ключ для тестового API YooKassa"
 								/>
 								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
@@ -927,8 +927,8 @@
 									type="password"
 									id="cryptobot_token"
 									name="cryptobot_token"
+									autocomplete="new-password"
 									value="{{ settings.cryptobot_token or '' }}"
-									autocomplete="off"
 								/>
 								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
 									<i class="fas fa-eye"></i>
@@ -954,8 +954,8 @@
 									type="password"
 									id="heleket_api_key"
 									name="heleket_api_key"
+									autocomplete="new-password"
 									value="{{ settings.heleket_api_key or '' }}"
-									autocomplete="off"
 								/>
 								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
 									<i class="fas fa-eye"></i>
@@ -1542,7 +1542,7 @@ function openHostModal(name='', url='', user='', pass='', inbound='', code=''){
               <div class="form-group"><label>Название</label><input type="text" name="host_name" value="${name}" required></div>
               <div class="form-group"><label>URL панели XUI</label><input type="url" name="host_url" value="${url}" placeholder="https://host:port/secret" required></div>
               <div class="form-group"><label>Логин</label><input type="text" name="host_username" value="${user}" required></div>
-              <div class="form-group"><label>Пароль</label><input type="password" name="host_pass" value="${pass||''}" required></div>
+              <div class="form-group"><label>Пароль</label><input type="password" name="host_pass" value="${pass||''}" autocomplete="current-password" required></div>
               <div class="form-group"><label>ID инбаунда</label><input type="number" name="host_inbound_id" value="${inbound}" required></div>
               <div class="form-group"><label>Код 3x‑ui (стабильный)</label><input type="text" name="host_code" value="${code||''}" placeholder="amsterdam"></div>
               <div class="modal-actions">

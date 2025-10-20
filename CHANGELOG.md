@@ -1,3 +1,13 @@
+2.93.2 – 20.10.2025 11:54
+- [Исправление] (UI) Устранены предупреждения браузера о недостающих атрибутах autocomplete
+  - Добавлен autocomplete="username" для поля логина в login.html
+  - Добавлен autocomplete="current-password" для поля пароля в login.html
+  - Добавлен autocomplete="new-password" для всех полей паролей в settings.html
+  - Добавлен autocomplete="current-password" для поля пароля в JavaScript-коде settings.html
+  - Добавлен autocomplete="new-password" для демо-поля пароля в demo.html
+  - Удалены конфликтующие атрибуты autocomplete="off" в полях паролей
+  - Исправлена ошибка 404 для favicon.ico (уже была добавлена в base.html)
+
 2.93.1 – 20.10.2025 10:58
 - [Исправление] (Docker) Добавлены volume-маппинги для исходного кода в docker-compose.yml
   - Добавлен маппинг ./src:/app/project/src для Python-кода
