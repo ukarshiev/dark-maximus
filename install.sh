@@ -28,14 +28,17 @@ read_input() {
     if [ ! -t 0 ]; then
         echo -e "${YELLOW}⚠️  Скрипт запущен через pipe. Для передачи домена используйте один из способов:${NC}"
         echo -e "${CYAN}   1. Через переменную окружения (рекомендуется):${NC}"
-        echo -e "${CYAN}      curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash    DOMAIN=example.com${NC}"
+        echo -e "${CYAN}      DOMAIN=example.com curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh | sudo bash${NC}"
         echo -e "${CYAN}   2. Скачайте и запустите локально:${NC}"
         echo -e "${CYAN}      wget https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/install.sh${NC}"
         echo -e "${CYAN}      chmod +x install.sh${NC}"
         echo -e "${CYAN}      sudo ./install.sh example.com${NC}"
         echo -e "${CYAN}   3. Или запустите в директории проекта:${NC}"
         echo -e "${CYAN}      cd /opt/dark-maximus && sudo ./install.sh example.com${NC}"
-        exit 1
+        echo -e "${YELLOW}⚠️  Для обновления существующей установки домен будет взят из .env файла${NC}"
+        # Не завершаем скрипт, а используем значение по умолчанию
+        eval "$var_name='localhost'"
+        return
     fi
     
     # Интерактивный ввод
@@ -198,7 +201,18 @@ echo -e "${YELLOW}Проверка источников домена...${NC}"
 echo -e "Количество аргументов: $#"
 echo -e "Переменная DOMAIN: ${DOMAIN:-не установлена}"
 
-if [ -n "${DOMAIN:-}" ]; then
+# Проверяем, существует ли уже .env файл (обновление)
+if [ -f ".env" ]; then
+    echo -e "${GREEN}✔ Найден существующий .env файл - режим обновления${NC}"
+    # Читаем домен из существующего .env файла
+    if grep -q "DOMAIN=" .env; then
+        MAIN_DOMAIN=$(grep "DOMAIN=" .env | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+        echo -e "${GREEN}✔ Домен получен из существующего .env: ${MAIN_DOMAIN}${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Домен не найден в .env файле, используем значение по умолчанию${NC}"
+        MAIN_DOMAIN="localhost"
+    fi
+elif [ -n "${DOMAIN:-}" ]; then
     MAIN_DOMAIN="$DOMAIN"
     echo -e "${GREEN}✔ Домен получен из переменной окружения: ${MAIN_DOMAIN}${NC}"
 elif [ $# -gt 0 ] && [ -n "${1:-}" ]; then
