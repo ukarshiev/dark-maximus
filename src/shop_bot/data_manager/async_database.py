@@ -374,7 +374,6 @@ async def initialize_async_db():
             CREATE TABLE IF NOT EXISTS transactions (
                 transaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT,
-                transaction_id TEXT,
                 payment_id TEXT,
                 user_id INTEGER,
                 status TEXT,

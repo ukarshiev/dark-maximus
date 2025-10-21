@@ -7,6 +7,7 @@ import base64
 import sqlite3
 import requests
 import time
+import re
 from hmac import compare_digest
 from datetime import datetime
 from datetime import timedelta
@@ -20,7 +21,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Определяем путь к базе данных
-PROJECT_ROOT = Path("/app/project")
+import os
+if os.path.exists("/app/project"):
+    # Docker окружение
+    PROJECT_ROOT = Path("/app/project")
+else:
+    # Локальная разработка
+    PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+
 DB_FILE = PROJECT_ROOT / "users.db"
 
 from shop_bot.modules import xui_api
@@ -39,7 +47,10 @@ from shop_bot.data_manager.database import (
     search_users as db_search_users, add_to_user_balance, log_transaction, get_user, get_notification_by_id,
     verify_admin_credentials, hash_password, get_all_promo_codes, create_promo_code, update_promo_code,
     delete_promo_code, get_promo_code, get_promo_code_usage_history, get_all_plans, can_user_use_promo_code,
-    get_user_promo_codes, validate_promo_code, remove_user_promo_code_usage, can_delete_promo_code
+    get_user_promo_codes, validate_promo_code, remove_user_promo_code_usage, can_delete_promo_code,
+    get_all_user_groups, get_user_group, create_user_group, update_user_group, delete_user_group,
+    get_user_group_by_name, get_default_user_group, update_user_group_assignment, get_user_group_info,
+    get_users_in_group, get_groups_statistics
 )
 from shop_bot.data_manager.scheduler import send_subscription_notification
 from shop_bot.ton_monitor import start_ton_monitoring
@@ -557,8 +568,8 @@ def create_webhook_app(bot_controller_instance):
         active_tab = request.args.get('tab', 'servers')
         
         # Получаем настройки контента для модальных окон
-        about_content = current_settings.get('about_text', '')
-        support_content = current_settings.get('support_text', '')
+        about_content = current_settings.get('about_content', '')
+        support_content = current_settings.get('support_content', '')
         
         # Для terms и privacy используем наши внутренние страницы
         terms_content = request.url_root.rstrip('/') + '/terms'
@@ -965,9 +976,8 @@ def create_webhook_app(bot_controller_instance):
             # Сохраняем каждую настройку
             for field_name, value in form_data.items():
                 if field_name in ['about_content', 'support_content', 'terms_content', 'privacy_content']:
-                    # Преобразуем названия полей в названия настроек
-                    setting_name = field_name.replace('_content', '_text') if field_name in ['about_content', 'support_content'] else field_name.replace('_content', '_url')
-                    update_setting(setting_name, value)
+                    # Используем то же название поля для настроек
+                    update_setting(field_name, value)
             
             return {'status': 'success', 'message': 'Настройка сохранена'}, 200
             
@@ -3297,7 +3307,7 @@ def create_webhook_app(bot_controller_instance):
                 return {'error': 'Нет данных для обновления'}, 400
             
             # Разрешенные поля для обновления
-            allowed_fields = ['fio', 'email']
+            allowed_fields = ['fio', 'email', 'group_id']
             update_fields = {}
             
             for field in allowed_fields:
@@ -3907,9 +3917,42 @@ def create_webhook_app(bot_controller_instance):
             if not data.get('bot'):
                 return jsonify({'success': False, 'message': 'Бот обязателен'}), 400
             
+            # Валидация промокода
+            code = data.get('code', '').strip().upper()
+            if len(code) < 3:
+                return jsonify({'success': False, 'message': 'Промокод должен содержать минимум 3 символа'}), 400
+            
+            if len(code) > 50:
+                return jsonify({'success': False, 'message': 'Промокод не может содержать более 50 символов'}), 400
+            
+            if not re.match(r'^[A-Z0-9_-]+$', code):
+                return jsonify({'success': False, 'message': 'Промокод может содержать только заглавные буквы, цифры, дефисы и подчеркивания'}), 400
+            
             # Валидация бота
             if data.get('bot') not in ['shop']:
                 return jsonify({'success': False, 'message': 'Неверный тип бота. Допустимые значения: shop'}), 400
+            
+            # Валидация скидок
+            discount_amount = float(data.get('discount_amount', 0))
+            discount_percent = float(data.get('discount_percent', 0))
+            discount_bonus = float(data.get('discount_bonus', 0))
+            
+            if discount_amount < 0:
+                return jsonify({'success': False, 'message': 'Скидка в рублях не может быть отрицательной'}), 400
+            
+            if discount_percent < 0 or discount_percent > 100:
+                return jsonify({'success': False, 'message': 'Процентная скидка должна быть от 0 до 100'}), 400
+            
+            if discount_bonus < 0:
+                return jsonify({'success': False, 'message': 'Бонусная скидка не может быть отрицательной'}), 400
+            
+            if discount_amount == 0 and discount_percent == 0 and discount_bonus == 0:
+                return jsonify({'success': False, 'message': 'Укажите хотя бы один тип скидки'}), 400
+            
+            # Валидация лимита использований
+            usage_limit = int(data.get('usage_limit_per_bot', 1))
+            if usage_limit < 1:
+                return jsonify({'success': False, 'message': 'Лимит использований должен быть не менее 1'}), 400
             
             # Валидация vpn_plan_id (может быть массивом или одиночным значением)
             vpn_plan_id = data.get('vpn_plan_id')
@@ -4345,6 +4388,292 @@ def create_webhook_app(bot_controller_instance):
                 'success': False,
                 'message': f'Ошибка создания резервной копии: {str(e)}'
             }), 500
+
+    # ==================== API ENDPOINTS ДЛЯ БЕКАПОВ ====================
+    
+    @flask_app.route('/api/backup/create', methods=['POST'])
+    @login_required
+    def api_create_backup():
+        """Создание бекапа вручную"""
+        try:
+            from shop_bot.data_manager.backup import backup_manager
+            backup_info = backup_manager.create_backup()
+            
+            if backup_info['success']:
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Бекап успешно создан',
+                    'backup_name': backup_info['backup_name'],
+                    'backup_size': backup_info.get('size', 0)
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Ошибка создания бекапа: {backup_info.get("error")}'
+                }), 500
+        except Exception as e:
+            logger.error(f"Ошибка создания бекапа: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': f'Ошибка: {str(e)}'
+            }), 500
+
+    @flask_app.route('/api/backup/list')
+    @login_required
+    def api_list_backups():
+        """Список всех бекапов"""
+        try:
+            from shop_bot.data_manager.backup import backup_manager
+            stats = backup_manager.get_backup_statistics()
+            return jsonify(stats)
+        except Exception as e:
+            logger.error(f"Ошибка получения списка бекапов: {e}")
+            return jsonify({'error': str(e)}), 500
+
+    @flask_app.route('/api/backup/status')
+    @login_required
+    def api_backup_status():
+        """Статус системы бекапов"""
+        try:
+            from shop_bot.data_manager.backup import backup_manager
+            stats = backup_manager.get_backup_statistics()
+            return jsonify({
+                'enabled': backup_manager.is_running,
+                'interval_hours': backup_manager.backup_interval_hours,
+                'last_backup': stats.get('last_backup_time'),
+                'total_backups': stats.get('total_backups', 0),
+                'total_size': stats.get('total_size', 0),
+                'failed_backups': stats.get('failed_backups', 0),
+                'retention_days': backup_manager.retention_days,
+                'compression_enabled': backup_manager.compression_enabled,
+                'verify_backups': backup_manager.verify_backups
+            })
+        except Exception as e:
+            logger.error(f"Ошибка получения статуса бекапов: {e}")
+            return jsonify({'error': str(e)}), 500
+
+    @flask_app.route('/api/backup/settings', methods=['GET'])
+    @login_required
+    def api_get_backup_settings():
+        """Получение настроек бекапов"""
+        try:
+            from shop_bot.data_manager.database import get_all_backup_settings
+            settings = get_all_backup_settings()
+            return jsonify(settings)
+        except Exception as e:
+            logger.error(f"Ошибка получения настроек бекапов: {e}")
+            return jsonify({'error': str(e)}), 500
+
+    @flask_app.route('/api/backup/settings', methods=['POST'])
+    @login_required
+    def api_save_backup_settings():
+        """Сохранение настроек бекапов"""
+        try:
+            from shop_bot.data_manager.database import update_backup_setting
+            from shop_bot.data_manager.backup import backup_manager
+            
+            # Получаем данные из запроса
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': 'No data provided'}), 400
+            
+            # Валидация настроек
+            validation_errors = validate_backup_settings(data)
+            if validation_errors:
+                return jsonify({'error': 'Validation failed', 'details': validation_errors}), 400
+            
+            # Сохраняем настройки
+            for key, value in data.items():
+                if key in ['backup_enabled', 'backup_interval_hours', 'backup_retention_days', 
+                          'backup_compression', 'backup_verify']:
+                    update_backup_setting(key, str(value))
+            
+            # Обновляем настройки менеджера бекапов
+            backup_manager.retention_days = int(data.get('backup_retention_days', 30))
+            backup_manager.compression_enabled = data.get('backup_compression', True)
+            backup_manager.verify_backups = data.get('backup_verify', True)
+            
+            # Перезапускаем систему бекапов если нужно
+            if data.get('backup_enabled', True):
+                if not backup_manager.is_running:
+                    backup_manager.start_automatic_backups(int(data.get('backup_interval_hours', 24)))
+                else:
+                    # Обновляем интервал
+                    backup_manager.stop_automatic_backups()
+                    backup_manager.start_automatic_backups(int(data.get('backup_interval_hours', 24)))
+            else:
+                backup_manager.stop_automatic_backups()
+            
+            return jsonify({'status': 'success', 'message': 'Настройки бекапов сохранены'})
+            
+        except Exception as e:
+            logger.error(f"Ошибка сохранения настроек бекапов: {e}")
+            return jsonify({'error': str(e)}), 500
+
+    def validate_backup_settings(data):
+        """Валидация настроек бекапов"""
+        errors = []
+        
+        # Валидация интервала
+        if 'backup_interval_hours' in data:
+            try:
+                interval = int(data['backup_interval_hours'])
+                if interval not in [1, 2, 3, 6, 12, 24, 48, 72]:
+                    errors.append('backup_interval_hours must be one of: 1, 2, 3, 6, 12, 24, 48, 72')
+            except (ValueError, TypeError):
+                errors.append('backup_interval_hours must be a valid integer')
+        
+        # Валидация дней хранения
+        if 'backup_retention_days' in data:
+            try:
+                retention = int(data['backup_retention_days'])
+                if retention not in [1, 3, 7, 14, 30, 60, 90, 180, 365]:
+                    errors.append('backup_retention_days must be one of: 1, 3, 7, 14, 30, 60, 90, 180, 365')
+            except (ValueError, TypeError):
+                errors.append('backup_retention_days must be a valid integer')
+        
+        # Валидация boolean полей
+        for field in ['backup_enabled', 'backup_compression', 'backup_verify']:
+            if field in data and not isinstance(data[field], bool):
+                errors.append(f'{field} must be a boolean value')
+        
+        return errors
+
+    # ==================== МАРШРУТЫ ДЛЯ РАБОТЫ С ГРУППАМИ ПОЛЬЗОВАТЕЛЕЙ ====================
+    
+    @flask_app.route('/user-groups')
+    @login_required
+    def user_groups_page():
+        """Страница управления группами пользователей"""
+        groups = get_all_user_groups()
+        statistics = get_groups_statistics()
+        
+        common_data = get_common_template_data()
+        
+        return render_template(
+            'user_groups.html',
+            groups=groups,
+            statistics=statistics,
+            **common_data
+        )
+    
+    @flask_app.route('/api/user-groups', methods=['GET'])
+    @login_required
+    def api_get_user_groups():
+        """API для получения всех групп пользователей"""
+        try:
+            groups = get_all_user_groups()
+            return jsonify({'success': True, 'groups': groups})
+        except Exception as e:
+            logger.error(f"Ошибка получения групп пользователей: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @flask_app.route('/api/user-groups', methods=['POST'])
+    @login_required
+    def api_create_user_group():
+        """API для создания новой группы пользователей"""
+        try:
+            data = request.get_json()
+            group_name = data.get('group_name', '').strip()
+            group_description = data.get('group_description', '').strip()
+            
+            if not group_name:
+                return jsonify({'success': False, 'error': 'Название группы не может быть пустым'}), 400
+            
+            group_id = create_user_group(group_name, group_description)
+            
+            if group_id:
+                return jsonify({'success': True, 'group_id': group_id, 'message': 'Группа успешно создана'})
+            else:
+                return jsonify({'success': False, 'error': 'Группа с таким названием уже существует'}), 400
+                
+        except Exception as e:
+            logger.error(f"Ошибка создания группы пользователей: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @flask_app.route('/api/user-groups/<int:group_id>', methods=['PUT'])
+    @login_required
+    def api_update_user_group(group_id):
+        """API для обновления группы пользователей"""
+        try:
+            data = request.get_json()
+            group_name = data.get('group_name', '').strip()
+            group_description = data.get('group_description', '').strip()
+            
+            if not group_name:
+                return jsonify({'success': False, 'error': 'Название группы не может быть пустым'}), 400
+            
+            success = update_user_group(group_id, group_name, group_description)
+            
+            if success:
+                return jsonify({'success': True, 'message': 'Группа успешно обновлена'})
+            else:
+                return jsonify({'success': False, 'error': 'Группа не найдена или название уже используется'}), 400
+                
+        except Exception as e:
+            logger.error(f"Ошибка обновления группы пользователей: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @flask_app.route('/api/user-groups/<int:group_id>', methods=['DELETE'])
+    @login_required
+    def api_delete_user_group(group_id):
+        """API для удаления группы пользователей"""
+        try:
+            success, reassigned_count = delete_user_group(group_id)
+            
+            if success:
+                message = f'Группа успешно удалена. {reassigned_count} пользователей переназначены в группу "Гость".'
+                return jsonify({'success': True, 'message': message, 'reassigned_count': reassigned_count})
+            else:
+                return jsonify({'success': False, 'error': 'Не удалось удалить группу (возможно, это группа по умолчанию или группа не найдена)'}), 400
+                
+        except Exception as e:
+            logger.error(f"Ошибка удаления группы пользователей: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @flask_app.route('/api/user-groups/statistics', methods=['GET'])
+    @login_required
+    def api_get_groups_statistics():
+        """API для получения статистики по группам"""
+        try:
+            statistics = get_groups_statistics()
+            return jsonify({'success': True, 'statistics': statistics})
+        except Exception as e:
+            logger.error(f"Ошибка получения статистики групп: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @flask_app.route('/api/user-groups/<int:group_id>/users', methods=['GET'])
+    @login_required
+    def api_get_users_in_group(group_id):
+        """API для получения пользователей в группе"""
+        try:
+            users = get_users_in_group(group_id)
+            return jsonify({'success': True, 'users': users})
+        except Exception as e:
+            logger.error(f"Ошибка получения пользователей группы: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @flask_app.route('/api/users/<int:user_id>/group', methods=['PUT'])
+    @login_required
+    def api_update_user_group_assignment(user_id):
+        """API для изменения группы пользователя"""
+        try:
+            data = request.get_json()
+            group_id = data.get('group_id')
+            
+            if group_id is None:
+                return jsonify({'success': False, 'error': 'ID группы не указан'}), 400
+            
+            success = update_user_group_assignment(user_id, group_id)
+            
+            if success:
+                return jsonify({'success': True, 'message': 'Группа пользователя успешно изменена'})
+            else:
+                return jsonify({'success': False, 'error': 'Пользователь или группа не найдены'}), 400
+                
+        except Exception as e:
+            logger.error(f"Ошибка изменения группы пользователя: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
 
     # Запускаем мониторинг сразу
     start_ton_monitoring_task()

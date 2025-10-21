@@ -894,7 +894,18 @@ def get_user_router() -> Router:
     @subscription_required
     @measure_performance("help_center_message")
     async def help_center_message_handler(message: types.Message):
-        await message.answer("⁉️ Помощь и поддержка:", reply_markup=keyboards.create_help_center_keyboard())
+        # Получаем контент поддержки из настроек
+        support_content = get_setting("support_content")
+        
+        # Определяем текст для отображения
+        if support_content and support_content.strip():
+            # Убираем HTML теги, которые не поддерживает Telegram
+            import re
+            display_text = re.sub(r'<[^>]+>', '', support_content)
+        else:
+            display_text = "⁉️ Помощь и поддержка:"
+        
+        await message.answer(display_text, reply_markup=keyboards.create_help_center_keyboard())
 
     @user_router.callback_query(F.data == "help_center")
     @documents_consent_required
@@ -902,7 +913,19 @@ def get_user_router() -> Router:
     @measure_performance("help_center")
     async def help_center_callback_handler(callback: types.CallbackQuery):
         await callback.answer()
-        await callback.message.edit_text("⁉️ Помощь и поддержка:", reply_markup=keyboards.create_help_center_keyboard())
+        
+        # Получаем контент поддержки из настроек
+        support_content = get_setting("support_content")
+        
+        # Определяем текст для отображения
+        if support_content and support_content.strip():
+            # Убираем HTML теги, которые не поддерживает Telegram
+            import re
+            display_text = re.sub(r'<[^>]+>', '', support_content)
+        else:
+            display_text = "⁉️ Помощь и поддержка:"
+        
+        await callback.message.edit_text(display_text, reply_markup=keyboards.create_help_center_keyboard())
 
     @user_router.message(F.text == "💰Пополнить баланс")
     @documents_consent_required
@@ -3587,12 +3610,23 @@ def get_user_router() -> Router:
                         discount_percent=promo_data.get('discount_percent', 0.0),
                         discount_bonus=promo_data.get('discount_bonus', 0.0)
                     )
-                    if success:
-                        logger.info(f"Successfully recorded promo code usage: {promo_code} for user {user_id}")
-                    else:
+                    if not success:
+                        # Если не удалось записать использование, откатываем применение промокода
                         logger.error(f"Failed to record promo code usage: {promo_code} for user {user_id}")
+                        await message.answer(
+                            "❌ Ошибка при применении промокода. Попробуйте еще раз или обратитесь в поддержку.",
+                            reply_markup=keyboards.create_back_to_payment_methods_keyboard()
+                        )
+                        return
+                    else:
+                        logger.info(f"Successfully recorded promo code usage: {promo_code} for user {user_id}")
                 except Exception as e:
                     logger.error(f"Error recording promo code usage: {e}", exc_info=True)
+                    await message.answer(
+                        "❌ Произошла ошибка при применении промокода. Попробуйте еще раз или обратитесь в поддержку.",
+                        reply_markup=keyboards.create_back_to_payment_methods_keyboard()
+                    )
+                    return
                 
                 await message.answer(
                     f"✅ Промокод '{promo_code}' применен!\n\n"

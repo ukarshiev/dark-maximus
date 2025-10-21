@@ -28,6 +28,7 @@
 					<th>Username</th>
 					<th title="Полное имя из Telegram">Полное имя</th>
 					<th title="ФИО (заполняется вручную)">ФИО</th>
+					<th title="Группа пользователя">Группа</th>
 					<th>Статус</th>
 					<th title="Количество ключей пользователя">🔑</th>
 					<th title="Количество уведомлений, отправленных пользователю">🔔</th>
@@ -133,6 +134,9 @@
 							<span>{{ hidden_mode and '***' or (user.fio or 'N/A') }}</span>
 						</div>
 					</td>
+							<td data-field="group" data-original="{{ user.group_name or '' }}" title="Группа пользователя">
+								<span class="group-badge">{{ hidden_mode and '***' or (user.group_name or 'N/A') }}</span>
+							</td>
 					<td>
 						{% if user.is_banned %}
 						<span class="status-badge status-banned">Забанен</span>

@@ -197,6 +197,22 @@ def initialize_db():
 
             cursor.execute('''
 
+                CREATE TABLE IF NOT EXISTS backup_settings (
+
+                    key TEXT PRIMARY KEY,
+
+                    value TEXT,
+
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+
+                )
+
+            ''')
+
+            cursor.execute('''
+
                 CREATE TABLE IF NOT EXISTS notifications (
 
                     notification_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -355,6 +371,16 @@ def initialize_db():
                 )
             ''')
 
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS user_groups (
+                    group_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    group_name TEXT NOT NULL UNIQUE,
+                    group_description TEXT,
+                    is_default BOOLEAN DEFAULT 0,
+                    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
             # Хешируем пароль по умолчанию
 
             default_password = "admin"
@@ -468,9 +494,26 @@ def initialize_db():
 
             create_database_indexes(cursor)
 
+            # Создание группы "Гость" по умолчанию
+            cursor.execute("INSERT OR IGNORE INTO user_groups (group_name, group_description, is_default) VALUES (?, ?, ?)", 
+                         ("Гость", "Группа по умолчанию для всех пользователей", 1))
+
             
 
+            # Доп. защита: не сеем дефолтные panel_login/panel_password, если таблица уже не пустая
+            try:
+                cursor.execute("SELECT COUNT(*) FROM bot_settings")
+                settings_count = cursor.fetchone()[0]
+            except Exception:
+                settings_count = 0
+
+            seed_sensitive_defaults = (settings_count == 0)
+
             for key, value in default_settings.items():
+
+                if key in ("panel_login", "panel_password") and not seed_sensitive_defaults:
+                    logging.info(f"Skip seeding default '{key}': bot_settings already initialized")
+                    continue
 
                 cursor.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", (key, value))
 
@@ -599,6 +642,13 @@ def create_database_indexes(cursor):
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_video_instructions_filename ON video_instructions(filename)")
 
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_video_instructions_created_at ON video_instructions(created_at)")
+
+        # Индексы для таблицы user_groups
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_groups_group_name ON user_groups(group_name)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_groups_is_default ON user_groups(is_default)")
+
+        # Индекс для таблицы users по group_id
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_group_id ON users(group_id)")
 
         
 
@@ -899,6 +949,26 @@ def run_migration():
         else:
 
             logging.info(" -> The column 'fio' already exists.")
+
+        
+        if 'group_id' not in columns:
+
+            cursor.execute("ALTER TABLE users ADD COLUMN group_id INTEGER")
+
+            logging.info(" -> The column 'group_id' is successfully added.")
+
+            # Находим ID группы "Гость" и назначаем её всем существующим пользователям
+            cursor.execute("SELECT group_id FROM user_groups WHERE is_default = 1 LIMIT 1")
+            default_group = cursor.fetchone()
+            
+            if default_group:
+                default_group_id = default_group[0]
+                cursor.execute("UPDATE users SET group_id = ? WHERE group_id IS NULL", (default_group_id,))
+                logging.info(f" -> Все существующие пользователи назначены в группу с ID {default_group_id}")
+
+        else:
+
+            logging.info(" -> The column 'group_id' already exists.")
 
         
 
@@ -1311,63 +1381,81 @@ def run_migration():
         logging.info("The migration of the table 'promo_codes' ...")
         
         try:
-            # Проверяем, существует ли таблица promo_codes
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='promo_codes'")
-            if cursor.fetchone():
-                # Получаем информацию о колонках
-                cursor.execute("PRAGMA table_info(promo_codes)")
-                promo_columns = [row[1] for row in cursor.fetchall()]
-                
-                if 'vpn_plan_id' in promo_columns:
-                    # Проверяем текущий тип колонки
+            # Создаем таблицу для отслеживания выполненных миграций
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS migration_history (
+                    migration_id TEXT PRIMARY KEY,
+                    applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Проверяем, была ли выполнена миграция promo_codes_vpn_plan_id
+            cursor.execute("SELECT migration_id FROM migration_history WHERE migration_id = 'promo_codes_vpn_plan_id_to_text'")
+            migration_done = cursor.fetchone()
+            
+            if not migration_done:
+                # Проверяем, существует ли таблица promo_codes
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='promo_codes'")
+                if cursor.fetchone():
+                    # Получаем информацию о колонках
                     cursor.execute("PRAGMA table_info(promo_codes)")
-                    for row in cursor.fetchall():
-                        if row[1] == 'vpn_plan_id' and row[2] == 'INTEGER':
-                            logging.info(" -> Converting vpn_plan_id column from INTEGER to TEXT for JSON support")
-                            # SQLite не поддерживает изменение типа колонки напрямую
-                            # Создаем новую таблицу с правильным типом
-                            cursor.execute('''
-                                CREATE TABLE promo_codes_new (
-                                    promo_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                    code TEXT NOT NULL UNIQUE,
-                                    bot TEXT NOT NULL,
-                                    vpn_plan_id TEXT,
-                                    tariff_code TEXT,
-                                    discount_amount REAL DEFAULT 0,
-                                    discount_percent REAL DEFAULT 0,
-                                    discount_bonus REAL DEFAULT 0,
-                                    usage_limit_per_bot INTEGER DEFAULT 1,
-                                    is_active INTEGER DEFAULT 1,
-                                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                                )
-                            ''')
-                            
-                            # Копируем данные, преобразуя INTEGER в TEXT
-                            cursor.execute('''
-                                INSERT INTO promo_codes_new 
-                                SELECT promo_id, code, bot, 
-                                       CASE WHEN vpn_plan_id IS NULL THEN NULL ELSE CAST(vpn_plan_id AS TEXT) END,
-                                       tariff_code, discount_amount, discount_percent, discount_bonus,
-                                       usage_limit_per_bot, is_active, created_at, updated_at
-                                FROM promo_codes
-                            ''')
-                            
-                            # Удаляем старую таблицу и переименовываем новую
-                            cursor.execute('DROP TABLE promo_codes')
-                            cursor.execute('ALTER TABLE promo_codes_new RENAME TO promo_codes')
-                            
-                            # Создаем индексы
-                            cursor.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_promo_codes_code ON promo_codes(code)')
-                            cursor.execute('CREATE INDEX IF NOT EXISTS idx_promo_codes_bot ON promo_codes(bot)')
-                            cursor.execute('CREATE INDEX IF NOT EXISTS idx_promo_codes_is_active ON promo_codes(is_active)')
-                            
-                            logging.info(" -> The column 'vpn_plan_id' successfully converted to TEXT")
-                            break
+                    promo_columns = [row[1] for row in cursor.fetchall()]
+                    
+                    if 'vpn_plan_id' in promo_columns:
+                        # Проверяем текущий тип колонки
+                        cursor.execute("PRAGMA table_info(promo_codes)")
+                        for row in cursor.fetchall():
+                            if row[1] == 'vpn_plan_id' and row[2] == 'INTEGER':
+                                logging.info(" -> Converting vpn_plan_id column from INTEGER to TEXT for JSON support")
+                                # SQLite не поддерживает изменение типа колонки напрямую
+                                # Создаем новую таблицу с правильным типом
+                                cursor.execute('''
+                                    CREATE TABLE promo_codes_new (
+                                        promo_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                        code TEXT NOT NULL UNIQUE,
+                                        bot TEXT NOT NULL,
+                                        vpn_plan_id TEXT,
+                                        tariff_code TEXT,
+                                        discount_amount REAL DEFAULT 0,
+                                        discount_percent REAL DEFAULT 0,
+                                        discount_bonus REAL DEFAULT 0,
+                                        usage_limit_per_bot INTEGER DEFAULT 1,
+                                        is_active INTEGER DEFAULT 1,
+                                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                                    )
+                                ''')
+                                
+                                # Копируем данные, преобразуя INTEGER в TEXT
+                                cursor.execute('''
+                                    INSERT INTO promo_codes_new 
+                                    SELECT promo_id, code, bot, 
+                                           CASE WHEN vpn_plan_id IS NULL THEN NULL ELSE CAST(vpn_plan_id AS TEXT) END,
+                                           tariff_code, discount_amount, discount_percent, discount_bonus,
+                                           usage_limit_per_bot, is_active, created_at, updated_at
+                                    FROM promo_codes
+                                ''')
+                                
+                                # Удаляем старую таблицу и переименовываем новую
+                                cursor.execute('DROP TABLE promo_codes')
+                                cursor.execute('ALTER TABLE promo_codes_new RENAME TO promo_codes')
+                                
+                                # Создаем индексы
+                                cursor.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_promo_codes_code ON promo_codes(code)')
+                                cursor.execute('CREATE INDEX IF NOT EXISTS idx_promo_codes_bot ON promo_codes(bot)')
+                                cursor.execute('CREATE INDEX IF NOT EXISTS idx_promo_codes_is_active ON promo_codes(is_active)')
+                                
+                                # Отмечаем миграцию как выполненную
+                                cursor.execute("INSERT INTO migration_history (migration_id) VALUES ('promo_codes_vpn_plan_id_to_text')")
+                                
+                                logging.info(" -> The column 'vpn_plan_id' successfully converted to TEXT")
+                                break
+                    else:
+                        logging.info(" -> The column 'vpn_plan_id' does not exist in promo_codes table")
                 else:
-                    logging.info(" -> The column 'vpn_plan_id' does not exist in promo_codes table")
+                    logging.info(" -> The table 'promo_codes' does not exist")
             else:
-                logging.info(" -> The table 'promo_codes' does not exist")
+                logging.info(" -> Migration 'promo_codes_vpn_plan_id_to_text' already applied, skipping")
         except Exception as e:
             logging.error(f" -> Error migrating promo_codes table: {e}")
 
@@ -1401,6 +1489,10 @@ def run_migration():
         conn.close()
 
         
+
+        # Миграция настроек бекапов
+        logging.info("Migrating backup settings...")
+        migrate_backup_settings()
 
         logging.info("--- The database is successfully completed! ---")
 
@@ -1732,6 +1824,94 @@ def update_setting(key: str, value: str):
         logging.error(f"Failed to update setting '{key}': {e}")
 
 
+def get_backup_setting(key: str) -> str | None:
+    """Получить настройку бекапа"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM backup_settings WHERE key = ?", (key,))
+            result = cursor.fetchone()
+            return result[0] if result else None
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get backup setting '{key}': {e}")
+        return None
+
+
+def update_backup_setting(key: str, value: str):
+    """Обновить настройку бекапа"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR REPLACE INTO backup_settings (key, value, updated_at) 
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+            """, (key, value))
+            conn.commit()
+            logging.info(f"Backup setting '{key}' updated.")
+    except sqlite3.Error as e:
+        logging.error(f"Failed to update backup setting '{key}': {e}")
+
+
+def get_all_backup_settings() -> dict:
+    """Получить все настройки бекапов"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT key, value FROM backup_settings")
+            rows = cursor.fetchall()
+            return {row[0]: row[1] for row in rows}
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get backup settings: {e}")
+        return {}
+
+
+def migrate_backup_settings():
+    """Миграция настроек бекапов из bot_settings в backup_settings"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            
+            # Список настроек бекапов для миграции
+            backup_keys = [
+                'backup_enabled', 'backup_interval_hours', 'backup_retention_days',
+                'backup_compression', 'backup_verify'
+            ]
+            
+            # Получаем существующие настройки из bot_settings
+            for key in backup_keys:
+                cursor.execute("SELECT value FROM bot_settings WHERE key = ?", (key,))
+                result = cursor.fetchone()
+                
+                if result:
+                    # Переносим в backup_settings
+                    cursor.execute("""
+                        INSERT OR IGNORE INTO backup_settings (key, value, created_at, updated_at) 
+                        VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    """, (key, result[0]))
+                    logging.info(f"Migrated backup setting '{key}' from bot_settings to backup_settings")
+            
+            # Устанавливаем значения по умолчанию для отсутствующих настроек
+            default_backup_settings = {
+                'backup_enabled': 'true',
+                'backup_interval_hours': '24',
+                'backup_retention_days': '30',
+                'backup_compression': 'true',
+                'backup_verify': 'true'
+            }
+            
+            for key, default_value in default_backup_settings.items():
+                cursor.execute("""
+                    INSERT OR IGNORE INTO backup_settings (key, value, created_at, updated_at) 
+                    VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """, (key, default_value))
+            
+            conn.commit()
+            logging.info("Backup settings migration completed successfully")
+            
+    except sqlite3.Error as e:
+        logging.error(f"Failed to migrate backup settings: {e}")
+
+
 
 def create_plan(host_name: str, plan_name: str, months: int, price: float, days: int = 0, traffic_gb: float = 0.0, hours: int = 0, key_provision_mode: str = 'key', display_mode: str = 'all'):
     try:
@@ -2022,11 +2202,50 @@ def _normalize_bot_value(bot: str) -> str:
 
 
 
+def _serialize_vpn_plan_id(vpn_plan_id) -> str | None:
+    """Сериализует vpn_plan_id в JSON строку для хранения в БД"""
+    if vpn_plan_id is None:
+        return None
+    
+    if isinstance(vpn_plan_id, (int, str)):
+        return str(vpn_plan_id)
+    
+    if isinstance(vpn_plan_id, (list, tuple)):
+        return json.dumps(vpn_plan_id, ensure_ascii=False)
+    
+    return str(vpn_plan_id)
+
+
+def _deserialize_vpn_plan_id(vpn_plan_id_str: str | None) -> int | list[int] | None:
+    """Десериализует vpn_plan_id из JSON строки"""
+    if not vpn_plan_id_str:
+        return None
+    
+    try:
+        # Пытаемся распарсить как JSON массив
+        parsed = json.loads(vpn_plan_id_str)
+        if isinstance(parsed, list):
+            return [int(x) for x in parsed if str(x).isdigit()]
+        elif isinstance(parsed, (int, str)) and str(parsed).isdigit():
+            return int(parsed)
+    except (json.JSONDecodeError, ValueError, TypeError):
+        pass
+    
+    # Если не JSON, пытаемся как одиночное число
+    try:
+        if str(vpn_plan_id_str).isdigit():
+            return int(vpn_plan_id_str)
+    except (ValueError, TypeError):
+        pass
+    
+    return None
+
+
 def create_promo_code(
     code: str,
     bot: str,
-    vpn_plan_id: int | str | None,
-    tariff_code: str | None,
+    vpn_plan_id: int | str | list[int] | None,
+    tariff_code: str | list[str] | None,
     discount_amount: float,
     discount_percent: float,
     discount_bonus: float,
@@ -2046,11 +2265,36 @@ def create_promo_code(
 
         raise ValueError("Bot value cannot be empty")
 
+    # Валидация vpn_plan_id
+    if vpn_plan_id is not None:
+        if isinstance(vpn_plan_id, list):
+            if not all(isinstance(x, (int, str)) and str(x).isdigit() for x in vpn_plan_id):
+                raise ValueError("Все элементы vpn_plan_id должны быть числами")
+        elif not (isinstance(vpn_plan_id, (int, str)) and str(vpn_plan_id).isdigit()):
+            raise ValueError("vpn_plan_id должен быть числом или списком чисел")
+
+    # Валидация tariff_code
+    if tariff_code is not None:
+        if isinstance(tariff_code, list):
+            if not all(isinstance(x, str) and x.strip() for x in tariff_code):
+                raise ValueError("Все элементы tariff_code должны быть непустыми строками")
+        elif not (isinstance(tariff_code, str) and tariff_code.strip()):
+            raise ValueError("tariff_code должен быть строкой или списком строк")
+
     try:
 
         with sqlite3.connect(DB_FILE) as conn:
 
             cursor = conn.cursor()
+
+            # Сериализуем данные для хранения
+            serialized_vpn_plan_id = _serialize_vpn_plan_id(vpn_plan_id)
+            serialized_tariff_code = None
+            if tariff_code is not None:
+                if isinstance(tariff_code, list):
+                    serialized_tariff_code = json.dumps(tariff_code, ensure_ascii=False)
+                else:
+                    serialized_tariff_code = tariff_code.strip()
 
             cursor.execute(
 
@@ -2066,8 +2310,8 @@ def create_promo_code(
                 (
                     code_value,
                     bot_value,
-                    vpn_plan_id,
-                    (tariff_code or "").strip() or None,
+                    serialized_vpn_plan_id,
+                    serialized_tariff_code,
                     float(discount_amount or 0),
                     float(discount_percent or 0),
                     float(discount_bonus or 0),
@@ -2078,6 +2322,9 @@ def create_promo_code(
             )
 
             conn.commit()
+
+            logging.info(f"Created promo code '{code_value}' with vpn_plan_id={vpn_plan_id}, tariff_code={tariff_code}")
+            logging.info(f"Promo code creation details: code='{code_value}', bot='{bot_value}', discount_amount={discount_amount}, discount_percent={discount_percent}, discount_bonus={discount_bonus}, usage_limit={usage_limit_per_bot}, active={is_active}")
 
             return cursor.lastrowid
 
@@ -2153,6 +2400,10 @@ def update_promo_code(
 
             conn.commit()
 
+            if cursor.rowcount > 0:
+                logging.info(f"Updated promo code id={promo_id} with vpn_plan_id={vpn_plan_id}, tariff_code={tariff_code}")
+                logging.info(f"Promo code update details: id={promo_id}, code='{code_value}', bot='{bot_value}', discount_amount={discount_amount}, discount_percent={discount_percent}, discount_bonus={discount_bonus}, usage_limit={usage_limit_per_bot}, active={is_active}")
+
             return cursor.rowcount > 0
 
     except sqlite3.IntegrityError as e:
@@ -2201,11 +2452,18 @@ def delete_promo_code(promo_id: int) -> bool:
                 logging.warning(f"Cannot delete promo code {promo_id}: it has been used {usage_count} times")
                 return False
 
+            # Получаем информацию о промокоде перед удалением для логирования
+            cursor.execute('SELECT code, bot FROM promo_codes WHERE promo_id = ?', (promo_id,))
+            promo_info = cursor.fetchone()
+            
             cursor.execute('DELETE FROM promo_codes WHERE promo_id = ?', (promo_id,))
 
             deleted = cursor.rowcount
 
             conn.commit()
+            
+            if deleted > 0 and promo_info:
+                logging.info(f"Deleted promo code: id={promo_id}, code='{promo_info[0]}', bot='{promo_info[1]}'")
 
             return deleted > 0
 
@@ -2249,6 +2507,15 @@ def get_promo_code(promo_id: int) -> dict | None:
             data = dict(record)
 
             data['bot'] = _normalize_bot_value(data.get('bot'))
+            
+            # Десериализуем vpn_plan_id и tariff_code
+            data['vpn_plan_id'] = _deserialize_vpn_plan_id(data.get('vpn_plan_id'))
+            if data.get('tariff_code'):
+                try:
+                    data['tariff_code'] = json.loads(data['tariff_code'])
+                except (json.JSONDecodeError, TypeError):
+                    # Если не JSON, оставляем как есть
+                    pass
 
             return data
 
@@ -2310,6 +2577,15 @@ def get_promo_code_by_code(code: str, bot: str | None = None, include_inactive: 
             data = dict(record)
 
             data['bot'] = _normalize_bot_value(data.get('bot'))
+            
+            # Десериализуем vpn_plan_id и tariff_code
+            data['vpn_plan_id'] = _deserialize_vpn_plan_id(data.get('vpn_plan_id'))
+            if data.get('tariff_code'):
+                try:
+                    data['tariff_code'] = json.loads(data['tariff_code'])
+                except (json.JSONDecodeError, TypeError):
+                    # Если не JSON, оставляем как есть
+                    pass
 
             return data
 
@@ -2372,6 +2648,15 @@ def get_all_promo_codes() -> list[dict]:
             for promo in promo_rows:
 
                 promo['bot'] = _normalize_bot_value(promo.get('bot'))
+                
+                # Десериализуем vpn_plan_id и tariff_code
+                promo['vpn_plan_id'] = _deserialize_vpn_plan_id(promo.get('vpn_plan_id'))
+                if promo.get('tariff_code'):
+                    try:
+                        promo['tariff_code'] = json.loads(promo['tariff_code'])
+                    except (json.JSONDecodeError, TypeError):
+                        # Если не JSON, оставляем как есть
+                        pass
 
                 promo['usage_by_bot'] = usage_map.get(promo['promo_id'], {})
 
@@ -2433,33 +2718,78 @@ def record_promo_code_usage(
         with sqlite3.connect(DB_FILE) as conn:
 
             cursor = conn.cursor()
+            
+            # Включаем WAL режим для лучшей производительности при конкурентном доступе
+            cursor.execute("PRAGMA journal_mode=WAL")
+            
+            # Начинаем транзакцию с блокировкой
+            cursor.execute("BEGIN IMMEDIATE")
+            
+            try:
+                # Проверяем, не использовал ли уже пользователь этот промокод
+                cursor.execute('''
+                    SELECT COUNT(*) as usage_count
+                    FROM promo_code_usage 
+                    WHERE promo_id = ? AND user_id = ? AND bot = ?
+                ''', (promo_id, user_id, bot_value))
+                
+                usage_result = cursor.fetchone()
+                if usage_result and usage_result[0] > 0:
+                    cursor.execute("ROLLBACK")
+                    logging.warning(f"User {user_id} already used promo code {promo_id}")
+                    return False
+                
+                # Проверяем общий лимит использований
+                cursor.execute('''
+                    SELECT usage_limit_per_bot FROM promo_codes WHERE promo_id = ?
+                ''', (promo_id,))
+                
+                limit_result = cursor.fetchone()
+                if limit_result:
+                    limit = limit_result[0]
+                    cursor.execute('''
+                        SELECT COUNT(*) as total_usage
+                        FROM promo_code_usage 
+                        WHERE promo_id = ? AND bot = ?
+                    ''', (promo_id, bot_value))
+                    
+                    total_result = cursor.fetchone()
+                    if total_result and total_result[0] >= limit:
+                        cursor.execute("ROLLBACK")
+                        logging.warning(f"Promo code {promo_id} usage limit exceeded")
+                        return False
 
-            cursor.execute(
+                cursor.execute(
 
-                '''
-                INSERT INTO promo_code_usage (
-                    promo_id, user_id, bot, plan_id,
-                    discount_amount, discount_percent, discount_bonus, metadata, used_at
+                    '''
+                    INSERT INTO promo_code_usage (
+                        promo_id, user_id, bot, plan_id,
+                        discount_amount, discount_percent, discount_bonus, metadata, used_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ''',
+
+                    (
+                        promo_id,
+                        user_id,
+                        bot_value,
+                        plan_id,
+                        float(discount_amount or 0),
+                        float(discount_percent or 0),
+                        float(discount_bonus or 0),
+                        metadata_json,
+                    ),
+
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ''',
 
-                (
-                    promo_id,
-                    user_id,
-                    bot_value,
-                    plan_id,
-                    float(discount_amount or 0),
-                    float(discount_percent or 0),
-                    float(discount_bonus or 0),
-                    metadata_json,
-                ),
-
-            )
-
-            conn.commit()
-
-            return True
+                cursor.execute("COMMIT")
+                
+                logging.info(f"Recorded promo code usage: promo_id={promo_id}, user_id={user_id}, bot={bot_value}")
+                return True
+                
+            except Exception as e:
+                cursor.execute("ROLLBACK")
+                raise e
 
     except sqlite3.IntegrityError as e:
 
@@ -2482,18 +2812,35 @@ def remove_promo_code_usage(promo_id: int, bot: str) -> bool:
         with sqlite3.connect(DB_FILE) as conn:
 
             cursor = conn.cursor()
+            
+            # Включаем WAL режим для лучшей производительности при конкурентном доступе
+            cursor.execute("PRAGMA journal_mode=WAL")
+            
+            # Начинаем транзакцию
+            cursor.execute("BEGIN IMMEDIATE")
+            
+            try:
+                # Получаем информацию для логирования
+                cursor.execute('SELECT COUNT(*) FROM promo_code_usage WHERE promo_id = ? AND bot = ?', 
+                             (promo_id, _normalize_bot_value(bot)))
+                count_before = cursor.fetchone()[0]
+                
+                cursor.execute(
+                    'DELETE FROM promo_code_usage WHERE promo_id = ? AND bot = ?',
+                    (promo_id, _normalize_bot_value(bot)),
+                )
 
-            cursor.execute(
+                deleted = cursor.rowcount
+                cursor.execute("COMMIT")
+                
+                if deleted > 0:
+                    logging.info(f"Removed {deleted} promo code usage records for promo_id={promo_id}, bot={bot}")
 
-                'DELETE FROM promo_code_usage WHERE promo_id = ? AND bot = ?',
-
-                (promo_id, _normalize_bot_value(bot)),
-
-            )
-
-            conn.commit()
-
-            return cursor.rowcount > 0
+                return deleted > 0
+                
+            except Exception as e:
+                cursor.execute("ROLLBACK")
+                raise e
 
     except sqlite3.Error as e:
 
@@ -2612,13 +2959,39 @@ def remove_user_promo_code_usage(user_id: int, usage_id: int, bot: str) -> bool:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             
-            cursor.execute('''
-                DELETE FROM promo_code_usage 
-                WHERE user_id = ? AND usage_id = ? AND bot = ?
-            ''', (user_id, usage_id, _normalize_bot_value(bot)))
+            # Включаем WAL режим для лучшей производительности при конкурентном доступе
+            cursor.execute("PRAGMA journal_mode=WAL")
             
-            conn.commit()
-            return cursor.rowcount > 0
+            # Начинаем транзакцию
+            cursor.execute("BEGIN IMMEDIATE")
+            
+            try:
+                # Получаем информацию для логирования
+                cursor.execute('''
+                    SELECT promo_id, code FROM promo_code_usage pcu
+                    JOIN promo_codes pc ON pc.promo_id = pcu.promo_id
+                    WHERE pcu.user_id = ? AND pcu.usage_id = ? AND pcu.bot = ?
+                ''', (user_id, usage_id, _normalize_bot_value(bot)))
+                
+                promo_info = cursor.fetchone()
+                
+                cursor.execute('''
+                    DELETE FROM promo_code_usage 
+                    WHERE user_id = ? AND usage_id = ? AND bot = ?
+                ''', (user_id, usage_id, _normalize_bot_value(bot)))
+                
+                deleted = cursor.rowcount
+                cursor.execute("COMMIT")
+                
+                if deleted > 0 and promo_info:
+                    logging.info(f"Removed user promo code usage: user_id={user_id}, usage_id={usage_id}, promo_id={promo_info[0]}, code='{promo_info[1]}'")
+                
+                return deleted > 0
+                
+            except Exception as e:
+                cursor.execute("ROLLBACK")
+                raise e
+                
     except sqlite3.Error as e:
         logging.error(f"Error removing user promo code usage: {e}")
         return False
@@ -2701,13 +3074,16 @@ def register_user_if_not_exists(telegram_id: int, username: str, referrer_id, fu
 
                 new_user_id = max_user_id + 1
 
-                
+                # Получаем ID группы по умолчанию
+                cursor.execute("SELECT group_id FROM user_groups WHERE is_default = 1 LIMIT 1")
+                default_group = cursor.fetchone()
+                default_group_id = default_group[0] if default_group else None
 
                 cursor.execute(
 
-                    "INSERT INTO users (telegram_id, username, fullname, registration_date, referred_by, user_id) VALUES (?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO users (telegram_id, username, fullname, registration_date, referred_by, user_id, group_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
 
-                    (telegram_id, username, fullname, datetime.now(), referrer_id, new_user_id)
+                    (telegram_id, username, fullname, datetime.now(), referrer_id, new_user_id, default_group_id)
 
                 )
 
@@ -4952,7 +5328,11 @@ def get_all_users() -> list[dict]:
 
                        COALESCE(COUNT(DISTINCT vk.key_id), 0) as user_keys_count,
 
-                       GROUP_CONCAT(DISTINCT vk.key_id) as user_keys
+                       GROUP_CONCAT(DISTINCT vk.key_id) as user_keys,
+
+                       ug.group_name,
+
+                       ug.group_description
 
                 FROM users u
 
@@ -4960,7 +5340,9 @@ def get_all_users() -> list[dict]:
 
                 LEFT JOIN vpn_keys vk ON u.telegram_id = vk.user_id
 
-                GROUP BY u.telegram_id, u.trial_days_given, u.trial_reuses_count
+                LEFT JOIN user_groups ug ON u.group_id = ug.group_id
+
+                GROUP BY u.telegram_id, u.trial_days_given, u.trial_reuses_count, ug.group_name, ug.group_description
 
                 ORDER BY u.registration_date DESC
 
@@ -5655,45 +6037,68 @@ def can_user_use_promo_code(user_id: int, promo_code: str, bot: str) -> dict:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
-            # Получаем промокод
-            cursor.execute('''
-                SELECT * FROM promo_codes 
-                WHERE code = ? AND is_active = 1
-            ''', (promo_code,))
+            # Включаем WAL режим для лучшей производительности при конкурентном доступе
+            cursor.execute("PRAGMA journal_mode=WAL")
             
-            promo = cursor.fetchone()
-            if not promo:
-                return {'can_use': False, 'message': 'Промокод не найден или неактивен'}
+            # Начинаем транзакцию с блокировкой
+            cursor.execute("BEGIN IMMEDIATE")
             
-            promo_dict = dict(promo)
-            
-            # Проверяем, использовал ли пользователь этот промокод в этом боте
-            cursor.execute('''
-                SELECT COUNT(*) as usage_count
-                FROM promo_code_usage 
-                WHERE promo_id = ? AND user_id = ? AND bot = ?
-            ''', (promo_dict['promo_id'], user_id, bot))
-            
-            usage_result = cursor.fetchone()
-            if usage_result and usage_result['usage_count'] > 0:
-                return {'can_use': False, 'message': 'Вы уже использовали этот промокод'}
-            
-            # Проверяем общий лимит использований для этого бота
-            cursor.execute('''
-                SELECT COUNT(*) as total_usage
-                FROM promo_code_usage 
-                WHERE promo_id = ? AND bot = ?
-            ''', (promo_dict['promo_id'], bot))
-            
-            total_usage_result = cursor.fetchone()
-            if total_usage_result and total_usage_result['total_usage'] >= promo_dict['usage_limit_per_bot']:
-                return {'can_use': False, 'message': 'Лимит использований промокода исчерпан'}
-            
-            return {
-                'can_use': True, 
-                'message': 'Промокод можно использовать',
-                'promo_data': promo_dict
-            }
+            try:
+                # Получаем промокод
+                cursor.execute('''
+                    SELECT * FROM promo_codes 
+                    WHERE code = ? AND is_active = 1
+                ''', (promo_code,))
+                
+                promo = cursor.fetchone()
+                if not promo:
+                    cursor.execute("ROLLBACK")
+                    return {'can_use': False, 'message': 'Промокод не найден или неактивен'}
+                
+                promo_dict = dict(promo)
+                
+                # Проверяем, использовал ли пользователь этот промокод в этом боте
+                cursor.execute('''
+                    SELECT COUNT(*) as usage_count
+                    FROM promo_code_usage 
+                    WHERE promo_id = ? AND user_id = ? AND bot = ?
+                ''', (promo_dict['promo_id'], user_id, bot))
+                
+                usage_result = cursor.fetchone()
+                if usage_result and usage_result['usage_count'] > 0:
+                    cursor.execute("ROLLBACK")
+                    return {'can_use': False, 'message': 'Вы уже использовали этот промокод'}
+                
+                # Проверяем общий лимит использований для этого бота
+                cursor.execute('''
+                    SELECT COUNT(*) as total_usage
+                    FROM promo_code_usage 
+                    WHERE promo_id = ? AND bot = ?
+                ''', (promo_dict['promo_id'], bot))
+                
+                total_usage_result = cursor.fetchone()
+                if total_usage_result and total_usage_result['total_usage'] >= promo_dict['usage_limit_per_bot']:
+                    cursor.execute("ROLLBACK")
+                    return {'can_use': False, 'message': 'Лимит использований промокода исчерпан'}
+                
+                # Десериализуем данные
+                promo_dict['vpn_plan_id'] = _deserialize_vpn_plan_id(promo_dict.get('vpn_plan_id'))
+                if promo_dict.get('tariff_code'):
+                    try:
+                        promo_dict['tariff_code'] = json.loads(promo_dict['tariff_code'])
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                
+                cursor.execute("COMMIT")
+                return {
+                    'can_use': True, 
+                    'message': 'Промокод можно использовать',
+                    'promo_data': promo_dict
+                }
+                
+            except Exception as e:
+                cursor.execute("ROLLBACK")
+                raise e
             
     except sqlite3.Error as e:
         logging.error(f"Failed to check promo code usage: {e}")
@@ -5928,6 +6333,279 @@ def set_video_instructions_display_setting(show_in_bot: bool):
         logging.error(f"Failed to set video instructions display setting: {e}")
 
 
+# ==================== ФУНКЦИИ ДЛЯ РАБОТЫ С ГРУППАМИ ПОЛЬЗОВАТЕЛЕЙ ====================
 
+def get_all_user_groups() -> list[dict]:
+    """Получить все группы пользователей с количеством пользователей в каждой группе"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT 
+                    ug.group_id,
+                    ug.group_name,
+                    ug.group_description,
+                    ug.is_default,
+                    ug.created_date,
+                    COUNT(u.telegram_id) as user_count
+                FROM user_groups ug
+                LEFT JOIN users u ON ug.group_id = u.group_id
+                GROUP BY ug.group_id, ug.group_name, ug.group_description, ug.is_default, ug.created_date
+                ORDER BY ug.group_id
+            ''')
+            
+            groups = cursor.fetchall()
+            return [dict(row) for row in groups]
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get all user groups: {e}")
+        return []
+
+
+def get_user_group(group_id: int) -> dict | None:
+    """Получить группу пользователей по ID"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT * FROM user_groups WHERE group_id = ?", (group_id,))
+            result = cursor.fetchone()
+            return dict(result) if result else None
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get user group {group_id}: {e}")
+        return None
+
+
+def create_user_group(group_name: str, group_description: str = None) -> int | None:
+    """Создать новую группу пользователей"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                INSERT INTO user_groups (group_name, group_description)
+                VALUES (?, ?)
+            ''', (group_name, group_description))
+            
+            group_id = cursor.lastrowid
+            conn.commit()
+            
+            logging.info(f"Created new user group: {group_name} (ID: {group_id})")
+            return group_id
+    except sqlite3.IntegrityError:
+        logging.warning(f"Group with name '{group_name}' already exists")
+        return None
+    except sqlite3.Error as e:
+        logging.error(f"Failed to create user group '{group_name}': {e}")
+        return None
+
+
+def update_user_group(group_id: int, group_name: str, group_description: str = None) -> bool:
+    """Обновить группу пользователей"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                UPDATE user_groups 
+                SET group_name = ?, group_description = ?
+                WHERE group_id = ?
+            ''', (group_name, group_description, group_id))
+            
+            if cursor.rowcount > 0:
+                conn.commit()
+                logging.info(f"Updated user group {group_id}: {group_name}")
+                return True
+            else:
+                logging.warning(f"User group {group_id} not found")
+                return False
+    except sqlite3.IntegrityError:
+        logging.warning(f"Group with name '{group_name}' already exists")
+        return False
+    except sqlite3.Error as e:
+        logging.error(f"Failed to update user group {group_id}: {e}")
+        return False
+
+
+def delete_user_group(group_id: int) -> tuple[bool, int]:
+    """Удалить группу пользователей. Возвращает (успех, количество_пользователей_переназначенных)"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            
+            # Проверяем, что группа не является группой по умолчанию
+            cursor.execute("SELECT is_default FROM user_groups WHERE group_id = ?", (group_id,))
+            result = cursor.fetchone()
+            
+            if not result:
+                logging.warning(f"User group {group_id} not found")
+                return False, 0
+                
+            if result[0]:
+                logging.warning(f"Cannot delete default group {group_id}")
+                return False, 0
+            
+            # Считаем количество пользователей в группе
+            cursor.execute("SELECT COUNT(*) FROM users WHERE group_id = ?", (group_id,))
+            user_count = cursor.fetchone()[0]
+            
+            # Находим группу по умолчанию
+            cursor.execute("SELECT group_id FROM user_groups WHERE is_default = 1 LIMIT 1")
+            default_group = cursor.fetchone()
+            
+            if default_group:
+                default_group_id = default_group[0]
+                # Переназначаем всех пользователей на группу по умолчанию
+                cursor.execute("UPDATE users SET group_id = ? WHERE group_id = ?", 
+                             (default_group_id, group_id))
+                logging.info(f"Reassigned {user_count} users to default group {default_group_id}")
+            
+            # Удаляем группу
+            cursor.execute("DELETE FROM user_groups WHERE group_id = ?", (group_id,))
+            conn.commit()
+            
+            logging.info(f"Deleted user group {group_id}, reassigned {user_count} users")
+            return True, user_count
+            
+    except sqlite3.Error as e:
+        logging.error(f"Failed to delete user group {group_id}: {e}")
+        return False, 0
+
+
+def get_user_group_by_name(group_name: str) -> dict | None:
+    """Получить группу пользователей по названию"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT * FROM user_groups WHERE group_name = ?", (group_name,))
+            result = cursor.fetchone()
+            return dict(result) if result else None
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get user group by name '{group_name}': {e}")
+        return None
+
+
+def get_default_user_group() -> dict | None:
+    """Получить группу пользователей по умолчанию"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT * FROM user_groups WHERE is_default = 1 LIMIT 1")
+            result = cursor.fetchone()
+            return dict(result) if result else None
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get default user group: {e}")
+        return None
+
+
+def update_user_group_assignment(telegram_id: int, group_id: int) -> bool:
+    """Назначить пользователя в группу"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            
+            # Проверяем, что группа существует
+            cursor.execute("SELECT group_id FROM user_groups WHERE group_id = ?", (group_id,))
+            if not cursor.fetchone():
+                logging.warning(f"Group {group_id} not found")
+                return False
+            
+            cursor.execute("UPDATE users SET group_id = ? WHERE telegram_id = ?", 
+                         (group_id, telegram_id))
+            
+            if cursor.rowcount > 0:
+                conn.commit()
+                logging.info(f"Assigned user {telegram_id} to group {group_id}")
+                return True
+            else:
+                logging.warning(f"User {telegram_id} not found")
+                return False
+                
+    except sqlite3.Error as e:
+        logging.error(f"Failed to assign user {telegram_id} to group {group_id}: {e}")
+        return False
+
+
+def get_user_group_info(telegram_id: int) -> dict | None:
+    """Получить информацию о группе пользователя"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT ug.group_id, ug.group_name, ug.group_description, ug.is_default
+                FROM users u
+                JOIN user_groups ug ON u.group_id = ug.group_id
+                WHERE u.telegram_id = ?
+            ''', (telegram_id,))
+            
+            result = cursor.fetchone()
+            return dict(result) if result else None
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get user group info for {telegram_id}: {e}")
+        return None
+
+
+def get_users_in_group(group_id: int) -> list[dict]:
+    """Получить всех пользователей в группе"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT u.telegram_id, u.username, u.fullname, u.fio, u.email
+                FROM users u
+                WHERE u.group_id = ?
+                ORDER BY u.registration_date
+            ''', (group_id,))
+            
+            users = cursor.fetchall()
+            return [dict(row) for row in users]
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get users in group {group_id}: {e}")
+        return []
+
+
+def get_groups_statistics() -> dict:
+    """Получить статистику по группам пользователей"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            
+            # Общее количество групп
+            cursor.execute("SELECT COUNT(*) FROM user_groups")
+            total_groups = cursor.fetchone()[0]
+            
+            # Общее количество пользователей
+            cursor.execute("SELECT COUNT(*) FROM users")
+            total_users = cursor.fetchone()[0]
+            
+            # Количество пользователей в каждой группе
+            cursor.execute('''
+                SELECT ug.group_name, COUNT(u.telegram_id) as user_count
+                FROM user_groups ug
+                LEFT JOIN users u ON ug.group_id = u.group_id
+                GROUP BY ug.group_id, ug.group_name
+                ORDER BY user_count DESC
+            ''')
+            
+            groups_stats = cursor.fetchall()
+            
+            return {
+                'total_groups': total_groups,
+                'total_users': total_users,
+                'groups_stats': [{'group_name': row[0], 'user_count': row[1]} for row in groups_stats]
+            }
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get groups statistics: {e}")
+        return {'total_groups': 0, 'total_users': 0, 'groups_stats': []}
 
 

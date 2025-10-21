@@ -583,7 +583,25 @@ server {
     # Ограничение размера загружаемых файлов
     client_max_body_size 20m;
     
-    # Проксирование на codex-docs сервис
+    # Раздача статических файлов напрямую (приоритет выше чем location /)
+    location /dist/ {
+        proxy_pass http://codex_docs_backend;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        
+        # Кэширование статических файлов
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        
+        # Таймауты
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+    }
+    
+    # Проксирование на codex-docs сервис для остальных запросов
     location / {
         proxy_pass http://codex_docs_backend;
         proxy_set_header Host \$host;

@@ -1371,6 +1371,45 @@ body.login-page {
     text-decoration: none !important;
 }
 
+/* Стили для навигации справочников */
+.directories-navigation {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 10px;
+}
+
+.directories-navigation button.nav-button {
+    padding: 12px 20px;
+    border: none;
+    background: var(--bg-surface) !important;
+    color: #ffffff !important;
+    cursor: pointer;
+    border-radius: 8px 8px 0 0;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    border-bottom: 3px solid transparent;
+    text-decoration: none !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.directories-navigation button.nav-button:hover {
+    background: var(--bg-hover) !important;
+    transform: translateY(-2px);
+    color: #ffffff !important;
+    text-decoration: none !important;
+}
+
+.directories-navigation button.nav-button.active {
+    background: var(--primary-color) !important;
+    color: white !important;
+    border-bottom: 3px solid var(--primary-hover);
+    text-decoration: none !important;
+}
+
 /* Стили для содержимого вкладок */
 .settings-tab {
     display: none;

@@ -447,6 +447,16 @@
 											<i class="fas fa-edit edit-icon" title="Кликните для редактирования"></i>
 										</div>
 									</div>
+									<div class="user-detail-item editable-item" title="Группа пользователя">
+										<label>Группа:</label>
+										<div class="field-container">
+											<select id="detailGroupInput" class="editable-field" style="display: none;">
+												<option value="">Выберите группу</option>
+											</select>
+											<span id="detailGroup" class="display-field">—</span>
+											<i class="fas fa-edit edit-icon" title="Кликните для редактирования"></i>
+										</div>
+									</div>
 								</div>
 							</div>
 
@@ -849,6 +859,229 @@
 
 		<!-- Key Drawer -->
 		{% include 'key_drawer.html' %}
+
+		<script>
+		// ==================== ФУНКЦИИ ДЛЯ РАБОТЫ С ГРУППАМИ ПОЛЬЗОВАТЕЛЕЙ ====================
+		
+		let currentUserGroups = [];
+		let currentUserId = null;
+		
+		// Загрузка списка групп пользователей
+		async function loadUserGroups() {
+			try {
+				const response = await fetch('/api/user-groups');
+				const data = await response.json();
+				
+				if (data.success) {
+					currentUserGroups = data.groups;
+					
+					// Заполняем select в карточке пользователя
+					const groupSelect = document.getElementById('detailGroupInput');
+					if (groupSelect) {
+						groupSelect.innerHTML = '<option value="">Выберите группу</option>';
+						data.groups.forEach(group => {
+							const option = document.createElement('option');
+							option.value = group.group_id;
+							option.textContent = group.group_name;
+							groupSelect.appendChild(option);
+						});
+					}
+					
+					return data.groups;
+				} else {
+					console.error('Ошибка загрузки групп:', data.error);
+					return [];
+				}
+			} catch (error) {
+				console.error('Ошибка загрузки групп:', error);
+				return [];
+			}
+		}
+		
+		// Изменение группы пользователя из таблицы
+		async function changeUserGroup(userId, currentGroupName, currentGroupId) {
+			currentUserId = userId;
+			
+			const groups = await loadUserGroups();
+			if (groups.length === 0) {
+				alert('Ошибка загрузки списка групп');
+				return;
+			}
+			
+			const modal = document.createElement('div');
+			modal.className = 'modal-backdrop';
+			modal.innerHTML = `
+				<div class="modal">
+					<div class="modal-content">
+						<div class="modal-header">
+							<h3>Изменить группу пользователя</h3>
+							<span class="close" onclick="closeModal()">&times;</span>
+						</div>
+						<div class="modal-body">
+							<div class="form-group">
+								<label for="user-group-select">Выберите группу:</label>
+								<select id="user-group-select" title="Выберите группу для пользователя">
+									${groups.map(group => `
+										<option value="${group.group_id}" ${group.group_id === currentGroupId ? 'selected' : ''}>
+											${group.group_name} ${group.is_default ? '(по умолчанию)' : ''}
+										</option>
+									`).join('')}
+								</select>
+							</div>
+							<div class="form-group">
+								<label>Текущая группа:</label>
+								<span class="current-group">${currentGroupName || 'N/A'}</span>
+							</div>
+						</div>
+						<div class="modal-footer">
+							<button type="button" class="button button-secondary" onclick="closeModal()" title="Отменить">
+								<i class="fas fa-times"></i>
+								Отменить
+							</button>
+							<button type="button" class="button button-primary" onclick="saveUserGroupChange()" title="Сохранить изменения">
+								<i class="fas fa-save"></i>
+								Сохранить
+							</button>
+						</div>
+					</div>
+				</div>
+			`;
+			
+			document.body.appendChild(modal);
+		}
+		
+		// Изменение группы пользователя из модального окна
+		async function changeUserGroupFromModal() {
+			if (!currentUserId) {
+				alert('Ошибка: ID пользователя не определен');
+				return;
+			}
+			
+			// Получаем текущую группу из модального окна
+			const currentGroupElement = document.getElementById('detailGroup');
+			const currentGroupName = currentGroupElement ? currentGroupElement.textContent : 'N/A';
+			
+			await changeUserGroup(currentUserId, currentGroupName, null);
+		}
+		
+		// Сохранение изменения группы пользователя
+		async function saveUserGroupChange() {
+			const groupSelect = document.getElementById('user-group-select');
+			const newGroupId = groupSelect ? parseInt(groupSelect.value) : null;
+			
+			if (!newGroupId || !currentUserId) {
+				alert('Ошибка: не выбрана группа или не определен пользователь');
+				return;
+			}
+			
+			try {
+				const response = await fetch(`/api/users/${currentUserId}/group`, {
+					method: 'PUT',
+					headers: {
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({ group_id: newGroupId })
+				});
+				
+				const result = await response.json();
+				
+				if (result.success) {
+					closeModal();
+					
+					// Обновляем отображение в таблице пользователей
+					const groupBadge = document.querySelector(`[data-user-id="${currentUserId}"] .group-badge`);
+					if (groupBadge) {
+						const selectedGroup = currentUserGroups.find(g => g.group_id === newGroupId);
+						if (selectedGroup) {
+							groupBadge.textContent = selectedGroup.group_name;
+						}
+					}
+					
+					// Обновляем отображение в модальном окне пользователя
+					const detailGroup = document.getElementById('detailGroup');
+					if (detailGroup) {
+						const selectedGroup = currentUserGroups.find(g => g.group_id === newGroupId);
+						if (selectedGroup) {
+							detailGroup.textContent = selectedGroup.group_name;
+						}
+					}
+					
+					showNotification(result.message, 'success');
+				} else {
+					alert('Ошибка: ' + result.error);
+				}
+			} catch (error) {
+				console.error('Ошибка изменения группы пользователя:', error);
+				alert('Ошибка изменения группы пользователя');
+			}
+		}
+		
+		// Обновление информации о группе в модальном окне пользователя
+		function updateUserGroupInModal(userData) {
+			const detailGroup = document.getElementById('detailGroup');
+			if (detailGroup && userData.group_name) {
+				detailGroup.textContent = userData.group_name;
+			}
+		}
+		
+		// Показ уведомления
+		function showNotification(message, type = 'info') {
+			// Создаем элемент уведомления
+			const notification = document.createElement('div');
+			notification.className = `notification notification-${type}`;
+			notification.innerHTML = `
+				<div class="notification-content">
+					<i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+					<span>${message}</span>
+				</div>
+			`;
+			
+			// Добавляем стили для уведомления
+			notification.style.cssText = `
+				position: fixed;
+				top: 20px;
+				right: 20px;
+				background: ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#007bff'};
+				color: white;
+				padding: 15px 20px;
+				border-radius: 8px;
+				box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+				z-index: 10000;
+				animation: slideInRight 0.3s ease-out;
+			`;
+			
+			document.body.appendChild(notification);
+			
+			// Удаляем уведомление через 3 секунды
+			setTimeout(() => {
+				notification.style.animation = 'slideOutRight 0.3s ease-in';
+				setTimeout(() => {
+					if (notification.parentNode) {
+						notification.parentNode.removeChild(notification);
+					}
+				}, 300);
+			}, 3000);
+		}
+		
+		// Добавляем CSS анимации для уведомлений
+		const style = document.createElement('style');
+		style.textContent = `
+			@keyframes slideInRight {
+				from { transform: translateX(100%); opacity: 0; }
+				to { transform: translateX(0); opacity: 1; }
+			}
+			@keyframes slideOutRight {
+				from { transform: translateX(0); opacity: 1; }
+				to { transform: translateX(100%); opacity: 0; }
+			}
+			.notification-content {
+				display: flex;
+				align-items: center;
+				gap: 10px;
+			}
+		`;
+		document.head.appendChild(style);
+		</script>
 
 		<script src="{{ url_for('static', filename='js/script.js') }}"></script>
 		{% block scripts %}{% endblock %}

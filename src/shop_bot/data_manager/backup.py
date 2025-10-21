@@ -86,6 +86,7 @@ class DatabaseBackupManager:
             
             backup_info = {
                 'success': True,
+                'backup_name': backup_name,
                 'backup_path': str(backup_path),
                 'backup_size': backup_path.stat().st_size,
                 'created_at': self.last_backup_time.isoformat(),
@@ -321,7 +322,8 @@ class DatabaseBackupManager:
             'backup_dir': str(self.backup_dir),
             'compression_enabled': self.compression_enabled,
             'verify_backups': self.verify_backups,
-            'total_size': sum(backup['size'] for backup in backups)
+            'total_size': sum(backup['size'] for backup in backups),
+            'backups': backups  # Добавляем список бекапов
         }
 
 # Глобальный экземпляр менеджера бэкапов
@@ -330,16 +332,41 @@ backup_manager = DatabaseBackupManager()
 def initialize_backup_system():
     """Инициализация системы бэкапов"""
     try:
-        # Создаем первый бэкап при запуске
-        backup_info = backup_manager.create_backup("initial_backup.db")
+        from shop_bot.data_manager.database import get_backup_setting
         
-        if backup_info['success']:
-            logger.info("Initial database backup created successfully")
+        # Получаем настройки из backup_settings
+        backup_enabled = get_backup_setting('backup_enabled')
+        interval_hours = get_backup_setting('backup_interval_hours')
+        retention_days = get_backup_setting('backup_retention_days')
+        compression = get_backup_setting('backup_compression')
+        verify = get_backup_setting('backup_verify')
+        
+        # Устанавливаем значения по умолчанию если настройки не найдены
+        backup_enabled = backup_enabled if backup_enabled is not None else 'true'
+        interval_hours = int(interval_hours) if interval_hours else 24
+        retention_days = int(retention_days) if retention_days else 30
+        compression = compression == 'true' if compression is not None else True
+        verify = verify == 'true' if verify is not None else True
+        
+        # Обновляем настройки менеджера
+        backup_manager.retention_days = retention_days
+        backup_manager.compression_enabled = compression
+        backup_manager.verify_backups = verify
+        
+        if backup_enabled == 'true':
+            # Создаем первый бэкап при запуске
+            backup_info = backup_manager.create_backup("initial_backup.db")
+            
+            if backup_info['success']:
+                logger.info("Initial database backup created successfully")
+            else:
+                logger.error(f"Failed to create initial backup: {backup_info.get('error')}")
+            
+            # Запускаем автоматические бэкапы
+            backup_manager.start_automatic_backups(interval_hours)
+            logger.info(f"Backup system initialized with {interval_hours}h interval")
         else:
-            logger.error(f"Failed to create initial backup: {backup_info.get('error')}")
-        
-        # Запускаем автоматические бэкапы
-        backup_manager.start_automatic_backups()
+            logger.info("Backup system disabled by settings")
         
     except Exception as e:
         logger.error(f"Failed to initialize backup system: {e}")

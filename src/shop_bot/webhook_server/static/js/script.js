@@ -1206,6 +1206,8 @@ function openUserModal(userId, username, isBanned, keysCount) {
 							makeFieldEditable('Fio')
 						} else if (fieldId === 'detailEmail') {
 							makeFieldEditable('Email')
+						} else if (fieldId === 'detailGroup') {
+							makeFieldEditable('Group')
 						}
 					}
 				}
@@ -1761,6 +1763,14 @@ async function loadUserDetails(userId) {
 		emailEl.textContent = emailText
 		emailInputEl.value = user.email || ''
 		
+		// Загружаем группы пользователей
+		loadUserGroups()
+		
+		const groupEl = document.getElementById('detailGroup')
+		const groupText = user.group_name || 'N/A'
+		groupEl.setAttribute('data-original', groupText)
+		groupEl.textContent = groupText
+		
 		const detailBalance = document.getElementById('detailBalance')
 		const detailBalanceText = (user.balance || 0).toFixed(2) + ' RUB'
 		detailBalance.setAttribute('data-original', detailBalanceText)
@@ -1889,8 +1899,23 @@ function makeFieldEditable(fieldName) {
 	
 	// Устанавливаем текущее значение в input
 	const currentValue = displayField.textContent === '—' ? '' : displayField.textContent
-	inputField.value = currentValue
+	
+	if (fieldName === 'Group') {
+		// Для группы находим option по тексту
+		const options = inputField.querySelectorAll('option')
+		let selectedValue = ''
+		options.forEach(option => {
+			if (option.textContent === currentValue) {
+				selectedValue = option.value
+			}
+		})
+		inputField.value = selectedValue
+	} else {
+		inputField.value = currentValue
+	}
+	
 	inputField.style.display = 'block'
+	displayField.style.display = 'none'
 	
 	console.log('Input field value set to:', currentValue)
 	
@@ -1898,10 +1923,14 @@ function makeFieldEditable(fieldName) {
 	setTimeout(() => {
 		console.log('Attempting to focus input field')
 		inputField.focus()
-		inputField.select()
 		
-		// Убеждаемся, что каретка видна
-		inputField.setSelectionRange(0, inputField.value.length)
+		// Для select элемента не вызываем select()
+		if (inputField.tagName !== 'SELECT') {
+			inputField.select()
+			
+			// Убеждаемся, что каретка видна
+			inputField.setSelectionRange(0, inputField.value.length)
+		}
 		
 		// Принудительно показываем каретку
 		inputField.click()
@@ -1935,6 +1964,15 @@ function makeFieldEditable(fieldName) {
 		}
 	}
 	
+	// Для select добавляем обработчик изменения
+	if (fieldName === 'Group') {
+		const handleChange = () => {
+			saveUserChanges()
+		}
+		inputField.addEventListener('change', handleChange)
+		inputField._changeHandler = handleChange
+	}
+	
 	inputField.addEventListener('keydown', handleKeyPress)
 	inputField._keyHandler = handleKeyPress
 }
@@ -1952,11 +1990,18 @@ function cancelEdit(fieldName) {
 		
 		// Переключаем обратно в режим отображения
 		container.classList.remove('editing')
+		inputField.style.display = 'none'
+		displayField.style.display = 'inline'
 		
 		// Убираем обработчик событий
 		if (inputField._keyHandler) {
 			inputField.removeEventListener('keydown', inputField._keyHandler)
 			inputField._keyHandler = null
+		}
+		
+		if (inputField._changeHandler) {
+			inputField.removeEventListener('change', inputField._changeHandler)
+			inputField._changeHandler = null
 		}
 		
 		// Скрываем кнопку сохранения если нет других редактируемых полей
@@ -2026,6 +2071,8 @@ function initializeEditableFields() {
 			makeFieldEditable('Fio')
 		} else if (fieldId === 'detailEmail') {
 			makeFieldEditable('Email')
+		} else if (fieldId === 'detailGroup') {
+			makeFieldEditable('Group')
 		}
 	}
 	
@@ -2049,6 +2096,7 @@ async function saveUserChanges() {
 	
 	const fioInput = document.getElementById('detailFioInput')
 	const emailInput = document.getElementById('detailEmailInput')
+	const groupInput = document.getElementById('detailGroupInput')
 	
 	const changes = {}
 	
@@ -2058,6 +2106,10 @@ async function saveUserChanges() {
 	
 	if (emailInput && emailInput.value !== emailInput.defaultValue) {
 		changes.email = emailInput.value
+	}
+	
+	if (groupInput && groupInput.value !== groupInput.defaultValue) {
+		changes.group_id = groupInput.value
 	}
 	
 	if (Object.keys(changes).length === 0) {
@@ -2108,6 +2160,38 @@ async function saveUserChanges() {
 				if (emailInput && emailInput._keyHandler) {
 					emailInput.removeEventListener('keydown', emailInput._keyHandler)
 					emailInput._keyHandler = null
+				}
+			}
+			
+			if (changes.group_id !== undefined) {
+				const groupField = document.getElementById('detailGroup')
+				const groupContainer = groupField?.closest('.editable-item')
+				
+				// Находим название группы по ID
+				const groupSelect = document.getElementById('detailGroupInput')
+				const selectedOption = groupSelect?.querySelector(`option[value="${changes.group_id}"]`)
+				const newValue = selectedOption ? selectedOption.textContent : '—'
+				
+				if (groupField) {
+					groupField.textContent = newValue
+					groupField.setAttribute('data-original', newValue)
+					groupContainer?.classList.remove('editing')
+					
+					// Скрываем select и показываем поле
+					if (groupInput) {
+						groupInput.style.display = 'none'
+						groupField.style.display = 'inline'
+						
+						// Убираем обработчик событий
+						if (groupInput._keyHandler) {
+							groupInput.removeEventListener('keydown', groupInput._keyHandler)
+							groupInput._keyHandler = null
+						}
+						if (groupInput._changeHandler) {
+							groupInput.removeEventListener('change', groupInput._changeHandler)
+							groupInput._changeHandler = null
+						}
+					}
 				}
 			}
 			

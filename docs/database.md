@@ -1,6 +1,6 @@
 # База данных Dark Maximus
 
-**Последнее обновление:** 15.01.2025
+**Последнее обновление:** 21.10.2025
 
 ## Оглавление
 - [Обзор](#обзор)
@@ -86,7 +86,8 @@ CREATE TABLE users (
     referred_by INTEGER,                       -- ID пользователя, который пригласил
     referral_balance REAL DEFAULT 0,           -- Реферальный баланс
     referral_balance_all REAL DEFAULT 0,       -- Общий реферальный баланс
-    balance REAL DEFAULT 0                     -- Основной баланс пользователя
+    balance REAL DEFAULT 0,                    -- Основной баланс пользователя
+    group_id INTEGER                           -- ID группы пользователя (FK)
 );
 ```
 
@@ -95,6 +96,7 @@ CREATE TABLE users (
 - `UNIQUE INDEX uk_users_user_id (user_id)`
 - `INDEX idx_users_referred_by (referred_by)`
 - `INDEX idx_users_registration_date (registration_date)`
+- `INDEX idx_users_group_id (group_id)`
 
 **Примечания:**
 - `user_id` - уникальный числовой идентификатор, автоматически назначается новым пользователям, начиная с 1000
@@ -137,7 +139,31 @@ CREATE TABLE vpn_keys (
 - `INDEX idx_vpn_keys_host_name (host_name)`
 - `INDEX idx_vpn_keys_expiry_date (expiry_date)`
 
-### 3. transactions - Транзакции
+### 3. user_groups - Группы пользователей
+Таблица для хранения групп пользователей (справочник).
+
+```sql
+CREATE TABLE user_groups (
+    group_id INTEGER PRIMARY KEY AUTOINCREMENT,  -- Уникальный ID группы
+    group_name TEXT NOT NULL UNIQUE,             -- Название группы (уникальное)
+    group_description TEXT,                      -- Описание группы
+    is_default BOOLEAN DEFAULT 0,                -- Группа по умолчанию
+    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- Дата создания
+);
+```
+
+**Индексы:**
+- `PRIMARY KEY (group_id)`
+- `UNIQUE INDEX uk_user_groups_name (group_name)`
+- `INDEX idx_user_groups_is_default (is_default)`
+
+**Примечания:**
+- Группа "Гость" создается автоматически при инициализации БД и помечается как группа по умолчанию
+- Новые пользователи автоматически назначаются в группу по умолчанию
+- Группу по умолчанию нельзя удалить
+- При удалении группы все пользователи переназначаются в группу по умолчанию
+
+### 4. transactions - Транзакции
 Таблица для хранения всех транзакций и платежей.
 
 ```sql
@@ -165,7 +191,7 @@ CREATE TABLE transactions (
 - `INDEX idx_transactions_status (status)`
 - `INDEX idx_transactions_created_date (created_date)`
 
-### 4. bot_settings - Настройки бота
+### 5. bot_settings - Настройки бота
 Таблица для хранения конфигурации системы.
 
 ```sql
@@ -183,7 +209,7 @@ CREATE TABLE bot_settings (
 - `ton_wallet_address`, `tonapi_key` - Настройки TON
 - `referral_percentage`, `referral_discount` - Настройки рефералов
 
-### 5. notifications - Уведомления
+### 6. notifications - Уведомления
 Таблица для хранения уведомлений пользователям.
 
 ```sql
@@ -209,7 +235,7 @@ CREATE TABLE notifications (
 - `INDEX idx_notifications_status (status)`
 - `INDEX idx_notifications_created_date (created_date)`
 
-### 6. xui_hosts - VPN серверы
+### 7. xui_hosts - VPN серверы
 Таблица для хранения информации о VPN серверах.
 
 ```sql
@@ -227,7 +253,7 @@ CREATE TABLE xui_hosts (
 - `PRIMARY KEY (host_name)`
 - `INDEX idx_xui_hosts_code (host_code)`
 
-### 7. plans - Тарифные планы
+### 8. plans - Тарифные планы
 Таблица для хранения тарифных планов подписки.
 
 ```sql
@@ -249,7 +275,7 @@ CREATE TABLE plans (
 - `INDEX idx_plans_host_name (host_name)`
 - `INDEX idx_plans_price (price)`
 
-### 8. support_threads - Потоки поддержки
+### 9. support_threads - Потоки поддержки
 Таблица для связи пользователей с потоками поддержки.
 
 ```sql
@@ -262,6 +288,31 @@ CREATE TABLE support_threads (
 **Индексы:**
 - `PRIMARY KEY (user_id)`
 - `UNIQUE INDEX uk_support_threads_thread_id (thread_id)`
+
+## Связи между таблицами
+
+**Основные связи:**
+- `users.telegram_id` → `vpn_keys.user_id` (один ко многим)
+- `users.telegram_id` → `transactions.user_id` (один ко многим)
+- `users.telegram_id` → `notifications.user_id` (один ко многим)
+- `users.telegram_id` → `support_threads.user_id` (один к одному)
+- `users.group_id` → `user_groups.group_id` (многие к одному)
+- `xui_hosts.host_name` → `vpn_keys.host_name` (один ко многим)
+- `xui_hosts.host_name` → `plans.host_name` (один ко многим)
+
+**Схема связей:**
+```
+user_groups (1) ←→ (N) users (1) ←→ (N) vpn_keys
+                    ↓ (1)
+                    (N) transactions
+                    ↓ (1)
+                    (N) notifications
+                    ↓ (1)
+                    (1) support_threads
+
+xui_hosts (1) ←→ (N) vpn_keys
+xui_hosts (1) ←→ (N) plans
+```
 
 ## Индексы
 
@@ -355,6 +406,40 @@ WHERE user_id IS NULL;
 - Автоматическое назначение user_id новым пользователям
 - Удобство для поддержки и публичных ссылок
 
+#### v2.6 - Система групп пользователей
+```sql
+-- Создание таблицы групп пользователей
+CREATE TABLE user_groups (
+    group_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_name TEXT NOT NULL UNIQUE,
+    group_description TEXT,
+    is_default BOOLEAN DEFAULT 0,
+    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Создание группы по умолчанию
+INSERT OR IGNORE INTO user_groups (group_name, group_description, is_default) 
+VALUES ('Гость', 'Группа по умолчанию для всех пользователей', 1);
+
+-- Добавление поля group_id в таблицу users
+ALTER TABLE users ADD COLUMN group_id INTEGER;
+
+-- Назначение всех существующих пользователей в группу "Гость"
+UPDATE users SET group_id = (SELECT group_id FROM user_groups WHERE is_default = 1 LIMIT 1) 
+WHERE group_id IS NULL;
+
+-- Создание индексов
+CREATE INDEX idx_user_groups_group_name ON user_groups(group_name);
+CREATE INDEX idx_user_groups_is_default ON user_groups(is_default);
+CREATE INDEX idx_users_group_id ON users(group_id);
+```
+
+**Цель миграции:**
+- Добавление системы группировки пользователей
+- Создание группы по умолчанию "Гость"
+- Автоматическое назначение существующих пользователей в группу по умолчанию
+- Подготовка для расширенного управления пользователями
+
 ### Запуск миграций
 ```python
 from shop_bot.data_manager.database import run_migration
@@ -421,12 +506,46 @@ def get_all_settings() -> dict
 def update_setting(key: str, value: str)
 ```
 
+#### Группы пользователей
+```python
+# Получение всех групп
+def get_all_user_groups() -> list[dict]
+
+# Получение группы по ID
+def get_user_group(group_id: int) -> dict
+
+# Создание новой группы
+def create_user_group(group_name: str, group_description: str = None) -> int
+
+# Обновление группы
+def update_user_group(group_id: int, group_name: str = None, group_description: str = None) -> bool
+
+# Удаление группы
+def delete_user_group(group_id: int) -> bool
+
+# Получение группы по умолчанию
+def get_default_user_group() -> dict
+
+# Изменение группы пользователя
+def update_user_group_assignment(user_id: int, group_id: int) -> bool
+
+# Получение информации о группе пользователя
+def get_user_group_info(user_id: int) -> dict
+
+# Получение пользователей в группе
+def get_users_in_group(group_id: int) -> list[dict]
+
+# Получение статистики по группам
+def get_groups_statistics() -> dict
+```
+
 ### Примеры использования
 
 ```python
 from shop_bot.data_manager.database import (
     register_user_if_not_exists, get_user, add_new_key, 
-    create_pending_transaction, get_all_settings
+    create_pending_transaction, get_all_settings,
+    get_all_user_groups, create_user_group, update_user_group_assignment
 )
 
 # Регистрация пользователя
@@ -456,6 +575,19 @@ transaction_id = create_pending_transaction(
     amount_rub=299.0,
     metadata={"plan_name": "Базовый", "host_name": "server1"}
 )
+
+# Работа с группами пользователей
+# Получение всех групп
+groups = get_all_user_groups()
+print(f"Доступно групп: {len(groups)}")
+
+# Создание новой группы
+family_group_id = create_user_group("Семья", "Близкие родственники")
+print(f"Создана группа 'Семья' с ID: {family_group_id}")
+
+# Назначение пользователя в группу
+update_user_group_assignment(12345, family_group_id)
+print("Пользователь назначен в группу 'Семья'")
 ```
 
 ## Производительность

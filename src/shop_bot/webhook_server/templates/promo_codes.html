@@ -779,6 +779,11 @@ function populatePromoForm(promo) {
 			// Если это одиночный ID
 			vpnPlanSelect.value = promo.vpn_plan_id;
 		}
+	} else {
+		// Сбрасываем выбор если нет данных
+		Array.from(vpnPlanSelect.options).forEach(option => {
+			option.selected = false;
+		});
 	}
 	
 	// Обработка мультиселекта тарифов
@@ -793,6 +798,11 @@ function populatePromoForm(promo) {
 			// Если это одиночный код
 			tariffSelect.value = promo.tariff_code;
 		}
+	} else {
+		// Сбрасываем выбор если нет данных
+		Array.from(tariffSelect.options).forEach(option => {
+			option.selected = false;
+		});
 	}
 	
 	document.getElementById('promoDiscountAmount').value = promo.discount_amount || '';
@@ -863,8 +873,50 @@ async function savePromoCode() {
 		return;
 	}
 	
+	if (formData.code.length < 3) {
+		showNotification('Промокод должен содержать минимум 3 символа', 'error');
+		return;
+	}
+	
+	if (formData.code.length > 50) {
+		showNotification('Промокод не может содержать более 50 символов', 'error');
+		return;
+	}
+	
+	if (!/^[A-Z0-9_-]+$/.test(formData.code)) {
+		showNotification('Промокод может содержать только заглавные буквы, цифры, дефисы и подчеркивания', 'error');
+		return;
+	}
+	
 	if (!formData.bot) {
 		showNotification('Выберите бота', 'error');
+		return;
+	}
+	
+	// Валидация скидок
+	if (formData.discount_amount < 0) {
+		showNotification('Скидка в рублях не может быть отрицательной', 'error');
+		return;
+	}
+	
+	if (formData.discount_percent < 0 || formData.discount_percent > 100) {
+		showNotification('Процентная скидка должна быть от 0 до 100', 'error');
+		return;
+	}
+	
+	if (formData.discount_bonus < 0) {
+		showNotification('Бонусная скидка не может быть отрицательной', 'error');
+		return;
+	}
+	
+	if (formData.usage_limit_per_bot < 1) {
+		showNotification('Лимит использований должен быть не менее 1', 'error');
+		return;
+	}
+	
+	// Проверяем, что указана хотя бы одна скидка
+	if (formData.discount_amount === 0 && formData.discount_percent === 0 && formData.discount_bonus === 0) {
+		showNotification('Укажите хотя бы один тип скидки', 'error');
 		return;
 	}
 	
