@@ -4620,8 +4620,14 @@ def create_webhook_app(bot_controller_instance):
             except Exception:
                 pass
 
+            # Получаем статус enabled из БД как источник истины
+            from shop_bot.data_manager.database import get_backup_setting
+            backup_enabled_db = get_backup_setting('backup_enabled')
+            enabled_from_db = str(backup_enabled_db).lower() in ('true', '1', 'yes', 'on') if backup_enabled_db else True
+            
             return jsonify({
-                'enabled': backup_manager.is_running,
+                'enabled': enabled_from_db,
+                'is_running': backup_manager.is_running,  # Технический статус потока
                 'interval_hours': backup_manager.backup_interval_hours,
                 'last_backup': stats.get('last_backup_time'),
                 'last_backup_msk': last_backup_msk_iso,
@@ -4689,29 +4695,51 @@ def create_webhook_app(bot_controller_instance):
             # Обновляем настройки менеджера бекапов
             # Приведение типов
             try:
-                backup_manager.retention_days = int(data.get('backup_retention_days', 30))
+                retention_days = int(data.get('backup_retention_days', 30))
             except (TypeError, ValueError):
-                backup_manager.retention_days = 30
-            backup_manager.compression_enabled = str(data.get('backup_compression', True)).lower() in ('true','1','yes','on')
-            backup_manager.verify_backups = str(data.get('backup_verify', True)).lower() in ('true','1','yes','on')
+                retention_days = 30
             
-            # Перезапускаем систему бекапов если нужно
+            compression_enabled = str(data.get('backup_compression', True)).lower() in ('true','1','yes','on')
+            verify_backups = str(data.get('backup_verify', True)).lower() in ('true','1','yes','on')
+            
+            # Управляем системой бекапов
             enabled_flag = str(data.get('backup_enabled', True)).lower() in ('true','1','yes','on')
+            
             if enabled_flag:
                 if not backup_manager.is_running:
+                    # Бекапы отключены, но должны быть включены - запускаем
                     try:
                         backup_manager.start_automatic_backups(int(data.get('backup_interval_hours', 24)))
                     except (TypeError, ValueError):
                         backup_manager.start_automatic_backups(24)
                 else:
-                    # Обновляем интервал
-                    backup_manager.stop_automatic_backups()
+                    # Бекапы уже работают - просто обновляем настройки без перезапуска
                     try:
-                        backup_manager.start_automatic_backups(int(data.get('backup_interval_hours', 24)))
+                        interval_hours = int(data.get('backup_interval_hours', 24))
                     except (TypeError, ValueError):
-                        backup_manager.start_automatic_backups(24)
+                        interval_hours = 24
+                    
+                    backup_manager.update_settings(
+                        interval_hours=interval_hours,
+                        retention_days=retention_days,
+                        compression_enabled=compression_enabled,
+                        verify_backups=verify_backups
+                    )
             else:
+                # Бекапы должны быть отключены
                 backup_manager.stop_automatic_backups()
+                # Обновляем настройки для случая, если пользователь включит бекапы позже
+                try:
+                    interval_hours = int(data.get('backup_interval_hours', 24))
+                except (TypeError, ValueError):
+                    interval_hours = 24
+                
+                backup_manager.update_settings(
+                    interval_hours=interval_hours,
+                    retention_days=retention_days,
+                    compression_enabled=compression_enabled,
+                    verify_backups=verify_backups
+                )
             
             return jsonify({'status': 'success', 'message': 'Настройки бекапов сохранены'})
             

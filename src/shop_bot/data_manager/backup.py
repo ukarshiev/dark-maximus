@@ -399,6 +399,33 @@ class DatabaseBackupManager:
         
         logger.info("Automatic backups stopped")
     
+    def update_settings(self, interval_hours: int = None, retention_days: int = None, 
+                       compression_enabled: bool = None, verify_backups: bool = None):
+        """
+        Обновляет настройки бекапов без перезапуска системы
+        
+        Args:
+            interval_hours: Новый интервал в часах
+            retention_days: Новое количество дней хранения
+            compression_enabled: Включить/выключить сжатие
+            verify_backups: Включить/выключить проверку целостности
+        """
+        if interval_hours is not None:
+            self.backup_interval_hours = interval_hours
+            logger.info(f"Backup interval updated to {interval_hours} hours")
+        
+        if retention_days is not None:
+            self.retention_days = retention_days
+            logger.info(f"Backup retention updated to {retention_days} days")
+        
+        if compression_enabled is not None:
+            self.compression_enabled = compression_enabled
+            logger.info(f"Backup compression {'enabled' if compression_enabled else 'disabled'}")
+        
+        if verify_backups is not None:
+            self.verify_backups = verify_backups
+            logger.info(f"Backup verification {'enabled' if verify_backups else 'disabled'}")
+
     def get_backup_statistics(self) -> Dict[str, Any]:
         """Возвращает статистику бэкапов"""
         backups = self.list_backups()
