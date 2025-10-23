@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "projects": {
+    "bot": "apps/bot",
+    "web-interface": "apps/web-interface", 
+    "user-docs": "apps/user-docs",
+    "admin-docs": "apps/admin-docs",
+    "shared-utils": "libs/shared-utils",
+    "database": "libs/database",
+    "integrations": "libs/integrations"
+  },
+  "tasksRunnerOptions": {
+    "default": {
+      "runner": "nx/tasks-runners/default",
+      "options": {
+        "cacheableOperations": [
+          "build",
+          "test", 
+          "lint",
+          "docker:build",
+          "docker:up",
+          "docker:down"
+        ]
+      }
+    }
+  },
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*", "sharedGlobals"],
+    "production": [
+      "default",
+      "!{projectRoot}/**/*.spec.ts",
+      "!{projectRoot}/**/*.test.ts",
+      "!{projectRoot}/**/*.spec.js",
+      "!{projectRoot}/**/*.test.js"
+    ],
+    "sharedGlobals": []
+  },
+  "targetDefaults": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["production", "^production"]
+    },
+    "test": {
+      "inputs": ["default", "^production", "{workspaceRoot}/jest.preset.js"]
+    },
+    "lint": {
+      "inputs": ["default", "{workspaceRoot}/.eslintrc.json"]
+    }
+  },
+  "generators": {
+    "@nx/react": {
+      "application": {
+        "style": "css",
+        "linter": "eslint"
+      },
+      "component": {
+        "style": "css"
+      },
+      "library": {
+        "style": "css",
+        "linter": "eslint"
+      }
+    }
+  },
+  "defaultProject": "bot"
+}

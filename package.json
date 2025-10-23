@@ -5,12 +5,38 @@
   "description": "Сборка фронтенд-ассетов (Tailwind CSS) для Dark Maximus",
   "scripts": {
     "build:css": "tailwindcss -i src/shop_bot/webhook_server/static/css/tailwind.input.css -o src/shop_bot/webhook_server/static/css/tw.css --minify",
-    "dev:css": "tailwindcss -i src/shop_bot/webhook_server/static/css/tailwind.input.css -o src/shop_bot/webhook_server/static/css/tw.css --watch"
+    "dev:css": "tailwindcss -i src/shop_bot/webhook_server/static/css/tailwind.input.css -o src/shop_bot/webhook_server/static/css/tw.css --watch",
+    "nx": "nx",
+    "build": "nx run-many --target=build --all",
+    "serve": "nx run-many --target=serve --all",
+    "stop": "nx run-many --target=stop --all",
+    "test": "nx run-many --target=test --all",
+    "lint": "nx run-many --target=lint --all",
+    "docker:build": "nx run-many --target=build --projects=bot,user-docs,admin-docs",
+    "docker:up": "nx run-many --target=serve --projects=bot,user-docs,admin-docs",
+    "docker:down": "nx run-many --target=stop --projects=bot,user-docs,admin-docs",
+    "docker:logs": "docker compose logs -f"
   },
   "devDependencies": {
+    "@nrwl/workspace": "^19.8.4",
     "autoprefixer": "^10.4.20",
+    "nx": "^19.8.4",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.10"
-  }
+  },
+  "main": "postcss.config.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ukarshiev/dark-maximus.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ukarshiev/dark-maximus/issues"
+  },
+  "homepage": "https://github.com/ukarshiev/dark-maximus#readme"
 }
-

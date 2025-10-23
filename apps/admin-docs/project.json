@@ -1,0 +1,37 @@
+{
+  "name": "admin-docs",
+  "root": "apps/admin-docs",
+  "sourceRoot": "apps/admin-docs",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker build -f Dockerfile.codex-docs -t dark-maximus-codex-docs .",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker compose up -d codex-docs",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "stop": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker compose down codex-docs",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd codex.docs && npm run dev",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  },
+  "tags": ["scope:docs", "type:app"]
+}

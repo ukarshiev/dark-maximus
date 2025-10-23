@@ -1,0 +1,16 @@
+# Правила для AI-ассистента Cursor
+
+Этот файл содержит основные правила для работы с проектом dark-maximus. 
+Детальные правила разбиты по тематикам в отдельных файлах:
+
+- `rights-rules.mdc` — права доступа и ограничения безопасности
+- `changelog-rules.mdc` — правила ведения changelog и версионирования  
+- `ui-design-style.mdc` — стили UI, MUI, Tailwind CSS
+- `nx-usage.mdc` — управление Nx monorepo
+- `docker-multi-stage-build.mdc` — правила Docker multi-stage сборки
+- `docker-commands.mdc` — команды Docker и логика их выбора
+- `docs-rules.mdc` — правила работы с документацией
+- `terminal-command.mdc` — правила работы с терминалом PowerShell
+- `tooltip-guide-ui.mdc` — правила добавления tooltips в UI
+
+Все правила имеют флаг `alwaysApply: true` и применяются автоматически.

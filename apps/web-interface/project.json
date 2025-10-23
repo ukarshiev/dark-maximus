@@ -1,0 +1,37 @@
+{
+  "name": "web-interface",
+  "root": "apps/web-interface",
+  "sourceRoot": "apps/web-interface/src",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm run build:css",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm run dev:css",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node server.js",
+        "cwd": "apps/web-interface"
+      }
+    },
+    "serve:docker": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker compose up -d bot",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  },
+  "tags": ["scope:web", "type:app"]
+}

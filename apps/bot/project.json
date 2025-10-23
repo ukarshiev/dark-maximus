@@ -1,0 +1,51 @@
+{
+  "name": "bot",
+  "root": "apps/bot",
+  "sourceRoot": "apps/bot/src",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker build -t dark-maximus-bot .",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker compose up -d bot",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "stop": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker compose down bot",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "logs": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker compose logs -f bot",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "python -m pytest tests/",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "python -m pylint src/shop_bot/",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  },
+  "tags": ["scope:bot", "type:app"]
+}

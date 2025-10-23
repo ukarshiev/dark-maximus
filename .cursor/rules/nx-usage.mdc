@@ -1,0 +1,37 @@
+---
+alwaysApply: true
+---
+## Nx Monorepo Management
+
+- Для проекта dark-maximus всегда используй Nx команды вместо прямых Docker команд.
+- Приоритет выполнения команд:  
+  1) `npx nx`  
+  2) `npm run`  
+  3) `docker compose` (только если Nx неприменим)
+- Для запуска сервисов: `npx nx serve <project-name>`
+- Для сборки: `npx nx build <project-name>`
+- Для остановки: `npx nx stop <project-name>`
+- Для логов: `npx nx logs <project-name>`
+- Для диагностики контейнеров: `npm run docker:logs`
+- Для просмотра текущих проектов: `npx nx show projects`
+- Для проверки статуса проектов: `npx nx show projects --with-target=serve`
+- Всегда поясняй, какую команду используешь и почему, если отклоняешься от приоритета.
+
+## Доступные проекты
+- `bot` — основной Telegram-бот  
+- `web-interface` — веб-панель управления  
+- `user-docs` — пользовательская документация  
+- `admin-docs` — админская документация  
+- `shared-utils` — общие утилиты
+
+## Общие команды
+- `npm run serve` — запустить все сервисы  
+- `npm run stop` — остановить все сервисы  
+- `npm run build` — собрать все проекты  
+- `npm run test` — запустить все тесты  
+
+## Структура проекта
+- `apps/` — приложения (bot, web-interface, user-docs, admin-docs)  
+- `libs/` — библиотеки (shared-utils, database, integrations)  
+- `src/shop_bot/` — исходный код основного бота  
+- `docs/` — документация проекта

@@ -1,0 +1,22 @@
+---
+alwaysApply: true
+---
+## Docker Multi-stage Build
+
+- Для всех фронтенд-проектов всегда используй Docker multi-stage build.
+- Не выполняй `npm install` или `npm run build` локально — только внутри контейнера.
+- Сборка должна выполняться внутри Docker с кэшированием зависимостей через слои.
+- Итоговый образ должен содержать только собранное приложение и веб-сервер (nginx или аналог).
+- Базовый шаблон:
+
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM nginx:1.27-alpine
+COPY --from=builder /app/build /usr/share/nginx/html
+
+- Локальная разработка не требует `npm build`: всё управление — через контейнеры и Nx-команды.

@@ -1,0 +1,30 @@
+{
+  "name": "user-docs",
+  "root": "apps/user-docs",
+  "sourceRoot": "apps/user-docs",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker build -f Dockerfile.docs -t dark-maximus-docs .",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker compose up -d docs",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "stop": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker compose down docs",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  },
+  "tags": ["scope:docs", "type:app"]
+}
