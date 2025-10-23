@@ -1122,6 +1122,9 @@
 							<strong>Последний бекап:</strong> <span id="last-backup-time" class="time-text">Загрузка...</span>
 						</div>
 						<div class="stat-item">
+							<strong>Следующий бекап:</strong> <span id="next-backup-time" class="time-text">Загрузка...</span>
+						</div>
+						<div class="stat-item">
 							<strong>Всего бекапов:</strong> <span id="backup-count" class="count-text">Загрузка...</span>
 						</div>
 						<div class="stat-item">
@@ -2897,13 +2900,24 @@ async function loadBackupStatus() {
         document.getElementById('backup-status').className = 
             data.enabled ? 'status-text' : 'error-text';
         
-        // Обновляем время последнего бекапа
-        if (data.last_backup) {
-            const lastBackupDate = new Date(data.last_backup);
+        // Обновляем время последнего бекапа (приоритет last_backup_msk)
+        if (data.last_backup_msk || data.last_backup) {
+            const lastIso = data.last_backup_msk || data.last_backup;
+            const lastBackupDate = new Date(lastIso);
             document.getElementById('last-backup-time').textContent = 
                 lastBackupDate.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' });
         } else {
             document.getElementById('last-backup-time').textContent = 'Никогда';
+        }
+
+        // Обновляем время следующего бекапа (приоритет next_backup_msk)
+        if (data.next_backup_msk || data.next_backup) {
+            const nextIso = data.next_backup_msk || data.next_backup;
+            const nextBackupDate = new Date(nextIso);
+            document.getElementById('next-backup-time').textContent = 
+                nextBackupDate.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' });
+        } else {
+            document.getElementById('next-backup-time').textContent = '—';
         }
         
         // Обновляем количество бекапов
@@ -3105,10 +3119,10 @@ async function refreshBackupStatus() {
 function showBackupListModal(data) {
     const modalHtml = `
         <div class="modal-backdrop">
-            <div class="modal">
-                <div class="modal-content">
+            <div class="modal" role="dialog" aria-modal="true" aria-labelledby="backupListTitle">
+                <div class="modal-content modal-content--medium">
                     <div class="modal-header">
-                        <h3>Список бекапов</h3>
+                        <h3 id="backupListTitle">Список бекапов</h3>
                         <span class="close" onclick="closeModal()">&times;</span>
                     </div>
                     <div class="modal-body">
@@ -3118,13 +3132,24 @@ function showBackupListModal(data) {
                             <p><strong>Неудачных бекапов:</strong> ${data.failed_backups}</p>
                         </div>
                         <div class="backup-list">
-                            ${data.backups ? data.backups.map(backup => `
-                                <div class="backup-item">
-                                    <div class="backup-name">${backup.name}</div>
-                                    <div class="backup-size">${formatBytes(backup.size)}</div>
-                                    <div class="backup-date">${new Date(backup.created_at).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}</div>
-                                </div>
-                            `).join('') : '<p>Бекапы не найдены</p>'}
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Бекап</th>
+                                        <th>Размер</th>
+                                        <th>Дата и время (GMT+3)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.backups ? data.backups.map(backup => `
+                                        <tr>
+                                            <td>${backup.display_name || backup.name}</td>
+                                            <td>${formatBytes(backup.size)}</td>
+                                            <td>${new Date(backup.created_at_msk || backup.created_at).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}</td>
+                                        </tr>
+                                    `).join('') : '<tr><td colspan="3">Бекапы не найдены</td></tr>'}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>

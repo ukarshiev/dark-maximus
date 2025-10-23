@@ -299,6 +299,23 @@ h4 {
 	font-size: 14px;
 }
 
+/* ===== Универсальные строки для группировки полей ===== */
+.form-row {
+    display: grid;
+    gap: 15px;
+    grid-template-columns: 1fr;
+}
+.form-row--2 { grid-template-columns: 1fr 1fr; }
+.form-row--3 { 
+	grid-template-columns: 1fr 1fr 1fr; 
+	width: 100%;
+	gap: 15px;
+}
+@media (max-width: 768px) {
+    .form-row--2,
+    .form-row--3 { grid-template-columns: 1fr; }
+}
+
 .textarea-changelog:focus {
 	outline: none;
 	border-color: var(--primary-color);
@@ -3077,12 +3094,12 @@ body.login-page {
 }
 
 .modal-content--medium {
-	max-width: 700px;
-	width: 90%;
-	max-height: 90vh; /* ограничиваем высоту экрана */
-	overflow: hidden;  /* прячем общий скролл, скроллим тело */
-	display: flex;
-	flex-direction: column;
+    max-width: 700px !important; /* перекрываем узкие модалки */
+    width: 90%;
+    max-height: 90vh; /* ограничиваем высоту экрана */
+    overflow: hidden;  /* прячем общий скролл, скроллим тело */
+    display: flex;
+    flex-direction: column;
 }
 
 .modal-content--large {
@@ -3109,7 +3126,7 @@ body.login-page {
 }
 
 /* Стили для модальных окон с фиксированными размерами */
-.modal-content[style*="max-width: 500px"] {
+.modal-content[style*="max-width: 500px"]:not(.modal-content--medium):not(.modal-content--large) {
 	width: 90% !important;
 	max-width: 500px !important;
 	max-height: 90vh !important;
@@ -5177,15 +5194,14 @@ body:not(.admin-panel) .legal-document {
 
 /* Контейнер для карточек промокодов */
 .promo-cards-container {
-    margin-top: 24px;
 }
 
 .promo-cards-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 24px;
-    padding: 16px 20px;
+    margin-bottom: 5px;
+    padding: 10px;
     background: var(--bg-surface);
     border: 1px solid var(--border-color);
     border-radius: var(--promo-card-radius);
@@ -5879,6 +5895,34 @@ body:not(.admin-panel) .legal-document {
     background: linear-gradient(90deg, transparent, var(--border-color), transparent);
     margin: 20px 0;
     border: none;
+}
+
+/* Таблица в модалке бекапов */
+.backup-list .table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid var(--border-color);
+    margin-top: 12px;
+}
+
+.backup-list .table th,
+.backup-list .table td {
+    border: 1px solid var(--border-color);
+    padding: 10px 12px;
+    text-align: left;
+}
+
+.backup-list .table thead th {
+    background: var(--bg-elevated);
+    color: var(--light-color);
+}
+
+.backup-list .table tbody tr:nth-of-type(even) {
+    background: var(--bg-hover);
+}
+
+.backup-list .table tbody tr:hover {
+    background: var(--bg-elevated);
 }
 
 .settings-divider::before {

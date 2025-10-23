@@ -256,7 +256,7 @@ def create_plans_keyboard(plans: list[dict], action: str, host_name: str, key_id
             suffix_parts.append(f"{days} дн")
         traffic_str = "∞" if not traffic or float(traffic) == 0 else f"{float(traffic):.0f} ГБ"
         suffix = (" · "+"; ".join(suffix_parts)) if suffix_parts else ""
-        text = f"{plan['plan_name']} - {plan['price']:.0f} RUB{suffix} · Трафик: {traffic_str}"
+        text = f"{plan['plan_name']} - {plan['price']:.2f} RUB{suffix} · Трафик: {traffic_str}"
         builder.button(text=text, callback_data=callback_data)
     # Для extend возвращаемся к списку ключей, для new - к списку серверов
     if action == "extend":

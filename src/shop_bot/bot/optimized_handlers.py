@@ -147,7 +147,7 @@ async def host_selection_handler_optimized(callback: types.CallbackQuery, state:
         # Создаем клавиатуру для выбора тарифа
         builder = InlineKeyboardBuilder()
         for plan in plans:
-            price_text = f"{plan['price']:.0f} RUB"
+            price_text = f"{plan['price']:.2f} RUB"
             if plan.get('days', 0) > 0:
                 days_text = f"{plan['days']} дн."
             else:

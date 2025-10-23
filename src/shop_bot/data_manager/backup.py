@@ -21,6 +21,23 @@ from shop_bot.utils import app_logger, database_logger
 
 logger = logging.getLogger(__name__)
 
+def _parse_bool(value: Any, default: bool = True) -> bool:
+    """Нормализует булево значение из строки/числа/булева.
+    Принимает True/False, 'true'/'false', 'True'/'False', '1'/'0', 1/0, 'yes'/'no', 'on'/'off'.
+    """
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    if isinstance(value, (int, float)):
+        return bool(int(value))
+    s = str(value).strip().lower()
+    if s in ('true', '1', 'yes', 'on'):  # положительные значения
+        return True
+    if s in ('false', '0', 'no', 'off'):
+        return False
+    return default
+
 class DatabaseBackupManager:
     """Менеджер бэкапов базы данных"""
     
@@ -61,24 +78,61 @@ class DatabaseBackupManager:
                 backup_name = f"users_backup_{timestamp}.db"
             
             backup_path = self.backup_dir / backup_name
-            
-            # Создаем бэкап
-            shutil.copy2(DB_FILE, backup_path)
-            
-            # Сжимаем бэкап, если включено сжатие
+
+            # Создаем бэкап через SQLite backup API (атомарный снимок без гонок записи)
+            # Всегда создаем сначала несжатый .db, проверяем целостность, затем по необходимости сжимаем
+            uncompressed_backup_path = backup_path.with_suffix('.db') if backup_path.suffix != '.db' else backup_path
+
+            # Убедимся, что директория существует
+            uncompressed_backup_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Выполняем резервное копирование через API
+            with sqlite3.connect(DB_FILE) as src_conn:
+                try:
+                    # На случай WAL — сделаем чекпойнт; игнорируем ошибку, если режим не WAL
+                    try:
+                        src_conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                    except sqlite3.Error as e:
+                        logger.debug(f"Failed to set PRAGMA busy_timeout in backup: {e}")
+
+                    src_conn.execute("PRAGMA busy_timeout=5000")
+                    with sqlite3.connect(uncompressed_backup_path) as dst_conn:
+                        dst_conn.execute("PRAGMA busy_timeout=5000")
+                        src_conn.backup(dst_conn)
+                finally:
+                    src_conn.commit()
+
+            # Глубокая проверка целостности бэкапа и авто-восстановление индексов при необходимости
+            if self.verify_backups:
+                try:
+                    self._verify_backup(uncompressed_backup_path)
+                except Exception as integrity_err:
+                    # Попробуем переиндексировать копию и проверить ещё раз
+                    try:
+                        with sqlite3.connect(uncompressed_backup_path) as fix_conn:
+                            cur = fix_conn.cursor()
+                            cur.execute("REINDEX")
+                            cur.execute("ANALYZE")
+                            fix_conn.commit()
+                        # Повторная проверка
+                        self._verify_backup(uncompressed_backup_path)
+                    except Exception as e:
+                        logger.debug(f"Failed to reindex backup copy: {e}")
+                        # Если переиндексация не помогла — пробрасываем исходную ошибку
+                        raise integrity_err
+
+            # Сжимаем бэкап, если включено сжатие (после успешной проверки)
             if self.compression_enabled:
-                compressed_path = backup_path.with_suffix('.db.gz')
-                with open(backup_path, 'rb') as f_in:
+                compressed_path = uncompressed_backup_path.with_suffix('.db.gz')
+                with open(uncompressed_backup_path, 'rb') as f_in:
                     with gzip.open(compressed_path, 'wb') as f_out:
                         shutil.copyfileobj(f_in, f_out)
-                
-                # Удаляем несжатый файл
-                backup_path.unlink()
+                # Удаляем несжатый файл после успешного сжатия
+                if uncompressed_backup_path.exists():
+                    uncompressed_backup_path.unlink()
                 backup_path = compressed_path
-            
-            # Проверяем целостность бэкапа
-            if self.verify_backups:
-                self._verify_backup(backup_path)
+            else:
+                backup_path = uncompressed_backup_path
             
             # Обновляем статистику
             self.last_backup_time = datetime.now()
@@ -122,11 +176,25 @@ class DatabaseBackupManager:
     def _verify_backup(self, backup_path: Path) -> bool:
         """Проверяет целостность бэкапа"""
         try:
-            # Если файл сжат, распаковываем для проверки
+            # Если файл сжат — выполняем проверку на декомпрессированной копии в памяти файла
             if backup_path.suffix == '.gz':
-                with gzip.open(backup_path, 'rb') as f:
-                    # Читаем первые несколько байт для проверки
-                    f.read(1024)
+                # Декомпрессируем во временный соседний файл и проверим
+                tmp_path = backup_path.with_suffix('')  # убрать .gz
+                with gzip.open(backup_path, 'rb') as f_in:
+                    with open(tmp_path, 'wb') as f_out:
+                        shutil.copyfileobj(f_in, f_out)
+                try:
+                    conn = sqlite3.connect(tmp_path)
+                    cursor = conn.cursor()
+                    cursor.execute("PRAGMA integrity_check")
+                    result = cursor.fetchone()
+                    conn.close()
+                    if result[0] != 'ok':
+                        raise Exception(f"Database integrity check failed: {result[0]}")
+                finally:
+                    # Удаляем временный файл
+                    if tmp_path.exists():
+                        tmp_path.unlink()
             else:
                 # Проверяем SQLite файл
                 conn = sqlite3.connect(backup_path)
@@ -134,7 +202,6 @@ class DatabaseBackupManager:
                 cursor.execute("PRAGMA integrity_check")
                 result = cursor.fetchone()
                 conn.close()
-                
                 if result[0] != 'ok':
                     raise Exception(f"Database integrity check failed: {result[0]}")
             
@@ -216,14 +283,39 @@ class DatabaseBackupManager:
         backups = []
         
         try:
+            # Таймзоны для корректного представления времени
+            try:
+                from zoneinfo import ZoneInfo  # Python 3.9+
+                tz_utc = ZoneInfo('UTC')
+                tz_msk = ZoneInfo('Europe/Moscow')
+            except Exception as e:
+                logger.debug(f"Failed to get timezone info: {e}")
+                tz_utc = None
+                tz_msk = None
+
             for backup_file in self.backup_dir.glob("users_backup_*.db*"):
                 stat = backup_file.stat()
+                ts = stat.st_ctime
+                # Время создания в UTC и МСК
+                if tz_utc is not None:
+                    dt_utc = datetime.fromtimestamp(ts, tz_utc)
+                else:
+                    dt_utc = datetime.utcfromtimestamp(ts)
+                dt_msk = dt_utc.astimezone(tz_msk) if tz_msk is not None else dt_utc
+
+                compressed = backup_file.suffix == '.gz'
+                # Отображаемое имя файла по МСК (не переименовываем фактический файл)
+                display_base = f"users_backup_{dt_msk.strftime('%Y%m%d_%H%M%S')}.db"
+                display_name = display_base + ('.gz' if compressed else '')
+
                 backups.append({
                     'name': backup_file.name,
+                    'display_name': display_name,
                     'path': str(backup_file),
                     'size': stat.st_size,
-                    'created_at': datetime.fromtimestamp(stat.st_ctime).isoformat(),
-                    'compressed': backup_file.suffix == '.gz'
+                    'created_at': dt_utc.isoformat(),
+                    'created_at_msk': dt_msk.isoformat(),
+                    'compressed': compressed
                 })
             
             # Сортируем по дате создания (новые первыми)
@@ -335,25 +427,31 @@ def initialize_backup_system():
         from shop_bot.data_manager.database import get_backup_setting
         
         # Получаем настройки из backup_settings
-        backup_enabled = get_backup_setting('backup_enabled')
-        interval_hours = get_backup_setting('backup_interval_hours')
-        retention_days = get_backup_setting('backup_retention_days')
-        compression = get_backup_setting('backup_compression')
-        verify = get_backup_setting('backup_verify')
-        
-        # Устанавливаем значения по умолчанию если настройки не найдены
-        backup_enabled = backup_enabled if backup_enabled is not None else 'true'
-        interval_hours = int(interval_hours) if interval_hours else 24
-        retention_days = int(retention_days) if retention_days else 30
-        compression = compression == 'true' if compression is not None else True
-        verify = verify == 'true' if verify is not None else True
+        backup_enabled_raw = get_backup_setting('backup_enabled')
+        interval_hours_raw = get_backup_setting('backup_interval_hours')
+        retention_days_raw = get_backup_setting('backup_retention_days')
+        compression_raw = get_backup_setting('backup_compression')
+        verify_raw = get_backup_setting('backup_verify')
+
+        # Нормализация типов
+        backup_enabled = _parse_bool(backup_enabled_raw, default=True)
+        try:
+            interval_hours = int(interval_hours_raw) if interval_hours_raw else 24
+        except (TypeError, ValueError):
+            interval_hours = 24
+        try:
+            retention_days = int(retention_days_raw) if retention_days_raw else 30
+        except (TypeError, ValueError):
+            retention_days = 30
+        compression = _parse_bool(compression_raw, default=True)
+        verify = _parse_bool(verify_raw, default=True)
         
         # Обновляем настройки менеджера
         backup_manager.retention_days = retention_days
         backup_manager.compression_enabled = compression
         backup_manager.verify_backups = verify
         
-        if backup_enabled == 'true':
+        if backup_enabled:
             # Создаем первый бэкап при запуске
             backup_info = backup_manager.create_backup("initial_backup.db")
             

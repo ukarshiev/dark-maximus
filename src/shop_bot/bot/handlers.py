@@ -496,6 +496,53 @@ def get_user_router() -> Router:
                     logger.info(f"New user {user_id} was referred by {referrer_id}")
             except (IndexError, ValueError):
                 logger.warning(f"Invalid referral code received: {command.args}")
+        
+        # Обработка промокода из deep-link /start=promo_CODE
+        if command.args and command.args.startswith('promo_'):
+            try:
+                promo_code_from_link = command.args.split('_', 1)[1].strip()
+                if promo_code_from_link:
+                    from shop_bot.data_manager.database import can_user_use_promo_code, record_promo_code_usage, get_plan_by_id, add_to_user_balance
+                    validation_result = can_user_use_promo_code(user_id, promo_code_from_link, "shop")
+                    if validation_result.get('can_use'):
+                        promo_data = validation_result.get('promo_data') or {}
+                        existing_usage_id = validation_result.get('existing_usage_id')
+                        
+                        # Записываем или обновляем использование промокода со статусом 'applied'
+                        success = record_promo_code_usage(
+                            promo_id=promo_data.get('promo_id'),
+                            user_id=user_id,
+                            bot="shop",
+                            plan_id=None,
+                            discount_amount=promo_data.get('discount_amount', 0.0),
+                            discount_percent=promo_data.get('discount_percent', 0.0),
+                            discount_bonus=promo_data.get('discount_bonus', 0.0),
+                            metadata={"source": "deep_link"},
+                            status='applied',
+                            existing_usage_id=existing_usage_id
+                        )
+                        
+                        if success:
+                            # Сохраняем промокод в state для дальнейшего использования
+                            await state.update_data(
+                                promo_code=promo_code_from_link,
+                                promo_usage_id=validation_result.get('existing_usage_id'),
+                                promo_data=promo_data
+                            )
+                            
+                            # Зачисляем discount_bonus на баланс пользователя
+                            bonus_amount = promo_data.get('discount_bonus', 0.0)
+                            if bonus_amount > 0:
+                                add_to_user_balance(user_id, bonus_amount)
+                                await message.answer(f"✅ Применен промо-код {promo_code_from_link}\n💰 На баланс зачислено {bonus_amount} руб.")
+                            else:
+                                await message.answer(f"✅ Применен промо-код {promo_code_from_link}")
+                        else:
+                            await message.answer("❌ Ошибка при применении промокода")
+                    else:
+                        await message.answer("❌ Промокод недействителен или уже использован")
+            except Exception as e:
+                logger.error(f"Error handling promo deep-link: {e}", exc_info=True)
                 
         register_user_if_not_exists(user_id, username, referrer_id, message.from_user.full_name)
         user_data = get_user(user_id)
@@ -788,9 +835,19 @@ def get_user_router() -> Router:
     @documents_consent_required
     @subscription_required
     @measure_performance("buy_message_handler")
-    async def buy_message_handler(message: types.Message):
+    async def buy_message_handler(message: types.Message, state: FSMContext):
         """Обработчик кнопки 'Купить' - показывает меню выбора услуг"""
         user_id = message.from_user.id
+        
+        # Сохраняем промокод в state, если он был применен ранее
+        current_data = await state.get_data()
+        if current_data.get('promo_code'):
+            await state.update_data(
+                promo_code=current_data.get('promo_code'),
+                final_price=current_data.get('final_price'),
+                promo_usage_id=current_data.get('promo_usage_id'),
+                promo_data=current_data.get('promo_data')
+            )
         user_db_data = get_user(user_id)
         trial_used = user_db_data.get('trial_used', 1) if user_db_data else 1
         user_keys = get_user_keys(user_id)
@@ -822,10 +879,20 @@ def get_user_router() -> Router:
     @documents_consent_required
     @subscription_required
     @measure_performance("buy_new_vpn")
-    async def buy_new_vpn_handler(callback: types.CallbackQuery):
+    async def buy_new_vpn_handler(callback: types.CallbackQuery, state: FSMContext):
         """Обработчик кнопки 'Купить новый VPN'"""
         await callback.answer()
         user_id = callback.from_user.id
+        
+        # Сохраняем промокод в state, если он был применен ранее
+        current_data = await state.get_data()
+        if current_data.get('promo_code'):
+            await state.update_data(
+                promo_code=current_data.get('promo_code'),
+                final_price=current_data.get('final_price'),
+                promo_usage_id=current_data.get('promo_usage_id'),
+                promo_data=current_data.get('promo_data')
+            )
         hosts = get_all_hosts()
         if not hosts:
             await callback.message.edit_text("❌ В данный момент нет доступных серверов для покупки.")
@@ -3115,8 +3182,39 @@ def get_user_router() -> Router:
         plan_id = int(parts[-3])
         host_name = "_".join(parts[:-3])
 
+        # Получаем текущие данные из state, чтобы сохранить промокод если он был применен
+        current_data = await state.get_data()
+        
+        # Если есть промокод, но нет final_price, рассчитываем его
+        final_price = current_data.get('final_price')
+        if not final_price and current_data.get('promo_data'):
+            from shop_bot.data_manager.database import get_plan_by_id
+            from decimal import Decimal
+            plan = get_plan_by_id(plan_id)
+            if plan:
+                promo_data = current_data.get('promo_data')
+                base_price = Decimal(str(plan['price']))
+                final_price = base_price
+                
+                # Применяем скидку по сумме
+                if promo_data.get('discount_amount', 0) > 0:
+                    final_price = max(Decimal('0'), base_price - Decimal(str(promo_data['discount_amount'])))
+                
+                # Применяем скидку по проценту
+                if promo_data.get('discount_percent', 0) > 0:
+                    discount_amount = base_price * Decimal(str(promo_data['discount_percent'])) / 100
+                    final_price = max(Decimal('0'), base_price - discount_amount)
+                
+                final_price = float(final_price)
+                logger.info(f"DEBUG plan_selection: Calculated final_price={final_price} from promo_data")
+        
         await state.update_data(
-            action=action, key_id=key_id, plan_id=plan_id, host_name=host_name
+            action=action, key_id=key_id, plan_id=plan_id, host_name=host_name,
+            # Сохраняем промокод и финальную цену, если они были применены ранее
+            promo_code=current_data.get('promo_code'),
+            final_price=final_price,
+            promo_usage_id=current_data.get('promo_usage_id'),
+            promo_data=current_data.get('promo_data')
         )
         
         await callback.message.edit_text(
@@ -3135,11 +3233,24 @@ def get_user_router() -> Router:
         key_id = data.get('key_id', 0)
         user_id = callback.from_user.id
 
-        # Очищаем состояние, но сохраняем selected_host для возможности дальнейшего возврата
+        # Очищаем состояние, но сохраняем selected_host и промокод для возможности дальнейшего возврата
         selected_host = data.get('selected_host')
+        promo_code = data.get('promo_code')
+        final_price = data.get('final_price')
+        promo_usage_id = data.get('promo_usage_id')
+        
         await state.clear()
         if selected_host:
             await state.update_data(selected_host=selected_host)
+        
+        # Восстанавливаем промокод если он был применен
+        if promo_code:
+            await state.update_data(
+                promo_code=promo_code,
+                final_price=final_price,
+                promo_usage_id=promo_usage_id,
+                promo_data=current_data.get('promo_data')
+            )
 
         if action == 'new' and host_name:
             # Возвращаемся к выбору тарифа для конкретного хоста
@@ -3178,10 +3289,21 @@ def get_user_router() -> Router:
             plan_info = get_plan_by_id(plan_id) if plan_id else None
             
             if plan_info:
+                # Используем final_price из state, если он есть (применена скидка)
+                final_price = data.get('final_price')
+                if final_price is not None:
+                    price_to_show = float(final_price)
+                    original_price = float(plan_info.get('price', 0))
+                else:
+                    price_to_show = float(plan_info.get('price', 0))
+                    original_price = None
+                
                 message_text = get_payment_method_message_with_plan(
                     host_name=host_name,
                     plan_name=plan_info.get('plan_name', 'Неизвестный тариф'),
-                    price=float(plan_info.get('price', 0))
+                    price=price_to_show,
+                    original_price=original_price,
+                    promo_code=data.get('promo_code')
                 )
             else:
                 message_text = CHOOSE_PAYMENT_METHOD_MESSAGE
@@ -3216,10 +3338,21 @@ def get_user_router() -> Router:
         plan_info = get_plan_by_id(plan_id) if plan_id else None
         
         if plan_info:
+            # Используем final_price из state, если он есть (применена скидка)
+            final_price = data.get('final_price')
+            if final_price is not None:
+                price_to_show = float(final_price)
+                original_price = float(plan_info.get('price', 0))
+            else:
+                price_to_show = float(plan_info.get('price', 0))
+                original_price = None
+            
             message_text = get_payment_method_message_with_plan(
                 host_name=host_name,
                 plan_name=plan_info.get('plan_name', 'Неизвестный тариф'),
-                price=float(plan_info.get('price', 0))
+                price=price_to_show,
+                original_price=original_price,
+                promo_code=data.get('promo_code')
             )
         else:
             message_text = CHOOSE_PAYMENT_METHOD_MESSAGE
@@ -3511,18 +3644,55 @@ def get_user_router() -> Router:
             return
 
         price = Decimal(str(plan['price']))
-        final_price = price
-        discount_applied = False
+        
+        # Проверяем, есть ли уже примененная скидка (промокод) в state
+        state_final_price = data.get('final_price')
+        promo_data = data.get('promo_data')
+        
+        if state_final_price is not None:
+            final_price = Decimal(str(state_final_price))
+            discount_applied = True
+        elif promo_data:
+            # Применяем скидку из promo_data
+            final_price = price
+            
+            # Применяем скидку по сумме
+            if promo_data.get('discount_amount', 0) > 0:
+                final_price = max(Decimal('0'), price - Decimal(str(promo_data['discount_amount'])))
+            
+            # Применяем скидку по проценту
+            if promo_data.get('discount_percent', 0) > 0:
+                discount_amount = price * Decimal(str(promo_data['discount_percent'])) / 100
+                final_price = max(Decimal('0'), price - discount_amount)
+            
+            discount_applied = True
+        else:
+            final_price = price
+            discount_applied = False
         
         # Базовое сообщение с информацией о тарифе
         host_name = data.get('host_name', 'Неизвестный хост')
-        message_text = get_payment_method_message_with_plan(
-            host_name=host_name,
-            plan_name=plan.get('plan_name', 'Неизвестный тариф'),
-            price=float(price)
-        )
+        promo_code = data.get('promo_code')
+        
+        if discount_applied and state_final_price is not None:
+            # Если есть скидка, используем улучшенную функцию
+            message_text = get_payment_method_message_with_plan(
+                host_name=host_name,
+                plan_name=plan.get('plan_name', 'Неизвестный тариф'),
+                price=float(final_price),
+                original_price=float(price),
+                promo_code=promo_code
+            )
+        else:
+            # Обычное сообщение без скидки
+            message_text = get_payment_method_message_with_plan(
+                host_name=host_name,
+                plan_name=plan.get('plan_name', 'Неизвестный тариф'),
+                price=float(price)
+            )
 
-        if user_data.get('referred_by') and user_data.get('total_spent', 0) == 0:
+        # Применяем реферальную скидку только если нет промокода
+        if not discount_applied and user_data.get('referred_by') and user_data.get('total_spent', 0) == 0:
             discount_percentage_str = get_setting("referral_discount") or "0"
             discount_percentage = Decimal(discount_percentage_str)
             
@@ -3536,6 +3706,7 @@ def get_user_router() -> Router:
                     f"<b>Новая цена: {final_price:.2f} RUB</b>\n\n"
                 ) + message_text
 
+        # Обновляем final_price в state
         await state.update_data(final_price=float(final_price))
 
         from shop_bot.data_manager.database import get_user_balance
@@ -3573,11 +3744,16 @@ def get_user_router() -> Router:
         validation_result = can_user_use_promo_code(user_id, promo_code, "shop")
         
         if validation_result['can_use']:
-            # Сохраняем промокод в state
-            await state.update_data(promo_code=promo_code)
+            # Сохраняем промокод и данные в state
+            await state.update_data(
+                promo_code=promo_code,
+                promo_data=validation_result['promo_data'],
+                promo_usage_id=validation_result.get('existing_usage_id')
+            )
             
             # Применяем скидку
             promo_data = validation_result['promo_data']
+            existing_usage_id = validation_result.get('existing_usage_id')
             data = await state.get_data()
             plan_id = data.get('plan_id')
             plan = get_plan_by_id(plan_id)
@@ -3598,9 +3774,9 @@ def get_user_router() -> Router:
                 # Обновляем цену в state
                 await state.update_data(final_price=float(final_price))
                 
-                # ЗАПИСЫВАЕМ ИСПОЛЬЗОВАНИЕ ПРОМОКОДА СРАЗУ ПРИ ПРИМЕНЕНИИ
+                # ЗАПИСЫВАЕМ ИСПОЛЬЗОВАНИЕ ПРОМОКОДА СО СТАТУСОМ 'applied'
                 try:
-                    from shop_bot.data_manager.database import record_promo_code_usage
+                    from shop_bot.data_manager.database import record_promo_code_usage, add_to_user_balance
                     success = record_promo_code_usage(
                         promo_id=promo_data['promo_id'],
                         user_id=user_id,
@@ -3608,7 +3784,10 @@ def get_user_router() -> Router:
                         plan_id=plan_id,
                         discount_amount=promo_data.get('discount_amount', 0.0),
                         discount_percent=promo_data.get('discount_percent', 0.0),
-                        discount_bonus=promo_data.get('discount_bonus', 0.0)
+                        discount_bonus=promo_data.get('discount_bonus', 0.0),
+                        metadata={"source": "manual_input"},
+                        status='applied',
+                        existing_usage_id=existing_usage_id
                     )
                     if not success:
                         # Если не удалось записать использование, откатываем применение промокода
@@ -3620,6 +3799,18 @@ def get_user_router() -> Router:
                         return
                     else:
                         logger.info(f"Successfully recorded promo code usage: {promo_code} for user {user_id}")
+                        
+                        # Получаем usage_id для последующего обновления статуса
+                        from shop_bot.data_manager.database import get_promo_usage_id
+                        usage_id = get_promo_usage_id(promo_data['promo_id'], user_id, "shop")
+                        if usage_id:
+                            await state.update_data(promo_usage_id=usage_id)
+                        
+                        # Зачисляем discount_bonus на баланс пользователя
+                        bonus_amount = promo_data.get('discount_bonus', 0.0)
+                        if bonus_amount > 0:
+                            add_to_user_balance(user_id, bonus_amount)
+                            logger.info(f"Added {bonus_amount} RUB bonus to user {user_id} balance from promo code {promo_code}")
                 except Exception as e:
                     logger.error(f"Error recording promo code usage: {e}", exc_info=True)
                     await message.answer(
@@ -3628,11 +3819,28 @@ def get_user_router() -> Router:
                     )
                     return
                 
+                # Формируем сообщение с использованием улучшенной функции
+                host_name = data.get('host_name', 'Неизвестный хост')
+                plan_name = plan.get('plan_name', 'Неизвестный тариф')
+                
+                message_text = f"✅ Промокод '{promo_code}' применен!\n\n"
+                
+                # Добавляем информацию о бонусе, если он есть
+                bonus_amount = promo_data.get('discount_bonus', 0.0)
+                if bonus_amount > 0:
+                    message_text += f"🎁 Бонус на баланс: {bonus_amount} RUB\n\n"
+                
+                # Используем улучшенную функцию для отображения информации о тарифе
+                message_text += get_payment_method_message_with_plan(
+                    host_name=host_name,
+                    plan_name=plan_name,
+                    price=float(final_price),
+                    original_price=float(base_price),
+                    promo_code=promo_code
+                )
+                
                 await message.answer(
-                    f"✅ Промокод '{promo_code}' применен!\n\n"
-                    f"💰 Скидка: {base_price - final_price:.2f} RUB\n"
-                    f"💵 Итоговая цена: {final_price:.2f} RUB\n\n"
-                    f"Выберите способ оплаты:",
+                    message_text,
                     reply_markup=keyboards.create_payment_method_keyboard(
                         payment_methods=PAYMENT_METHODS,
                         action=data.get('action'),
@@ -3647,7 +3855,8 @@ def get_user_router() -> Router:
             await message.answer(
                 f"❌ {validation_result['message']}\n\n"
                 "Проверьте правильность написания промокода.\n"
-                "Промокод должен быть введен точно как указано (с учетом регистра)."
+                "Промокод должен быть введен точно как указано (с учетом регистра).",
+                reply_markup=keyboards.create_back_to_payment_methods_keyboard()
             )
 
     @user_router.callback_query(PaymentProcess.waiting_for_promo_code, F.data == "back_to_payment_methods")
@@ -3664,10 +3873,42 @@ def get_user_router() -> Router:
         plan_info = get_plan_by_id(plan_id) if plan_id else None
         
         if plan_info:
+            # Используем final_price из state, если он есть (применена скидка)
+            final_price = data.get('final_price')
+            promo_code = data.get('promo_code')
+            promo_data = data.get('promo_data')
+            
+            logger.info(f"DEBUG back_to_payment_methods: final_price={final_price}, promo_code={promo_code}, promo_data={promo_data}")
+            
+            if final_price is not None:
+                price_to_show = float(final_price)
+                original_price = float(plan_info.get('price', 0))
+            elif promo_data:
+                # Применяем скидку из promo_data
+                base_price = float(plan_info.get('price', 0))
+                price_to_show = base_price
+                
+                # Применяем скидку по сумме
+                if promo_data.get('discount_amount', 0) > 0:
+                    price_to_show = max(0, base_price - float(promo_data['discount_amount']))
+                
+                # Применяем скидку по проценту
+                if promo_data.get('discount_percent', 0) > 0:
+                    discount_amount = base_price * float(promo_data['discount_percent']) / 100
+                    price_to_show = max(0, base_price - discount_amount)
+                
+                original_price = base_price
+                logger.info(f"DEBUG: Applied promo discount: base_price={base_price}, final_price={price_to_show}")
+            else:
+                price_to_show = float(plan_info.get('price', 0))
+                original_price = None
+            
             message_text = get_payment_method_message_with_plan(
                 host_name=host_name,
                 plan_name=plan_info.get('plan_name', 'Неизвестный тариф'),
-                price=float(plan_info.get('price', 0))
+                price=price_to_show,
+                original_price=original_price,
+                promo_code=promo_code
             )
         else:
             message_text = CHOOSE_PAYMENT_METHOD_MESSAGE
@@ -3992,7 +4233,8 @@ def get_user_router() -> Router:
                 "plan_id": plan_id,
                 "customer_email": customer_email,
                 "payment_method": "YooKassa",
-                "promo_code": data.get('promo_code')
+                "promo_code": data.get('promo_code'),
+                "promo_usage_id": data.get('promo_usage_id')
             }
             create_pending_transaction(payment.id, user_id, float(price_rub), payment_metadata)
             
@@ -4170,8 +4412,13 @@ def get_user_router() -> Router:
             return
 
         await callback.answer("Создаю ссылку и QR-код для TON Connect...")
-            
-        price_rub = Decimal(str(data.get('final_price', plan['price'])))
+        
+        # Используем явную проверку на None, чтобы корректно обрабатывать случай когда final_price = 0
+        final_price_from_state = data.get('final_price')
+        if final_price_from_state is not None:
+            price_rub = Decimal(str(final_price_from_state))
+        else:
+            price_rub = Decimal(str(plan['price']))
 
         usdt_rub_rate = await get_usdt_rub_rate()
         ton_usdt_rate = await get_ton_usdt_rate()
@@ -4346,7 +4593,8 @@ def get_user_router() -> Router:
             "host_name": data.get('host_name'), "plan_id": data.get('plan_id'),
             "plan_name": plan['plan_name'],  # Добавляем название плана
             "customer_email": data.get('customer_email'), "payment_method": "TON Connect",
-            "payment_id": payment_id, "promo_code": data.get('promo_code')  # Добавляем payment_id и promo_code в metadata
+            "payment_id": payment_id, "promo_code": data.get('promo_code'),  # Добавляем payment_id и promo_code в metadata
+            "promo_usage_id": data.get('promo_usage_id')  # Добавляем promo_usage_id для обновления статуса
         }
         # Создаем ссылку для TON Connect (будет обновлена после создания)
         payment_link = f"https://t.me/wallet?attach=wallet&startattach=tonconnect-v__2-id__{payment_id[:8]}-r__--7B--22manifestUrl--22--3A--22https--3A--2F--2Fparis--2Edark--2Dmaximus--2Ecom--2F--2Ewell--2Dknown--2Ftonconnect--2Dmanifest--2Ejson--22--2C--22items--22--3A--5B--7B--22name--22--3A--22ton--5Faddr--22--7D--5D--7D"
@@ -4377,7 +4625,8 @@ def get_user_router() -> Router:
                 try:
                     from aiogram import Bot
                     bot_instance = Bot.get_current()
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Failed to get bot instance for TON Connect: {e}")
                     bot_instance = None
             
             connect_url = await _start_ton_connect_process(user_id, transaction_payload, metadata, bot_instance)
@@ -4429,7 +4678,12 @@ def get_user_router() -> Router:
                 return
 
             months = int(data.get('months') or 0) or int((plan or {}).get('months') or 0)
-            price_rub = float(data.get('final_price') or (plan or {}).get('price') or 0)
+            # Используем явную проверку на None, чтобы корректно обрабатывать случай когда final_price = 0
+            final_price_from_state = data.get('final_price')
+            if final_price_from_state is not None:
+                price_rub = float(final_price_from_state)
+            else:
+                price_rub = float((plan or {}).get('price') or 0)
 
             # Бесплатный тариф — обрабатываем без счета
             if price_rub == 0:
@@ -4474,7 +4728,8 @@ def get_user_router() -> Router:
                     "host_name": host_name,
                     "plan_id": int(plan_id),
                     "customer_email": customer_email,
-                    "promo_code": data.get('promo_code')
+                    "promo_code": data.get('promo_code'),
+                    "promo_usage_id": data.get('promo_usage_id')  # Добавляем promo_usage_id для обновления статуса
                 }
             )
 
@@ -4633,7 +4888,12 @@ def get_user_router() -> Router:
             plan_id = data.get('plan_id')
             months = int(data.get('months') or 0) or int((get_plan_by_id(plan_id) or {}).get('months') or 0)
             # Цена к списанию: учитываем возможную скидку, если была рассчитана
-            price = float(data.get('final_price') or (get_plan_by_id(plan_id) or {}).get('price') or 0)
+            # Используем явную проверку на None, чтобы корректно обрабатывать случай когда final_price = 0
+            final_price_from_state = data.get('final_price')
+            if final_price_from_state is not None:
+                price = float(final_price_from_state)
+            else:
+                price = float((get_plan_by_id(plan_id) or {}).get('price') or 0)
 
             from shop_bot.data_manager.database import get_user_balance, add_to_user_balance
             current_balance = get_user_balance(user_id)
@@ -4659,7 +4919,8 @@ def get_user_router() -> Router:
                 "customer_email": data.get('customer_email'),
                 "payment_method": "Из баланса",
                 "payment_id": str(uuid.uuid4()),
-                "promo_code": data.get('promo_code')
+                "promo_code": data.get('promo_code'),
+                "promo_usage_id": data.get('promo_usage_id')  # Добавляем promo_usage_id для обновления статуса
             }
 
             # Логируем транзакцию в БД
@@ -5343,7 +5604,8 @@ async def _create_heleket_payment_request(user_id: int, price: float, months: in
         "user_id": user_id, "months": months, "price": float(price),
         "action": state_data.get('action'), "key_id": state_data.get('key_id'),
         "host_name": host_name, "plan_id": state_data.get('plan_id'),
-        "customer_email": state_data.get('customer_email'), "payment_method": "Heleket"
+        "customer_email": state_data.get('customer_email'), "payment_method": "Heleket",
+        "promo_usage_id": state_data.get('promo_usage_id')  # Добавляем promo_usage_id для обновления статуса
     }
 
     payload = {
@@ -5600,6 +5862,12 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
                             metadata
                         )
                     
+                    # Обновляем статус промокода на 'used' если он был применен
+                    promo_usage_id = metadata.get('promo_usage_id')
+                    if promo_usage_id:
+                        from shop_bot.data_manager.database import update_promo_usage_status
+                        update_promo_usage_status(promo_usage_id, plan_id)
+                    
                     await processing_message.edit_text(get_purchase_success_text(user_id, host_name, email, months))
             else:
                 await processing_message.edit_text("❌ Ошибка: не удалось создать ключ.")
@@ -5618,6 +5886,12 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
                         yookassa_payment_id, rrn, authorization_code, payment_type,
                         metadata
                     )
+                
+                # Обновляем статус промокода на 'used' если он был применен
+                promo_usage_id = metadata.get('promo_usage_id')
+                if promo_usage_id:
+                    from shop_bot.data_manager.database import update_promo_usage_status
+                    update_promo_usage_status(promo_usage_id, plan_id)
                 
                 await processing_message.edit_text(f"✅ Ключ успешно продлен на {months} месяцев!")
             else:
@@ -5840,6 +6114,12 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
                 tx_hash=tx_hash,
                 metadata=enriched_metadata
             )
+            
+            # Обновляем статус промокода на 'used' если он был применен
+            promo_usage_id = metadata.get('promo_usage_id')
+            if promo_usage_id:
+                from shop_bot.data_manager.database import update_promo_usage_status
+                update_promo_usage_status(promo_usage_id, plan_id)
         
         await processing_message.delete()
         

@@ -46,7 +46,7 @@ from shop_bot.data_manager.database import (
     get_paginated_keys, get_plan_by_id, update_plan, get_host, update_host, revoke_user_consent,
     search_users as db_search_users, add_to_user_balance, log_transaction, get_user, get_notification_by_id,
     verify_admin_credentials, hash_password, get_all_promo_codes, create_promo_code, update_promo_code,
-    delete_promo_code, get_promo_code, get_promo_code_usage_history, get_all_plans, can_user_use_promo_code,
+    delete_promo_code, get_promo_code, get_promo_code_usage_history, get_all_promo_code_usage_history, get_all_plans, can_user_use_promo_code,
     get_user_promo_codes, validate_promo_code, remove_user_promo_code_usage, can_delete_promo_code,
     get_all_user_groups, get_user_group, create_user_group, update_user_group, delete_user_group,
     get_user_group_by_name, get_default_user_group, update_user_group_assignment, get_user_group_info,
@@ -59,7 +59,7 @@ from shop_bot.utils.performance_monitor import get_performance_monitor, get_perf
 _bot_controller = None
 
 ALL_SETTINGS_KEYS = [
-    "panel_login", "panel_password", "about_text", "terms_url", "privacy_url",
+    "panel_login", "panel_password", "about_text", "terms_url", "privacy_url", "bot_username",
     "support_user", "support_text", "channel_url", "telegram_bot_token",
     "telegram_bot_username", "admin_telegram_id", "yookassa_shop_id",
     "yookassa_secret_key", "yookassa_test_mode", "yookassa_test_shop_id", 
@@ -274,6 +274,7 @@ def create_webhook_app(bot_controller_instance):
             "all_settings_ok": all_settings_ok, 
             "hidden_mode": hidden_mode_enabled, 
             "project_version": project_version,
+            "global_settings": settings,
             "wiki_url": wiki_url,
             "knowledge_base_url": knowledge_base_url
         }
@@ -554,7 +555,13 @@ def create_webhook_app(bot_controller_instance):
     @login_required
     def promo_codes_page():
         common_data = get_common_template_data()
-        return render_template('promo_codes.html', **common_data)
+        try:
+            # Локальный импорт, чтобы не тянуть все зависимости наверх файла
+            from shop_bot.data_manager.database import get_all_user_groups
+            user_groups = get_all_user_groups()
+        except Exception:
+            user_groups = []
+        return render_template('promo_codes.html', user_groups=user_groups, **common_data)
 
     @flask_app.route('/settings', methods=['GET'])
     @login_required
@@ -577,8 +584,8 @@ def create_webhook_app(bot_controller_instance):
         
         common_data = get_common_template_data()
         return render_template('settings.html', 
-                             settings=current_settings, 
                              hosts=hosts, 
+                             settings=current_settings,
                              active_tab=active_tab,
                              about_content=about_content,
                              support_content=support_content,
@@ -3958,17 +3965,60 @@ def create_webhook_app(bot_controller_instance):
             vpn_plan_id = data.get('vpn_plan_id')
             if vpn_plan_id is not None:
                 if isinstance(vpn_plan_id, list):
-                    try:
-                        # Преобразуем список в JSON строку для хранения в базе
-                        vpn_plan_id = json.dumps([int(x) for x in vpn_plan_id if x is not None])
-                    except (ValueError, TypeError):
-                        return jsonify({'success': False, 'message': 'Неверный формат VPN планов'}), 400
+                    if len(vpn_plan_id) == 0:
+                        # Пустой список - это нормально, означает что промокод не привязан к планам
+                        vpn_plan_id = None
+                    else:
+                        try:
+                            # Преобразуем список в JSON строку для хранения в базе
+                            vpn_plan_id = json.dumps([int(x) for x in vpn_plan_id if x is not None])
+                        except (ValueError, TypeError):
+                            return jsonify({'success': False, 'message': 'Неверный формат VPN планов'}), 400
                 else:
                     try:
                         # Одиночное значение сохраняем как есть
                         vpn_plan_id = int(vpn_plan_id)
                     except (ValueError, TypeError):
                         return jsonify({'success': False, 'message': 'Неверный формат VPN плана'}), 400
+            
+            # Валидация новых полей
+            burn_after_value = data.get('burn_after_value')
+            burn_after_unit = data.get('burn_after_unit')
+            valid_until = data.get('valid_until')
+            target_group_ids = data.get('target_group_ids', [])
+            # bot_username теперь берется из выбранного бота
+            bot_username = data.get('bot_username')
+            
+            # Если bot_username не передан, берем из настроек username основного бота
+            if not bot_username:
+                bot_username = database.get_setting('telegram_bot_username') or None
+            # Нормализуем username: убираем ведущий '@'
+            if bot_username:
+                bot_username = str(bot_username).strip().lstrip('@')
+            
+            # Валидация burn_after
+            if burn_after_value is not None:
+                try:
+                    burn_after_value = int(burn_after_value)
+                    if burn_after_value < 1:
+                        return jsonify({'success': False, 'message': 'Срок сгорания должен быть больше 0'}), 400
+                except (ValueError, TypeError):
+                    return jsonify({'success': False, 'message': 'Неверный формат срока сгорания'}), 400
+            
+            if burn_after_unit is not None and burn_after_unit not in ['min', 'hour', 'day']:
+                return jsonify({'success': False, 'message': 'Единица срока сгорания должна быть: min, hour или day'}), 400
+            
+            # Валидация valid_until
+            if valid_until:
+                try:
+                    from datetime import datetime
+                    datetime.fromisoformat(valid_until)
+                except (ValueError, TypeError):
+                    return jsonify({'success': False, 'message': 'Неверный формат даты "Действителен до"'}), 400
+            
+            # Валидация target_group_ids
+            if target_group_ids and not isinstance(target_group_ids, list):
+                return jsonify({'success': False, 'message': 'Группы должны быть массивом'}), 400
             
             # Создание промокода
             try:
@@ -3981,7 +4031,12 @@ def create_webhook_app(bot_controller_instance):
                     discount_percent=data.get('discount_percent', 0),
                     discount_bonus=data.get('discount_bonus', 0),
                     usage_limit_per_bot=data.get('usage_limit_per_bot', 1),
-                    is_active=data.get('is_active', True)
+                    is_active=data.get('is_active', True),
+                    burn_after_value=burn_after_value,
+                    burn_after_unit=burn_after_unit,
+                    valid_until=valid_until,
+                    target_group_ids=target_group_ids,
+                    bot_username=bot_username
                 )
                 
                 return jsonify({'success': True, 'message': 'Промокод создан', 'promo_id': promo_id})
@@ -4035,15 +4090,58 @@ def create_webhook_app(bot_controller_instance):
             vpn_plan_id = data.get('vpn_plan_id')
             if vpn_plan_id is not None:
                 if isinstance(vpn_plan_id, list):
-                    try:
-                        vpn_plan_id = [int(x) for x in vpn_plan_id if x is not None]
-                    except (ValueError, TypeError):
-                        return jsonify({'success': False, 'message': 'Неверный формат VPN планов'}), 400
+                    if len(vpn_plan_id) == 0:
+                        # Пустой список - это нормально, означает что промокод не привязан к планам
+                        vpn_plan_id = None
+                    else:
+                        try:
+                            vpn_plan_id = [int(x) for x in vpn_plan_id if x is not None]
+                        except (ValueError, TypeError):
+                            return jsonify({'success': False, 'message': 'Неверный формат VPN планов'}), 400
                 else:
                     try:
                         vpn_plan_id = int(vpn_plan_id)
                     except (ValueError, TypeError):
                         return jsonify({'success': False, 'message': 'Неверный формат VPN плана'}), 400
+            
+            # Валидация новых полей
+            burn_after_value = data.get('burn_after_value')
+            burn_after_unit = data.get('burn_after_unit')
+            valid_until = data.get('valid_until')
+            target_group_ids = data.get('target_group_ids', [])
+            # bot_username теперь берется из выбранного бота
+            bot_username = data.get('bot_username')
+            
+            # Если bot_username не передан, берем из настроек username основного бота
+            if not bot_username:
+                bot_username = database.get_setting('telegram_bot_username') or None
+            # Нормализуем username: убираем ведущий '@'
+            if bot_username:
+                bot_username = str(bot_username).strip().lstrip('@')
+            
+            # Валидация burn_after
+            if burn_after_value is not None:
+                try:
+                    burn_after_value = int(burn_after_value)
+                    if burn_after_value < 1:
+                        return jsonify({'success': False, 'message': 'Срок сгорания должен быть больше 0'}), 400
+                except (ValueError, TypeError):
+                    return jsonify({'success': False, 'message': 'Неверный формат срока сгорания'}), 400
+            
+            if burn_after_unit is not None and burn_after_unit not in ['min', 'hour', 'day']:
+                return jsonify({'success': False, 'message': 'Единица срока сгорания должна быть: min, hour или day'}), 400
+            
+            # Валидация valid_until
+            if valid_until:
+                try:
+                    from datetime import datetime
+                    datetime.fromisoformat(valid_until)
+                except (ValueError, TypeError):
+                    return jsonify({'success': False, 'message': 'Неверный формат даты "Действителен до"'}), 400
+            
+            # Валидация target_group_ids
+            if target_group_ids and not isinstance(target_group_ids, list):
+                return jsonify({'success': False, 'message': 'Группы должны быть массивом'}), 400
             
             # Обновление промокода
             try:
@@ -4057,7 +4155,12 @@ def create_webhook_app(bot_controller_instance):
                     discount_percent=data.get('discount_percent', 0),
                     discount_bonus=data.get('discount_bonus', 0),
                     usage_limit_per_bot=data.get('usage_limit_per_bot', 1),
-                    is_active=data.get('is_active', True)
+                    is_active=data.get('is_active', True),
+                    burn_after_value=burn_after_value,
+                    burn_after_unit=burn_after_unit,
+                    valid_until=valid_until,
+                    target_group_ids=target_group_ids,
+                    bot_username=bot_username
                 )
                 
                 if success:
@@ -4096,6 +4199,21 @@ def create_webhook_app(bot_controller_instance):
                 return jsonify({'success': False, 'message': 'Ошибка удаления промокода'}), 500
         except Exception as e:
             logger.error(f"Error deleting promo code: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @flask_app.route('/api/promo-codes-usage-history', methods=['GET'])
+    # @csrf.exempt
+    @login_required
+    def api_get_all_promo_code_usage_history():
+        """Получить всю историю использования промокодов"""
+        try:
+            usage_history = get_all_promo_code_usage_history()
+            return jsonify({
+                'success': True,
+                'usage_history': usage_history
+            })
+        except Exception as e:
+            logger.error(f"Error getting all promo code usage history: {e}", exc_info=True)
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @flask_app.route('/api/promo-codes/<int:promo_id>/usage', methods=['GET'])
@@ -4142,6 +4260,21 @@ def create_webhook_app(bot_controller_instance):
             })
         except Exception as e:
             logger.error(f"Error getting VPN plans: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @flask_app.route('/api/user-groups', methods=['GET'])
+    # @csrf.exempt
+    @login_required
+    def api_get_user_groups():
+        """Получить все группы пользователей"""
+        try:
+            groups = get_all_user_groups()
+            return jsonify({
+                'success': True,
+                'groups': groups
+            })
+        except Exception as e:
+            logger.error(f"Error getting user groups: {e}", exc_info=True)
             return jsonify({'success': False, 'error': str(e)}), 500
 
     @flask_app.route('/api/validate-promo-code', methods=['POST'])
@@ -4436,11 +4569,64 @@ def create_webhook_app(bot_controller_instance):
         """Статус системы бекапов"""
         try:
             from shop_bot.data_manager.backup import backup_manager
+            from datetime import datetime, timedelta
+            try:
+                from zoneinfo import ZoneInfo
+                tz_msk = ZoneInfo('Europe/Moscow')
+                tz_utc = ZoneInfo('UTC')
+            except Exception:
+                tz_msk = None
+                tz_utc = None
+
             stats = backup_manager.get_backup_statistics()
+
+            # last_backup в Московском времени
+            last_backup_iso = stats.get('last_backup_time')
+            last_backup_msk_iso = None
+            if last_backup_iso:
+                try:
+                    dt = datetime.fromisoformat(last_backup_iso)
+                    if dt.tzinfo is None and tz_utc is not None:
+                        dt = dt.replace(tzinfo=tz_utc)
+                    last_backup_msk_iso = dt.astimezone(tz_msk).isoformat() if tz_msk else dt.isoformat()
+                except Exception:
+                    last_backup_msk_iso = last_backup_iso
+
+            # next_backup расчёт от last_backup или now + interval
+            next_backup_iso = None
+            next_backup_msk_iso = None
+            try:
+                if backup_manager.is_running:
+                    interval_h = int(backup_manager.backup_interval_hours or 24)
+                    now_dt = datetime.utcnow()
+                    if tz_utc is not None:
+                        now_dt = now_dt.replace(tzinfo=tz_utc)
+                    base_dt = None
+                    if last_backup_iso:
+                        try:
+                            lb = datetime.fromisoformat(last_backup_iso)
+                            if lb.tzinfo is None and tz_utc is not None:
+                                lb = lb.replace(tzinfo=tz_utc)
+                            base_dt = lb
+                        except Exception:
+                            base_dt = None
+                    if base_dt is None:
+                        base_dt = now_dt
+                    candidate = base_dt + timedelta(hours=interval_h)
+                    if candidate <= now_dt:
+                        candidate = now_dt + timedelta(hours=interval_h)
+                    next_backup_iso = candidate.isoformat()
+                    next_backup_msk_iso = candidate.astimezone(tz_msk).isoformat() if tz_msk else next_backup_iso
+            except Exception:
+                pass
+
             return jsonify({
                 'enabled': backup_manager.is_running,
                 'interval_hours': backup_manager.backup_interval_hours,
                 'last_backup': stats.get('last_backup_time'),
+                'last_backup_msk': last_backup_msk_iso,
+                'next_backup': next_backup_iso,
+                'next_backup_msk': next_backup_msk_iso,
                 'total_backups': stats.get('total_backups', 0),
                 'total_size': stats.get('total_size', 0),
                 'failed_backups': stats.get('failed_backups', 0),
@@ -4482,25 +4668,48 @@ def create_webhook_app(bot_controller_instance):
             if validation_errors:
                 return jsonify({'error': 'Validation failed', 'details': validation_errors}), 400
             
+            # Нормализация булевых значений к 'true'/'false' перед сохранением
+            def to_str(v):
+                if isinstance(v, bool):
+                    return 'true' if v else 'false'
+                s = str(v).strip().lower()
+                if s in ('true', '1', 'yes', 'on'):
+                    return 'true'
+                if s in ('false', '0', 'no', 'off'):
+                    return 'false'
+                return s
+
             # Сохраняем настройки
             for key, value in data.items():
                 if key in ['backup_enabled', 'backup_interval_hours', 'backup_retention_days', 
                           'backup_compression', 'backup_verify']:
-                    update_backup_setting(key, str(value))
+                    normalized = to_str(value) if key in ['backup_enabled', 'backup_compression', 'backup_verify'] else str(value)
+                    update_backup_setting(key, normalized)
             
             # Обновляем настройки менеджера бекапов
-            backup_manager.retention_days = int(data.get('backup_retention_days', 30))
-            backup_manager.compression_enabled = data.get('backup_compression', True)
-            backup_manager.verify_backups = data.get('backup_verify', True)
+            # Приведение типов
+            try:
+                backup_manager.retention_days = int(data.get('backup_retention_days', 30))
+            except (TypeError, ValueError):
+                backup_manager.retention_days = 30
+            backup_manager.compression_enabled = str(data.get('backup_compression', True)).lower() in ('true','1','yes','on')
+            backup_manager.verify_backups = str(data.get('backup_verify', True)).lower() in ('true','1','yes','on')
             
             # Перезапускаем систему бекапов если нужно
-            if data.get('backup_enabled', True):
+            enabled_flag = str(data.get('backup_enabled', True)).lower() in ('true','1','yes','on')
+            if enabled_flag:
                 if not backup_manager.is_running:
-                    backup_manager.start_automatic_backups(int(data.get('backup_interval_hours', 24)))
+                    try:
+                        backup_manager.start_automatic_backups(int(data.get('backup_interval_hours', 24)))
+                    except (TypeError, ValueError):
+                        backup_manager.start_automatic_backups(24)
                 else:
                     # Обновляем интервал
                     backup_manager.stop_automatic_backups()
-                    backup_manager.start_automatic_backups(int(data.get('backup_interval_hours', 24)))
+                    try:
+                        backup_manager.start_automatic_backups(int(data.get('backup_interval_hours', 24)))
+                    except (TypeError, ValueError):
+                        backup_manager.start_automatic_backups(24)
             else:
                 backup_manager.stop_automatic_backups()
             
@@ -4557,16 +4766,6 @@ def create_webhook_app(bot_controller_instance):
             **common_data
         )
     
-    @flask_app.route('/api/user-groups', methods=['GET'])
-    @login_required
-    def api_get_user_groups():
-        """API для получения всех групп пользователей"""
-        try:
-            groups = get_all_user_groups()
-            return jsonify({'success': True, 'groups': groups})
-        except Exception as e:
-            logger.error(f"Ошибка получения групп пользователей: {e}")
-            return jsonify({'success': False, 'error': str(e)}), 500
     
     @flask_app.route('/api/user-groups', methods=['POST'])
     @login_required

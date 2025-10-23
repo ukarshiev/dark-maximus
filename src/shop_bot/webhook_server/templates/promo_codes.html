@@ -5,22 +5,61 @@
 {% block header_title %}Промокоды{% endblock %}
 
 {% block header_buttons %}
-	<button type="button" class="button button-primary" onclick="openPromoModal()" title="Создать новый промокод">
-		<i class="fas fa-plus"></i>
-		Создать промокод
-	</button>
+	<!-- Кнопки для вкладки "Промокоды" -->
+	<div id="promocodesActions" class="tab-actions">
+		<button type="button" class="button button-secondary" onclick="clearPromoFilters()" title="Очистить все фильтры">
+			<i class="fas fa-times"></i>
+			Очистить
+		</button>
+		<button type="button" class="button button-secondary" onclick="toggleViewMode()" title="Переключить вид отображения">
+			<i class="fas fa-list" id="viewIcon"></i>
+			<span id="viewText">Карточки</span>
+		</button>
+		<button type="button" class="button button-secondary" onclick="refreshPromoCodes()" title="Обновить список промокодов">
+			<i class="fas fa-sync-alt"></i>
+			Обновить
+		</button>
+		<button type="button" class="button button-secondary" onclick="openPromoDrawer()" title="Создать новый промокод">
+			<i class="fas fa-plus"></i>
+			Создать промокод
+		</button>
+	</div>
+	<!-- Кнопки для вкладки "История" -->
+	<div id="historyActions" class="tab-actions" style="display: none;">
+		<button type="button" class="button button-secondary" onclick="clearHistoryFilters()" title="Очистить все фильтры">
+			<i class="fas fa-times"></i>
+			Очистить
+		</button>
+		<button type="button" class="button button-secondary" onclick="refreshUsageHistory()" title="Обновить историю использования">
+			<i class="fas fa-sync-alt"></i>
+			Обновить
+		</button>
+	</div>
 {% endblock %}
 
 {% block content %}
-<div class="content-header">
-	<div class="content-title">
-		<h2>Управление промокодами</h2>
-		<p class="content-subtitle">Создание и управление промокодами для ботов</p>
-	</div>
+
+<!-- Вкладки -->
+<div class="main-tabs">
+	<button class="tab-button active" onclick="switchMainTab('promocodes')" title="Управление промокодами">
+		<i class="fas fa-ticket-alt"></i>
+		Промокоды
+		<span class="tab-count" id="promoCount">0</span>
+	</button>
+	<button class="tab-button" onclick="switchMainTab('history')" title="История использования промокодов">
+		<i class="fas fa-history"></i>
+		История
+		<span class="tab-count" id="historyCount">0</span>
+	</button>
 </div>
 
-<!-- Раздел применённых промокодов пользователя -->
-<div class="user-promo-section" id="userPromoSection" style="display: none;">
+<!-- Контент вкладок -->
+<div class="main-tabs-content">
+	<!-- Вкладка "Промокоды" -->
+	<div class="tab-content active" id="tab-promocodes">
+
+		<!-- Раздел применённых промокодов пользователя -->
+		<div class="user-promo-section" id="userPromoSection" style="display: none;">
 	<div class="user-promo-header">
 		<div class="user-promo-title">
 			<i class="fas fa-user-check"></i>
@@ -58,26 +97,9 @@
 
 <!-- Современная карточная система вместо таблицы -->
 <div class="promo-cards-container" id="promoCardsContainer">
-	<div class="promo-cards-header">
-		<div class="promo-cards-title">
-			<i class="fas fa-ticket-alt"></i>
-			<span>Промокоды</span>
-			<span class="promo-count" id="promoCount">0</span>
-		</div>
-		<div class="promo-cards-actions">
-			<button type="button" class="button button-secondary" onclick="refreshPromoCodes()" title="Обновить список промокодов">
-				<i class="fas fa-sync-alt"></i>
-				Обновить
-			</button>
-			<button type="button" class="button button-outline" onclick="toggleViewMode()" title="Переключить вид отображения">
-				<i class="fas fa-th" id="viewModeIcon"></i>
-				<span id="viewModeText">Таблица</span>
-			</button>
-		</div>
-	</div>
 	
-	<!-- Карточный вид (по умолчанию) -->
-	<div class="promo-cards-grid" id="promoCardsGrid">
+	<!-- Карточный вид (скрыт по умолчанию) -->
+	<div class="promo-cards-grid" id="promoCardsGrid" style="display: none;">
 		<div class="promo-card loading-card">
 			<div class="promo-card-skeleton">
 				<div class="skeleton-line skeleton-title"></div>
@@ -88,27 +110,95 @@
 		</div>
 	</div>
 	
-	<!-- Табличный вид (скрыт по умолчанию) -->
-	<div class="table-container" id="tableContainer" style="display: none;">
-		<div class="table-wrapper">
-			<table class="data-table modern-table" id="promoCodesTable">
+	<!-- Панель фильтров для таблицы промокодов -->
+	<div class="promo-section" id="promoSection">
+		<div class="promo-filters" id="promoFilters">
+			<div class="filter-row">
+				<div class="form-group">
+					<label for="filterPromoCode">Промокод</label>
+					<input type="text" id="filterPromoCode" class="form-input" placeholder="Поиск по коду" title="Поиск по промокоду">
+				</div>
+				<div class="form-group">
+					<label for="filterPromoBot">Бот</label>
+					<select id="filterPromoBot" class="form-select" title="Фильтр по боту">
+						<option value="">Все</option>
+						<option value="shop">Shop</option>
+						<option value="support">Support</option>
+					</select>
+				</div>
+				<div class="form-group">
+					<label for="filterPromoStatus">Статус</label>
+					<select id="filterPromoStatus" class="form-select" title="Фильтр по статусу">
+						<option value="">Все</option>
+						<option value="active">Активен</option>
+						<option value="inactive">Неактивен</option>
+					</select>
+				</div>
+				<div class="form-group">
+					<label for="filterPromoDateFrom">Дата от</label>
+					<div class="date-input-wrapper">
+						<input type="text" id="filterPromoDateFrom" class="form-input" placeholder="Выберите дату" title="Фильтр по дате начала" readonly>
+						<i class="fas fa-calendar-alt date-icon"></i>
+					</div>
+				</div>
+				<div class="form-group">
+					<label for="filterPromoDateTo">Дата до</label>
+					<div class="date-input-wrapper">
+						<input type="text" id="filterPromoDateTo" class="form-input" placeholder="Выберите дату" title="Фильтр по дате окончания" readonly>
+						<i class="fas fa-calendar-alt date-icon"></i>
+					</div>
+				</div>
+				<div class="form-group">
+					<label for="filterPromoGroups">Группы</label>
+					<select id="filterPromoGroups" class="form-select" title="Фильтр по группам">
+						<option value="">Все</option>
+						<option value="with_groups">С группами</option>
+						<option value="without_groups">Без групп</option>
+					</select>
+				</div>
+				<div class="form-group filter-actions">
+					<label>&nbsp;</label>
+					<div class="filter-buttons">
+						<button type="button" class="button button-icon" onclick="filterPromoCodes()" title="Поиск в гриде">
+							<svg class="MuiSvgIcon-root" focusable="false" viewBox="0 0 24 24" aria-hidden="true" data-testid="SearchIcon">
+								<path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path>
+							</svg>
+						</button>
+						<button type="button" class="button button-icon" onclick="clearPromoFilters()" title="Очистить фильтры">
+							<svg class="MuiSvgIcon-root" focusable="false" viewBox="0 0 24 24" aria-hidden="true" data-testid="ClearIcon">
+								<path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path>
+							</svg>
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Табличный вид (по умолчанию) -->
+		<div class="table-container" id="tableContainer" style="width: 100%;">
+			<table id="promoCodesTable">
 				<thead>
 					<tr>
 						<th>ID</th>
+						<th>Создан</th>
 						<th>Промокод</th>
 						<th>Бот</th>
 						<th>Тариф VPN</th>
 						<th>Скидка (₽)</th>
 						<th>Скидка (%)</th>
-						<th>Использований</th>
+						<th>Скидка (Б)</th>
+						<th>Квота</th>
+						<th>Срок сгорания</th>
+						<th>Действителен до</th>
+						<th>Группы</th>
+						<th>Ссылка</th>
 						<th>Статус</th>
-						<th>Создан</th>
 						<th>Действия</th>
 					</tr>
 				</thead>
 				<tbody>
 					<tr>
-						<td colspan="10" class="text-center">Загрузка...</td>
+						<td colspan="15" class="text-center">Загрузка...</td>
 					</tr>
 				</tbody>
 			</table>
@@ -122,188 +212,1244 @@
 		</div>
 		<div class="empty-state-title">Промокоды не найдены</div>
 		<div class="empty-state-description">Создайте первый промокод для начала работы</div>
-		<button type="button" class="button button-primary" onclick="openPromoModal()" title="Создать первый промокод">
+		<button type="button" class="button button-primary" onclick="openPromoDrawer()" title="Создать первый промокод">
 			<i class="fas fa-plus"></i>
 			Создать промокод
 		</button>
 	</div>
 </div>
+	</div>
 
-<!-- Модальное окно промокода -->
-<div id="promoModal" class="modal" style="display: none;">
-	<div class="modal-content modal-content--large">
-		<div class="modal-header">
-			<h3 id="promoModalTitle">Создание промокода</h3>
-			<span class="close" onclick="closePromoModal()" title="Закрыть модальное окно">&times;</span>
-		</div>
-		<div class="modal-body">
-			<!-- Основная информация -->
-			<div class="promo-info-section">
-				<div class="promo-info-grid">
+	<!-- Вкладка "История" -->
+	<div class="tab-content" id="tab-history">
+		<div class="history-section">
+
+			<!-- Фильтры -->
+			<div class="history-filters">
+				<div class="filter-row">
 					<div class="form-group">
-						<label for="promoCode">Промокод *</label>
-						<input type="text" id="promoCode" class="form-input" placeholder="Введите промокод" title="Уникальный код промокода">
+						<label for="filterDateFrom">Дата от</label>
+						<div class="date-input-wrapper">
+							<input type="text" id="filterDateFrom" class="form-input" placeholder="Выберите дату" title="Фильтр по дате начала" readonly>
+							<i class="fas fa-calendar-alt date-icon"></i>
+						</div>
 					</div>
 					<div class="form-group">
-						<label for="promoBot">Бот *</label>
-						<select id="promoBot" class="form-select" title="Выберите бота для применения промокода">
-							<option value="">Выберите бота</option>
-							<option value="shop">Shop Bot</option>
+						<label for="filterDateTo">Дата до</label>
+						<div class="date-input-wrapper">
+							<input type="text" id="filterDateTo" class="form-input" placeholder="Выберите дату" title="Фильтр по дате окончания" readonly>
+							<i class="fas fa-calendar-alt date-icon"></i>
+						</div>
+					</div>
+					<div class="form-group">
+						<label for="filterUser">Пользователь</label>
+						<input type="text" id="filterUser" class="form-input" placeholder="ID или username" title="Поиск по пользователю">
+					</div>
+					<div class="form-group">
+						<label for="filterStatus">Статус</label>
+						<select id="filterStatus" class="form-select" title="Фильтр по статусу">
+							<option value="">Все</option>
+							<option value="applied">Применён</option>
+							<option value="used">Использован</option>
 						</select>
 					</div>
 					<div class="form-group">
-						<label for="promoVpnPlan">Тарифы VPN</label>
-						<select id="promoVpnPlan" class="form-select" multiple size="4" title="Выберите VPN тарифы (удерживайте Ctrl для множественного выбора)">
-							<option value="">Выберите тарифы</option>
+						<label for="filterBot">Бот</label>
+						<select id="filterBot" class="form-select" title="Фильтр по боту">
+							<option value="">Все</option>
+							<option value="shop">Shop</option>
+							<option value="support">Support</option>
 						</select>
-						<small class="form-hint">Удерживайте Ctrl для выбора нескольких тарифов</small>
 					</div>
 					<div class="form-group">
-						<label for="promoTariff">Тарифы</label>
-						<select id="promoTariff" class="form-select" multiple size="4" title="Выберите тарифы (удерживайте Ctrl для множественного выбора)">
-							<option value="">Выберите тарифы</option>
-						</select>
-						<small class="form-hint">Удерживайте Ctrl для выбора нескольких тарифов</small>
-					</div>
-					<div class="form-group">
-						<label for="promoDiscountAmount">Скидка (₽)</label>
-						<input type="number" id="promoDiscountAmount" class="form-input" step="0.01" min="0" placeholder="0.00" title="Сумма скидки в рублях">
-					</div>
-					<div class="form-group">
-						<label for="promoDiscountPercent">Скидка (%)</label>
-						<input type="number" id="promoDiscountPercent" class="form-input" step="0.01" min="0" max="100" placeholder="0.00" title="Процент скидки">
-					</div>
-					<div class="form-group">
-						<label for="promoDiscountBonus">Скидка (бонус)</label>
-						<input type="number" id="promoDiscountBonus" class="form-input" step="0.01" min="0" placeholder="0.00" title="Сумма бонусной скидки">
-					</div>
-					<div class="form-group">
-						<label for="promoUsageLimit">Лимит использований на бота</label>
-						<input type="number" id="promoUsageLimit" class="form-input" min="1" value="1" title="Максимальное количество использований на одного бота">
-					</div>
-					<div class="form-group">
-						<label class="form-checkbox-label">
-							<input type="checkbox" id="promoIsActive" class="form-checkbox" checked title="Активен ли промокод">
-							<span class="checkbox-text">Активный</span>
-						</label>
+						<label for="filterPromoCode">Промокод</label>
+						<input type="text" id="filterPromoCode" class="form-input" placeholder="Код промокода" title="Поиск по промокоду">
 					</div>
 				</div>
 			</div>
 
-			<!-- Вкладки -->
-			<div class="modal-tabs">
-				<button class="tab-button active" onclick="switchPromoTab('info')" title="Информация о промокоде">
-					<i class="fas fa-info-circle"></i>
-					Информация
-				</button>
-				<button class="tab-button" onclick="switchPromoTab('usage')" title="История использования промокода">
-					<i class="fas fa-history"></i>
-					Использования
-				</button>
-			</div>
-
-			<!-- Контент вкладок -->
-			<div class="tab-content active" id="tab-info">
-				<div class="promo-details">
-					<div class="info-grid">
-						<div class="info-item">
-							<label>ID:</label>
-							<span id="promoDetailsId">-</span>
-						</div>
-						<div class="info-item">
-							<label>Создан:</label>
-							<span id="promoDetailsCreated">-</span>
-						</div>
-						<div class="info-item">
-							<label>Обновлен:</label>
-							<span id="promoDetailsUpdated">-</span>
-						</div>
-					</div>
-				</div>
-			</div>
-
-			<div class="tab-content" id="tab-usage">
-				<div class="modal-table-container">
-					<table class="modal-table">
+			<!-- Таблица истории -->
+			<div class="table-container" style="width: 100%; margin-top: 20px;">
+				<table id="usageHistoryTable">
 						<thead>
 							<tr>
+								<th>ID</th>
+								<th>Промокод</th>
 								<th>Пользователь</th>
 								<th>Username</th>
 								<th>Бот</th>
-								<th>Дата использования</th>
+								<th>Скидка</th>
 								<th>План</th>
+								<th>Дата</th>
+								<th>Статус</th>
+								<th>Метаданные</th>
 							</tr>
 						</thead>
-						<tbody id="promoUsageTable">
+						<tbody>
 							<tr>
-								<td colspan="5" class="text-center">Загрузка...</td>
+								<td colspan="10" class="text-center">Загрузка...</td>
 							</tr>
 						</tbody>
 					</table>
-				</div>
 			</div>
-		</div>
-		<div class="modal-footer">
-			<button type="button" class="button button-secondary" onclick="closePromoModal()" title="Закрыть модальное окно">
-				Закрыть
-			</button>
-			<button type="button" class="button button-danger" id="deletePromoButton" onclick="deletePromoCode()" style="display: none;" title="Удалить промокод">
-				<i class="fas fa-trash"></i>
-				Удалить
-			</button>
-			<button type="button" class="button button-primary" onclick="savePromoCode()" title="Сохранить промокод">
-				<i class="fas fa-save"></i>
-				Сохранить
-			</button>
+
+			<!-- Пустое состояние для истории -->
+			<div class="empty-state" id="historyEmptyState" style="display: none;">
+				<div class="empty-state-icon">
+					<i class="fas fa-history"></i>
+				</div>
+				<div class="empty-state-title">История использования не найдена</div>
+				<div class="empty-state-description">Использования промокодов пока не зафиксированы</div>
+			</div>
 		</div>
 	</div>
 </div>
 
+<!-- Drawer промокода -->
+<div id="promoDrawer" class="drawer-overlay" style="display: none;">
+	<div class="drawer" id="promoDrawerPanel">
+		<div class="drawer-header">
+			<h3 id="promoDrawerTitle">Создание промокода</h3>
+			<button class="drawer-close" onclick="closePromoDrawer()" title="Закрыть панель">
+				<i class="fas fa-times"></i>
+			</button>
+		</div>
+
+		<!-- Вкладки -->
+		<div class="drawer-tabs">
+			<button class="tab-button active" onclick="switchPromoTab('info')" title="Информация о промокоде">
+				<i class="fas fa-info-circle"></i>
+				Информация
+			</button>
+			<button class="tab-button" onclick="switchPromoTab('usage')" title="История использования промокода">
+				<i class="fas fa-history"></i>
+				Использования
+			</button>
+			<button class="tab-button" onclick="switchPromoTab('summary')" title="Резюме промокода">
+				<i class="fas fa-clipboard-list"></i>
+				Резюме
+			</button>
+		</div>
+
+		<div class="drawer-body">
+			<!-- Контент вкладок -->
+			<div class="drawer-tabs-content">
+				<div class="tab-content active" id="tab-info">
+					<!-- Основная информация -->
+					<div class="promo-info-section">
+						<div class="promo-info-grid">
+							<!-- Атрибут Активный в самом начале -->
+							<div class="form-group">
+								<label class="form-checkbox-label">
+									<input type="checkbox" id="promoIsActive" class="form-checkbox" checked title="Активен ли промокод">
+									<span class="checkbox-text">Активный</span>
+								</label>
+							</div>
+
+							<!-- Группировка основных атрибутов в одну строку -->
+							<div class="form-row form-row--3">
+								<div class="form-group">
+									<label for="promoCode">Промокод *</label>
+									<input type="text" id="promoCode" class="form-input" placeholder="Введите промокод" title="Уникальный код промокода">
+								</div>
+								<div class="form-group">
+									<label>Ссылка на промокод</label>
+									<div class="promo-link-container">
+										<input type="text" id="promoLink" class="form-input" readonly title="Ссылка на промокод в боте">
+										<button type="button" class="button button-secondary" onclick="copyPromoLink()" title="Копировать ссылку">
+											<i class="fas fa-copy"></i>
+										</button>
+									</div>
+								</div>
+								<div class="form-group">
+									<label for="promoBot">Бот *</label>
+									<select id="promoBot" class="form-select" title="Выберите бота для применения промокода">
+										<option value="">Выберите бота</option>
+										<option value="shop" data-username="{{ global_settings.telegram_bot_username or '' }}">Shop Bot</option>
+									</select>
+								</div>
+							</div>
+
+							<div class="form-row form-row--2">
+								<div class="form-group">
+									<label for="promoVpnPlan">Тарифы VPN</label>
+									<select id="promoVpnPlan" class="form-select" multiple size="4" title="Выберите VPN тарифы (удерживайте Ctrl для множественного выбора)">
+										<option value="">Выберите тарифы</option>
+									</select>
+									<small class="form-hint">Удерживайте Ctrl для выбора нескольких тарифов</small>
+								</div>
+								<div class="form-group">
+									<label for="promoTariff">Тарифы</label>
+									<select id="promoTariff" class="form-select" multiple size="4" title="Выберите тарифы (удерживайте Ctrl для множественного выбора)">
+										<option value="">Выберите тарифы</option>
+									</select>
+									<small class="form-hint">Удерживайте Ctrl для выбора нескольких тарифов</small>
+								</div>
+							</div>
+
+							<div class="form-row form-row--3">
+								<div class="form-group">
+									<label for="promoDiscountAmount">Скидка (₽)</label>
+									<input type="number" id="promoDiscountAmount" class="form-input" step="0.01" min="0" placeholder="0.00" title="Сумма скидки в рублях">
+								</div>
+								<div class="form-group">
+									<label for="promoDiscountPercent">Скидка (%)</label>
+									<input type="number" id="promoDiscountPercent" class="form-input" step="0.01" min="0" max="100" placeholder="0.00" title="Процент скидки">
+								</div>
+								<div class="form-group">
+									<label for="promoDiscountBonus">Скидка (бонус)</label>
+									<input type="number" id="promoDiscountBonus" class="form-input" step="0.01" min="0" placeholder="0.00" title="Сумма бонусной скидки">
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- Дополнительные настройки -->
+					<div class="promo-advanced-section">
+						<h4>Дополнительные настройки</h4>
+						<div class="promo-advanced-content">
+							<div class="form-row form-row--3">
+								<div class="form-group">
+									<label for="promoUsageLimit">Лимит использований на бота</label>
+									<input type="number" id="promoUsageLimit" class="form-input" min="1" value="1" title="Максимальное количество использований на одного бота">
+								</div>
+								<div class="form-group">
+									<label for="promoBurnAfterAt">Срок сгорания</label>
+									<input type="datetime-local" id="promoBurnAfterAt" class="form-input" title="Момент времени, когда промокод станет недействителен">
+								</div>
+								<div class="form-group">
+									<label for="promoValidUntil">Действителен до</label>
+									<input type="datetime-local" id="promoValidUntil" class="form-input" title="Крайний срок активации промокода">
+								</div>
+							</div>
+
+							<div class="form-group form-group--full">
+								<label for="promoTargetGroups">Группы пользователей</label>
+							<select id="promoTargetGroups" class="form-select" multiple size="4" title="Выберите группы пользователей (удерживайте Ctrl для множественного выбора)">
+								{% if user_groups and user_groups|length > 0 %}
+									{% for g in user_groups %}
+										<option value="{{ g.group_id }}">{{ g.group_name }} ({{ g.user_count or 0 }} пользователей)</option>
+									{% endfor %}
+								{% else %}
+									<option value="">Загрузка групп...</option>
+								{% endif %}
+							</select>
+								<small class="form-hint">Удерживайте Ctrl для выбора нескольких групп. Если не выбрано ни одной группы, промокод доступен всем</small>
+							</div>
+						</div>
+					</div>
+
+					<!-- Детали промокода -->
+					<div class="promo-details">
+						<h4>Детали промокода</h4>
+						<div class="info-grid">
+							<div class="info-item">
+								<label>ID:</label>
+								<span id="promoDetailsId">-</span>
+							</div>
+							<div class="info-item">
+								<label>Создан:</label>
+								<span id="promoDetailsCreated">-</span>
+							</div>
+							<div class="info-item">
+								<label>Обновлен:</label>
+								<span id="promoDetailsUpdated">-</span>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<div class="tab-content" id="tab-usage">
+					<div class="modal-table-container">
+					<table class="modal-table">
+						<thead>
+							<tr>
+								<th class="actions-cell">Меню</th>
+								<th>ID</th>
+								<th>Пользователь</th>
+								<th>Username</th>
+								<th>Бот</th>
+								<th>Скидка ₽|%|Б</th>
+								<th>План</th>
+								<th>Дата использования</th>
+								<th>Статус</th>
+								<th>Метаданные</th>
+							</tr>
+						</thead>
+						<tbody id="promoUsageTable">
+							<tr>
+								<td colspan="10" class="text-center">Загрузка...</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				</div>
+				<div class="tab-content" id="tab-summary">
+					<div class="form-group form-group--full">
+						<label for="promoSummaryText">Резюме</label>
+						<textarea id="promoSummaryText" class="form-input" rows="10" readonly title="Сгенерированное резюме промокода"></textarea>
+						<div class="promo-actions" style="margin-top: 10px;">
+							<button type="button" class="button button-secondary" onclick="copyPromoSummary()" title="Скопировать резюме">
+								<i class="fas fa-copy"></i>
+								Копировать
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="drawer-footer">
+			<div class="drawer-footer-left">
+				<button type="button" class="button button-secondary" onclick="closePromoDrawer()" title="Закрыть панель">
+					Закрыть
+				</button>
+			</div>
+			<div class="drawer-footer-right">
+				<button type="button" class="button button-danger" id="deletePromoButton" onclick="deletePromoCode()" style="display: none;" title="Удалить промокод">
+					<i class="fas fa-trash"></i>
+					Удалить
+				</button>
+				<button type="button" class="button button-primary" onclick="savePromoCode()" title="Сохранить промокод">
+					<i class="fas fa-save"></i>
+					Сохранить
+				</button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<style>
+/* Стили для главных вкладок */
+.main-tabs {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 0px;
+}
+
+/* Стили для счетчиков вкладок */
+.tab-count {
+	background: var(--primary-color);
+	color: white;
+	border-radius: 50%;
+	padding: 2px 6px;
+	font-size: 11px;
+	font-weight: 600;
+	margin-left: 6px;
+	min-width: 18px;
+	text-align: center;
+	display: inline-block;
+}
+
+/* Стили для tab-actions */
+.tab-actions {
+	display: flex;
+	gap: 10px;
+	align-items: center;
+}
+
+.main-tabs .tab-button {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 12px 20px;
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: 8px 8px 0 0;
+	color: var(--text-muted);
+	font-size: 14px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: all 0.2s ease;
+}
+
+.main-tabs .tab-button:hover {
+	background: var(--bg-elevated);
+	color: var(--light-color);
+}
+
+.main-tabs .tab-button.active {
+	background: var(--bg-surface);
+	border-color: var(--border-color);
+	border-bottom-color: var(--bg-surface);
+	color: var(--light-color);
+}
+
+.main-tabs-content {
+	margin-top: 0px;
+}
+
+.main-tabs-content .tab-content {
+	display: none;
+}
+
+.main-tabs-content .tab-content.active {
+	display: block;
+	padding-top: 5px;
+	padding-bottom: 5px;
+}
+
+/* Стили для секции промокодов */
+.promo-section {
+	background: var(--bg-surface);
+	border-radius: 12px;
+	border: 1px solid var(--border-color);
+	overflow: hidden;
+}
+
+/* Стили для панели фильтров промокодов */
+.promo-filters {
+	padding: 20px;
+	border-bottom: 1px solid var(--border-color);
+	background: var(--bg-surface);
+}
+
+/* Стили для полей фильтрации промокодов в темной теме */
+.promo-filters input[type="date"],
+.promo-filters input[type="text"],
+.promo-filters select {
+	background: var(--bg-elevated) !important;
+	border: 1px solid var(--border-color) !important;
+	color: var(--light-color) !important;
+	padding: 8px 12px !important;
+	border-radius: 6px !important;
+	font-size: 14px !important;
+	transition: all 0.2s ease !important;
+	height: 36px !important;
+}
+
+.promo-filters input[type="date"]:focus,
+.promo-filters input[type="text"]:focus,
+.promo-filters select:focus {
+	outline: none !important;
+	border-color: var(--primary-color) !important;
+	box-shadow: 0 0 0 2px rgba(49, 130, 206, 0.2) !important;
+}
+
+.promo-filters input[type="date"]:hover,
+.promo-filters input[type="text"]:hover,
+.promo-filters select:hover {
+	border-color: var(--text-muted) !important;
+}
+
+.promo-filters input[type="date"]::-webkit-calendar-picker-indicator {
+	background: transparent !important;
+	color: var(--text-muted) !important;
+	cursor: pointer !important;
+	filter: invert(1) !important;
+}
+
+.promo-filters input[type="date"]::-webkit-calendar-picker-indicator:hover {
+	color: var(--light-color) !important;
+}
+
+.promo-filters input[type="date"]::-moz-calendar-picker-indicator {
+	background: transparent !important;
+	color: var(--text-muted) !important;
+	cursor: pointer !important;
+	filter: invert(1) !important;
+}
+
+.promo-filters input[type="date"]::-moz-calendar-picker-indicator:hover {
+	color: var(--light-color) !important;
+}
+
+/* Стили для кнопок фильтров */
+.filter-actions {
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+}
+
+.filter-buttons {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	height: 36px;
+}
+
+.button-icon {
+	background: var(--bg-elevated) !important;
+	border: 1px solid var(--border-color) !important;
+	color: var(--light-color) !important;
+	padding: 8px !important;
+	border-radius: 6px !important;
+	width: 36px !important;
+	height: 36px !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	cursor: pointer !important;
+	transition: all 0.2s ease !important;
+}
+
+.button-icon:hover {
+	background: var(--bg-hover) !important;
+	border-color: var(--primary-color) !important;
+	color: var(--primary-color) !important;
+	transform: translateY(-1px) !important;
+	box-shadow: 0 2px 8px rgba(49, 130, 206, 0.2) !important;
+}
+
+.button-icon:active {
+	transform: translateY(0) !important;
+	box-shadow: 0 1px 4px rgba(49, 130, 206, 0.3) !important;
+}
+
+.button-icon svg {
+	width: 20px !important;
+	height: 20px !important;
+	fill: currentColor !important;
+}
+
+/* Стили для истории использования */
+.history-section {
+	background: var(--bg-surface);
+	border-radius: 12px;
+	border: 1px solid var(--border-color);
+	overflow: hidden;
+}
+
+.history-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 10px;
+	border-bottom: 1px solid var(--border-color);
+	background: var(--bg-elevated);
+}
+
+.history-title {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	font-size: 18px;
+	font-weight: 600;
+	color: var(--light-color);
+}
+
+.history-count {
+	background: var(--primary-color);
+	color: white;
+	padding: 4px 8px;
+	border-radius: 12px;
+	font-size: 12px;
+	font-weight: 500;
+}
+
+.history-actions {
+	display: flex;
+	gap: 8px;
+}
+
+.history-filters {
+	padding: 20px;
+	border-bottom: 1px solid var(--border-color);
+	background: var(--bg-surface);
+}
+
+.filter-row {
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr auto;
+	gap: 15px;
+	align-items: end;
+	width: 100%;
+}
+
+.filter-row .form-group {
+	margin-bottom: 0;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.filter-row .form-group label {
+	font-size: 12px;
+	font-weight: 500;
+	color: var(--text-muted);
+	margin-bottom: 4px;
+	flex-shrink: 0;
+}
+
+.filter-row .form-group input,
+.filter-row .form-group select {
+	height: 36px;
+	flex: 1;
+}
+
+/* Стили для полей фильтрации в темной теме */
+.history-filters input[type="date"],
+.history-filters input[type="text"],
+.history-filters select {
+	background: var(--bg-elevated) !important;
+	border: 1px solid var(--border-color) !important;
+	color: var(--light-color) !important;
+	padding: 8px 12px !important;
+	border-radius: 6px !important;
+	font-size: 14px !important;
+	transition: all 0.2s ease !important;
+}
+
+.history-filters input[type="date"]:focus,
+.history-filters input[type="text"]:focus,
+.history-filters select:focus {
+	outline: none !important;
+	border-color: var(--primary-color) !important;
+	box-shadow: 0 0 0 2px rgba(49, 130, 206, 0.2) !important;
+}
+
+.history-filters input[type="date"]:hover,
+.history-filters input[type="text"]:hover,
+.history-filters select:hover {
+	border-color: var(--text-muted) !important;
+}
+
+.history-filters input[type="date"]::-webkit-calendar-picker-indicator {
+	background: transparent !important;
+	color: var(--text-muted) !important;
+	cursor: pointer !important;
+	filter: invert(1) !important;
+}
+
+.history-filters input[type="date"]::-webkit-calendar-picker-indicator:hover {
+	color: var(--light-color) !important;
+}
+
+.history-filters input[type="date"]::-moz-calendar-picker-indicator {
+	background: transparent !important;
+	color: var(--text-muted) !important;
+	cursor: pointer !important;
+	filter: invert(1) !important;
+}
+
+.history-filters input[type="date"]::-moz-calendar-picker-indicator:hover {
+	color: var(--light-color) !important;
+}
+
+/* Стили для кнопки "Очистить" в header */
+.history-actions .button-outline {
+	background: var(--primary-color) !important;
+	border: 1px solid var(--primary-color) !important;
+	color: white !important;
+	padding: 8px 16px !important;
+	border-radius: 6px !important;
+	font-size: 14px !important;
+	transition: all 0.2s ease !important;
+	height: 36px !important;
+	display: flex !important;
+	align-items: center !important;
+	gap: 6px !important;
+	margin-right: 10px !important;
+}
+
+.history-actions .button-outline:hover {
+	background: var(--primary-hover) !important;
+	border-color: var(--primary-hover) !important;
+	color: white !important;
+	transform: translateY(-1px) !important;
+	box-shadow: 0 4px 8px rgba(49, 130, 206, 0.3) !important;
+}
+
+/* Стили для date picker с Flatpickr */
+.date-input-wrapper {
+	position: relative;
+	width: 100%;
+}
+
+.date-input-wrapper .date-icon {
+	position: absolute;
+	right: 12px;
+	top: 50%;
+	transform: translateY(-50%);
+	color: var(--text-muted);
+	font-size: 14px;
+	pointer-events: none;
+	z-index: 1;
+}
+
+.date-input-wrapper input {
+	padding-right: 35px !important;
+}
+
+/* Стили для Flatpickr в темной теме */
+.flatpickr-calendar {
+	background: var(--bg-elevated) !important;
+	border: 1px solid var(--border-color) !important;
+	color: var(--light-color) !important;
+}
+
+.flatpickr-calendar .flatpickr-day {
+	color: var(--light-color) !important;
+}
+
+.flatpickr-calendar .flatpickr-day:hover {
+	background: var(--bg-hover) !important;
+}
+
+.flatpickr-calendar .flatpickr-day.selected {
+	background: var(--primary-color) !important;
+	color: white !important;
+}
+
+.flatpickr-calendar .flatpickr-day.today {
+	border-color: var(--primary-color) !important;
+}
+
+.flatpickr-calendar .flatpickr-months {
+	background: var(--bg-surface) !important;
+}
+
+.flatpickr-calendar .flatpickr-month {
+	color: var(--light-color) !important;
+}
+
+.flatpickr-calendar .flatpickr-prev-month,
+.flatpickr-calendar .flatpickr-next-month {
+	color: var(--light-color) !important;
+}
+
+.flatpickr-calendar .flatpickr-prev-month:hover,
+.flatpickr-calendar .flatpickr-next-month:hover {
+	background: var(--bg-hover) !important;
+}
+
+/* Стили для таблицы промокодов - как в разделе История */
+#promoCodesTable {
+	width: 100% !important;
+	border-collapse: collapse !important;
+	background: var(--bg-surface) !important;
+	overflow: visible !important;
+}
+
+#promoCodesTable th,
+#promoCodesTable td {
+	border: 1px solid var(--border-color) !important;
+	padding: 10px !important;
+	text-align: left !important;
+	vertical-align: middle !important;
+	color: var(--light-color) !important;
+}
+
+#promoCodesTable thead {
+	background-color: #0a1222 !important;
+}
+
+#promoCodesTable th {
+	font-weight: 600 !important;
+}
+
+#promoCodesTable tbody tr:hover {
+	background: #1a2437 !important;
+}
+
+#promoCodesTable tbody tr {
+	transition: background-color 0.2s ease;
+}
+
+#promoCodesTable tbody tr:hover {
+	background: #1a2437 !important;
+	transform: translateY(-1px);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+#promoCodesTable tbody tr:last-child td {
+	border-bottom: none !important;
+}
+
+/* Стили для таблицы истории - как в разделе Платежи */
+#usageHistoryTable {
+	width: 100% !important;
+	border-collapse: collapse !important;
+	margin-top: 20px !important;
+	background: var(--bg-surface) !important;
+	border-radius: 8px !important;
+	overflow: visible !important;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+	border: 1px solid var(--border-color) !important;
+}
+
+#usageHistoryTable th,
+#usageHistoryTable td {
+	border: 1px solid var(--border-color) !important;
+	padding: 10px !important;
+	text-align: left !important;
+	vertical-align: middle !important;
+	color: var(--light-color) !important;
+}
+
+#usageHistoryTable thead {
+	background-color: #0a1222 !important;
+}
+
+#usageHistoryTable th {
+	font-weight: 600 !important;
+}
+
+#usageHistoryTable tbody tr:hover {
+	background: #1a2437 !important;
+}
+
+#usageHistoryTable tbody tr:last-child td {
+	border-bottom: none !important;
+}
+
+/* Стили для маленькой кнопки метаданных */
+.button-sm {
+	padding: 4px 8px !important;
+	font-size: 12px !important;
+	height: 24px !important;
+	min-width: 24px !important;
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	background: var(--bg-elevated) !important;
+	border: 1px solid var(--border-color) !important;
+	color: var(--light-color) !important;
+}
+
+.button-sm:hover {
+	background: var(--bg-hover) !important;
+	border-color: var(--primary-color) !important;
+	color: var(--primary-color) !important;
+}
+
+/* Стили для новых атрибутов промокодов */
+.promo-advanced-section {
+	margin-top: 20px;
+	padding: 20px;
+	border-radius: 8px;
+}
+
+.promo-advanced-section h4 {
+	margin: 0 0 15px 0;
+	color: #495057;
+	font-size: 16px;
+	font-weight: 600;
+}
+
+/* Кебаб-меню во вкладке Использования внутри Drawer */
+#promoDrawer .kebab-wrapper { position: relative; }
+#promoDrawer .kebab-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    /* избегаем left:0/right:0 согласно правилам */
+    left: 8px;
+    z-index: 10050; /* выше содержимого drawer */
+}
+#promoDrawer #tab-usage .modal-table-container { overflow: visible; }
+
+/* Стили для datetime picker в темной теме */
+input[type="datetime-local"] {
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	appearance: none;
+	background: #2d3748;
+	border: 1px solid #4a5568;
+	border-radius: 6px;
+	padding: 10px 12px;
+	font-size: 14px;
+	color: #e2e8f0;
+	width: 100%;
+	box-sizing: border-box;
+	transition: all 0.2s ease;
+}
+
+input[type="datetime-local"]:focus {
+	outline: none;
+	border-color: #3182ce;
+	box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
+	background: #1a202c;
+}
+
+input[type="datetime-local"]:hover {
+	border-color: #718096;
+	background: #2d3748;
+}
+
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+	background: transparent;
+	bottom: 0;
+	color: #a0aec0;
+	cursor: pointer;
+	height: auto;
+	left: 0;
+	position: absolute;
+	right: 0;
+	top: 0;
+	width: auto;
+	filter: invert(1);
+}
+
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+	color: #e2e8f0;
+}
+
+/* Стили для Firefox */
+input[type="datetime-local"]::-moz-calendar-picker-indicator {
+	background: transparent;
+	color: #a0aec0;
+	cursor: pointer;
+	filter: invert(1);
+}
+
+input[type="datetime-local"]::-moz-calendar-picker-indicator:hover {
+	color: #e2e8f0;
+}
+
+.promo-summary-textarea {
+    white-space: pre-wrap;
+}
+
+.promo-advanced-content {
+	display: flex;
+	flex-direction: column;
+	gap: 15px;
+}
+
+.form-group--full {
+	grid-column: 1 / -1;
+}
+
+.promo-link-container {
+	display: flex;
+	gap: 8px;
+}
+
+.promo-link-container .form-input {
+	flex: 1;
+}
+
+.promo-link-container .button {
+	flex-shrink: 0;
+}
+
+/* Стили для карточек промокодов с новыми атрибутами */
+.promo-card-advanced {
+	background: #fff;
+	border: 1px solid #e9ecef;
+	border-radius: 8px;
+	padding: 15px;
+	margin-bottom: 15px;
+	box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.promo-card-advanced .promo-card-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 10px;
+}
+
+.promo-card-advanced .promo-card-title {
+	font-size: 16px;
+	font-weight: 600;
+	color: #495057;
+	margin: 0;
+}
+
+.promo-card-advanced .promo-card-status {
+	padding: 4px 8px;
+	border-radius: 4px;
+	font-size: 12px;
+	font-weight: 500;
+}
+
+.promo-card-advanced .promo-card-status.active {
+	background: #d4edda;
+	color: #155724;
+}
+
+.promo-card-advanced .promo-card-status.inactive {
+	background: #f8d7da;
+	color: #721c24;
+}
+
+.promo-card-advanced .promo-card-details {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 10px;
+	margin-bottom: 10px;
+}
+
+.promo-card-advanced .promo-detail-item {
+	display: flex;
+	flex-direction: column;
+}
+
+.promo-card-advanced .promo-detail-label {
+	font-size: 12px;
+	color: #6c757d;
+	margin-bottom: 2px;
+}
+
+.promo-card-advanced .promo-detail-value {
+	font-size: 14px;
+	color: #495057;
+	font-weight: 500;
+}
+
+.promo-card-advanced .promo-link {
+	background: #e9ecef;
+	border: 1px solid #ced4da;
+	border-radius: 4px;
+	padding: 8px;
+	font-size: 12px;
+	color: #495057;
+	word-break: break-all;
+	margin-top: 10px;
+}
+
+.promo-card-advanced .promo-actions {
+	display: flex;
+	gap: 8px;
+	margin-top: 10px;
+}
+
+.promo-card-advanced .button {
+	padding: 6px 12px;
+	font-size: 12px;
+}
+
+/* Стили для таблицы с новыми колонками */
+.promo-table-advanced th,
+.promo-table-advanced td {
+	padding: 8px 12px;
+	text-align: left;
+	border-bottom: 1px solid #e9ecef;
+}
+
+.promo-table-advanced .promo-link-cell {
+	max-width: 200px;
+	word-break: break-all;
+}
+
+.promo-table-advanced .promo-groups-cell {
+	max-width: 150px;
+}
+
+.promo-table-advanced .promo-dates-cell {
+	font-size: 12px;
+	color: #6c757d;
+}
+
+/* Стили для деталей промокода */
+.promo-details {
+	margin-top: 20px;
+	padding: 20px;
+	background: var(--bg-surface);
+	border-radius: 8px;
+	border: 1px solid var(--border-color);
+}
+
+.promo-details h4 {
+	margin: 0 0 15px 0;
+	color: var(--light-color);
+	font-size: 16px;
+	font-weight: 600;
+}
+
+.promo-details .info-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+	gap: 15px;
+}
+
+.promo-details .info-item {
+	display: flex;
+	flex-direction: column;
+}
+
+.promo-details .info-item label {
+	font-size: 12px;
+	color: var(--text-muted);
+	margin-bottom: 4px;
+	font-weight: 500;
+}
+
+.promo-details .info-item span {
+	font-size: 14px;
+	color: var(--light-color);
+	font-weight: 500;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+	.promo-advanced-content {
+		gap: 10px;
+	}
+	
+	.promo-card-advanced .promo-card-details {
+		grid-template-columns: 1fr;
+	}
+
+	.promo-details .info-grid {
+		grid-template-columns: 1fr;
+	}
+}
+</style>
+
 <script>
 let currentPromoId = null;
 let vpnPlans = [];
-let isCardView = true; // По умолчанию карточный вид
+// Менеджер групп пользователей (best practice: модуль с явной инициализацией)
+const PromoGroupsManager = (function() {
+    let groups = [];
+    let pendingSelectedIds = [];
+    let initialized = false;
+
+    function getSelect() {
+        return document.getElementById('promoTargetGroups');
+    }
+
+    async function load() {
+        const select = getSelect();
+        if (select) {
+            select.innerHTML = '<option value="">🔄 Загрузка групп...</option>';
+        }
+        try {
+            const resp = await fetchWithCSRF('/api/user-groups', { method: 'GET' });
+            const data = await resp.json();
+            if (data && data.success && Array.isArray(data.groups)) {
+                groups = data.groups;
+                render();
+                applyPendingSelection();
+            } else {
+                if (select) select.innerHTML = '<option value="">❌ Ошибка загрузки групп</option>';
+            }
+        } catch (e) {
+            if (select) select.innerHTML = '<option value="">💥 Ошибка загрузки групп</option>';
+            console.error('Ошибка загрузки групп:', e);
+        }
+    }
+
+    function render() {
+        const select = getSelect();
+        if (!select) return;
+        select.innerHTML = '';
+        groups.forEach(g => {
+            const opt = document.createElement('option');
+            opt.value = g.group_id;
+            opt.textContent = `${g.group_name} (${g.user_count || 0} пользователей)`;
+            select.appendChild(opt);
+        });
+        if (groups.length === 0) {
+            select.innerHTML = '<option value="">⚠️ Группы не найдены</option>';
+        }
+    }
+
+    function applyPendingSelection() {
+        if (!pendingSelectedIds || pendingSelectedIds.length === 0) return;
+        const select = getSelect();
+        if (!select || select.options.length === 0) return;
+        Array.from(select.options).forEach(opt => {
+            opt.selected = pendingSelectedIds.includes(parseInt(opt.value));
+        });
+        pendingSelectedIds = [];
+    }
+
+    function selectByIds(ids) {
+        const normalized = Array.isArray(ids) ? ids.map(x => parseInt(x)).filter(n => !isNaN(n)) : [];
+        const select = getSelect();
+        if (select && select.options.length > 0) {
+            Array.from(select.options).forEach(opt => {
+                opt.selected = normalized.includes(parseInt(opt.value));
+            });
+        } else {
+            pendingSelectedIds = normalized;
+        }
+    }
+
+    async function init() {
+        if (initialized) return;
+        initialized = true;
+        await load();
+    }
+
+    function ensure() {
+        if (!initialized) {
+            // ленивый старт без await
+            init();
+        }
+    }
+
+    return { init, ensure, load, render, selectByIds };
+})();
+let isCardView = false; // По умолчанию табличный вид
 let allPromoCodes = [];
+let filteredPromoCodes = [];
 let userPromoCodes = [];
-let currentUserId = null; // ID пользователя для отображения применённых промокодов
+let promoCurrentUserId; // ID пользователя для отображения применённых промокодов
 
 
 // Функция для выполнения fetch запросов
 async function fetchWithCSRF(url, options = {}) {
 	const defaultOptions = {
 		headers: {
+			'Content-Type': 'application/json',
 			...options.headers
-		}
+		},
+		credentials: 'same-origin'
 	};
 	
 	return fetch(url, { ...defaultOptions, ...options });
 }
 
+// Переменные для истории использования
+let allUsageHistory = [];
+let filteredUsageHistory = [];
+
 // Загрузка данных при открытии страницы
 document.addEventListener('DOMContentLoaded', function() {
+	console.log('DOM loaded, starting data loading...');
 	loadPromoCodes();
 	loadVpnPlans();
+    PromoGroupsManager.init();
 	loadUserPromoCodes();
+	loadUsageHistory();
+
+	// Привязка обновления резюме к полям формы
+	const bindIds = [
+		'promoCode','promoBot','promoVpnPlan','promoTariff',
+		'promoDiscountAmount','promoDiscountPercent','promoDiscountBonus',
+		'promoUsageLimit','promoBurnAfterAt','promoValidUntil','promoTargetGroups'
+	];
+	bindIds.forEach(id => {
+		const el = document.getElementById(id);
+		if (!el) return;
+		const evt = (el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'datetime-local' || el.type === 'number') ? 'change' : 'input';
+		el.addEventListener(evt, updatePromoSummary);
+	});
 });
 
 // Загрузка промокодов
 async function loadPromoCodes() {
 	try {
+		console.log('Loading promo codes...');
 		showLoadingState();
 		const response = await fetchWithCSRF('/api/promo-codes');
+		console.log('Promo codes response status:', response.status);
+		
+		if (response.redirected && response.url.includes('/login')) {
+			console.error('Redirected to login page - authentication required for promo codes');
+			showNotification('Требуется авторизация', 'error');
+			showEmptyState();
+			return;
+		}
+		
 		const data = await response.json();
+		console.log('Promo codes response data:', data);
 		
 		if (data.success) {
 			allPromoCodes = data.promo_codes;
+			filteredPromoCodes = [...allPromoCodes];
 			updatePromoCount(allPromoCodes.length);
 			
 			if (allPromoCodes.length === 0) {
 				showEmptyState();
 			} else {
 				if (isCardView) {
-					renderPromoCards(allPromoCodes);
+					renderPromoCards(filteredPromoCodes);
 				} else {
-					renderPromoCodesTable(allPromoCodes);
+					renderPromoCodesTable(filteredPromoCodes);
 				}
 			}
 		} else {
@@ -332,6 +1478,8 @@ async function loadVpnPlans() {
 	}
 }
 
+// Удалены старые loadUserGroups/updateUserGroupsSelect; используется PromoGroupsManager
+
 // Обновление селекта VPN планов
 function updateVpnPlansSelect() {
 	const select = document.getElementById('promoVpnPlan');
@@ -345,21 +1493,51 @@ function updateVpnPlansSelect() {
 	});
 }
 
+// Обновление селекта групп пользователей - ПОЛНОСТЬЮ ПЕРЕПИСАНА
+function updateUserGroupsSelect() {
+	console.log('🔄 Updating user groups select...');
+	
+	const select = document.getElementById('promoTargetGroups');
+	if (!select) {
+		console.error('❌ Селект promoTargetGroups не найден!');
+		return;
+	}
+	
+	// Очищаем селект
+	select.innerHTML = '';
+	
+	if (userGroups && userGroups.length > 0) {
+		console.log('✅ Updating select with', userGroups.length, 'groups');
+		
+		userGroups.forEach(group => {
+			const option = document.createElement('option');
+			option.value = group.group_id;
+			option.textContent = `${group.group_name} (${group.user_count || 0} пользователей)`;
+			select.appendChild(option);
+		});
+		
+		console.log('✅ Select updated successfully');
+	} else {
+		console.warn('⚠️ No groups available');
+		select.innerHTML = '<option value="">⚠️ Группы не найдены</option>';
+	}
+}
+
 // Загрузка применённых промокодов пользователя
 async function loadUserPromoCodes() {
 	try {
 		// Получаем ID пользователя из URL параметров или скрываем раздел
 		const urlParams = new URLSearchParams(window.location.search);
-		currentUserId = urlParams.get('user_id');
+		promoCurrentUserId = urlParams.get('user_id');
 		
-		if (!currentUserId) {
+		if (!promoCurrentUserId) {
 			// Если нет ID пользователя, скрываем раздел
 			document.getElementById('userPromoSection').style.display = 'none';
 			return;
 		}
 		
 		showUserPromoLoadingState();
-		const response = await fetchWithCSRF(`/api/user-promo-codes?user_id=${currentUserId}&bot=shop`);
+		const response = await fetchWithCSRF(`/api/user-promo-codes?user_id=${promoCurrentUserId}&bot=shop`);
 		const data = await response.json();
 		
 		if (data.success) {
@@ -496,7 +1674,7 @@ async function removeUserPromoCode(promoId) {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				user_id: currentUserId,
+				user_id: promoCurrentUserId,
 				bot: 'shop'
 			})
 		});
@@ -524,6 +1702,7 @@ function refreshUserPromoCodes() {
 function showLoadingState() {
 	const cardsGrid = document.getElementById('promoCardsGrid');
 	const tableContainer = document.getElementById('tableContainer');
+	const promoSection = document.getElementById('promoSection');
 	const emptyState = document.getElementById('emptyState');
 	
 	emptyState.style.display = 'none';
@@ -531,6 +1710,7 @@ function showLoadingState() {
 	if (isCardView) {
 		cardsGrid.style.display = 'grid';
 		tableContainer.style.display = 'none';
+		promoSection.style.display = 'none';
 		cardsGrid.innerHTML = `
 			<div class="promo-card loading-card">
 				<div class="promo-card-skeleton">
@@ -544,8 +1724,9 @@ function showLoadingState() {
 	} else {
 		cardsGrid.style.display = 'none';
 		tableContainer.style.display = 'block';
+		promoSection.style.display = 'block';
 		const tbody = document.querySelector('#promoCodesTable tbody');
-		tbody.innerHTML = '<tr><td colspan="10" class="text-center">Загрузка...</td></tr>';
+		tbody.innerHTML = '<tr><td colspan="15" class="text-center">Загрузка...</td></tr>';
 	}
 }
 
@@ -553,10 +1734,12 @@ function showLoadingState() {
 function showEmptyState() {
 	const cardsGrid = document.getElementById('promoCardsGrid');
 	const tableContainer = document.getElementById('tableContainer');
+	const promoSection = document.getElementById('promoSection');
 	const emptyState = document.getElementById('emptyState');
 	
 	cardsGrid.style.display = 'none';
 	tableContainer.style.display = 'none';
+	promoSection.style.display = 'none';
 	emptyState.style.display = 'flex';
 }
 
@@ -630,13 +1813,31 @@ function renderPromoCards(promoCodes) {
 					<div class="promo-stats">
 						<div class="stat-item">
 							<span class="stat-label">Использований:</span>
-							<span class="stat-value ${promo.usage_count > 0 ? 'text-warning' : ''}">${promo.usage_count || 0}</span>
+							<span class="stat-value ${promo.usage_total > 0 ? 'text-warning' : ''}">${promo.usage_total || 0}</span>
 						</div>
 						<div class="stat-item">
 							<span class="stat-label">Создан:</span>
 							<span class="stat-value">${formatDate(promo.created_at)}</span>
 						</div>
-						${promo.usage_count > 0 ? `
+						${promo.valid_until ? `
+						<div class="stat-item">
+							<span class="stat-label">Действителен до:</span>
+							<span class="stat-value">${formatDate(promo.valid_until)}</span>
+						</div>
+						` : ''}
+						${promo.burn_after_value && promo.burn_after_unit ? `
+						<div class="stat-item">
+							<span class="stat-label">Срок сгорания:</span>
+							<span class="stat-value">${promo.burn_after_value} ${getBurnUnitText(promo.burn_after_unit)}</span>
+						</div>
+						` : ''}
+						${promo.target_group_ids && promo.target_group_ids.length > 0 ? `
+						<div class="stat-item">
+							<span class="stat-label">Группы:</span>
+							<span class="stat-value">${promo.target_group_ids.length} групп</span>
+						</div>
+						` : ''}
+						${promo.usage_total > 0 ? `
 						<div class="stat-item">
 							<span class="stat-label">Статус:</span>
 							<span class="stat-value text-warning">
@@ -645,6 +1846,13 @@ function renderPromoCards(promoCodes) {
 						</div>
 						` : ''}
 					</div>
+					
+					${promo.promo_link ? `
+					<div class="promo-link">
+						<strong>Ссылка:</strong> 
+						<a href="${promo.promo_link}" target="_blank" title="Открыть ссылку на промокод">${promo.promo_link}</a>
+					</div>
+					` : ''}
 				</div>
 			</div>
 			
@@ -653,7 +1861,7 @@ function renderPromoCards(promoCodes) {
 					<i class="fas fa-edit"></i>
 					Редактировать
 				</button>
-				${promo.usage_count > 0 ? `
+				${promo.usage_total > 0 ? `
 				<button class="button button-sm button-secondary" disabled title="Нельзя удалить использованный промокод">
 					<i class="fas fa-lock"></i>
 					Заблокирован
@@ -674,38 +1882,45 @@ function renderPromoCodesTable(promoCodes) {
 	const tbody = document.querySelector('#promoCodesTable tbody');
 	const cardsGrid = document.getElementById('promoCardsGrid');
 	const tableContainer = document.getElementById('tableContainer');
+	const promoSection = document.getElementById('promoSection');
 	const emptyState = document.getElementById('emptyState');
 	
 	emptyState.style.display = 'none';
 	cardsGrid.style.display = 'none';
 	tableContainer.style.display = 'block';
+	promoSection.style.display = 'block';
 	
 	if (promoCodes.length === 0) {
-		tbody.innerHTML = '<tr><td colspan="10" class="text-center">Промокоды не найдены</td></tr>';
+		tbody.innerHTML = '<tr><td colspan="15" class="text-center">Промокоды не найдены</td></tr>';
 		return;
 	}
 	
 	tbody.innerHTML = promoCodes.map(promo => `
-		<tr>
+		<tr ondblclick="editPromoCode(${promo.promo_id})" style="cursor: pointer;" title="Двойной клик для редактирования">
 			<td>${promo.promo_id}</td>
+			<td>${formatDate(promo.created_at)}</td>
 			<td><code>${promo.code}</code></td>
 			<td><span class="badge badge-${promo.bot === 'shop' ? 'primary' : 'secondary'}">${promo.bot === 'shop' ? 'Shop' : 'Support'}</span></td>
 			<td>${promo.host_name ? `${promo.host_name} - ${promo.plan_name}` : '-'}</td>
 			<td>${promo.discount_amount ? promo.discount_amount + ' ₽' : '-'}</td>
 			<td>${promo.discount_percent ? promo.discount_percent + '%' : '-'}</td>
-			<td><span class="badge badge-info">${promo.usage_count || 0}</span></td>
+			<td>${promo.discount_bonus ? promo.discount_bonus + ' Б' : '-'}</td>
+			<td><span class="badge badge-info">${promo.usage_total || 0}</span></td>
+			<td class="promo-dates-cell">${promo.burn_after_value && promo.burn_after_unit ? `${promo.burn_after_value} ${getBurnUnitText(promo.burn_after_unit)}` : '-'}</td>
+			<td class="promo-dates-cell">${promo.valid_until ? formatDate(promo.valid_until) : '-'}</td>
+			<td class="promo-groups-cell">${promo.target_group_ids && promo.target_group_ids.length > 0 ? `${promo.target_group_ids.length} групп` : 'Все'}</td>
+			<td class="promo-link-cell">${promo.promo_link ? `<a href="${promo.promo_link}" target="_blank" onclick="event.stopPropagation();" title="Открыть ссылку">Ссылка</a>` : '-'}</td>
 			<td><span class="badge badge-${promo.is_active ? 'success' : 'danger'}">${promo.is_active ? 'Активен' : 'Неактивен'}</span></td>
-			<td>${formatDate(promo.created_at)}</td>
 			<td>
-				<button class="button button-sm button-primary" onclick="editPromoCode(${promo.promo_id})" title="Редактировать промокод">
+				<button class="button button-sm button-primary" onclick="event.stopPropagation(); editPromoCode(${promo.promo_id})" title="Редактировать промокод">
 					<i class="fas fa-edit"></i>
 				</button>
-				${promo.usage_count > 0 ? `
+				${promo.usage_total > 0 ? `
 				<button class="button button-sm button-secondary" disabled title="Нельзя удалить использованный промокод">
 					<i class="fas fa-lock"></i>
 				</button>
 				` : `
-				<button class="button button-sm button-danger" onclick="confirmDeletePromoCode(${promo.promo_id})" title="Удалить промокод">
+				<button class="button button-sm button-danger" onclick="event.stopPropagation(); confirmDeletePromoCode(${promo.promo_id})" title="Удалить промокод">
 					<i class="fas fa-trash"></i>
 				</button>
 				`}
@@ -717,28 +1932,34 @@ function renderPromoCodesTable(promoCodes) {
 // Переключение режима просмотра
 function toggleViewMode() {
 	isCardView = !isCardView;
-	const viewModeIcon = document.getElementById('viewModeIcon');
-	const viewModeText = document.getElementById('viewModeText');
+	const viewModeIcon = document.getElementById('viewIcon');
+	const viewModeText = document.getElementById('viewText');
 	
 	if (isCardView) {
 		viewModeIcon.className = 'fas fa-th';
 		viewModeText.textContent = 'Таблица';
-		renderPromoCards(allPromoCodes);
+		renderPromoCards(filteredPromoCodes);
 	} else {
 		viewModeIcon.className = 'fas fa-list';
 		viewModeText.textContent = 'Карточки';
-		renderPromoCodesTable(allPromoCodes);
+		renderPromoCodesTable(filteredPromoCodes);
 	}
 }
 
-// Открытие модального окна для создания промокода
-function openPromoModal() {
-	currentPromoId = null;
-	document.getElementById('promoModalTitle').textContent = 'Создание промокода';
-	document.getElementById('deletePromoButton').style.display = 'none';
-	clearPromoForm();
-	document.getElementById('promoModal').style.display = 'flex';
+// Открытие Drawer для создания промокода
+function openPromoDrawer() {
+    currentPromoId = null;
+    document.getElementById('promoDrawerTitle').textContent = 'Создание промокода';
+    document.getElementById('deletePromoButton').style.display = 'none';
+    clearPromoForm();
+    // Гарантируем наличие актуального списка групп при открытии
+    PromoGroupsManager.ensure();
+    const drawer = document.getElementById('promoDrawer');
+    drawer.style.display = 'block';
+    setTimeout(() => drawer.classList.add('active'), 10);
 }
+// Совместимость со старым именем
+function openPromoModal() { openPromoDrawer(); }
 
 // Открытие модального окна для редактирования промокода
 async function editPromoCode(promoId) {
@@ -748,11 +1969,13 @@ async function editPromoCode(promoId) {
 		
 		if (data.success) {
 			currentPromoId = promoId;
-			document.getElementById('promoModalTitle').textContent = 'Редактирование промокода';
+            document.getElementById('promoDrawerTitle').textContent = 'Редактирование промокода';
 			document.getElementById('deletePromoButton').style.display = 'inline-block';
 			populatePromoForm(data.promo_code);
 			loadPromoUsageHistory(promoId);
-			document.getElementById('promoModal').style.display = 'flex';
+            const drawer = document.getElementById('promoDrawer');
+            drawer.style.display = 'block';
+            setTimeout(() => drawer.classList.add('active'), 10);
 		} else {
 			showNotification('Ошибка загрузки промокода: ' + data.message, 'error');
 		}
@@ -786,9 +2009,9 @@ function populatePromoForm(promo) {
 		});
 	}
 	
-	// Обработка мультиселекта тарифов
+	// Обработка мультиселекта тарифов (элемент может быть скрыт)
 	const tariffSelect = document.getElementById('promoTariff');
-	if (promo.tariff_code) {
+	if (tariffSelect && promo.tariff_code) {
 		// Если это массив кодов, выбираем все
 		if (Array.isArray(promo.tariff_code)) {
 			Array.from(tariffSelect.options).forEach(option => {
@@ -798,7 +2021,7 @@ function populatePromoForm(promo) {
 			// Если это одиночный код
 			tariffSelect.value = promo.tariff_code;
 		}
-	} else {
+	} else if (tariffSelect) {
 		// Сбрасываем выбор если нет данных
 		Array.from(tariffSelect.options).forEach(option => {
 			option.selected = false;
@@ -810,6 +2033,28 @@ function populatePromoForm(promo) {
 	document.getElementById('promoDiscountBonus').value = promo.discount_bonus || '';
 	document.getElementById('promoUsageLimit').value = promo.usage_limit_per_bot || 1;
 	document.getElementById('promoIsActive').checked = promo.is_active;
+	
+    // Новые поля (datetime для срока сгорания)
+    const burnAtInput = document.getElementById('promoBurnAfterAt');
+    if (promo.burn_after_value && promo.burn_after_unit) {
+        let minutes = promo.burn_after_value;
+        if (promo.burn_after_unit === 'hour') minutes *= 60;
+        if (promo.burn_after_unit === 'day') minutes *= 1440;
+        const target = new Date(Date.now() + minutes * 60000);
+        const offset = target.getTimezoneOffset();
+        const local = new Date(target.getTime() - offset * 60000);
+        burnAtInput.value = local.toISOString().slice(0, 16);
+    } else {
+        burnAtInput.value = '';
+    }
+    document.getElementById('promoValidUntil').value = promo.valid_until ? promo.valid_until.slice(0, 16) : '';
+	
+    // Обработка групп пользователей — делегируем выбор менеджеру
+    PromoGroupsManager.selectByIds(Array.isArray(promo.target_group_ids) ? promo.target_group_ids : []);
+	
+	// Обновляем ссылку на промокод
+	updatePromoLink();
+	updatePromoSummary();
 	
 	// Детали
 	document.getElementById('promoDetailsId').textContent = promo.promo_id;
@@ -826,9 +2071,12 @@ function clearPromoForm() {
 	Array.from(document.getElementById('promoVpnPlan').options).forEach(option => {
 		option.selected = false;
 	});
-	Array.from(document.getElementById('promoTariff').options).forEach(option => {
-		option.selected = false;
-	});
+	const tariffSelect = document.getElementById('promoTariff');
+	if (tariffSelect) {
+		Array.from(tariffSelect.options).forEach(option => {
+			option.selected = false;
+		});
+	}
 	
 	document.getElementById('promoDiscountAmount').value = '';
 	document.getElementById('promoDiscountPercent').value = '';
@@ -836,10 +2084,173 @@ function clearPromoForm() {
 	document.getElementById('promoUsageLimit').value = 1;
 	document.getElementById('promoIsActive').checked = true;
 	
+    // Очищаем новые поля
+    document.getElementById('promoBurnAfterAt').value = '';
+    document.getElementById('promoValidUntil').value = '';
+	
+	// Очищаем группы пользователей
+	Array.from(document.getElementById('promoTargetGroups').options).forEach(option => {
+		option.selected = false;
+	});
+	
+	// Очищаем ссылку на промокод
+	document.getElementById('promoLink').value = '';
+
+	// Очищаем резюме
+	const summaryEl = document.getElementById('promoSummaryText');
+	if (summaryEl) summaryEl.value = '';
+	
 	document.getElementById('promoDetailsId').textContent = '-';
 	document.getElementById('promoDetailsCreated').textContent = '-';
 	document.getElementById('promoDetailsUpdated').textContent = '-';
 }
+
+// Получение username бота из выбранного бота
+function getBotUsername() {
+	const botSelect = document.getElementById('promoBot');
+	const selectedBot = botSelect.options[botSelect.selectedIndex];
+	
+	if (selectedBot && selectedBot.value && selectedBot.value !== '') {
+		// Получаем username из выбранного бота
+        const raw = selectedBot.getAttribute('data-username') || selectedBot.value.toLowerCase().replace(' ', '_');
+        // Нормализуем: убираем ведущие '@' и пробелы
+        return (raw || '').toString().trim().replace(/^@+/, '');
+	}
+	return null;
+}
+
+// Обновление ссылки на промокод
+function updatePromoLink() {
+	const code = document.getElementById('promoCode').value;
+	const botUsername = getBotUsername();
+	
+	if (code && botUsername) {
+		document.getElementById('promoLink').value = `https://t.me/${botUsername}?start=promo_${code}`;
+	} else {
+		document.getElementById('promoLink').value = '';
+	}
+}
+
+// Копирование ссылки на промокод
+function copyPromoLink() {
+	const linkInput = document.getElementById('promoLink');
+	if (linkInput.value) {
+		linkInput.select();
+		document.execCommand('copy');
+		showNotification('Ссылка скопирована в буфер обмена', 'success');
+	} else {
+		showNotification('Ссылка не сгенерирована', 'error');
+	}
+}
+
+// Генерация резюме промокода
+function updatePromoSummary() {
+    const code = document.getElementById('promoCode').value.trim();
+    const link = document.getElementById('promoLink').value.trim();
+
+    // VPN тарифы (мультиселект): отображаем как "host_name – plan_name" из options текста
+    const vpnSelect = document.getElementById('promoVpnPlan');
+    const selectedVpnTexts = Array.from(vpnSelect.selectedOptions)
+        .map(opt => opt.textContent.trim())
+        .filter(Boolean);
+
+    // Тарифы (мультиселект): взять видимые названия из options текста
+    const tariffSelect = document.getElementById('promoTariff');
+    const selectedTariffTexts = tariffSelect
+        ? Array.from(tariffSelect.selectedOptions).map(opt => opt.textContent.trim()).filter(Boolean)
+        : [];
+
+    // Скидки
+    const discountAmount = parseFloat(document.getElementById('promoDiscountAmount').value) || 0;
+    const discountPercent = parseFloat(document.getElementById('promoDiscountPercent').value) || 0;
+    const discountBonus = parseFloat(document.getElementById('promoDiscountBonus').value) || 0;
+
+    // Лимит использований
+    const usageLimit = parseInt(document.getElementById('promoUsageLimit').value) || 0;
+
+    // Срок сгорания — берём поле datetime-local как есть, если заполнено
+    const burnAtVal = document.getElementById('promoBurnAfterAt').value;
+
+    // Действителен до
+    const validUntilVal = document.getElementById('promoValidUntil').value;
+
+    // Группы пользователей — вывести названия через запятую
+    const groupsSelect = document.getElementById('promoTargetGroups');
+    const selectedGroupNames = Array.from(groupsSelect.selectedOptions)
+        .map(opt => opt.textContent.replace(/\s*\(.*\)$/,'').trim()) // убрать "(N пользователей)"
+        .filter(Boolean);
+
+    const lines = [];
+    if (code) lines.push(`• Промокод: ${code}`);
+    if (link) lines.push(`• Ссылка: ${link}`);
+
+    const hasVpn = selectedVpnTexts.length > 0;
+    const hasTariffs = selectedTariffTexts.length > 0;
+    if (hasVpn || hasTariffs) {
+        const vpnPart = hasVpn ? `Тариф VPN: ${selectedVpnTexts.join(', ')}` : '';
+        const tariffsPart = hasTariffs ? `Тарифы: ${selectedTariffTexts.join(', ')}` : '';
+        const tariffLine = [vpnPart, tariffsPart].filter(Boolean).join(' ');
+        if (tariffLine) lines.push(`• ${tariffLine}`);
+    }
+
+    const discountParts = [];
+    if (discountAmount > 0) discountParts.push(`Скидка (₽): ${discountAmount}`);
+    if (discountPercent > 0) discountParts.push(`Скидка (%): ${discountPercent}`);
+    if (discountBonus > 0) discountParts.push(`Скидка (бонус): ${discountBonus}`);
+    if (discountParts.length > 0) lines.push(`• ${discountParts.join(' ')}`);
+
+    if (usageLimit > 0) lines.push(`• Квота активаций: ${usageLimit}`);
+    if (burnAtVal) lines.push(`• Cрок сгорания: ${formatLocalDateTime(burnAtVal)}`);
+    if (validUntilVal) lines.push(`• Действителен до: ${formatLocalDateTime(validUntilVal)}`);
+    if (selectedGroupNames.length > 0) lines.push(`• Группа: ${selectedGroupNames.join(', ')}`);
+
+    const summaryEl = document.getElementById('promoSummaryText');
+    if (summaryEl) summaryEl.value = lines.join('\n');
+}
+
+function copyPromoSummary() {
+    const el = document.getElementById('promoSummaryText');
+    if (!el || !el.value) {
+        showNotification('Резюме пусто', 'error');
+        return;
+    }
+    el.select();
+    document.execCommand('copy');
+    showNotification('Резюме скопировано в буфер обмена', 'success');
+}
+
+function formatLocalDateTime(val) {
+    try {
+        // val в формате YYYY-MM-DDTHH:mm — преобразуем в локальную строку
+        const dt = new Date(val);
+        return dt.toLocaleString('ru-RU');
+    } catch (e) {
+        return val;
+    }
+}
+
+// Вспомогательная функция для отображения единиц времени
+function getBurnUnitText(unit) {
+	const units = {
+		'min': 'мин',
+		'hour': 'час',
+		'day': 'дней'
+	};
+	return units[unit] || unit;
+}
+
+// Обработчики для обновления ссылки
+document.addEventListener('DOMContentLoaded', function() {
+	const codeInput = document.getElementById('promoCode');
+	const botSelect = document.getElementById('promoBot');
+	
+	if (codeInput) {
+        codeInput.addEventListener('input', function(){ updatePromoLink(); updatePromoSummary(); });
+	}
+	if (botSelect) {
+        botSelect.addEventListener('change', function(){ updatePromoLink(); updatePromoSummary(); });
+	}
+});
 
 // Сохранение промокода
 async function savePromoCode() {
@@ -849,13 +2260,44 @@ async function savePromoCode() {
 		.map(option => parseInt(option.value))
 		.filter(value => !isNaN(value));
 	
-	// Получаем выбранные тарифы
-	const tariffSelect = document.getElementById('promoTariff');
-	const selectedTariffs = Array.from(tariffSelect.selectedOptions)
-		.map(option => option.value)
-		.filter(value => value.trim() !== '');
+    // Получаем выбранные тарифы (элемент может быть скрыт)
+    const tariffSelect = document.getElementById('promoTariff');
+    const selectedTariffs = tariffSelect
+        ? Array.from(tariffSelect.selectedOptions).map(option => option.value).filter(value => value.trim() !== '')
+        : [];
 	
-	const formData = {
+	// Получаем выбранные группы пользователей
+	const groupsSelect = document.getElementById('promoTargetGroups');
+	const selectedGroups = Array.from(groupsSelect.selectedOptions)
+		.map(option => parseInt(option.value))
+		.filter(value => !isNaN(value));
+
+    // Конвертация datetime срока сгорания в старые поля value/unit
+    let burn_after_value = null;
+    let burn_after_unit = null;
+    const burnAtVal = document.getElementById('promoBurnAfterAt').value;
+    if (burnAtVal) {
+        const target = new Date(burnAtVal);
+        const now = new Date();
+        const diffMs = target.getTime() - now.getTime();
+        if (diffMs <= 0) {
+            showNotification('Срок сгорания не может быть в прошлом', 'error');
+            return;
+        }
+        const minutes = Math.ceil(diffMs / 60000);
+        if (minutes >= 2880) { // >= 2 дней
+            burn_after_value = Math.ceil(minutes / 1440);
+            burn_after_unit = 'day';
+        } else if (minutes >= 120) { // >= 2 часов
+            burn_after_value = Math.ceil(minutes / 60);
+            burn_after_unit = 'hour';
+        } else {
+            burn_after_value = minutes;
+            burn_after_unit = 'min';
+        }
+    }
+
+    const formData = {
 		code: document.getElementById('promoCode').value.trim(),
 		bot: document.getElementById('promoBot').value,
 		vpn_plan_id: selectedVpnPlans.length > 0 ? selectedVpnPlans : null,
@@ -864,7 +2306,12 @@ async function savePromoCode() {
 		discount_percent: parseFloat(document.getElementById('promoDiscountPercent').value) || 0,
 		discount_bonus: parseFloat(document.getElementById('promoDiscountBonus').value) || 0,
 		usage_limit_per_bot: parseInt(document.getElementById('promoUsageLimit').value) || 1,
-		is_active: document.getElementById('promoIsActive').checked
+		is_active: document.getElementById('promoIsActive').checked,
+        burn_after_value: burn_after_value,
+        burn_after_unit: burn_after_unit,
+		valid_until: document.getElementById('promoValidUntil').value || null,
+		target_group_ids: selectedGroups.length > 0 ? selectedGroups : null,
+		bot_username: getBotUsername()
 	};
 	
 	// Валидация
@@ -919,6 +2366,8 @@ async function savePromoCode() {
 		showNotification('Укажите хотя бы один тип скидки', 'error');
 		return;
 	}
+	
+    // Доп. валидация не требуется: вычисляется из datetime
 	
 	try {
 		const url = currentPromoId ? `/api/promo-codes/${currentPromoId}` : '/api/promo-codes';
@@ -1067,40 +2516,84 @@ function renderPromoUsageTable(usageHistory) {
 	const tbody = document.getElementById('promoUsageTable');
 	
 	if (usageHistory.length === 0) {
-		tbody.innerHTML = '<tr><td colspan="5" class="text-center">Использований не найдено</td></tr>';
+		tbody.innerHTML = '<tr><td colspan="10" class="text-center">Использований не найдено</td></tr>';
 		return;
 	}
 	
-	tbody.innerHTML = usageHistory.map(usage => `
-		<tr>
-			<td>${usage.user_id}</td>
-			<td>${usage.username || '-'}</td>
-			<td><span class="badge badge-${usage.bot === 'shop' ? 'primary' : 'secondary'}">${usage.bot === 'shop' ? 'Shop' : 'Support'}</span></td>
-			<td>${formatDate(usage.used_at)}</td>
-			<td>${usage.plan_name || '-'}</td>
-		</tr>
-	`).join('');
+    tbody.innerHTML = usageHistory.map(usage => `
+        <tr>
+            <td class="actions-cell">
+                <div class="kebab-wrapper">
+                    <button class="kebab-btn" onclick="toggleKebabMenu('kebab-usage-${usage.usage_id}')" title="Действия с использованием">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <div class="kebab-menu" id="kebab-usage-${usage.usage_id}">
+                        <button type="button" class="kebab-item" onclick="closeKebabMenu('kebab-usage-${usage.usage_id}'); deletePromoUsage(${usage.usage_id}, ${usage.user_id}, '${usage.bot}')" title="Удалить использование">
+                            <i class="fas fa-trash"></i>
+                            <span>Удалить</span>
+                        </button>
+                    </div>
+                </div>
+            </td>
+            <td title="ID записи использования">${usage.usage_id}</td>
+            <td>${usage.user_id}</td>
+            <td>${usage.username || '-'}</td>
+            <td><span class="badge badge-${usage.bot === 'shop' ? 'primary' : 'secondary'}">${usage.bot === 'shop' ? 'Shop' : 'Support'}</span></td>
+            <td>${formatDiscount(usage)}</td>
+            <td>${usage.plan_name || '-'}</td>
+            <td>${formatDate(usage.used_at)}</td>
+            <td><span class="badge badge-${usage.status === 'used' ? 'success' : 'info'}" title="${usage.status === 'used' ? 'Промокод использован при покупке' : 'Промокод применён, но покупка не совершена'}">${usage.status === 'used' ? 'Использован' : 'Применён'}</span></td>
+            <td>${usage.metadata ? `<button type="button" class="button button-outline button-sm" onclick="showMetadata(this)" data-metadata="${encodeURIComponent(usage.metadata)}" title="Показать метаданные"><i class="fas fa-info-circle"></i></button>` : '-'}</td>
+        </tr>
+    `).join('');
 }
 
-// Переключение вкладок в модальном окне
+// Удаление записи использования промокода
+async function deletePromoUsage(usageId, userId, bot) {
+    if (!usageId || !userId) return;
+    if (!confirm('Удалить это использование промокода?')) return;
+    try {
+        const normalizedBot = (bot || '').toString().toLowerCase();
+        const response = await fetchWithCSRF(`/api/user-promo-codes/${usageId}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: userId, bot: normalizedBot })
+        });
+        const data = await response.json();
+        if (data && data.success) {
+            showNotification('Использование удалено', 'success');
+            if (typeof currentPromoId === 'number' && currentPromoId) {
+                await loadPromoUsageHistory(currentPromoId);
+            }
+        } else {
+            showNotification('Ошибка удаления: ' + (data && data.message ? data.message : 'Неизвестная ошибка'), 'error');
+        }
+    } catch (e) {
+        console.error('Ошибка удаления использования промокода:', e);
+        showNotification('Ошибка удаления использования', 'error');
+    }
+}
+
+// Переключение вкладок в Drawer промокода
 function switchPromoTab(tabName) {
-	// Скрыть все вкладки
-	document.querySelectorAll('.tab-content').forEach(tab => {
-		tab.classList.remove('active');
-	});
-	document.querySelectorAll('.tab-button').forEach(button => {
-		button.classList.remove('active');
-	});
-	
-	// Показать выбранную вкладку
-	document.getElementById(`tab-${tabName}`).classList.add('active');
-	event.target.classList.add('active');
+    const scope = document.getElementById('promoDrawer');
+    scope.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+    scope.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    event.target.closest('.tab-button').classList.add('active');
+    scope.querySelector(`#tab-${tabName}`).classList.add('active');
+    if (tabName === 'summary') {
+        updatePromoSummary();
+    }
 }
 
-// Закрытие модального окна
-function closePromoModal() {
-	document.getElementById('promoModal').style.display = 'none';
+// Закрытие Drawer
+function closePromoDrawer() {
+    const drawer = document.getElementById('promoDrawer');
+    drawer.classList.remove('active');
+    setTimeout(() => { drawer.style.display = 'none'; }, 300);
 }
+// Совместимость
+function closePromoModal() { closePromoDrawer(); }
 
 // Обновление списка промокодов
 function refreshPromoCodes() {
@@ -1135,12 +2628,401 @@ function showNotification(message, type = 'info') {
 	}, 5000);
 }
 
-// Закрытие модального окна при клике вне его
-window.onclick = function(event) {
-	const modal = document.getElementById('promoModal');
-	if (event.target === modal) {
-		closePromoModal();
+// Функции для главных вкладок
+function switchMainTab(tabName) {
+	// Переключаем кнопки вкладок
+	document.querySelectorAll('.main-tabs .tab-button').forEach(btn => btn.classList.remove('active'));
+	event.target.closest('.tab-button').classList.add('active');
+	
+	// Переключаем контент вкладок
+	document.querySelectorAll('.main-tabs-content .tab-content').forEach(content => content.classList.remove('active'));
+	document.getElementById(`tab-${tabName}`).classList.add('active');
+	
+	// Обновляем header-panel
+	updateHeaderPanel(tabName);
+	
+	// Обновляем URL
+	updateURL(tabName);
+	
+	// Если переключаемся на историю, загружаем данные
+	if (tabName === 'history' && allUsageHistory.length === 0) {
+		loadUsageHistory();
 	}
 }
+
+// Обновление header-panel в зависимости от активной вкладки
+function updateHeaderPanel(tabName) {
+	const promocodesActions = document.getElementById('promocodesActions');
+	const historyActions = document.getElementById('historyActions');
+	
+	if (tabName === 'promocodes') {
+		promocodesActions.style.display = 'flex';
+		historyActions.style.display = 'none';
+	} else if (tabName === 'history') {
+		promocodesActions.style.display = 'none';
+		historyActions.style.display = 'flex';
+	}
+}
+
+// Обновление URL с query параметрами
+function updateURL(tabName) {
+	const url = new URL(window.location);
+	if (tabName === 'promocodes') {
+		url.searchParams.set('tab', 'promocodes');
+	} else if (tabName === 'history') {
+		url.searchParams.set('tab', 'promohistory');
+	}
+	window.history.pushState({}, '', url);
+}
+
+// Инициализация вкладки из URL
+function initTabFromURL() {
+	const urlParams = new URLSearchParams(window.location.search);
+	const tab = urlParams.get('tab');
+	
+	if (tab === 'promohistory') {
+		// Переключаем на вкладку "История"
+		document.querySelectorAll('.main-tabs .tab-button').forEach(btn => btn.classList.remove('active'));
+		document.querySelector('.main-tabs .tab-button[onclick*="history"]').classList.add('active');
+		
+		document.querySelectorAll('.main-tabs-content .tab-content').forEach(content => content.classList.remove('active'));
+		document.getElementById('tab-history').classList.add('active');
+		
+		updateHeaderPanel('history');
+	} else {
+		// По умолчанию вкладка "Промокоды"
+		updateHeaderPanel('promocodes');
+	}
+}
+
+// Загрузка истории использования
+async function loadUsageHistory() {
+	try {
+		console.log('Loading usage history...');
+		showHistoryLoadingState();
+		const response = await fetchWithCSRF('/api/promo-codes-usage-history');
+		const data = await response.json();
+		
+		if (data.success) {
+			allUsageHistory = data.usage_history;
+			filteredUsageHistory = [...allUsageHistory];
+			updateHistoryCount(allUsageHistory.length);
+			renderUsageHistoryTable(filteredUsageHistory);
+		} else {
+			showNotification('Ошибка загрузки истории: ' + data.message, 'error');
+			showHistoryEmptyState();
+		}
+	} catch (error) {
+		console.error('Error loading usage history:', error);
+		showNotification('Ошибка загрузки истории', 'error');
+		showHistoryEmptyState();
+	}
+}
+
+// Показать состояние загрузки для истории
+function showHistoryLoadingState() {
+	const tbody = document.querySelector('#usageHistoryTable tbody');
+	const emptyState = document.getElementById('historyEmptyState');
+	
+	emptyState.style.display = 'none';
+	tbody.innerHTML = '<tr><td colspan="10" class="text-center">Загрузка...</td></tr>';
+}
+
+// Показать пустое состояние для истории
+function showHistoryEmptyState() {
+	const tbody = document.querySelector('#usageHistoryTable tbody');
+	const emptyState = document.getElementById('historyEmptyState');
+	
+	tbody.innerHTML = '';
+	emptyState.style.display = 'flex';
+}
+
+// Обновить счетчик истории
+function updateHistoryCount(count) {
+	document.getElementById('historyCount').textContent = count;
+}
+
+// Отрисовка таблицы истории использования
+function renderUsageHistoryTable(usageHistory) {
+	const tbody = document.querySelector('#usageHistoryTable tbody');
+	const emptyState = document.getElementById('historyEmptyState');
+	
+	emptyState.style.display = 'none';
+	
+	if (usageHistory.length === 0) {
+		tbody.innerHTML = '<tr><td colspan="10" class="text-center">Записи не найдены</td></tr>';
+		return;
+	}
+	
+	tbody.innerHTML = usageHistory.map(usage => `
+		<tr>
+			<td title="ID записи использования">${usage.usage_id}</td>
+			<td><code>${usage.code}</code></td>
+			<td>${usage.user_id}</td>
+			<td>${usage.username || '-'}</td>
+			<td><span class="badge badge-${usage.bot === 'shop' ? 'primary' : 'secondary'}">${usage.bot === 'shop' ? 'Shop' : 'Support'}</span></td>
+			<td>${formatDiscount(usage)}</td>
+			<td>${usage.plan_name || '-'}</td>
+			<td>${formatDate(usage.used_at)}</td>
+			<td><span class="badge badge-${usage.status === 'used' ? 'success' : 'info'}" title="${usage.status === 'used' ? 'Промокод использован при покупке' : 'Промокод применён, но покупка не совершена'}">${usage.status === 'used' ? 'Использован' : 'Применён'}</span></td>
+			<td>${usage.metadata ? `<button type="button" class="button button-outline button-sm" onclick="showMetadata(this)" data-metadata="${encodeURIComponent(usage.metadata)}" title="Показать метаданные"><i class="fas fa-info-circle"></i></button>` : '-'}</td>
+		</tr>
+	`).join('');
+}
+
+// Форматирование скидки
+function formatDiscount(usage) {
+	const parts = [];
+	if (usage.discount_amount && usage.discount_amount > 0) {
+		parts.push(`${usage.discount_amount}₽`);
+	}
+	if (usage.discount_percent && usage.discount_percent > 0) {
+		parts.push(`${usage.discount_percent}%`);
+	}
+	if (usage.discount_bonus && usage.discount_bonus > 0) {
+		parts.push(`${usage.discount_bonus}Б`);
+	}
+	return parts.length > 0 ? parts.join(' и ') : '-';
+}
+
+// Фильтрация истории использования
+function filterUsageHistory() {
+	const dateFrom = document.getElementById('filterDateFrom').value;
+	const dateTo = document.getElementById('filterDateTo').value;
+	const user = document.getElementById('filterUser').value.toLowerCase();
+	const status = document.getElementById('filterStatus').value;
+	const bot = document.getElementById('filterBot').value;
+	const promoCode = document.getElementById('filterPromoCode').value.toLowerCase();
+	
+	filteredUsageHistory = allUsageHistory.filter(usage => {
+		// Фильтр по дате
+		if (dateFrom) {
+			const usageDate = new Date(usage.used_at);
+			const fromDate = new Date(dateFrom);
+			if (usageDate < fromDate) return false;
+		}
+		if (dateTo) {
+			const usageDate = new Date(usage.used_at);
+			const toDate = new Date(dateTo);
+			toDate.setHours(23, 59, 59, 999); // Включаем весь день
+			if (usageDate > toDate) return false;
+		}
+		
+		// Фильтр по пользователю
+		if (user) {
+			const userStr = usage.user_id.toString() + (usage.username || '');
+			if (!userStr.toLowerCase().includes(user)) return false;
+		}
+		
+		// Фильтр по статусу
+		if (status && usage.status !== status) return false;
+		
+		// Фильтр по боту
+		if (bot && usage.bot !== bot) return false;
+		
+		// Фильтр по промокоду
+		if (promoCode && !usage.code.toLowerCase().includes(promoCode)) return false;
+		
+		return true;
+	});
+	
+	updateHistoryCount(filteredUsageHistory.length);
+	renderUsageHistoryTable(filteredUsageHistory);
+}
+
+// Очистка фильтров
+function clearHistoryFilters() {
+	document.getElementById('filterDateFrom').value = '';
+	document.getElementById('filterDateTo').value = '';
+	document.getElementById('filterUser').value = '';
+	document.getElementById('filterStatus').value = '';
+	document.getElementById('filterBot').value = '';
+	document.getElementById('filterPromoCode').value = '';
+	
+	filteredUsageHistory = [...allUsageHistory];
+	updateHistoryCount(filteredUsageHistory.length);
+	renderUsageHistoryTable(filteredUsageHistory);
+}
+
+// Обновление истории
+function refreshUsageHistory() {
+	loadUsageHistory();
+}
+
+// Фильтрация промокодов
+function filterPromoCodes() {
+	const promoCode = document.getElementById('filterPromoCode').value.toLowerCase();
+	const bot = document.getElementById('filterPromoBot').value;
+	const status = document.getElementById('filterPromoStatus').value;
+	const dateFrom = document.getElementById('filterPromoDateFrom').value;
+	const dateTo = document.getElementById('filterPromoDateTo').value;
+	const groups = document.getElementById('filterPromoGroups').value;
+	
+	filteredPromoCodes = allPromoCodes.filter(promo => {
+		// Фильтр по коду промокода
+		if (promoCode && !promo.code.toLowerCase().includes(promoCode)) return false;
+		
+		// Фильтр по боту
+		if (bot && promo.bot !== bot) return false;
+		
+		// Фильтр по статусу
+		if (status) {
+			if (status === 'active' && !promo.is_active) return false;
+			if (status === 'inactive' && promo.is_active) return false;
+		}
+		
+		// Фильтр по дате создания
+		if (dateFrom) {
+			const promoDate = new Date(promo.created_at);
+			const fromDate = new Date(dateFrom);
+			if (promoDate < fromDate) return false;
+		}
+		if (dateTo) {
+			const promoDate = new Date(promo.created_at);
+			const toDate = new Date(dateTo);
+			toDate.setHours(23, 59, 59, 999); // Включаем весь день
+			if (promoDate > toDate) return false;
+		}
+		
+		// Фильтр по группам
+		if (groups) {
+			const hasGroups = promo.target_group_ids && promo.target_group_ids.length > 0;
+			if (groups === 'with_groups' && !hasGroups) return false;
+			if (groups === 'without_groups' && hasGroups) return false;
+		}
+		
+		return true;
+	});
+	
+	updatePromoCount(filteredPromoCodes.length);
+	if (isCardView) {
+		renderPromoCards(filteredPromoCodes);
+	} else {
+		renderPromoCodesTable(filteredPromoCodes);
+	}
+}
+
+// Очистка фильтров промокодов
+function clearPromoFilters() {
+	document.getElementById('filterPromoCode').value = '';
+	document.getElementById('filterPromoBot').value = '';
+	document.getElementById('filterPromoStatus').value = '';
+	document.getElementById('filterPromoDateFrom').value = '';
+	document.getElementById('filterPromoDateTo').value = '';
+	document.getElementById('filterPromoGroups').value = '';
+	
+	filteredPromoCodes = [...allPromoCodes];
+	updatePromoCount(filteredPromoCodes.length);
+	if (isCardView) {
+		renderPromoCards(filteredPromoCodes);
+	} else {
+		renderPromoCodesTable(filteredPromoCodes);
+	}
+}
+
+// Показать метаданные в модальном окне
+function showMetadata(buttonElement) {
+	const encodedMetadata = buttonElement.getAttribute('data-metadata');
+	if (!encodedMetadata) {
+		showNotification('Метаданные не найдены', 'error');
+		return;
+	}
+	
+	try {
+		// Декодируем метаданные
+		const metadata = decodeURIComponent(encodedMetadata);
+		
+		// Пытаемся распарсить JSON для красивого отображения
+		const parsed = JSON.parse(metadata);
+		const formatted = JSON.stringify(parsed, null, 2);
+		showNotification(`Метаданные:\n${formatted}`, 'info', 10000);
+	} catch (e) {
+		// Если не JSON, показываем как есть
+		const metadata = decodeURIComponent(encodedMetadata);
+		showNotification(`Метаданные: ${metadata}`, 'info', 10000);
+	}
+}
+
+// Привязка событий фильтров
+document.addEventListener('DOMContentLoaded', function() {
+	// Инициализация вкладки из URL
+	initTabFromURL();
+	
+	// Привязываем события к фильтрам истории
+	const historyFilterInputs = ['filterDateFrom', 'filterDateTo', 'filterUser', 'filterStatus', 'filterBot', 'filterPromoCode'];
+	historyFilterInputs.forEach(id => {
+		const element = document.getElementById(id);
+		if (element) {
+			element.addEventListener('input', filterUsageHistory);
+			element.addEventListener('change', filterUsageHistory);
+		}
+	});
+	
+	// Привязываем события к фильтрам промокодов
+	const promoFilterInputs = ['filterPromoCode', 'filterPromoBot', 'filterPromoStatus', 'filterPromoDateFrom', 'filterPromoDateTo', 'filterPromoGroups'];
+	promoFilterInputs.forEach(id => {
+		const element = document.getElementById(id);
+		if (element) {
+			element.addEventListener('input', filterPromoCodes);
+			element.addEventListener('change', filterPromoCodes);
+		}
+	});
+	
+	// Инициализация date picker для полей дат
+	initDatePickers();
+});
+
+// Инициализация date picker с Flatpickr
+function initDatePickers() {
+	// Конфигурация Flatpickr для темной темы
+	const flatpickrConfig = {
+		locale: 'ru',
+		dateFormat: 'd.m.Y',
+		allowInput: true,
+		clickOpens: true,
+		theme: 'dark',
+		onChange: function(selectedDates, dateStr, instance) {
+			// Триггерим событие change для фильтрации
+			instance.element.dispatchEvent(new Event('change'));
+		}
+	};
+	
+	// Инициализируем Flatpickr для полей дат истории
+	const dateFromInput = document.getElementById('filterDateFrom');
+	const dateToInput = document.getElementById('filterDateTo');
+	
+	if (dateFromInput) {
+		flatpickr(dateFromInput, flatpickrConfig);
+	}
+	
+	if (dateToInput) {
+		flatpickr(dateToInput, flatpickrConfig);
+	}
+	
+	// Инициализируем Flatpickr для полей дат промокодов
+	const promoDateFromInput = document.getElementById('filterPromoDateFrom');
+	const promoDateToInput = document.getElementById('filterPromoDateTo');
+	
+	if (promoDateFromInput) {
+		flatpickr(promoDateFromInput, flatpickrConfig);
+	}
+	
+	if (promoDateToInput) {
+		flatpickr(promoDateToInput, flatpickrConfig);
+	}
+}
+
+// Закрытие drawer по клику на overlay
+document.addEventListener('DOMContentLoaded', function() {
+    const overlay = document.getElementById('promoDrawer');
+    if (overlay) {
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) {
+                closePromoDrawer();
+            }
+        });
+    }
+});
 </script>
 {% endblock %}
+

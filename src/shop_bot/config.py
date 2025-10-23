@@ -6,9 +6,21 @@
 CHOOSE_PLAN_MESSAGE = "Выберите подходящий тариф:"
 CHOOSE_PAYMENT_METHOD_MESSAGE = "Выберите удобный способ оплаты:"
 
-def get_payment_method_message_with_plan(host_name: str, plan_name: str, price: float) -> str:
+def get_payment_method_message_with_plan(host_name: str, plan_name: str, price: float, original_price: float | None = None, promo_code: str | None = None) -> str:
     """Генерирует сообщение с информацией о выбранном тарифе для формы оплаты"""
-    return f"Вы выбрали {host_name}: {plan_name} - {price:.0f} RUB\n\nТеперь выберите удобный способ оплаты:"
+    if original_price and original_price != price:
+        # Если есть скидка, показываем старую и новую цену с информацией о промокоде
+        discount_amount = original_price - price
+        message = f"Вы выбрали {host_name}: {plan_name}\n\n"
+        if promo_code:
+            message += f"🎫 Промокод '{promo_code}' применен!\n"
+        message += f"💰 Стоимость тарифа: {original_price:.2f} RUB\n"
+        message += f"🎁 Скидка: {discount_amount:.2f} RUB\n"
+        message += f"✅ Итоговая цена: {price:.2f} RUB\n\n"
+        message += "Теперь выберите удобный способ оплаты:"
+        return message
+    else:
+        return f"Вы выбрали {host_name}: {plan_name} - {price:.2f} RUB\n\nТеперь выберите удобный способ оплаты:"
 HOWTO_CHOOSE_OS_MESSAGE = "Выберите операционную систему устройства для получения инструкции по настройке:"
 VPN_INACTIVE_TEXT = "❌ <b>Статус VPN:</b> Неактивен (срок истек)"
 VPN_NO_DATA_TEXT = "У вас пока нет активных ключей."
@@ -21,7 +33,7 @@ def get_profile_text(username, balance, total_spent, total_months, vpn_status_te
     text = (
         f"👤 <b>Профиль:</b> {username}\n"
         f"💰 <b>Баланс:</b> {balance:.2f} RUB\n\n"
-        f"💰 <b>Потрачено всего:</b> {total_spent:.0f} RUB\n"
+        f"💸 <b>Потрачено всего:</b> {total_spent:.2f} RUB\n"
         f"📅 <b>Приобретено месяцев:</b> {total_months}\n"
         f"ℹ️ <b>Статус VPN:</b> {vpn_status_text}\n"
     )

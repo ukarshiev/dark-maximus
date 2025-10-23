@@ -1,6 +1,6 @@
 # База данных Dark Maximus
 
-**Последнее обновление:** 21.10.2025
+**Последнее обновление:** 22.10.2025 21:15
 
 ## Оглавление
 - [Обзор](#обзор)
@@ -289,6 +289,65 @@ CREATE TABLE support_threads (
 - `PRIMARY KEY (user_id)`
 - `UNIQUE INDEX uk_support_threads_thread_id (thread_id)`
 
+### 10. promo_codes - Промокоды
+Таблица для хранения промокодов и их настроек.
+
+```sql
+CREATE TABLE promo_codes (
+    promo_id INTEGER PRIMARY KEY AUTOINCREMENT, -- ID промокода (PK)
+    code TEXT NOT NULL UNIQUE,                  -- Код промокода (UK)
+    bot TEXT NOT NULL,                          -- Бот (shop, support)
+    vpn_plan_id TEXT,                           -- ID тарифов (JSON массив)
+    tariff_code TEXT,                           -- Коды тарифов (JSON массив)
+    discount_amount REAL DEFAULT 0,             -- Скидка в рублях
+    discount_percent REAL DEFAULT 0,            -- Скидка в процентах
+    discount_bonus REAL DEFAULT 0,              -- Бонус на баланс
+    usage_limit_per_bot INTEGER DEFAULT 1000,   -- Лимит использований
+    valid_until TIMESTAMP,                      -- Действителен до
+    burn_after_value INTEGER,                   -- Значение срока сгорания
+    burn_after_unit TEXT,                       -- Единица срока сгорания
+    target_group_ids TEXT,                      -- ID групп пользователей (JSON)
+    is_active BOOLEAN DEFAULT 1,                -- Активен ли промокод
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Дата создания
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP  -- Дата обновления
+);
+```
+
+### 11. promo_code_usage - Использование промокодов
+Таблица для отслеживания использования промокодов пользователями.
+
+```sql
+CREATE TABLE promo_code_usage (
+    usage_id INTEGER PRIMARY KEY AUTOINCREMENT, -- ID использования (PK)
+    promo_id INTEGER NOT NULL,                  -- ID промокода (FK)
+    user_id INTEGER,                            -- ID пользователя (FK)
+    bot TEXT NOT NULL,                          -- Бот (shop, support)
+    plan_id INTEGER,                            -- ID тарифа (FK)
+    discount_amount REAL DEFAULT 0,             -- Скидка в рублях
+    discount_percent REAL DEFAULT 0,            -- Скидка в процентах
+    discount_bonus REAL DEFAULT 0,              -- Бонус на баланс
+    metadata TEXT,                              -- Метаданные (JSON)
+    used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Дата использования
+    status TEXT DEFAULT 'applied',              -- Статус (applied, used)
+    FOREIGN KEY (promo_id) REFERENCES promo_codes (promo_id),
+    FOREIGN KEY (plan_id) REFERENCES plans (plan_id),
+    FOREIGN KEY (user_id) REFERENCES users (telegram_id),
+    UNIQUE (promo_id, bot)
+);
+```
+
+**Статусы:**
+- `applied` - Промокод применен, но покупка еще не совершена
+- `used` - Промокод использован при успешной оплате
+
+**Индексы:**
+- `PRIMARY KEY (usage_id)`
+- `INDEX idx_promo_code_usage_promo_id (promo_id)`
+- `INDEX idx_promo_code_usage_user_id (user_id)`
+- `INDEX idx_promo_code_usage_bot (bot)`
+- `INDEX idx_promo_code_usage_used_at (used_at)`
+- `INDEX idx_promo_code_usage_status (status)`
+
 ## Связи между таблицами
 
 **Основные связи:**
@@ -296,9 +355,12 @@ CREATE TABLE support_threads (
 - `users.telegram_id` → `transactions.user_id` (один ко многим)
 - `users.telegram_id` → `notifications.user_id` (один ко многим)
 - `users.telegram_id` → `support_threads.user_id` (один к одному)
+- `users.telegram_id` → `promo_code_usage.user_id` (один ко многим)
 - `users.group_id` → `user_groups.group_id` (многие к одному)
 - `xui_hosts.host_name` → `vpn_keys.host_name` (один ко многим)
 - `xui_hosts.host_name` → `plans.host_name` (один ко многим)
+- `promo_codes.promo_id` → `promo_code_usage.promo_id` (один ко многим)
+- `plans.plan_id` → `promo_code_usage.plan_id` (один ко многим)
 
 **Схема связей:**
 ```
@@ -647,24 +709,66 @@ def get_user_transactions(user_id: int):
 ```
 
 ## Резервное копирование
+### Самовосстановление при ошибках целостности
+
+При выполнении операций с промокодами и другими таблицами система автоматически пытается восстановить индексы и структуру БД при диагностике ошибки вида "database disk image is malformed":
+
+- Выполняются команды `REINDEX`, `ANALYZE`, затем `VACUUM` вне транзакции.
+- Операция повторяется один раз после успешного восстановления.
+- Это снижает вероятность падения операций при лёгких повреждениях индексов.
+
+Рекомендуется периодически запускать `VACUUM` в окне низкой нагрузки и использовать встроенную систему бэкапов, чтобы иметь актуальные копии.
+
 
 ### Автоматическое резервное копирование
 ```python
+import sqlite3
+import gzip
 import shutil
 from datetime import datetime
 
-def backup_database():
-    """Создание резервной копии базы данных."""
+def backup_database_sqlite_api(db_path: str, backups_dir: str, compress: bool = True) -> str:
+    """Снимок БД через SQLite backup API, проверка целостности, опциональная компрессия."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_name = f"users_backup_{timestamp}.db"
-    
-    try:
-        shutil.copy2(DB_FILE, f"backups/{backup_name}")
-        logging.info(f"Резервная копия создана: {backup_name}")
-        return True
-    except Exception as e:
-        logging.error(f"Ошибка создания резервной копии: {e}")
-        return False
+    raw_backup = f"{backups_dir}/users_backup_{timestamp}.db"
+
+    # Снимок через API (атомарный)
+    with sqlite3.connect(db_path) as src:
+        try:
+            try:
+                src.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            except sqlite3.Error:
+                pass
+            with sqlite3.connect(raw_backup) as dst:
+                src.backup(dst)
+        finally:
+            src.commit()
+
+    # Проверка целостности и авто-REINDEX на копии при ошибке индекса
+    def integrity_ok(path: str) -> bool:
+        with sqlite3.connect(path) as conn:
+            cur = conn.cursor()
+            cur.execute("PRAGMA integrity_check")
+            row = cur.fetchone()
+            return row and row[0] == 'ok'
+
+    if not integrity_ok(raw_backup):
+        with sqlite3.connect(raw_backup) as conn:
+            cur = conn.cursor()
+            cur.execute("REINDEX")
+            cur.execute("ANALYZE")
+            conn.commit()
+        if not integrity_ok(raw_backup):
+            raise RuntimeError("Integrity check failed after REINDEX")
+
+    if not compress:
+        return raw_backup
+
+    gz_backup = f"{raw_backup}.gz"
+    with open(raw_backup, 'rb') as fin, gzip.open(gz_backup, 'wb') as fout:
+        shutil.copyfileobj(fin, fout)
+    os.remove(raw_backup)
+    return gz_backup
 ```
 
 ### Восстановление из резервной копии
@@ -672,12 +776,26 @@ def backup_database():
 def restore_database(backup_file: str):
     """Восстановление базы данных из резервной копии."""
     try:
-        shutil.copy2(backup_file, DB_FILE)
+        # Если бэкап сжат, сначала распаковать, затем копировать
+        if backup_file.endswith('.gz'):
+            import gzip, tempfile
+            with gzip.open(backup_file, 'rb') as fin, open(DB_FILE, 'wb') as fout:
+                shutil.copyfileobj(fin, fout)
+        else:
+            shutil.copy2(backup_file, DB_FILE)
         logging.info(f"База данных восстановлена из {backup_file}")
         return True
     except Exception as e:
         logging.error(f"Ошибка восстановления базы данных: {e}")
         return False
+```
+
+### Восстановление индексов при ошибке целостности
+```sql
+-- Если PRAGMA integrity_check возвращает ошибку вида
+-- "wrong # of entries in index <index_name>", выполните:
+REINDEX;   -- переиндексация всех индексов
+ANALYZE;   -- обновление статистики оптимизатора
 ```
 
 ## WAL файлы (Write-Ahead Logging)
