@@ -1358,6 +1358,180 @@ body.login-page {
     text-decoration: none !important;
 }
 
+/* === Layout fix: полноширинный контейнер панели === */
+body > .container {
+    display: flex;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+    min-height: calc(100vh - 55px); /* под фиксированный header */
+    margin-top: 55px; /* опускаем контент под header-panel */
+}
+
+body > .container .sidebar {
+    flex: 0 0 280px;
+}
+
+body > .container .main-content {
+    flex: 1 1 auto;
+    min-width: 0;   /* позволяет контенту правильно сжиматься */
+    overflow-x: auto; /* защитный горизонтальный скролл */
+}
+
+/* На мобильных контейнер становится колонкой (sidebar управляется существующей логикой) */
+@media (max-width: 599px) {
+    body > .container { flex-direction: column; }
+}
+
+/* Горизонтальный скролл таблиц только на узких экранах */
+@media (max-width: 1199px) {
+    .table-scroll-x { overflow-x: auto; }
+}
+
+/* === Grid-лейаут только для страницы Пользователи === */
+.users-page { --sidebar-w: 280px; }
+
+/* Верхний уровень: body как grid с шапкой и контентом */
+body.users-page {
+    display: grid;
+    grid-template-rows: 55px 1fr;
+    grid-template-columns: 100%;
+    grid-template-areas:
+        "header"
+        "content";
+    min-height: 100vh;
+}
+
+.users-page .header-panel { grid-area: header; position: sticky; top: 0; left: 0; right: 0; z-index: 1001; padding: 0; }
+
+.users-page .container.layout-grid { grid-area: content; }
+.users-page .container.layout-grid {
+    display: grid;
+    grid-template-columns: var(--sidebar-w) 1fr;
+    grid-template-rows: 55px 1fr;
+    grid-template-areas:
+        "sidebar main";
+    width: 100%;
+    max-width: none;
+    margin: 0; /* общий сброс */
+    padding: 0; /* убираем внутренние отступы у контейнера */
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+    min-height: 100%;
+}
+
+/* Привязываем существующие элементы к областям грида */
+.users-page .sidebar      { grid-area: sidebar; position: sticky; top: 55px; height: calc(100vh - 55px); overflow-y: auto; overflow-x: hidden; }
+.users-page .main-content { grid-area: main;  margin-left: 0; min-width: 0; overflow: auto; padding: 0; }
+
+/* Выравнивание блока меню в header */
+.menu-items-header--in-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-right: 10px;
+    width: 280px;         /* фиксированная ширина как у развернутого сайдбара */
+    flex: 0 0 280px;      /* не схлопывается при сворачивании */
+}
+.menu-items-header--in-header .sidebar-burger { flex-shrink: 0; }
+
+.menu-items-header--in-header .sidebar-burger {
+    width: 32px;
+    height: 32px;
+}
+
+.menu-items-header--in-header .sidebar-logo .logo-img {
+    height: 28px;
+}
+
+/* Свертывание сайдбара в grid: ширина 60px, main занимает оставшееся */
+.users-page .sidebar.sidebar-collapsed { width: 60px; }
+.users-page .main-content.sidebar-collapsed { margin-left: 0; }
+.users-page .header-panel { left: 0; }
+
+/* Убираем глобальный отступ под фикс-хедер только для grid-страницы */
+.users-page body > .container,
+.users-page .container { margin-top: 0; }
+
+/* Динамическая ширина колонки сайдбара в grid по состоянию */
+.users-page .container.layout-grid:has(.sidebar.sidebar-collapsed) { --sidebar-w: 60px; }
+.users-page .container.layout-grid:has(.sidebar.sidebar-hidden)   { --sidebar-w: 0px; }
+
+/* Переносим динамику ширины и на body, чтобы header наследовал переменную */
+body.users-page:has(.container.layout-grid .sidebar.sidebar-collapsed) { --sidebar-w: 60px; }
+body.users-page:has(.container.layout-grid .sidebar.sidebar-hidden)   { --sidebar-w: 0px; }
+
+/* В свернутом/скрытом режиме в шапке прячем логотип, но оставляем бургер на месте */
+body.users-page:has(.container.layout-grid .sidebar.sidebar-collapsed) .menu-items-header--in-header .sidebar-logo,
+body.users-page:has(.container.layout-grid .sidebar.sidebar-hidden)   .menu-items-header--in-header .sidebar-logo {
+    display: none;
+}
+
+/* Убираем паддинги секции таблицы на users-page */
+.users-page .settings-section,
+.users-page .settings-section.settings-section--fluid {
+	padding-inline: 0;
+	padding-top: 0;
+	padding-bottom: 0;
+	margin-bottom: 0;
+}
+
+/* Точное отключение паддингов у body:not(.admin-panel) на users-page */
+body.users-page:not(.admin-panel) { padding: 0 !important; }
+
+/* Лёгкий внутренний отступ слева для содержимого */
+.users-page .main-content { padding-left: 10px; }
+
+/* Планшеты: убираем ряд header внутри контейнера, фиксируем высоту sidebar */
+@media (max-width: 899px) and (min-width: 600px) {
+    .users-page .container.layout-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr;
+        grid-template-areas:
+            "sidebar"
+            "main";
+    }
+    .users-page .sidebar { top: 55px; height: calc(100vh - 55px); }
+}
+
+/* Мобильные: off-canvas sidebar и один бургер */
+@media (max-width: 599px) {
+    .users-page .container.layout-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+        grid-template-areas: "sidebar" "main";
+    }
+    .users-page .sidebar {
+        position: fixed;
+        top: 55px;
+        left: -100%;
+        width: 100%;
+        height: calc(100vh - 55px);
+        overflow-y: auto;
+        overflow-x: hidden;
+        transition: left .3s ease;
+        z-index: 1002;
+    }
+    .users-page .sidebar.sidebar-mobile-open { left: 0; }
+
+    .menu-items-header--in-header .sidebar-burger { display: none; }
+    #headerBurger { display: flex !important; }
+    .menu-items-header--in-header { width: auto; flex: 0 0 auto; }
+}
+
+/* 600–899: заголовок с ellipsis, компактные кнопки */
+@media (max-width: 899px) and (min-width: 600px) {
+    .header-panel-left { min-width: 0; }
+    .header-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .header-panel-right .button { padding: 6px 8px; min-width: 32px; }
+    .header-panel-right .button span, .header-panel-right .button .button-text { display: none; }
+}
+
 .tab-navigation button.nav-button {
     padding: 12px 20px;
     border: none;
@@ -5193,8 +5367,7 @@ body:not(.admin-panel) .legal-document {
 /* ===== ПРОМОКОДЫ - КАРТОЧНЫЙ ИНТЕРФЕЙС ===== */
 
 /* Контейнер для карточек промокодов */
-.promo-cards-container {
-}
+.promo-cards-container { display: contents; }
 
 .promo-cards-header {
     display: flex;

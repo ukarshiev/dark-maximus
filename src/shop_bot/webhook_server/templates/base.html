@@ -22,10 +22,21 @@
 		<!-- Favicon -->
 		<link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
 	</head>
-	<body>
+    <body class="{% block body_class %}{% endblock %}">
 		<!-- Закрепленная панель в head -->
 		<header class="header-panel">
 			<div class="header-panel-left">
+				<!-- Блок меню и логотипа, перенесённый из sidebar в header (слева) -->
+				<div class="menu-items-header menu-items-header--in-header">
+					<button class="sidebar-burger" id="sidebarBurger" title="Скрыть боковое меню">
+						<span></span>
+						<span></span>
+						<span></span>
+					</button>
+					<div class="sidebar-logo">
+						<img src="{{ url_for('static', filename='logo.svg') }}" alt="Логотип" class="logo-img">
+					</div>
+				</div>
 				<button class="header-burger" id="headerBurger" title="Открыть меню">
 					<span></span>
 					<span></span>
@@ -38,20 +49,9 @@
 			</div>
 		</header>
 		
-		<div class="container">
+        <div class="container {% block container_class %}{% endblock %}">
 			<!-- Боковое меню -->
 			<aside class="sidebar" id="sidebar">
-				<!-- Header бокового меню -->
-				<div class="menu-items-header">
-					<button class="sidebar-burger" id="sidebarBurger" title="Скрыть боковое меню">
-						<span></span>
-						<span></span>
-						<span></span>
-					</button>
-					<div class="sidebar-logo">
-						<img src="{{ url_for('static', filename='logo.svg') }}" alt="Логотип" class="logo-img">
-					</div>
-				</div>
 				
 				<nav class="sidebar-nav">
 					<a
