@@ -4236,7 +4236,6 @@ body.users-page:not(.admin-panel) { padding: 0 !important; }
     position: absolute;
     top: 100%;
     left: 50%;
-    transform: translateX(-50%);
     background: var(--bg-elevated);
     border: 1px solid var(--border-color);
     border-radius: 8px;
@@ -4355,7 +4354,6 @@ body.users-page:not(.admin-panel) { padding: 0 !important; }
 @media (max-width: 768px) {
     .kebab-menu {
         left: 50%;
-        transform: translateX(-50%);
         min-width: 180px;
     }
     
