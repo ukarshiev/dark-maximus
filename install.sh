@@ -121,7 +121,7 @@ REQUIRED_FILES=(
     "Dockerfile"
     "Dockerfile.docs" 
     "Dockerfile.codex-docs"
-    "docs/nginx-docs.conf"
+    "deploy/nginx/docs.conf"
     "codex.docs/docs-config.yaml"
     "codex.docs/package.json"
     "codex.docs/yarn.lock"

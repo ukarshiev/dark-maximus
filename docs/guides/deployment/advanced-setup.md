@@ -667,9 +667,9 @@ ps aux --sort=-%cpu | head -10
 ## 📚 Дополнительные ресурсы
 
 - [Installation Guide](INSTALLATION.md) - полное руководство по установке
-- [SSL Setup Guide](SSL-SETUP.md) - настройка SSL сертификатов
-- [Deployment Checklist](DEPLOYMENT-CHECKLIST.md) - чеклист развертывания
-- [User Guides](USER-GUIDES.md) - руководства для пользователей
+- [SSL Setup Guide](ssl-setup.md) - настройка SSL сертификатов
+- [Deployment Checklist](deployment-checklist.md) - чеклист развертывания
+- [User Guides](../user/getting-started.md) - руководства для пользователей
 
 ## 🆘 Поддержка
 

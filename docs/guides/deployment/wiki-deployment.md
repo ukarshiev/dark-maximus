@@ -10,7 +10,7 @@
 - `docs/user-docs/` - все файлы пользовательской документации
 - `docs/user-docs/index.html` - главная страница Docsify
 - `docs/user-docs/_sidebar.md` - навигационное меню
-- `docs/nginx-docs.conf` - конфигурация Nginx для Wiki
+- `deploy/nginx/docs.conf` - конфигурация Nginx для Wiki
 - `docker-compose.yml` - обновлен с сервисом `docs`
 
 ### 📱 Созданные разделы:
@@ -233,7 +233,7 @@ services:
       - '3001:80'
     volumes:
       - ./docs/user-docs:/usr/share/nginx/html/docs:ro
-      - ./docs/nginx-docs.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/nginx/docs.conf:/etc/nginx/conf.d/default.conf:ro
 ```
 
 ## ❓ Troubleshooting

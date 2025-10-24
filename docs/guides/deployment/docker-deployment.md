@@ -84,8 +84,8 @@ server {
 
 ### 5. Создана документация
 
-- **docs/docker-architecture.md** - полное описание Docker архитектуры
-- **docs/DOCKER-DEPLOYMENT-SUMMARY.md** - это резюме
+- **docs/architecture/docker-architecture.md** - полное описание Docker архитектуры
+- **docs/guides/deployment/docker-deployment.md** - это резюме
 
 ## 📊 Архитектура
 
@@ -277,10 +277,10 @@ docker compose up -d
 
 ## 📚 Дополнительные ресурсы
 
-- [Docker Architecture Documentation](docker-architecture.md)
+- [Docker Architecture Documentation](../../architecture/docker-architecture.md)
 - [Installation Guide](../README.md)
 - [Production Checklist](production-checklist.md)
-- [Security Checklist](security-checklist.md)
+- [Security Checklist](../../security/security-checklist.md)
 
 ## ✅ Чеклист развертывания
 

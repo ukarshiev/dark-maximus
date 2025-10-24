@@ -31,7 +31,7 @@ RUN apk add --no-cache netcat-openbsd wget
 USER nginx
 
 # Копируем кастомную конфигурацию Nginx
-COPY docs/nginx-docs.conf /etc/nginx/conf.d/default.conf
+COPY deploy/nginx/docs.conf /etc/nginx/conf.d/default.conf
 
 # Копируем статичные файлы из builder stage
 COPY --chown=nginx:nginx --from=docs-builder /build/docs /usr/share/nginx/html/docs

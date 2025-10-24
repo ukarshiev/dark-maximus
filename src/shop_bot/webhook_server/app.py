@@ -25,11 +25,12 @@ import os
 if os.path.exists("/app/project"):
     # Docker окружение
     PROJECT_ROOT = Path("/app/project")
+    # В Docker используем data директорию для базы данных
+    DB_FILE = PROJECT_ROOT / "data" / "users.db"
 else:
     # Локальная разработка
     PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
-
-DB_FILE = PROJECT_ROOT / "users.db"
+    DB_FILE = PROJECT_ROOT / "users.db"
 
 from shop_bot.modules import xui_api
 from shop_bot.bot import handlers 

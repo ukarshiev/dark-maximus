@@ -84,7 +84,7 @@ dark-maximus/
 ├── config/                 # Конфигурация (НОВОЕ!)
 │   ├── docs-config.yaml
 │   ├── env.example
-│   └── nginx-docs.conf
+│   └── docs.conf (в deploy/nginx/)
 │
 └── temp/                   # Временные файлы (НОВОЕ!)
     ├── codex-page-*.txt
@@ -112,7 +112,7 @@ dark-maximus/
 - [ ] Переместить конфигурацию в `config/`
   - [ ] `docs-config.yaml` → `config/docs-config.yaml`
   - [ ] `env.example` → `config/env.example`
-  - [ ] `docs/nginx-docs.conf` → `config/nginx-docs.conf`
+  - [ ] `docs/nginx-docs.conf` → `deploy/nginx/docs.conf`
 
 - [ ] Переместить временные файлы в `temp/`
   - [ ] `codex-page-*.txt` → `temp/codex-page-*.txt`

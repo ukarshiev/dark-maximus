@@ -82,7 +82,8 @@ dark-maximus/
 │   ├── security.md                    # Безопасность
 │   ├── tech-stack.md                  # Технологии
 │   ├── project-info.md                # О проекте
-│   ├── ROADMAP.md                     # План развития
+│   ├── roadmap-main.md                # План модернизации (основной)
+│   ├── roadmap.md                     # План развития (текущий)
 │   ├── FAQ.md                         # FAQ
 │   ├── features.md                    # Функции
 │   ├── features-subscriptions.md      # Подписки
@@ -100,7 +101,8 @@ dark-maximus/
 │   ├── dialog-api.md                  # Dialog API
 │   ├── generic-cqrs-typing.md         # CQRS типизация
 │   ├── test-cases-plan-unavailable.md # План тестов
-│   ├── nginx-docs.conf                # Конфигурация Nginx
+│   └── nginx/                        # Конфигурация Nginx
+│       └── docs.conf                 # Конфигурация для Wiki
 │   ├── DOCUMENTATION-STRUCTURE.md     # Этот файл
 │   │
 │   └── ADMIN-DOCS-SUMMARY.md          # Сводка админской документации
@@ -194,7 +196,7 @@ dark-maximus/
 - `docs/project-info.md`
 - `docs/tech-stack.md`
 - `docs/security.md`
-- `docs/ROADMAP.md`
+- `docs/internal/roadmap-main.md`
 
 ## 🌐 Сервисы документации
 

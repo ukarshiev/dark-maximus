@@ -79,5 +79,5 @@ git log -1 --pretty=format:"%s"
 
 ## Дополнительная информация
 
-См. полную документацию: [docs/POWERSHELL-UTF8-SETUP.md](POWERSHELL-UTF8-SETUP.md)
+См. полную документацию: [docs/guides/development/powershell-utf8-setup.md](powershell-utf8-setup.md)
 

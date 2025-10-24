@@ -546,9 +546,9 @@ POST /ton-webhook
 
 ## Дополнительные ресурсы
 
-- **[Полное руководство по админ-панели](../admin-panel-guide.md)**
-- **[Быстрый старт](../admin-quickstart.md)**
-- **[FAQ](../FAQ.md)**
+- **[Полное руководство по админ-панели](../guides/admin/admin-panel-guide.md)**
+- **[Быстрый старт](../../tutorials/admin-quickstart.md)**
+- **[FAQ](../guides/user/faq.md)**
 
 ---
 

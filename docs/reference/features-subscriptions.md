@@ -89,7 +89,7 @@ final_text = get_purchase_success_text(
 
 ## См. также
 
-- [Архитектура системы](architecture-rules.md)
+- [Архитектура системы](../architecture/architecture-rules.md)
 - [Работа с 3x-ui API](modules.md)
 - [База данных](database.md)
 
