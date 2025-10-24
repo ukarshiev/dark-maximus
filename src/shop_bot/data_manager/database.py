@@ -35,8 +35,8 @@ if os.path.exists("/app/project"):
     # Docker окружение
 
     PROJECT_ROOT = Path("/app/project")
-    # В Docker используем data директорию для базы данных
-    DB_FILE = PROJECT_ROOT / "data" / "users.db"
+    # В Docker база данных в корне проекта
+    DB_FILE = PROJECT_ROOT / "users.db"
 
 else:
 
