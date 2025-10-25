@@ -25,6 +25,49 @@ import bcrypt
 logger = logging.getLogger(__name__)
 
 
+def _generate_group_code(group_name: str) -> str:
+    """
+    Генерирует код группы из названия группы.
+    Транслитерация кириллицы в латиницу, приведение к lowercase,
+    замена пробелов и спецсимволов на подчеркивания.
+    """
+    # Словарь транслитерации кириллицы в латиницу
+    translit_dict = {
+        'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'e',
+        'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
+        'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
+        'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch',
+        'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
+        'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ё': 'E',
+        'сс': 'SS', 'З': 'Z', 'И': 'I', 'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M',
+        'Н': 'N', 'О': 'O', 'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T', 'У': 'U',
+        'Ф': 'F', 'Х': 'H', 'Ц': 'TS', 'Ч': 'CH', 'Ш': 'SH', 'Щ': 'SCH',
+        'Ъ': '', 'Ы': 'Y', 'Ь': '', 'Э': 'E', 'Ю': 'YU', 'Я': 'YA'
+    }
+    
+    # Приводим к lowercase и транслитерируем
+    result = group_name.lower()
+    
+    # Заменяем кириллические символы на латинские
+    for cyrillic, latin in translit_dict.items():
+        result = result.replace(cyrillic, latin)
+    
+    # Заменяем пробелы и спецсимволы на подчеркивания
+    import re
+    result = re.sub(r'[^a-z0-9_-]', '_', result)
+    
+    # Убираем множественные подчеркивания
+    result = re.sub(r'_+', '_', result)
+    
+    # Убираем подчеркивания в начале и конце
+    result = result.strip('_')
+    
+    # Если результат пустой, используем 'group'
+    if not result:
+        result = 'group'
+    
+    return result
+
 
 # Определяем путь к базе данных в зависимости от окружения
 
@@ -392,7 +435,7 @@ def initialize_db():
 
                     FOREIGN KEY (user_id) REFERENCES users (telegram_id),
 
-                    UNIQUE (promo_id, bot)
+                    UNIQUE (promo_id, user_id, bot)
 
                 )
 
@@ -437,7 +480,8 @@ def initialize_db():
                     group_name TEXT NOT NULL UNIQUE,
                     group_description TEXT,
                     is_default BOOLEAN DEFAULT 0,
-                    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    group_code TEXT UNIQUE
                 )
             ''')
 
@@ -707,6 +751,7 @@ def create_database_indexes(cursor):
         # Индексы для таблицы user_groups
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_groups_group_name ON user_groups(group_name)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_groups_is_default ON user_groups(is_default)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_groups_group_code ON user_groups(group_code)")
 
         # Индекс для таблицы users по group_id
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_group_id ON users(group_id)")
@@ -1581,6 +1626,112 @@ def run_migration():
                 
         except Exception as e:
             logging.error(f" -> Error migrating promo_codes new columns: {e}")
+
+        # Миграция user_groups - добавление поля group_code
+        logging.info("Migrating user_groups table...")
+        try:
+            # Проверяем наличие колонки group_code
+            cursor.execute("PRAGMA table_info(user_groups)")
+            columns = [row[1] for row in cursor.fetchall()]
+            
+            if 'group_code' not in columns:
+                # Добавляем колонку group_code без UNIQUE ограничения сначала
+                cursor.execute("ALTER TABLE user_groups ADD COLUMN group_code TEXT")
+                logging.info(" -> The column 'group_code' is successfully added to user_groups table.")
+                
+                # Генерируем коды для существующих групп
+                cursor.execute("SELECT group_id, group_name FROM user_groups")
+                existing_groups = cursor.fetchall()
+                
+                for group_id, group_name in existing_groups:
+                    # Генерируем код из названия группы (транслитерация + lowercase)
+                    group_code = _generate_group_code(group_name)
+                    
+                    # Проверяем уникальность кода
+                    counter = 1
+                    original_code = group_code
+                    while True:
+                        cursor.execute("SELECT COUNT(*) FROM user_groups WHERE group_code = ?", (group_code,))
+                        if cursor.fetchone()[0] == 0:
+                            break
+                        group_code = f"{original_code}_{counter}"
+                        counter += 1
+                    
+                    # Обновляем группу с сгенерированным кодом
+                    cursor.execute("UPDATE user_groups SET group_code = ? WHERE group_id = ?", (group_code, group_id))
+                    logging.info(f" -> Generated group_code '{group_code}' for group '{group_name}' (ID: {group_id})")
+                
+                # Теперь создаем UNIQUE индекс для group_code
+                cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_user_groups_group_code_unique ON user_groups(group_code)")
+                logging.info(" -> Unique index for group_code created successfully.")
+                
+                logging.info(" -> User groups migration completed successfully.")
+            else:
+                logging.info(" -> The column 'group_code' already exists in user_groups table.")
+                
+        except Exception as e:
+            logging.error(f" -> Error migrating user_groups: {e}")
+
+        # Миграция promo_code_usage - исправление ограничения UNIQUE
+        logging.info("Migrating promo_code_usage unique constraint...")
+        try:
+            # Проверяем, была ли выполнена миграция исправления ограничения UNIQUE
+            cursor.execute("SELECT migration_id FROM migration_history WHERE migration_id = 'promo_code_usage_fix_unique_constraint'")
+            migration_done = cursor.fetchone()
+            
+            if not migration_done:
+                # Проверяем существующую структуру таблицы
+                cursor.execute("PRAGMA table_info(promo_code_usage)")
+                columns = [row[1] for row in cursor.fetchall()]
+                
+                if 'user_id' in columns:
+                    # Создаем новую таблицу с правильным ограничением UNIQUE
+                    cursor.execute('''
+                        CREATE TABLE promo_code_usage_new (
+                            usage_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            promo_id INTEGER NOT NULL,
+                            user_id INTEGER,
+                            bot TEXT NOT NULL,
+                            plan_id INTEGER,
+                            discount_amount REAL DEFAULT 0,
+                            discount_percent REAL DEFAULT 0,
+                            discount_bonus REAL DEFAULT 0,
+                            metadata TEXT,
+                            used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            status TEXT DEFAULT 'applied',
+                            FOREIGN KEY (promo_id) REFERENCES promo_codes (promo_id),
+                            FOREIGN KEY (plan_id) REFERENCES plans (plan_id),
+                            FOREIGN KEY (user_id) REFERENCES users (telegram_id),
+                            UNIQUE (promo_id, user_id, bot)
+                        )
+                    ''')
+                    
+                    # Копируем данные из старой таблицы
+                    cursor.execute('''
+                        INSERT INTO promo_code_usage_new 
+                        SELECT * FROM promo_code_usage
+                    ''')
+                    
+                    # Удаляем старую таблицу и переименовываем новую
+                    cursor.execute('DROP TABLE promo_code_usage')
+                    cursor.execute('ALTER TABLE promo_code_usage_new RENAME TO promo_code_usage')
+                    
+                    # Создаем индексы
+                    cursor.execute('CREATE INDEX IF NOT EXISTS idx_promo_code_usage_promo_id ON promo_code_usage(promo_id)')
+                    cursor.execute('CREATE INDEX IF NOT EXISTS idx_promo_code_usage_user_id ON promo_code_usage(user_id)')
+                    cursor.execute('CREATE INDEX IF NOT EXISTS idx_promo_code_usage_bot ON promo_code_usage(bot)')
+                    cursor.execute('CREATE INDEX IF NOT EXISTS idx_promo_code_usage_status ON promo_code_usage(status)')
+                    
+                    # Отмечаем миграцию как выполненную
+                    cursor.execute("INSERT INTO migration_history (migration_id) VALUES ('promo_code_usage_fix_unique_constraint')")
+                    logging.info(" -> Promo code usage unique constraint migration completed")
+                else:
+                    logging.warning(" -> Column 'user_id' not found in promo_code_usage table, skipping migration")
+            else:
+                logging.info(" -> Migration 'promo_code_usage_fix_unique_constraint' already applied, skipping")
+                
+        except Exception as e:
+            logging.error(f" -> Error migrating promo_code_usage unique constraint: {e}")
 
         conn.commit()
 
@@ -3036,18 +3187,35 @@ def record_promo_code_usage(
                     cursor.execute("COMMIT")
                     return True
                 
-                # Проверяем, не использовал ли уже пользователь этот промокод со статусом 'used'
+                # Проверяем существующую запись для этого промокода
                 cursor.execute('''
-                    SELECT COUNT(*) as usage_count
+                    SELECT usage_id, status
                     FROM promo_code_usage 
-                    WHERE promo_id = ? AND user_id = ? AND bot = ? AND status = 'used'
+                    WHERE promo_id = ? AND user_id = ? AND bot = ?
                 ''', (promo_id, user_id, bot_value))
                 
-                usage_result = cursor.fetchone()
-                if usage_result and usage_result[0] > 0:
-                    cursor.execute("ROLLBACK")
-                    logging.warning(f"User {user_id} already used promo code {promo_id}")
-                    return False
+                existing_record = cursor.fetchone()
+                if existing_record:
+                    existing_id, existing_status = existing_record
+                    
+                    # Если промокод уже использован (status='used'), запрещаем повторное применение
+                    if existing_status == 'used':
+                        cursor.execute("ROLLBACK")
+                        logging.warning(f"User {user_id} already used promo code {promo_id} with status 'used'")
+                        return False
+                    
+                    # Если промокод уже применён (status='applied'), разрешаем повторное применение
+                    # Обновляем существующую запись
+                    if existing_status == 'applied':
+                        cursor.execute('''
+                            UPDATE promo_code_usage 
+                            SET used_at = CURRENT_TIMESTAMP, status = ?
+                            WHERE usage_id = ? AND promo_id = ? AND user_id = ? AND bot = ?
+                        ''', (status, existing_id, promo_id, user_id, bot_value))
+                        
+                        cursor.execute("COMMIT")
+                        logging.info(f"Updated existing promo code usage (id={existing_id}) for user {user_id}, promo {promo_id}")
+                        return True
                 
                 # Проверяем общий лимит использований
                 cursor.execute('''
@@ -3107,9 +3275,8 @@ def record_promo_code_usage(
                 raise e
 
     except sqlite3.IntegrityError as e:
-
-        logging.warning(f"Promo code usage already exists for promo_id={promo_id}, bot={bot_value}: {e}")
-
+        # Этот блок теперь не должен срабатывать, так как мы проверяем существующие записи заранее
+        logging.error(f"Unexpected IntegrityError for promo_id={promo_id}, bot={bot_value}: {e}")
         return False
 
     except sqlite3.Error as e:
@@ -3163,6 +3330,27 @@ def remove_promo_code_usage(promo_id: int, bot: str) -> bool:
 
         return False
 
+
+
+def get_promo_code_usage_by_user(promo_id: int, user_id: int, bot: str) -> dict | None:
+    """Получить информацию об использовании промокода конкретным пользователем"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT usage_id, status, used_at, discount_amount, discount_percent, discount_bonus
+                FROM promo_code_usage 
+                WHERE promo_id = ? AND user_id = ? AND bot = ?
+            ''', (promo_id, user_id, _normalize_bot_value(bot)))
+            
+            result = cursor.fetchone()
+            return dict(result) if result else None
+            
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get promo code usage for promo_id={promo_id}, user_id={user_id}: {e}")
+        return None
 
 
 def get_promo_code_usage(promo_id: int) -> list[dict]:
@@ -6773,10 +6961,11 @@ def get_all_user_groups() -> list[dict]:
                     ug.group_description,
                     ug.is_default,
                     ug.created_date,
+                    ug.group_code,
                     COUNT(u.telegram_id) as user_count
                 FROM user_groups ug
                 LEFT JOIN users u ON ug.group_id = u.group_id
-                GROUP BY ug.group_id, ug.group_name, ug.group_description, ug.is_default, ug.created_date
+                GROUP BY ug.group_id, ug.group_name, ug.group_description, ug.is_default, ug.created_date, ug.group_code
                 ORDER BY ug.group_id
             ''')
             
@@ -6802,51 +6991,95 @@ def get_user_group(group_id: int) -> dict | None:
         return None
 
 
-def create_user_group(group_name: str, group_description: str = None) -> int | None:
+def create_user_group(group_name: str, group_description: str = None, group_code: str = None) -> int | None:
     """Создать новую группу пользователей"""
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             
+            # Если group_code не указан, генерируем его из group_name
+            if not group_code:
+                group_code = _generate_group_code(group_name)
+                
+                # Проверяем уникальность кода
+                counter = 1
+                original_code = group_code
+                while True:
+                    cursor.execute("SELECT COUNT(*) FROM user_groups WHERE group_code = ?", (group_code,))
+                    if cursor.fetchone()[0] == 0:
+                        break
+                    group_code = f"{original_code}_{counter}"
+                    counter += 1
+            
             cursor.execute('''
-                INSERT INTO user_groups (group_name, group_description)
-                VALUES (?, ?)
-            ''', (group_name, group_description))
+                INSERT INTO user_groups (group_name, group_description, group_code)
+                VALUES (?, ?, ?)
+            ''', (group_name, group_description, group_code))
             
             group_id = cursor.lastrowid
             conn.commit()
             
-            logging.info(f"Created new user group: {group_name} (ID: {group_id})")
+            logging.info(f"Created new user group: {group_name} (ID: {group_id}, code: {group_code})")
             return group_id
     except sqlite3.IntegrityError:
-        logging.warning(f"Group with name '{group_name}' already exists")
+        logging.warning(f"Group with name '{group_name}' or code '{group_code}' already exists")
         return None
     except sqlite3.Error as e:
         logging.error(f"Failed to create user group '{group_name}': {e}")
         return None
 
 
-def update_user_group(group_id: int, group_name: str, group_description: str = None) -> bool:
+def update_user_group(group_id: int, group_name: str, group_description: str = None, group_code: str = None) -> bool:
     """Обновить группу пользователей"""
     try:
+        logging.info(f"DEBUG: update_user_group called: group_id={group_id}, group_name={group_name}, group_code={group_code}")
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             
+            # Если group_code не указан (None) или пустая строка, генерируем его из group_name
+            logging.info(f"DEBUG: Checking group_code: '{group_code}', is None: {group_code is None}, strip: '{group_code.strip() if group_code else 'N/A'}'")
+            if group_code is None or group_code.strip() == "":
+                group_code = _generate_group_code(group_name)
+                
+                # Проверяем уникальность кода (исключая текущую группу)
+                counter = 1
+                original_code = group_code
+                while True:
+                    cursor.execute("SELECT COUNT(*) FROM user_groups WHERE group_code = ? AND group_id != ?", (group_code, group_id))
+                    if cursor.fetchone()[0] == 0:
+                        break
+                    group_code = f"{original_code}_{counter}"
+                    counter += 1
+            else:
+                # Если group_code указан, проверяем его уникальность
+                group_code = group_code.strip()
+                cursor.execute("SELECT COUNT(*) FROM user_groups WHERE group_code = ? AND group_id != ?", (group_code, group_id))
+                if cursor.fetchone()[0] > 0:
+                    logging.warning(f"Group code '{group_code}' already exists")
+                    return False
+            
+            logging.info(f"DEBUG: Executing UPDATE with group_name={group_name}, group_description={group_description}, group_code={group_code}, group_id={group_id}")
             cursor.execute('''
                 UPDATE user_groups 
-                SET group_name = ?, group_description = ?
+                SET group_name = ?, group_description = ?, group_code = ?
                 WHERE group_id = ?
-            ''', (group_name, group_description, group_id))
+            ''', (group_name, group_description, group_code, group_id))
             
+            logging.info(f"DEBUG: UPDATE executed, rowcount={cursor.rowcount}")
             if cursor.rowcount > 0:
                 conn.commit()
-                logging.info(f"Updated user group {group_id}: {group_name}")
+                logging.info(f"DEBUG: COMMIT executed successfully")
+                # Проверяем, что изменения действительно сохранились
+                cursor.execute("SELECT group_code FROM user_groups WHERE group_id = ?", (group_id,))
+                actual_code = cursor.fetchone()[0]
+                logging.info(f"DEBUG: After commit, actual code in DB: {actual_code}")
+                logging.info(f"Updated user group {group_id}: {group_name} (code: {group_code})")
                 return True
             else:
                 logging.warning(f"User group {group_id} not found")
                 return False
     except sqlite3.IntegrityError:
-        logging.warning(f"Group with name '{group_name}' already exists")
+        logging.warning(f"Group with name '{group_name}' or code '{group_code}' already exists")
         return False
     except sqlite3.Error as e:
         logging.error(f"Failed to update user group {group_id}: {e}")
@@ -6913,6 +7146,21 @@ def get_user_group_by_name(group_name: str) -> dict | None:
         return None
 
 
+def get_user_group_by_code(group_code: str) -> dict | None:
+    """Получить группу пользователей по коду"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT * FROM user_groups WHERE group_code = ?", (group_code,))
+            result = cursor.fetchone()
+            return dict(result) if result else None
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get user group by code '{group_code}': {e}")
+        return None
+
+
 def get_default_user_group() -> dict | None:
     """Получить группу пользователей по умолчанию"""
     try:
@@ -6964,7 +7212,7 @@ def get_user_group_info(telegram_id: int) -> dict | None:
             cursor = conn.cursor()
             
             cursor.execute('''
-                SELECT ug.group_id, ug.group_name, ug.group_description, ug.is_default
+                SELECT ug.group_id, ug.group_name, ug.group_description, ug.is_default, ug.group_code
                 FROM users u
                 JOIN user_groups ug ON u.group_id = ug.group_id
                 WHERE u.telegram_id = ?
@@ -7031,5 +7279,38 @@ def get_groups_statistics() -> dict:
     except sqlite3.Error as e:
         logging.error(f"Failed to get groups statistics: {e}")
         return {'total_groups': 0, 'total_users': 0, 'groups_stats': []}
+
+
+def assign_user_to_group_by_code(telegram_id: int, group_code: str) -> bool:
+    """Назначить пользователя в группу по коду группы"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            
+            # Находим группу по коду
+            cursor.execute("SELECT group_id FROM user_groups WHERE group_code = ?", (group_code,))
+            group_result = cursor.fetchone()
+            
+            if not group_result:
+                logging.warning(f"Group with code '{group_code}' not found")
+                return False
+            
+            group_id = group_result[0]
+            
+            # Назначаем пользователя в группу
+            cursor.execute("UPDATE users SET group_id = ? WHERE telegram_id = ?", 
+                         (group_id, telegram_id))
+            
+            if cursor.rowcount > 0:
+                conn.commit()
+                logging.info(f"Assigned user {telegram_id} to group {group_id} (code: {group_code})")
+                return True
+            else:
+                logging.warning(f"User {telegram_id} not found")
+                return False
+                
+    except sqlite3.Error as e:
+        logging.error(f"Failed to assign user {telegram_id} to group by code '{group_code}': {e}")
+        return False
 
 

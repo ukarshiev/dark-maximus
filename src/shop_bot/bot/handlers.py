@@ -45,7 +45,7 @@ from shop_bot.data_manager.database import (
     add_to_referral_balance, create_pending_transaction, create_pending_ton_transaction, create_pending_stars_transaction, get_all_users,
     set_referral_balance, set_referral_balance_all, update_transaction_on_payment, update_yookassa_transaction,
     set_subscription_status, revoke_user_consent, set_trial_days_given, increment_trial_reuses, 
-    reset_trial_used, get_trial_info, filter_plans_by_display_mode
+    reset_trial_used, get_trial_info, filter_plans_by_display_mode, assign_user_to_group_by_code
 )
 
 from shop_bot.config import (
@@ -488,6 +488,7 @@ def get_user_router() -> Router:
         # Принудительно выводим в консоль для отладки
         print(f"FORCE DEBUG: START HANDLER EXECUTING for user {user_id}")
 
+        # Сначала парсим referrer_id из deeplink (если есть)
         if command.args and command.args.startswith('ref_'):
             try:
                 potential_referrer_id = int(command.args.split('_')[1])
@@ -497,13 +498,47 @@ def get_user_router() -> Router:
             except (IndexError, ValueError):
                 logger.warning(f"Invalid referral code received: {command.args}")
         
-        # Обработка промокода из deep-link /start=promo_CODE
-        if command.args and command.args.startswith('promo_'):
+        # Регистрируем пользователя СРАЗУ (до обработки остальных deeplink параметров)
+        register_user_if_not_exists(user_id, username, referrer_id, message.from_user.full_name)
+        logger.info(f"User {user_id} registered/updated before deeplink processing")
+
+        # Обработка deeplink параметров
+        if command.args:
             try:
-                promo_code_from_link = command.args.split('_', 1)[1].strip()
-                if promo_code_from_link:
-                    from shop_bot.data_manager.database import can_user_use_promo_code, record_promo_code_usage, get_plan_by_id, add_to_user_balance
-                    validation_result = can_user_use_promo_code(user_id, promo_code_from_link, "shop")
+                from shop_bot.utils.deeplink import parse_deeplink
+                from shop_bot.data_manager.database import can_user_use_promo_code, record_promo_code_usage, add_to_user_balance
+                
+                start_param = command.args
+                logger.info(f"DEBUG: Parsing deeplink start_param: '{start_param}' for user {user_id}")
+                
+                # Парсим deeplink параметры (поддерживает base64 и старые форматы)
+                group_code, promo_code, deeplink_referrer_id = parse_deeplink(start_param)
+                
+                # Обработка реферера из deeplink (если не был обработан выше)
+                if deeplink_referrer_id and deeplink_referrer_id != user_id and not referrer_id:
+                    referrer_id = deeplink_referrer_id
+                    logger.info(f"New user {user_id} was referred by {referrer_id} (from deeplink)")
+                    # Обновляем referrer_id в БД
+                    register_user_if_not_exists(user_id, username, referrer_id, message.from_user.full_name)
+                
+                applied_groups = []
+                applied_promos = []
+                already_applied_promos = []  # Промокоды, которые уже были применены ранее
+                
+                # Обработка группы пользователей
+                if group_code:
+                    logger.info(f"Processing group assignment: user {user_id} -> group_code '{group_code}'")
+                    success = assign_user_to_group_by_code(user_id, group_code)
+                    if success:
+                        applied_groups.append(group_code)
+                        logger.info(f"Successfully assigned user {user_id} to group '{group_code}'")
+                    else:
+                        logger.warning(f"Failed to assign user {user_id} to group '{group_code}'")
+                
+                # Обработка промокода
+                if promo_code:
+                    logger.info(f"Processing promo code: user {user_id} -> promo '{promo_code}'")
+                    validation_result = can_user_use_promo_code(user_id, promo_code, "shop")
                     if validation_result.get('can_use'):
                         promo_data = validation_result.get('promo_data') or {}
                         existing_usage_id = validation_result.get('existing_usage_id')
@@ -523,9 +558,10 @@ def get_user_router() -> Router:
                         )
                         
                         if success:
+                            applied_promos.append(promo_code)
                             # Сохраняем промокод в state для дальнейшего использования
                             await state.update_data(
-                                promo_code=promo_code_from_link,
+                                promo_code=promo_code,
                                 promo_usage_id=validation_result.get('existing_usage_id'),
                                 promo_data=promo_data
                             )
@@ -534,17 +570,43 @@ def get_user_router() -> Router:
                             bonus_amount = promo_data.get('discount_bonus', 0.0)
                             if bonus_amount > 0:
                                 add_to_user_balance(user_id, bonus_amount)
-                                await message.answer(f"✅ Применен промо-код {promo_code_from_link}\n💰 На баланс зачислено {bonus_amount} руб.")
-                            else:
-                                await message.answer(f"✅ Применен промо-код {promo_code_from_link}")
+                                logger.info(f"Applied bonus {bonus_amount} RUB to user {user_id} from promo '{promo_code}'")
+                            
+                            logger.info(f"Successfully applied promo code '{promo_code}' for user {user_id}")
                         else:
-                            await message.answer("❌ Ошибка при применении промокода")
+                            # Проверяем, почему не удалось применить промокод
+                            # Проверяем, есть ли уже запись о применении этого промокода
+                            from shop_bot.data_manager.database import get_promo_code_usage_by_user
+                            existing_usage = get_promo_code_usage_by_user(promo_data.get('promo_id'), user_id, "shop")
+                            
+                            if existing_usage and existing_usage.get('status') == 'applied':
+                                # Промокод уже применён ранее
+                                already_applied_promos.append(promo_code)
+                                logger.info(f"Promo code '{promo_code}' was already applied for user {user_id}")
+                            else:
+                                # Промокод уже использован или другая ошибка
+                                logger.warning(f"Failed to record promo code usage for user {user_id} - promo may be already used")
                     else:
-                        await message.answer("❌ Промокод недействителен или уже использован")
-            except Exception as e:
-                logger.error(f"Error handling promo deep-link: {e}", exc_info=True)
+                        logger.warning(f"Promo code '{promo_code}' is invalid or already used for user {user_id}")
                 
-        register_user_if_not_exists(user_id, username, referrer_id, message.from_user.full_name)
+                # Сохраняем информацию о примененных параметрах в state для показа после онбординга
+                if applied_groups or applied_promos or already_applied_promos:
+                    # Получаем promo_data из state (если есть)
+                    state_data = await state.get_data()
+                    current_promo_data = state_data.get('promo_data', {})
+                    
+                    await state.update_data(
+                        deeplink_applied_groups=applied_groups,
+                        deeplink_applied_promos=applied_promos,
+                        deeplink_already_applied_promos=already_applied_promos,
+                        promo_data=current_promo_data
+                    )
+                    logger.info(f"Deeplink processing completed for user {user_id}: groups={applied_groups}, promos={applied_promos}, already_applied={already_applied_promos}")
+                
+            except Exception as e:
+                logger.error(f"Error handling deeplink parameters: {e}", exc_info=True)
+                
+        # Получаем данные пользователя (уже зарегистрирован на строке 502)
         user_data = get_user(user_id)
 
         # Получаем настройки
@@ -604,6 +666,39 @@ def get_user_router() -> Router:
         
         # Если все проверки пройдены, показываем главное меню
         logger.info(f"START HANDLER: All checks passed for user {user_id}, showing main menu")
+        
+        # Проверяем, были ли применены deeplink параметры
+        state_data = await state.get_data()
+        deeplink_groups = state_data.get('deeplink_applied_groups', [])
+        deeplink_promos = state_data.get('deeplink_applied_promos', [])
+        deeplink_already_applied_promos = state_data.get('deeplink_already_applied_promos', [])
+        
+        if deeplink_groups or deeplink_promos or deeplink_already_applied_promos:
+            message_parts = []
+            if deeplink_groups:
+                message_parts.append(f"✅ Вы добавлены в группу(ы): {', '.join(deeplink_groups)}")
+            if deeplink_promos:
+                promo_data = state_data.get('promo_data', {})
+                bonus_amount = promo_data.get('discount_bonus', 0.0)
+                if bonus_amount > 0:
+                    message_parts.append(f"✅ Применен промокод: {', '.join(deeplink_promos)}")
+                    message_parts.append(f"💰 На ваш баланс зачислено {bonus_amount} руб.")
+                else:
+                    message_parts.append(f"✅ Применен промокод: {', '.join(deeplink_promos)}")
+            if deeplink_already_applied_promos:
+                message_parts.append(f"ℹ️ Промокод уже применён: {', '.join(deeplink_already_applied_promos)}")
+            
+            if message_parts:
+                await message.answer('\n'.join(message_parts))
+                # Очищаем данные из state
+                await state.update_data(
+                    deeplink_applied_groups=None,
+                    deeplink_applied_promos=None,
+                    deeplink_already_applied_promos=None,
+                    promo_data=None
+                )
+                logger.info(f"Deeplink notification sent to user {user_id}: groups={deeplink_groups}, promos={deeplink_promos}, already_applied={deeplink_already_applied_promos}")
+        
         is_admin = str(user_id) == ADMIN_ID
         await message.answer(
             f"👋 Добро пожаловать, {html.bold(message.from_user.full_name)}!",
@@ -5508,6 +5603,13 @@ async def _start_ton_connect_process(user_id: int, transaction_payload: dict, me
 
 async def process_successful_onboarding(message_or_callback, state: FSMContext):
     """Завершает процесс онбординга"""
+    # Сохраняем deeplink данные перед очисткой state
+    state_data = await state.get_data()
+    deeplink_groups = state_data.get('deeplink_applied_groups', [])
+    deeplink_promos = state_data.get('deeplink_applied_promos', [])
+    deeplink_already_applied_promos = state_data.get('deeplink_already_applied_promos', [])
+    promo_data = state_data.get('promo_data', {})
+    
     if hasattr(message_or_callback, 'answer'):
         await message_or_callback.answer("✅ Спасибо! Доступ предоставлен.")
     else:
@@ -5521,15 +5623,39 @@ async def process_successful_onboarding(message_or_callback, state: FSMContext):
     
     await state.clear()
     
+    # Получаем сообщение для отправки
+    if hasattr(message_or_callback, 'message'):
+        message_to_send = message_or_callback.message
+    else:
+        message_to_send = message_or_callback
+    
+    # Показываем уведомление о deeplink параметрах (если были применены)
+    if deeplink_groups or deeplink_promos or deeplink_already_applied_promos:
+        message_parts = []
+        if deeplink_groups:
+            message_parts.append(f"✅ Вы добавлены в группу(ы): {', '.join(deeplink_groups)}")
+        if deeplink_promos:
+            bonus_amount = promo_data.get('discount_bonus', 0.0)
+            if bonus_amount > 0:
+                message_parts.append(f"✅ Применен промокод: {', '.join(deeplink_promos)}")
+                message_parts.append(f"💰 На ваш баланс зачислено {bonus_amount} руб.")
+            else:
+                message_parts.append(f"✅ Применен промокод: {', '.join(deeplink_promos)}")
+        if deeplink_already_applied_promos:
+            message_parts.append(f"ℹ️ Промокод уже применён: {', '.join(deeplink_already_applied_promos)}")
+        
+        if message_parts:
+            await message_to_send.answer('\n'.join(message_parts))
+            logger.info(f"Deeplink notification sent to user {user_id} via onboarding: groups={deeplink_groups}, promos={deeplink_promos}, already_applied={deeplink_already_applied_promos}")
+    
+    # Удаляем сообщение онбординга (если это callback)
     if hasattr(message_or_callback, 'message'):
         await message_or_callback.message.delete()
-        is_admin = str(user_id) == ADMIN_ID
-        await message_or_callback.message.answer("Приятного использования!", reply_markup=keyboards.get_main_reply_keyboard(is_admin))
-        await show_main_menu(message_or_callback.message)
-    else:
-        is_admin = str(user_id) == ADMIN_ID
-        await message_or_callback.answer("Приятного использования!", reply_markup=keyboards.get_main_reply_keyboard(is_admin))
-        await show_main_menu(message_or_callback)
+    
+    # Показываем главное меню
+    is_admin = str(user_id) == ADMIN_ID
+    await message_to_send.answer("Приятного использования!", reply_markup=keyboards.get_main_reply_keyboard(is_admin))
+    await show_main_menu(message_to_send)
 
 async def is_url_reachable(url: str) -> bool:
     pattern = re.compile(
