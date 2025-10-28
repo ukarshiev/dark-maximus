@@ -3275,9 +3275,12 @@ def create_webhook_app(bot_controller_instance):
                         u.registration_date,
                         u.is_banned,
                         u.email,
+                        u.group_id,
+                        ug.group_name,
                         (SELECT COUNT(*) FROM vpn_keys WHERE user_id = u.telegram_id) as keys_count,
                         (SELECT COUNT(*) FROM notifications WHERE user_id = u.telegram_id) as notifications_count
                     FROM users u
+                    LEFT JOIN user_groups ug ON u.group_id = ug.group_id
                     WHERE u.telegram_id = ?
                 """
                 cursor.execute(query, (user_id,))
@@ -4827,11 +4830,18 @@ def create_webhook_app(bot_controller_instance):
             data = request.get_json()
             group_name = data.get('group_name', '').strip()
             group_description = data.get('group_description', '').strip()
+            # Если group_code отсутствует или пустой, передаем None
+            group_code = data.get('group_code')
+            if group_code is not None:
+                group_code = group_code.strip()
+                if not group_code:  # Если после strip пустая строка
+                    group_code = None
             
             if not group_name:
                 return jsonify({'success': False, 'error': 'Название группы не может быть пустым'}), 400
             
-            success = update_user_group(group_id, group_name, group_description)
+            logger.info(f"DEBUG API: group_id={group_id}, group_name={group_name}, group_code={group_code}")
+            success = update_user_group(group_id, group_name, group_description, group_code)
             
             if success:
                 return jsonify({'success': True, 'message': 'Группа успешно обновлена'})
@@ -4901,6 +4911,116 @@ def create_webhook_app(bot_controller_instance):
                 
         except Exception as e:
             logger.error(f"Ошибка изменения группы пользователя: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    # ==================== API ENDPOINTS ДЛЯ DEEPLINK ====================
+    
+    @flask_app.route('/api/bots', methods=['GET'])
+    @login_required
+    def api_get_bots():
+        """Получить список доступных ботов"""
+        try:
+            settings = get_all_settings()
+            
+            bots = []
+            
+            # Основной бот (shop)
+            if settings.get('telegram_bot_username'):
+                bots.append({
+                    'bot': 'shop',
+                    'name': 'Shop Bot',
+                    'username': settings.get('telegram_bot_username')
+                })
+            
+            # Support бот (если есть)
+            if settings.get('support_bot_token'):
+                # Извлекаем username из токена или используем настройку
+                support_username = settings.get('support_bot_username') or 'support_bot'
+                bots.append({
+                    'bot': 'support',
+                    'name': 'Support Bot',
+                    'username': support_username
+                })
+            
+            return jsonify({
+                'success': True,
+                'bots': bots
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting bots: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @flask_app.route('/api/promo-codes/by-bot', methods=['GET'])
+    @login_required
+    def api_get_promo_codes_by_bot():
+        """Получить промокоды, отфильтрованные по боту"""
+        try:
+            bot = request.args.get('bot')
+            
+            if not bot:
+                return jsonify({
+                    'success': False,
+                    'message': 'Параметр bot обязателен'
+                }), 400
+            
+            # Получаем все промокоды
+            all_promo_codes = get_all_promo_codes()
+            
+            # Фильтруем по боту
+            filtered_promo_codes = [
+                promo for promo in all_promo_codes 
+                if promo.get('bot') == bot
+            ]
+            
+            return jsonify({
+                'success': True,
+                'promo_codes': filtered_promo_codes
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting promo codes by bot: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @flask_app.route('/api/generate-deeplink', methods=['POST'])
+    @login_required
+    def api_generate_deeplink():
+        """Генерировать deeplink ссылку с base64 кодированием"""
+        try:
+            data = request.get_json()
+            bot_username = data.get('bot_username')
+            group_code = data.get('group_code')
+            promo_code = data.get('promo_code')
+            referrer_id = data.get('referrer_id')
+            
+            if not bot_username:
+                return jsonify({
+                    'success': False,
+                    'message': 'bot_username обязателен'
+                }), 400
+            
+            # Импортируем утилиту deeplink
+            from shop_bot.utils.deeplink import create_deeplink
+            
+            # Генерируем ссылку
+            link = create_deeplink(
+                bot_username=bot_username,
+                group_code=group_code,
+                promo_code=promo_code,
+                referrer_id=referrer_id
+            )
+            
+            return jsonify({
+                'success': True,
+                'link': link,
+                'bot_username': bot_username,
+                'group_code': group_code,
+                'promo_code': promo_code,
+                'referrer_id': referrer_id
+            })
+            
+        except Exception as e:
+            logger.error(f"Error generating deeplink: {e}", exc_info=True)
             return jsonify({'success': False, 'error': str(e)}), 500
 
     # Запускаем мониторинг сразу

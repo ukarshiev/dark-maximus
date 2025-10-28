@@ -435,31 +435,22 @@
 										<label>Полное имя:</label>
 										<span id="detailFullname">—</span>
 									</div>
-									<div class="user-detail-item editable-item" title="ФИО пользователя (заполняется вручную)">
+									<div class="user-detail-item" title="ФИО пользователя (заполняется вручную)">
 										<label>ФИО:</label>
-										<div class="field-container">
-											<input type="text" id="detailFioInput" class="editable-field" placeholder="Введите ФИО" style="display: none;">
-											<span id="detailFio" class="display-field">—</span>
-											<i class="fas fa-edit edit-icon" title="Кликните для редактирования"></i>
-										</div>
+										<input type="text" id="detailFioInput" class="form-input" placeholder="Введите ФИО" title="Введите ФИО пользователя">
+										<span id="detailFio" style="display: none;">—</span>
 									</div>
-									<div class="user-detail-item editable-item" title="Email пользователя">
+									<div class="user-detail-item" title="Email пользователя">
 										<label>Email:</label>
-										<div class="field-container">
-											<input type="email" id="detailEmailInput" class="editable-field" placeholder="Введите email" style="display: none;">
-											<span id="detailEmail" class="display-field">—</span>
-											<i class="fas fa-edit edit-icon" title="Кликните для редактирования"></i>
-										</div>
+										<input type="email" id="detailEmailInput" class="form-input" placeholder="Введите email" title="Введите email пользователя">
+										<span id="detailEmail" style="display: none;">—</span>
 									</div>
-									<div class="user-detail-item editable-item" title="Группа пользователя">
+									<div class="user-detail-item" title="Группа пользователя">
 										<label>Группа:</label>
-										<div class="field-container">
-											<select id="detailGroupInput" class="editable-field" style="display: none;">
-												<option value="">Выберите группу</option>
-											</select>
-											<span id="detailGroup" class="display-field">—</span>
-											<i class="fas fa-edit edit-icon" title="Кликните для редактирования"></i>
-										</div>
+										<select id="detailGroupInput" class="form-select" title="Выберите группу пользователя">
+											<option value="">Выберите группу</option>
+										</select>
+										<span id="detailGroup" style="display: none;">—</span>
 									</div>
 								</div>
 							</div>
@@ -682,7 +673,7 @@
 					
 					<!-- Правая часть: сохранить -->
 					<div class="drawer-footer-right">
-						<button type="button" class="button button-primary" id="saveUserButton" onclick="saveUserChanges()" style="display: none;" title="Сохранить изменения пользователя">
+						<button type="button" class="button button-primary" id="saveUserButton" onclick="saveUserChanges()" style="display: inline-block;" title="Сохранить изменения пользователя">
 							<i class="fas fa-save"></i>
 							Сохранить
 						</button>
@@ -1085,6 +1076,152 @@
 			}
 		`;
 		document.head.appendChild(style);
+		
+		// ==================== ФУНКЦИИ ДЛЯ РАБОТЫ С МОДАЛЬНЫМ ОКНОМ SHARE ====================
+		
+		// Открытие модального окна Share
+		function openShareModal() {
+			document.getElementById('shareModal').style.display = 'flex';
+			loadShareModalData();
+		}
+		
+		// Закрытие модального окна Share
+		function closeShareModal() {
+			document.getElementById('shareModal').style.display = 'none';
+			clearShareForm();
+		}
+		
+		// Загрузка данных для модального окна Share
+		async function loadShareModalData() {
+			try {
+				// Загрузка ботов
+				const botsResponse = await fetch('/api/bots');
+				const botsData = await botsResponse.json();
+				const botSelect = document.getElementById('shareBot');
+				botSelect.innerHTML = '<option value="">Выберите бота</option>';
+				botsData.bots.forEach(bot => {
+					const option = document.createElement('option');
+					option.value = bot.bot;
+					option.setAttribute('data-username', bot.username);
+					option.textContent = bot.name;
+					botSelect.appendChild(option);
+				});
+				
+				// Загрузка групп
+				const groupsResponse = await fetch('/api/user-groups');
+				const groupsData = await groupsResponse.json();
+				const groupSelect = document.getElementById('shareGroup');
+				groupSelect.innerHTML = '<option value="">Без группы</option>';
+				groupsData.groups.forEach(group => {
+					const option = document.createElement('option');
+					option.value = group.group_code;
+					option.textContent = group.group_name;
+					groupSelect.appendChild(option);
+				});
+			} catch (error) {
+				console.error('Ошибка загрузки данных:', error);
+				showNotification('Ошибка загрузки данных', 'error');
+			}
+		}
+		
+		// Обновление списка промокодов при выборе бота
+		document.addEventListener('DOMContentLoaded', function() {
+			const botSelect = document.getElementById('shareBot');
+			if (botSelect) {
+				botSelect.addEventListener('change', async function() {
+					const selectedBot = this.value;
+					const promoSelect = document.getElementById('sharePromo');
+					
+					if (!selectedBot) {
+						promoSelect.innerHTML = '<option value="">Без промокода</option>';
+						return;
+					}
+					
+					try {
+						const response = await fetch(`/api/promo-codes/by-bot?bot=${selectedBot}`);
+						const data = await response.json();
+						promoSelect.innerHTML = '<option value="">Без промокода</option>';
+						data.promo_codes.forEach(promo => {
+							const option = document.createElement('option');
+							option.value = promo.code;
+							option.textContent = promo.code;
+							promoSelect.appendChild(option);
+						});
+					} catch (error) {
+						console.error('Ошибка загрузки промокодов:', error);
+					}
+				});
+			}
+		});
+		
+		// Генерация deeplink
+		function updateShareLink() {
+			const botSelect = document.getElementById('shareBot');
+			const selectedBot = botSelect.options[botSelect.selectedIndex];
+			const botUsername = selectedBot ? selectedBot.getAttribute('data-username') : '';
+			const groupCode = document.getElementById('shareGroup').value;
+			const promoCode = document.getElementById('sharePromo').value;
+			
+			if (!botUsername) {
+				document.getElementById('shareLink').value = '';
+				return;
+			}
+			
+			// Если нет параметров, показываем базовую ссылку
+			if (!groupCode && !promoCode) {
+				document.getElementById('shareLink').value = `https://t.me/${botUsername}`;
+				return;
+			}
+			
+			// Генерируем ссылку через API с base64 кодированием
+			fetch('/api/generate-deeplink', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					bot_username: botUsername,
+					group_code: groupCode || null,
+					promo_code: promoCode || null,
+					referrer_id: null
+				})
+			})
+			.then(response => response.json())
+			.then(data => {
+				if (data.success) {
+					document.getElementById('shareLink').value = data.link;
+				} else {
+					console.error('Ошибка генерации ссылки:', data.error);
+					// Fallback на старый формат для отладки
+					document.getElementById('shareLink').value = `https://t.me/${botUsername}?start=error_${data.error}`;
+				}
+			})
+			.catch(error => {
+				console.error('Ошибка запроса:', error);
+				// Fallback на базовую ссылку
+				document.getElementById('shareLink').value = `https://t.me/${botUsername}`;
+			});
+		}
+		
+		// Копирование ссылки
+		function copyShareLink() {
+			const linkInput = document.getElementById('shareLink');
+			if (linkInput.value) {
+				linkInput.select();
+				document.execCommand('copy');
+				showNotification('Ссылка скопирована', 'success');
+			} else {
+				showNotification('Ссылка не сгенерирована', 'error');
+			}
+		}
+		
+		// Очистка формы Share
+		function clearShareForm() {
+			document.getElementById('shareBot').value = '';
+			document.getElementById('shareGroup').value = '';
+			document.getElementById('sharePromo').value = '';
+			document.getElementById('shareLink').value = '';
+		}
 		</script>
 
 		<script src="{{ url_for('static', filename='js/script.js') }}"></script>

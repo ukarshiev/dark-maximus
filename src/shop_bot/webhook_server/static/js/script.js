@@ -1155,66 +1155,6 @@ function openUserModal(userId, username, isBanned, keysCount) {
 	loadUserKeys(userId)
 	loadUserNotifications(userId)
 	
-	// Инициализируем обработчики редактирования после загрузки данных
-	setTimeout(() => {
-		// Тестируем доступность элементов
-		console.log('Testing elements availability:')
-		console.log('FIO display field:', document.querySelector('#detailFio'))
-		console.log('FIO input field:', document.querySelector('#detailFioInput'))
-		console.log('Email display field:', document.querySelector('#detailEmail'))
-		console.log('Email input field:', document.querySelector('#detailEmailInput'))
-		console.log('Edit icons:', document.querySelectorAll('.edit-icon'))
-		
-		initializeEditableFields()
-		
-		// Также добавляем прямые обработчики на display поля
-		const fioDisplayField = document.querySelector('#detailFio')
-		const emailDisplayField = document.querySelector('#detailEmail')
-		
-		if (fioDisplayField) {
-			fioDisplayField.addEventListener('click', (e) => {
-				console.log('Direct FIO display field click handler triggered')
-				e.preventDefault()
-				e.stopPropagation()
-				makeFieldEditable('Fio')
-			})
-		}
-		
-		if (emailDisplayField) {
-			emailDisplayField.addEventListener('click', (e) => {
-				console.log('Direct Email display field click handler triggered')
-				e.preventDefault()
-				e.stopPropagation()
-				makeFieldEditable('Email')
-			})
-		}
-		
-		// Добавляем обработчики на иконки редактирования
-		const editIcons = document.querySelectorAll('.edit-icon')
-		editIcons.forEach(icon => {
-			icon.addEventListener('click', (e) => {
-				console.log('Edit icon click handler triggered')
-				e.preventDefault()
-				e.stopPropagation()
-				
-				const container = icon.closest('.editable-item')
-				if (container) {
-					const displayField = container.querySelector('[id^="detail"]:not([id$="Input"])')
-					if (displayField) {
-						const fieldId = displayField.id
-						if (fieldId === 'detailFio') {
-							makeFieldEditable('Fio')
-						} else if (fieldId === 'detailEmail') {
-							makeFieldEditable('Email')
-						} else if (fieldId === 'detailGroup') {
-							makeFieldEditable('Group')
-						}
-					}
-				}
-			})
-		})
-	}, 100)
-	
 	// Показываем drawer с анимацией
 	const drawer = document.getElementById('userDrawer')
 	drawer.style.display = 'block'
@@ -1749,27 +1689,29 @@ async function loadUserDetails(userId) {
 		fullnameEl.setAttribute('data-original', fullnameDetailText)
 		fullnameEl.textContent = fullnameDetailText
 		
-		const fioEl = document.getElementById('detailFio')
+		// Заполняем input поля напрямую (span элементы скрыты)
 		const fioInputEl = document.getElementById('detailFioInput')
-		const fioText = user.fio || 'N/A'
-		fioEl.setAttribute('data-original', fioText)
-		fioEl.textContent = fioText
-		fioInputEl.value = user.fio || ''
+		if (fioInputEl) {
+			fioInputEl.value = user.fio || ''
+			fioInputEl.defaultValue = user.fio || ''
+		}
 		
-		const emailEl = document.getElementById('detailEmail')
 		const emailInputEl = document.getElementById('detailEmailInput')
-		const emailText = user.email || 'N/A'
-		emailEl.setAttribute('data-original', emailText)
-		emailEl.textContent = emailText
-		emailInputEl.value = user.email || ''
+		if (emailInputEl) {
+			emailInputEl.value = user.email || ''
+			emailInputEl.defaultValue = user.email || ''
+		}
 		
-		// Загружаем группы пользователей
-		loadUserGroups()
-		
-		const groupEl = document.getElementById('detailGroup')
-		const groupText = user.group_name || 'N/A'
-		groupEl.setAttribute('data-original', groupText)
-		groupEl.textContent = groupText
+		// Загружаем группы пользователей и заполняем select после загрузки
+		loadUserGroups().then(() => {
+			const groupSelectEl = document.getElementById('detailGroupInput')
+			if (groupSelectEl && user.group_id) {
+				groupSelectEl.value = user.group_id
+				groupSelectEl.defaultValue = user.group_id
+			}
+		}).catch(error => {
+			console.error('Ошибка загрузки групп:', error)
+		})
 		
 		const detailBalance = document.getElementById('detailBalance')
 		const detailBalanceText = (user.balance || 0).toFixed(2) + ' RUB'
@@ -1866,6 +1808,44 @@ function closeDrawerKebabMenu() {
 
 }
 
+// Функция загрузки групп пользователей
+async function loadUserGroups() {
+	try {
+		const response = await fetch('/api/user-groups');
+		const data = await response.json();
+		
+		if (data.success) {
+			// Заполняем select в карточке пользователя
+			const groupSelect = document.getElementById('detailGroupInput');
+			if (groupSelect) {
+				// Сохраняем текущее значение перед перезаписью
+				const currentValue = groupSelect.value;
+				
+				groupSelect.innerHTML = '<option value="">Выберите группу</option>';
+				data.groups.forEach(group => {
+					const option = document.createElement('option');
+					option.value = group.group_id;
+					option.textContent = group.group_name;
+					groupSelect.appendChild(option);
+				});
+				
+				// Восстанавливаем значение, если оно было установлено
+				if (currentValue && currentValue !== '') {
+					groupSelect.value = currentValue;
+				}
+			}
+			
+			return data.groups;
+		} else {
+			console.error('Ошибка загрузки групп:', data.error);
+			return [];
+		}
+	} catch (error) {
+		console.error('Ошибка загрузки групп:', error);
+		return [];
+	}
+}
+
 // Функции для редактирования полей
 function makeFieldEditable(fieldName) {
 	console.log('makeFieldEditable called for:', fieldName)
@@ -1910,6 +1890,16 @@ function makeFieldEditable(fieldName) {
 			}
 		})
 		inputField.value = selectedValue
+		
+		// Если группы не загружены, загружаем их
+		if (options.length <= 1) { // Только "Выберите группу"
+			loadUserGroups().then(() => {
+				// После загрузки групп восстанавливаем выбранное значение
+				if (selectedValue) {
+					inputField.value = selectedValue;
+				}
+			});
+		}
 	} else {
 		inputField.value = currentValue
 	}
@@ -2108,12 +2098,13 @@ async function saveUserChanges() {
 		changes.email = emailInput.value
 	}
 	
-	if (groupInput && groupInput.value !== groupInput.defaultValue) {
-		changes.group_id = groupInput.value
+	if (groupInput && groupInput.value !== groupInput.defaultValue && groupInput.value !== '') {
+		// Используем value напрямую, так как в loadUserGroups мы установили group_id как value
+		changes.group_id = parseInt(groupInput.value) || groupInput.value
 	}
 	
 	if (Object.keys(changes).length === 0) {
-		alert('Нет изменений для сохранения')
+		showNotification('Нет изменений для сохранения', 'info')
 		return
 	}
 	
@@ -2129,90 +2120,80 @@ async function saveUserChanges() {
 		const data = await response.json()
 		
 		if (response.ok) {
-			// Обновляем отображаемые значения
-			const fioField = document.getElementById('detailFio')
-			const emailField = document.getElementById('detailEmail')
-			const fioContainer = fioField?.closest('.editable-item')
-			const emailContainer = emailField?.closest('.editable-item')
-			
-			if (changes.fio !== undefined && fioField) {
-				const newValue = changes.fio || '—'
-				fioField.textContent = newValue
-				fioField.setAttribute('data-original', newValue)
-				fioContainer?.classList.remove('editing')
-				
-				// Убираем обработчик событий
+			// Обновляем defaultValue для отслеживания изменений
+			if (changes.fio !== undefined) {
 				const fioInput = document.getElementById('detailFioInput')
-				if (fioInput && fioInput._keyHandler) {
-					fioInput.removeEventListener('keydown', fioInput._keyHandler)
-					fioInput._keyHandler = null
+				if (fioInput) {
+					fioInput.defaultValue = changes.fio || ''
 				}
 			}
 			
-			if (changes.email !== undefined && emailField) {
-				const newValue = changes.email || '—'
-				emailField.textContent = newValue
-				emailField.setAttribute('data-original', newValue)
-				emailContainer?.classList.remove('editing')
-				
-				// Убираем обработчик событий
+			if (changes.email !== undefined) {
 				const emailInput = document.getElementById('detailEmailInput')
-				if (emailInput && emailInput._keyHandler) {
-					emailInput.removeEventListener('keydown', emailInput._keyHandler)
-					emailInput._keyHandler = null
+				if (emailInput) {
+					emailInput.defaultValue = changes.email || ''
 				}
 			}
 			
 			if (changes.group_id !== undefined) {
-				const groupField = document.getElementById('detailGroup')
-				const groupContainer = groupField?.closest('.editable-item')
-				
-				// Находим название группы по ID
-				const groupSelect = document.getElementById('detailGroupInput')
-				const selectedOption = groupSelect?.querySelector(`option[value="${changes.group_id}"]`)
-				const newValue = selectedOption ? selectedOption.textContent : '—'
-				
-				if (groupField) {
-					groupField.textContent = newValue
-					groupField.setAttribute('data-original', newValue)
-					groupContainer?.classList.remove('editing')
-					
-					// Скрываем select и показываем поле
-					if (groupInput) {
-						groupInput.style.display = 'none'
-						groupField.style.display = 'inline'
-						
-						// Убираем обработчик событий
-						if (groupInput._keyHandler) {
-							groupInput.removeEventListener('keydown', groupInput._keyHandler)
-							groupInput._keyHandler = null
-						}
-						if (groupInput._changeHandler) {
-							groupInput.removeEventListener('change', groupInput._changeHandler)
-							groupInput._changeHandler = null
-						}
-					}
+				const groupInput = document.getElementById('detailGroupInput')
+				if (groupInput) {
+					groupInput.defaultValue = changes.group_id
 				}
 			}
 			
-			// Скрываем кнопку сохранения
-			const saveButton = document.getElementById('saveUserButton')
-			if (saveButton) {
-				saveButton.style.display = 'none'
-			}
+			// Обновляем строку в таблице пользователей
+			updateUserRowInTable(window.currentUserId, changes)
 			
-			alert('Изменения сохранены успешно')
+			// Показываем уведомление без alert
+			showNotification('Изменения сохранены успешно', 'success')
 			
 			// Применяем скрытый режим
 			if (window.__HIDDEN_MODE__) {
 				applyHiddenMode()
 			}
 		} else {
-			alert(data.error || 'Ошибка сохранения изменений')
+			showNotification(data.error || 'Ошибка сохранения изменений', 'error')
 		}
 	} catch (error) {
 		console.error('Ошибка сохранения:', error)
-		alert('Ошибка сохранения изменений')
+		showNotification('Ошибка сохранения изменений', 'error')
+	}
+}
+
+// Функция обновления строки пользователя в таблице
+function updateUserRowInTable(userId, changes) {
+	const userRow = document.querySelector(`tr.user-row[data-user-id="${userId}"]`)
+	if (!userRow) return
+	
+	// Обновляем ФИО
+	if (changes.fio !== undefined) {
+		const fioCell = userRow.querySelector('td[data-field="fio"]')
+		if (fioCell) {
+			const fioSpan = fioCell.querySelector('span')
+			if (fioSpan) {
+				fioSpan.textContent = changes.fio || 'N/A'
+			}
+			fioCell.setAttribute('data-original', changes.fio || '')
+		}
+	}
+	
+	// Обновляем группу
+	if (changes.group_id !== undefined) {
+		const groupCell = userRow.querySelector('td[data-field="group"]')
+		if (groupCell) {
+			const groupSpan = groupCell.querySelector('.group-badge')
+			if (groupSpan) {
+				// Находим название группы по ID
+				const groupSelect = document.getElementById('detailGroupInput')
+				if (groupSelect) {
+					const selectedOption = groupSelect.querySelector(`option[value="${changes.group_id}"]`)
+					const groupName = selectedOption ? selectedOption.textContent : 'N/A'
+					groupSpan.textContent = groupName
+				}
+			}
+			groupCell.setAttribute('data-original', changes.group_id || '')
+		}
 	}
 }
 
