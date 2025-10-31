@@ -584,6 +584,12 @@ def create_webhook_app(bot_controller_instance):
         privacy_content = request.url_root.rstrip('/') + '/privacy'
         
         common_data = get_common_template_data()
+        # Получаем группы пользователей для multiselect в тарифах - точно как в промокодах
+        try:
+            from shop_bot.data_manager.database import get_all_user_groups
+            user_groups = get_all_user_groups()
+        except Exception:
+            user_groups = []
         return render_template('settings.html', 
                              hosts=hosts, 
                              settings=current_settings,
@@ -592,6 +598,7 @@ def create_webhook_app(bot_controller_instance):
                              support_content=support_content,
                              terms_content=terms_content,
                              privacy_content=privacy_content,
+                             user_groups=user_groups,
                              **common_data)
 
     @flask_app.route('/settings/panel', methods=['POST'])
@@ -2164,6 +2171,17 @@ def create_webhook_app(bot_controller_instance):
             if display_mode not in ['all', 'hidden_all', 'hidden_new', 'hidden_old']:
                 display_mode = 'all'
             
+            # Получаем режим отображения (группы) - multiselect
+            display_mode_groups_raw = request.form.getlist('display_mode_groups[]')
+            display_mode_groups = None
+            if display_mode_groups_raw:
+                try:
+                    display_mode_groups = [int(gid) for gid in display_mode_groups_raw if gid and str(gid).isdigit()]
+                    if len(display_mode_groups) == 0:
+                        display_mode_groups = None
+                except (ValueError, TypeError):
+                    display_mode_groups = None
+            
             create_plan(
                 host_name=host_name,
                 plan_name=plan_data['plan_name'],
@@ -2173,7 +2191,8 @@ def create_webhook_app(bot_controller_instance):
                 traffic_gb=plan_data['traffic_gb'],
                 hours=plan_data['hours'],
                 key_provision_mode=key_provision_mode,
-                display_mode=display_mode
+                display_mode=display_mode,
+                display_mode_groups=display_mode_groups
             )
             flash(f"Новый тариф для хоста '{host_name}' добавлен.", 'success')
         except ValidationError as e:
@@ -2216,7 +2235,18 @@ def create_webhook_app(bot_controller_instance):
         if display_mode not in ['all', 'hidden_all', 'hidden_new', 'hidden_old']:
             display_mode = 'all'
         
-        update_plan(plan_id, plan_name, months, days, price, traffic_gb, hours, key_provision_mode, display_mode)
+        # Получаем режим отображения (группы) - multiselect
+        display_mode_groups_raw = request.form.getlist('display_mode_groups[]')
+        display_mode_groups = None
+        if display_mode_groups_raw:
+            try:
+                display_mode_groups = [int(gid) for gid in display_mode_groups_raw if gid and str(gid).isdigit()]
+                if len(display_mode_groups) == 0:
+                    display_mode_groups = None
+            except (ValueError, TypeError):
+                display_mode_groups = None
+        
+        update_plan(plan_id, plan_name, months, days, price, traffic_gb, hours, key_provision_mode, display_mode, display_mode_groups)
         flash("Тариф обновлен.", 'success')
         return redirect(url_for('settings_page', tab='servers'))
 
@@ -4857,10 +4887,21 @@ def create_webhook_app(bot_controller_instance):
     def api_delete_user_group(group_id):
         """API для удаления группы пользователей"""
         try:
+            from shop_bot.data_manager.database import get_user_group
+            
             success, reassigned_count = delete_user_group(group_id)
             
             if success:
-                message = f'Группа успешно удалена. {reassigned_count} пользователей переназначены в группу "Гость".'
+                # Получаем информацию о группе по умолчанию для сообщения
+                default_group_name = "Пользователи"  # По умолчанию
+                try:
+                    default_group = get_user_group(1)  # ID 1 - группа по умолчанию
+                    if default_group and default_group.get('is_default'):
+                        default_group_name = default_group['group_name']
+                except Exception:
+                    pass
+                
+                message = f'Группа успешно удалена. {reassigned_count} пользователей переназначены в группу "{default_group_name}".'
                 return jsonify({'success': True, 'message': message, 'reassigned_count': reassigned_count})
             else:
                 return jsonify({'success': False, 'error': 'Не удалось удалить группу (возможно, это группа по умолчанию или группа не найдена)'}), 400

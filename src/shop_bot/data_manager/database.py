@@ -598,9 +598,10 @@ def initialize_db():
 
             create_database_indexes(cursor)
 
-            # Создание группы "Гость" по умолчанию
-            cursor.execute("INSERT OR IGNORE INTO user_groups (group_name, group_description, is_default) VALUES (?, ?, ?)", 
-                         ("Гость", "Группа по умолчанию для всех пользователей", 1))
+            # Создание группы "Пользователи" по умолчанию
+            users_group_code = _generate_group_code("Пользователи")
+            cursor.execute("INSERT OR IGNORE INTO user_groups (group_name, group_description, is_default, group_code) VALUES (?, ?, ?, ?)", 
+                         ("Пользователи", "Группа по умолчанию для всех пользователей", 1, users_group_code))
 
             
 
@@ -1063,7 +1064,7 @@ def run_migration():
 
             logging.info(" -> The column 'group_id' is successfully added.")
 
-            # Находим ID группы "Гость" и назначаем её всем существующим пользователям
+            # Находим ID группы по умолчанию и назначаем её всем существующим пользователям
             cursor.execute("SELECT group_id FROM user_groups WHERE is_default = 1 LIMIT 1")
             default_group = cursor.fetchone()
             
@@ -1385,6 +1386,13 @@ def run_migration():
         else:
             logging.info(" -> The column 'key_provision_mode' already exists in plans table.")
 
+        # Добавляем поле display_mode_groups для выбора групп пользователей
+        if 'display_mode_groups' not in plans_columns:
+            cursor.execute("ALTER TABLE plans ADD COLUMN display_mode_groups TEXT DEFAULT NULL")
+            logging.info(" -> The column 'display_mode_groups' is successfully added to plans table.")
+        else:
+            logging.info(" -> The column 'display_mode_groups' already exists in plans table.")
+
         logging.info("The table 'plans' has been successfully updated.")
 
 
@@ -1668,6 +1676,30 @@ def run_migration():
                 logging.info(" -> User groups migration completed successfully.")
             else:
                 logging.info(" -> The column 'group_code' already exists in user_groups table.")
+                
+                # Проверяем, есть ли группы без group_code и генерируем для них коды
+                cursor.execute("SELECT group_id, group_name FROM user_groups WHERE group_code IS NULL OR group_code = ''")
+                groups_without_code = cursor.fetchall()
+                
+                if groups_without_code:
+                    logging.info(f" -> Found {len(groups_without_code)} groups without group_code, generating codes...")
+                    for group_id, group_name in groups_without_code:
+                        # Генерируем код из названия группы (транслитерация + lowercase)
+                        group_code = _generate_group_code(group_name)
+                        
+                        # Проверяем уникальность кода
+                        counter = 1
+                        original_code = group_code
+                        while True:
+                            cursor.execute("SELECT COUNT(*) FROM user_groups WHERE group_code = ?", (group_code,))
+                            if cursor.fetchone()[0] == 0:
+                                break
+                            group_code = f"{original_code}_{counter}"
+                            counter += 1
+                        
+                        # Обновляем группу с сгенерированным кодом
+                        cursor.execute("UPDATE user_groups SET group_code = ? WHERE group_id = ?", (group_code, group_id))
+                        logging.info(f" -> Generated group_code '{group_code}' for group '{group_name}' (ID: {group_id})")
                 
         except Exception as e:
             logging.error(f" -> Error migrating user_groups: {e}")
@@ -2162,7 +2194,7 @@ def migrate_backup_settings():
 
 
 
-def create_plan(host_name: str, plan_name: str, months: int, price: float, days: int = 0, traffic_gb: float = 0.0, hours: int = 0, key_provision_mode: str = 'key', display_mode: str = 'all'):
+def create_plan(host_name: str, plan_name: str, months: int, price: float, days: int = 0, traffic_gb: float = 0.0, hours: int = 0, key_provision_mode: str = 'key', display_mode: str = 'all', display_mode_groups: list[int] | None = None):
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
@@ -2185,9 +2217,24 @@ def create_plan(host_name: str, plan_name: str, months: int, price: float, days:
             except Exception as e:
                 logger.debug(f"Failed to add display_mode column to plans table: {e}")
 
+            # Ensure 'display_mode_groups' column exists
+            try:
+                cursor.execute("ALTER TABLE plans ADD COLUMN display_mode_groups TEXT DEFAULT NULL")
+            except Exception as e:
+                logger.debug(f"Failed to add display_mode_groups column to plans table: {e}")
+
+            # Сериализуем display_mode_groups в JSON
+            serialized_display_mode_groups = None
+            if display_mode_groups is not None:
+                if isinstance(display_mode_groups, list):
+                    if len(display_mode_groups) > 0:
+                        serialized_display_mode_groups = json.dumps(display_mode_groups, ensure_ascii=False)
+                elif display_mode_groups:  # если не None и не список, пробуем преобразовать
+                    serialized_display_mode_groups = json.dumps([display_mode_groups], ensure_ascii=False)
+
             cursor.execute(
-                "INSERT INTO plans (host_name, plan_name, months, price, days, traffic_gb, hours, key_provision_mode, display_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (host_name, plan_name, months, price, days, traffic_gb, hours, key_provision_mode, display_mode)
+                "INSERT INTO plans (host_name, plan_name, months, price, days, traffic_gb, hours, key_provision_mode, display_mode, display_mode_groups) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (host_name, plan_name, months, price, days, traffic_gb, hours, key_provision_mode, display_mode, serialized_display_mode_groups)
             )
 
             conn.commit()
@@ -2237,11 +2284,33 @@ def get_plans_for_host(host_name: str) -> list[dict]:
             except Exception as e:
                 logger.debug(f"Failed to add display_mode column to plans table in get_plans_for_host: {e}")
 
+            # Ensure display_mode_groups column exists
+
+            try:
+
+                cursor.execute("ALTER TABLE plans ADD COLUMN display_mode_groups TEXT DEFAULT NULL")
+
+            except Exception as e:
+                logger.debug(f"Failed to add display_mode_groups column to plans table in get_plans_for_host: {e}")
+
             cursor.execute("SELECT * FROM plans WHERE host_name = ? ORDER BY months, days, hours", (host_name,))
 
             plans = cursor.fetchall()
-
-            return [dict(plan) for plan in plans]
+            
+            result = []
+            for plan in plans:
+                plan_dict = dict(plan)
+                # Десериализуем display_mode_groups из JSON
+                if plan_dict.get('display_mode_groups'):
+                    try:
+                        plan_dict['display_mode_groups'] = json.loads(plan_dict['display_mode_groups'])
+                    except (json.JSONDecodeError, TypeError):
+                        plan_dict['display_mode_groups'] = None
+                else:
+                    plan_dict['display_mode_groups'] = None
+                result.append(plan_dict)
+            
+            return result
 
     except sqlite3.Error as e:
 
@@ -2264,8 +2333,22 @@ def get_plan_by_id(plan_id: int) -> dict | None:
             cursor.execute("SELECT * FROM plans WHERE plan_id = ?", (plan_id,))
 
             plan = cursor.fetchone()
+            
+            if not plan:
+                return None
 
-            return dict(plan) if plan else None
+            plan_dict = dict(plan)
+            
+            # Десериализуем display_mode_groups из JSON
+            if plan_dict.get('display_mode_groups'):
+                try:
+                    plan_dict['display_mode_groups'] = json.loads(plan_dict['display_mode_groups'])
+                except (json.JSONDecodeError, TypeError):
+                    plan_dict['display_mode_groups'] = None
+            else:
+                plan_dict['display_mode_groups'] = None
+
+            return plan_dict
 
     except sqlite3.Error as e:
 
@@ -2295,7 +2378,7 @@ def delete_plan(plan_id: int):
 
 
 
-def update_plan(plan_id: int, plan_name: str, months: int, days: int, price: float, traffic_gb: float, hours: int = 0, key_provision_mode: str = 'key', display_mode: str = 'all') -> bool:
+def update_plan(plan_id: int, plan_name: str, months: int, days: int, price: float, traffic_gb: float, hours: int = 0, key_provision_mode: str = 'key', display_mode: str = 'all', display_mode_groups: list[int] | None = None) -> bool:
 
     try:
 
@@ -2331,11 +2414,29 @@ def update_plan(plan_id: int, plan_name: str, months: int, days: int, price: flo
             except Exception as e:
                 logger.debug(f"Failed to add display_mode column to plans table in update_plan: {e}")
 
+            # Ensure 'display_mode_groups' column exists
+
+            try:
+
+                cursor.execute("ALTER TABLE plans ADD COLUMN display_mode_groups TEXT DEFAULT NULL")
+
+            except Exception as e:
+                logger.debug(f"Failed to add display_mode_groups column to plans table in update_plan: {e}")
+
+            # Сериализуем display_mode_groups в JSON
+            serialized_display_mode_groups = None
+            if display_mode_groups is not None:
+                if isinstance(display_mode_groups, list):
+                    if len(display_mode_groups) > 0:
+                        serialized_display_mode_groups = json.dumps(display_mode_groups, ensure_ascii=False)
+                elif display_mode_groups:  # если не None и не список, пробуем преобразовать
+                    serialized_display_mode_groups = json.dumps([display_mode_groups], ensure_ascii=False)
+
             cursor.execute(
 
-                "UPDATE plans SET plan_name = ?, months = ?, days = ?, hours = ?, price = ?, traffic_gb = ?, key_provision_mode = ?, display_mode = ? WHERE plan_id = ?",
+                "UPDATE plans SET plan_name = ?, months = ?, days = ?, hours = ?, price = ?, traffic_gb = ?, key_provision_mode = ?, display_mode = ?, display_mode_groups = ? WHERE plan_id = ?",
 
-                (plan_name, months, days, hours, price, traffic_gb, key_provision_mode, display_mode, plan_id)
+                (plan_name, months, days, hours, price, traffic_gb, key_provision_mode, display_mode, serialized_display_mode_groups, plan_id)
 
             )
 
@@ -2388,36 +2489,59 @@ def filter_plans_by_display_mode(plans: list[dict], user_id: int) -> list[dict]:
     - 'hidden_all': скрыть у всех пользователей
     - 'hidden_new': скрыть у новых пользователей (кто ни разу не использовал этот тариф)
     - 'hidden_old': скрыть у старых пользователей (кто уже использовал этот тариф ранее)
+    
+    Режим отображения (группы):
+    - Если не указан или пуст - показывать всем группам
+    - Если указан список group_id - показывать только пользователям из этих групп
+    
+    Приоритет: display_mode имеет приоритет над display_mode_groups.
+    Если display_mode = 'hidden_all', тариф скрыт независимо от display_mode_groups.
     """
     if not plans:
         return []
+    
+    # Получаем информацию о группе пользователя
+    user_group_info = get_user_group_info(user_id)
+    user_group_id = user_group_info.get('group_id') if user_group_info else None
     
     filtered_plans = []
     
     for plan in plans:
         display_mode = plan.get('display_mode', 'all')
         plan_id = plan.get('plan_id')
+        display_mode_groups = plan.get('display_mode_groups')
         
-        # Если режим 'all' - показываем всем
-        if display_mode == 'all':
-            filtered_plans.append(plan)
-            continue
-        
-        # Если режим 'hidden_all' - скрываем от всех
+        # ПРИОРИТЕТ 1: Если режим 'hidden_all' - скрываем от всех независимо от групп
         if display_mode == 'hidden_all':
             continue
         
-        # Для режимов 'hidden_new' и 'hidden_old' проверяем историю использования
-        if plan_id:
-            has_used = has_user_used_plan(user_id, plan_id)
-            
-            # Если 'hidden_new' - скрываем от тех, кто НЕ использовал (новые)
-            if display_mode == 'hidden_new' and not has_used:
-                continue
-            
-            # Если 'hidden_old' - скрываем от тех, кто использовал (старые)
-            if display_mode == 'hidden_old' and has_used:
-                continue
+        # ПРИОРИТЕТ 2: Проверяем display_mode (но не hidden_all, так как уже обработали выше)
+        if display_mode == 'all':
+            # Режим 'all' - переходим к проверке групп
+            pass
+        else:
+            # Для режимов 'hidden_new' и 'hidden_old' проверяем историю использования
+            if plan_id:
+                has_used = has_user_used_plan(user_id, plan_id)
+                
+                # Если 'hidden_new' - скрываем от тех, кто НЕ использовал (новые)
+                if display_mode == 'hidden_new' and not has_used:
+                    continue
+                
+                # Если 'hidden_old' - скрываем от тех, кто использовал (старые)
+                if display_mode == 'hidden_old' and has_used:
+                    continue
+        
+        # ПРИОРИТЕТ 3: Проверяем display_mode_groups
+        # Если display_mode_groups не указан или пуст - показывать всем
+        if display_mode_groups:
+            # Если указан список групп, проверяем принадлежность пользователя
+            if isinstance(display_mode_groups, list) and len(display_mode_groups) > 0:
+                # Конвертируем все в int для сравнения
+                group_ids = [int(gid) for gid in display_mode_groups if gid is not None]
+                # Если пользователь не в одной из указанных групп - скрываем тариф
+                if user_group_id is None or user_group_id not in group_ids:
+                    continue
         
         filtered_plans.append(plan)
     

@@ -152,6 +152,7 @@
                                     <th>Цена</th>
                                     <th>Трафик</th>
                                     <th>Режим</th>
+                                    <th>Группы</th>
                                     <th style="width:70px; text-align:right;">Действия</th>
                                 </tr>
                             </thead>
@@ -163,6 +164,8 @@
                                 {% set traffic = plan.get('traffic_gb', 0) %}
                                 {% set provision_mode = plan.get('key_provision_mode', 'key') %}
                                 {% set display_mode = plan.get('display_mode', 'all') %}
+                                {% set display_mode_groups = plan.get('display_mode_groups') or [] %}
+                                {% set display_mode_groups_str = display_mode_groups|map('string')|join(',') if display_mode_groups else '' %}
                                 <tr class="plan-row"
                                     data-plan-id="{{ plan.plan_id }}"
                                     data-plan-name="{{ plan.plan_name }}"
@@ -173,6 +176,7 @@
                                     data-plan-traffic="{{ traffic }}"
                                     data-plan-provision-mode="{{ provision_mode }}"
                                     data-plan-display-mode="{{ display_mode }}"
+                                    data-plan-display-mode-groups="{{ display_mode_groups_str }}"
                                     data-host-name="{{ host.host_name }}"
                                 >
                                     <td title="Идентификатор тарифа">{{ plan.plan_id }}</td>
@@ -196,6 +200,25 @@
                                             <span style="color: #2196F3;">👴 Скрыт у старых</span>
                                         {% endif %}
                                     </td>
+                                    <td title="Группы пользователей">
+                                        {% if display_mode_groups and display_mode_groups|length > 0 %}
+                                            {% set group_names = [] %}
+                                            {% for group_id in display_mode_groups %}
+                                                {% for g in user_groups %}
+                                                    {% if g.group_id == group_id %}
+                                                        {% set _ = group_names.append(g.group_name) %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endfor %}
+                                            {% if group_names|length > 0 %}
+                                                <span style="color: #008771;">👥 {{ group_names|join(', ') }}</span>
+                                            {% else %}
+                                                <span style="color: #888;">—</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span style="color: #888;">Все</span>
+                                        {% endif %}
+                                    </td>
 								<td style="text-align:right; position:relative;">
 								<div class="kebab-wrapper">
 									<button class="kebab-btn" onclick="toggleKebabMenu('kebab-plan-{{ plan.plan_id }}')" title="Действия с тарифом">
@@ -204,7 +227,7 @@
 									<div class="kebab-menu" id="kebab-plan-{{ plan.plan_id }}">
                                             <button type="button" class="kebab-item"
                                                 onclick="closeKebabMenu('kebab-plan-{{ plan.plan_id }}'); openPlanModalData(this)"
-                                                data-plan-id="{{ plan.plan_id }}" data-plan-name="{{ plan.plan_name }}" data-plan-months="{{ months }}" data-plan-days="{{ days }}" data-plan-hours="{{ hours }}" data-plan-price="{{ plan.price }}" data-plan-traffic="{{ traffic }}" data-plan-provision-mode="{{ provision_mode }}" data-plan-display-mode="{{ display_mode }}" data-host-name="{{ host.host_name }}" title="Редактировать тариф">
+                                                data-plan-id="{{ plan.plan_id }}" data-plan-name="{{ plan.plan_name }}" data-plan-months="{{ months }}" data-plan-days="{{ days }}" data-plan-hours="{{ hours }}" data-plan-price="{{ plan.price }}" data-plan-traffic="{{ traffic }}" data-plan-provision-mode="{{ provision_mode }}" data-plan-display-mode="{{ display_mode }}" data-plan-display-mode-groups="{{ display_mode_groups_str }}" data-host-name="{{ host.host_name }}" title="Редактировать тариф">
 												<i class="fas fa-edit"></i>
 												<span>Редактировать</span>
 											</button>
@@ -477,7 +500,7 @@
 			<div class="form-group" style="margin-top: 20px;">
 				<label style="display: block; margin-bottom: 10px; font-weight: 600;">Диагностика бота поддержки:</label>
 				<div style="display: flex; gap: 10px; flex-wrap: wrap;">
-					<button type="button" class="button button-secondary" onclick="checkSupportConfig()" title="Проверить конфигурацию бота поддержки (ID группы, токен, темы)">
+					<button type="button" class="button button-secondary" onclick="checkSupportConfig(event)" title="Проверить конфигурацию бота поддержки (ID группы, токен, темы)">
 						<i class="fas fa-cog"></i>
 						Проверить конфигурацию
 					</button>
@@ -1204,6 +1227,7 @@
 							<tr>
 								<th>ID</th>
 								<th>Название группы</th>
+								<th>Код</th>
 								<th>Описание</th>
 								<th>Пользователей</th>
 								<th>По умолчанию</th>
@@ -1709,7 +1733,21 @@
     }
 }
 
+
 </style>
+
+<!-- Скрытый шаблон для групп пользователей (используется в модалке) -->
+<template id="user-groups-template">
+  <select name="display_mode_groups[]" multiple size="4" title="Выберите группы пользователей (удерживайте Ctrl для множественного выбора)" class="plan-groups-select">
+    {% if user_groups and user_groups|length > 0 %}
+      {% for g in user_groups %}
+        <option value="{{ g.group_id }}">{{ g.group_name }} ({{ g.user_count or 0 }} пользователей)</option>
+      {% endfor %}
+    {% else %}
+      <option value="">Нет доступных групп</option>
+    {% endif %}
+  </select>
+</template>
 
 <script>
 // ===== Kebab menu styles теперь находятся в style.css =====
@@ -1746,6 +1784,11 @@
     const url = new URL(window.location);
     url.searchParams.set('tab', tabName);
     window.history.replaceState({}, '', url);
+    
+    // Загружаем данные для вкладки справочников
+    if (tabName === 'directories') {
+        loadGroupsData();
+    }
 }
 
 function updateStarsRate() {
@@ -1781,8 +1824,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const traffic = tr.getAttribute('data-plan-traffic') || '';
         const hours = tr.getAttribute('data-plan-hours') || '';
         const keyProvisionMode = tr.getAttribute('data-plan-provision-mode') || 'key';
+        const displayMode = tr.getAttribute('data-plan-display-mode') || 'all';
+        const displayModeGroups = tr.getAttribute('data-plan-display-mode-groups') || null;
         const hostName = tr.getAttribute('data-host-name') || '';
-        openPlanModal(planId, name, months, days, price, traffic, hostName, hours, keyProvisionMode);
+        openPlanModal(planId, name, months, days, price, traffic, hostName, hours, keyProvisionMode, displayMode, displayModeGroups);
     });
 });
 
@@ -1846,12 +1891,34 @@ function openHostModalData(el){
 }
 
 // Модалка для тарифа (создание/редактирование)
-function openPlanModal(planId, name, months, days, price, traffic, hostName, hours, keyProvisionMode, displayMode){
+function openPlanModal(planId, name, months, days, price, traffic, hostName, hours, keyProvisionMode, displayMode, displayModeGroups){
     const isEdit = !!planId;
     const action = isEdit ? `/edit-plan/${planId}` : '/add-plan';
     const hiddenHost = isEdit ? '' : `<input type="hidden" name="host_name" value="${hostName}">`;
     const provisionMode = keyProvisionMode || 'key';
     displayMode = displayMode || 'all';
+    
+    // Преобразуем displayModeGroups в массив для проверки
+    // displayModeGroups передается как строка через запятую (например: "1,2,3")
+    let selectedGroups = [];
+    if (displayModeGroups) {
+        try {
+            // Если это строка через запятую, разбиваем её
+            const groupsStr = String(displayModeGroups).trim();
+            if (groupsStr) {
+                selectedGroups = groupsStr.split(',').map(g => parseInt(g.trim())).filter(g => !isNaN(g));
+            }
+        } catch(e) {
+            selectedGroups = [];
+        }
+    }
+    
+    console.log('displayModeGroups:', displayModeGroups);
+    console.log('selectedGroups:', selectedGroups);
+    
+    // Получаем HTML для групп из скрытого шаблона (как в промокодах)
+    const groupsTemplate = document.getElementById('user-groups-template');
+    const groupsSelectHtml = groupsTemplate ? groupsTemplate.innerHTML : '<option value="">Нет доступных групп</option>';
     
     const html = `
     <div class="modal-backdrop">
@@ -1887,6 +1954,11 @@ function openPlanModal(planId, name, months, days, price, traffic, hostName, hou
                   <option value="hidden_old" ${displayMode === 'hidden_old' ? 'selected' : ''}>Скрыть у старых</option>
                 </select>
               </div>
+              <div class="form-group">
+                <label title="Выберите группы пользователей, которым будет виден этот тариф">Группы пользователей</label>
+                ${groupsSelectHtml}
+                <small class="form-hint">Удерживайте Ctrl для выбора нескольких групп. Если не выбрано ни одной группы, тариф доступен всем</small>
+              </div>
               <div class="modal-actions">
                 <span></span>
                 <button type="button" class="button button-secondary" onclick="closeModal()" title="Отменить и закрыть">Отмена</button>
@@ -1898,6 +1970,20 @@ function openPlanModal(planId, name, months, days, price, traffic, hostName, hou
       </div>
     </div>`;
     showModal(html);
+    
+    // Устанавливаем выбранные группы после создания модалки
+    if (selectedGroups.length > 0) {
+      setTimeout(() => {
+        const select = document.querySelector('select.plan-groups-select');
+        if (select) {
+          Array.from(select.options).forEach(option => {
+            if (selectedGroups.includes(parseInt(option.value))) {
+              option.selected = true;
+            }
+          });
+        }
+      }, 100);
+    }
 }
 
 // Delete helpers
@@ -1948,10 +2034,11 @@ function openPlanModalData(el){
         const hours = el.getAttribute('data-plan-hours') || '';
         const keyProvisionMode = el.getAttribute('data-plan-provision-mode') || 'key';
         const displayMode = el.getAttribute('data-plan-display-mode') || 'all';
-        openPlanModal(planId, name, months, days, price, traffic, hostName, hours, keyProvisionMode, displayMode);
+        const displayModeGroups = el.getAttribute('data-plan-display-mode-groups') || null;
+        openPlanModal(planId, name, months, days, price, traffic, hostName, hours, keyProvisionMode, displayMode, displayModeGroups);
     } else {
         // Создание нового тарифа
-        openPlanModal(null, '', '', '', '', '', hostName, '', 'key', 'all');
+        openPlanModal(null, '', '', '', '', '', hostName, '', 'key', 'all', null);
     }
 }
 
@@ -2568,11 +2655,15 @@ async function testLoggingBot() {
 }
 
 // Функция для проверки конфигурации бота поддержки
-async function checkSupportConfig() {
+async function checkSupportConfig(event) {
     const resultDiv = document.getElementById('support-diagnostic-result');
     resultDiv.innerHTML = '<p style="color: #666;">⏳ Проверка конфигурации...</p>';
     
-    const button = event.target.closest('button');
+    const button = event ? event.target.closest('button') : document.querySelector('button[onclick*="checkSupportConfig"]');
+    if (!button) {
+        console.error('Button not found for checkSupportConfig');
+        return;
+    }
     const originalText = button.innerHTML;
     button.disabled = true;
     button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Проверка...';
@@ -3258,6 +3349,9 @@ function displayGroups(groups) {
                 <span class="group-name">${group.group_name}</span>
             </td>
             <td>
+                <span class="group-code">${group.group_code || '—'}</span>
+            </td>
+            <td>
                 <span class="group-description">${group.group_description || '—'}</span>
             </td>
             <td>
@@ -3276,12 +3370,12 @@ function displayGroups(groups) {
                         <i class="fas fa-ellipsis-v"></i>
                     </button>
                     <div class="kebab-menu" id="kebab-group-${group.group_id}">
-                        <button type="button" class="kebab-item" onclick="editGroup(${group.group_id}, '${group.group_name}', '${group.group_description || ''}')" title="Редактировать группу">
+                        <button type="button" class="kebab-item" onclick="editGroup(${group.group_id}, '${(group.group_name || '').replace(/'/g, "\\'")}', '${(group.group_description || '').replace(/'/g, "\\'")}', '${(group.group_code || '').replace(/'/g, "\\'")}')" title="Редактировать группу">
                             <i class="fas fa-edit"></i>
                             <span>Редактировать</span>
                         </button>
                         ${!group.is_default ? `
-                        <button type="button" class="kebab-item danger" onclick="deleteGroup(${group.group_id}, '${group.group_name}', ${group.user_count})" title="Удалить группу">
+                        <button type="button" class="kebab-item danger" onclick="deleteGroup(${group.group_id}, '${(group.group_name || '').replace(/'/g, "\\'")}', ${group.user_count})" title="Удалить группу">
                             <i class="fas fa-trash"></i>
                             <span>Удалить</span>
                         </button>
@@ -3309,16 +3403,23 @@ async function loadGroupsStatistics() {
     }
 }
 
+// Глобальная переменная для хранения ID редактируемой группы
+let currentEditingGroupId = null;
+
 // Drawer для создания/редактирования группы
-function openGroupModal(groupId = null, groupName = '', groupDescription = '') {
+function openGroupModal(groupId = null, groupName = '', groupDescription = '', groupCode = '') {
     const drawer = document.getElementById('groupDrawer');
     if (!drawer) {
         console.error('Drawer element not found');
         return;
     }
     
+    // Сохраняем ID группы для использования в saveGroup
+    currentEditingGroupId = groupId;
+    
     // Заполняем форму данными
     document.getElementById('groupName').value = groupName;
+    document.getElementById('groupCode').value = groupCode;
     document.getElementById('groupDescription').value = groupDescription;
     document.getElementById('isDefault').checked = false;
     
@@ -3337,10 +3438,14 @@ function openGroupModal(groupId = null, groupName = '', groupDescription = '') {
 }
 
 // Сохранение группы
-async function saveGroup(groupId) {
+async function saveGroup() {
     const groupName = document.getElementById('groupName').value.trim();
+    const groupCode = document.getElementById('groupCode').value.trim();
     const groupDescription = document.getElementById('groupDescription').value.trim();
     const isDefault = document.getElementById('isDefault').checked;
+    
+    // Используем глобальную переменную для определения ID группы
+    const groupId = currentEditingGroupId;
     
     const data = {
         group_name: groupName,
@@ -3348,9 +3453,29 @@ async function saveGroup(groupId) {
         is_default: isDefault
     };
     
+    // Добавляем group_code только если он не пустой
+    if (groupCode) {
+        data.group_code = groupCode;
+    }
+    
     if (!data.group_name) {
         alert('Название группы не может быть пустым');
         return;
+    }
+    
+    // Проверяем код группы только если он указан
+    if (data.group_code && !data.group_code.trim()) {
+        alert('Код группы не может быть пустым');
+        return;
+    }
+    
+    // Валидация кода группы (только если он указан)
+    if (data.group_code) {
+        const codePattern = /^[a-z0-9_-]+$/;
+        if (!codePattern.test(data.group_code)) {
+            alert('Код группы может содержать только латинские буквы, цифры, дефис и подчеркивание');
+            return;
+        }
     }
     
     try {
@@ -3381,9 +3506,9 @@ async function saveGroup(groupId) {
 }
 
 // Редактирование группы
-function editGroup(groupId, groupName, groupDescription) {
+function editGroup(groupId, groupName, groupDescription, groupCode = '') {
     closeKebabMenu(`kebab-group-${groupId}`);
-    openGroupModal(groupId, groupName, groupDescription);
+    openGroupModal(groupId, groupName, groupDescription, groupCode);
 }
 
 // Закрытие drawer групп
@@ -3397,6 +3522,8 @@ function closeGroupDrawer() {
         document.getElementById('group-form').reset();
         // Сбрасываем заголовок
         document.getElementById('groupDrawerTitle').textContent = 'Добавить группу';
+        // Очищаем глобальную переменную
+        currentEditingGroupId = null;
     }, 300);
 }
 
@@ -3894,6 +4021,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="form-group">
                     <label for="groupName">Название группы:</label>
                     <input type="text" id="groupName" name="groupName" required placeholder="Введите название группы">
+                </div>
+                <div class="form-group">
+                    <label for="groupCode">Код группы:</label>
+                    <input type="text" id="groupCode" name="groupCode" title="Только латинские буквы, цифры, дефис и подчеркивание" placeholder="Введите код группы (например: friends)" required>
+                    <small class="form-help">Используется в deeplink. Только латиница, цифры, дефис и подчеркивание</small>
                 </div>
                 <div class="form-group">
                     <label for="groupDescription">Описание:</label>
