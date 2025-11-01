@@ -1,0 +1,8 @@
+> docker compose down docs
+
+ Container dark-maximus-docs  Stopping
+ Container dark-maximus-docs  Stopped
+ Container dark-maximus-docs  Removing
+ Container dark-maximus-docs  Removed
+ Network dark-maximus-network  Removing
+ Network dark-maximus-network  Resource is still in use

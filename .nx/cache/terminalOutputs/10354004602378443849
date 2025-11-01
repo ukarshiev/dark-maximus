@@ -1,0 +1,52 @@
+> docker compose logs -f bot --tail=50
+
+dark-maximus-bot  | 2025-10-31 22:26:48,230 - [INFO] - shop_bot.bot_controller - BotController: Polling task for 'ShopBot' has been started.
+dark-maximus-bot  | DEBUG: Starting polling for ShopBot with bot 8226591457
+dark-maximus-bot  | 2025-10-31 22:26:48,231 - [INFO] - aiogram.dispatcher - Start polling
+dark-maximus-bot  | 2025-10-31 22:26:48,231 - [INFO] - shop_bot.bot_controller - BotController: Polling task for 'SupportBot' has been started.
+dark-maximus-bot  | DEBUG: Starting polling for SupportBot with bot 8230014622
+dark-maximus-bot  | 2025-10-31 22:26:48,232 - [INFO] - aiogram.dispatcher - Start polling
+dark-maximus-bot  | 2025-10-31 22:26:48,316 - [INFO] - database - (logger.py).info(97) - Database operation: backup_created on users
+dark-maximus-bot  | 2025-10-31 22:26:48,316 - [INFO] - database - Database operation: backup_created on users
+dark-maximus-bot  | 2025-10-31 22:26:48,318 - [INFO] - shop_bot.data_manager.backup - Database backup created successfully: backups/users_backup_20251031_222647.db
+dark-maximus-bot  | 2025-10-31 22:26:48,319 - [INFO] - shop_bot.data_manager.backup - Automatic backup completed successfully
+dark-maximus-bot  | 2025-10-31 22:26:48,328 - [INFO] - shop_bot.data_manager.backup - Deleted old backup: backups/users_backup_20251024_215125.db
+dark-maximus-bot  | 2025-10-31 22:26:48,383 - [INFO] - aiogram.dispatcher - Run polling for bot @darkmaxi_vpn_bot id=8226591457 - 'TEST Maximus bot'
+dark-maximus-bot  | 2025-10-31 22:26:48,395 - [INFO] - aiogram.dispatcher - Run polling for bot @darkmaxi_support_bot id=8230014622 - 'TEST Maximus support bot'
+dark-maximus-bot  | 2025-10-31 22:26:48,428 - [INFO] - database - (logger.py).info(97) - Database operation: backups_cleaned on users
+dark-maximus-bot  | 2025-10-31 22:26:48,428 - [INFO] - database - Database operation: backups_cleaned on users
+dark-maximus-bot  | 2025-10-31 22:26:48,430 - [INFO] - shop_bot.data_manager.backup - Cleaned up 1 old backups
+dark-maximus-bot  | 2025-10-31 22:26:58,243 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting sync with XUI panels...
+dark-maximus-bot  | 2025-10-31 22:26:58,250 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇪🇪 Эстония Test'
+dark-maximus-bot  | 2025-10-31 22:26:59,032 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager/' (attempt 1)
+dark-maximus-bot  | 2025-10-31 22:26:59,074 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 2 clients on the '🇪🇪 Эстония Test' panel.
+dark-maximus-bot  | 2025-10-31 22:26:59,078 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇫🇮 Финляндия 1 Test'
+dark-maximus-bot  | 2025-10-31 22:26:59,571 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv1.dark-maximus.com:8443/configpanel/' (attempt 1)
+dark-maximus-bot  | 2025-10-31 22:26:59,664 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇫🇮 Финляндия 1 Test' panel.
+dark-maximus-bot  | 2025-10-31 22:26:59,668 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇳🇱 Нидерланды 1 Test'
+dark-maximus-bot  | 2025-10-31 22:27:00,133 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv2.dark-maximus.com:8443/configpanel/' (attempt 1)
+dark-maximus-bot  | 2025-10-31 22:27:00,269 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇳🇱 Нидерланды 1 Test' panel.
+dark-maximus-bot  | 2025-10-31 22:27:00,273 - [WARNING] - shop_bot.data_manager.scheduler - Scheduler: Found 1 orphan client(s) on host '🇳🇱 Нидерланды 1 Test'
+dark-maximus-bot  | 2025-10-31 22:27:00,274 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Orphan client - Email: dhtv8bz7, ID: be252a04-2c57-4bf7-8d92-071af3b959f6, Expiry: 0
+dark-maximus-bot  | 2025-10-31 22:27:00,274 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting auto-deletion of 1 orphan client(s) on '🇳🇱 Нидерланды 1 Test'...
+dark-maximus-bot  | 2025-10-31 22:27:00,682 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv2.dark-maximus.com:8443/configpanel/' (attempt 1)
+dark-maximus-bot  | 2025-10-31 22:27:00,955 - [INFO] - shop_bot.modules.xui_api - Client 'dhtv8bz7' already deleted from host '🇳🇱 Нидерланды 1 Test' (no longer exists on panel).
+dark-maximus-bot  | 2025-10-31 22:27:00,957 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Successfully deleted orphan client 'dhtv8bz7' on '🇳🇱 Нидерланды 1 Test'.
+dark-maximus-bot  | 2025-10-31 22:27:00,959 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Auto-deletion complete on '🇳🇱 Нидерланды 1 Test': 1 deleted, 0 failed.
+dark-maximus-bot  | 2025-10-31 22:27:00,960 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇩🇪 Германия 1 Test'
+dark-maximus-bot  | 2025-10-31 22:27:01,471 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv3.dark-maximus.com:8443/configpanel/' (attempt 1)
+dark-maximus-bot  | 2025-10-31 22:27:01,623 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇩🇪 Германия 1 Test' panel.
+dark-maximus-bot  | 2025-10-31 22:27:01,627 - [WARNING] - shop_bot.data_manager.scheduler - Scheduler: Found 1 orphan client(s) on host '🇩🇪 Германия 1 Test'
+dark-maximus-bot  | 2025-10-31 22:27:01,627 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Orphan client - Email: user1588069616-key1-trial@🇩🇪germany1test.bot, ID: f610165e-32c0-4902-8743-a369ec2dbd9c, Expiry: 1761226042779
+dark-maximus-bot  | 2025-10-31 22:27:01,628 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting auto-deletion of 1 orphan client(s) on '🇩🇪 Германия 1 Test'...
+dark-maximus-bot  | 2025-10-31 22:27:02,217 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv3.dark-maximus.com:8443/configpanel/' (attempt 1)
+dark-maximus-bot  | 2025-10-31 22:27:03,545 - [INFO] - shop_bot.modules.xui_api - Client 'user1588069616-key1-trial@🇩🇪germany1test.bot' already deleted from host '🇩🇪 Германия 1 Test' (no longer exists on panel).
+dark-maximus-bot  | 2025-10-31 22:27:03,547 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Successfully deleted orphan client 'user1588069616-key1-trial@🇩🇪germany1test.bot' on '🇩🇪 Германия 1 Test'.
+dark-maximus-bot  | 2025-10-31 22:27:03,549 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Auto-deletion complete on '🇩🇪 Германия 1 Test': 1 deleted, 0 failed.
+dark-maximus-bot  | 2025-10-31 22:27:03,550 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Sync with XUI panels finished. Total records affected: 2.
+dark-maximus-bot  | 2025-10-31 22:27:03,551 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Checking for expiring subscriptions...
+dark-maximus-bot  | 2025-10-31 22:27:03,583 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Cycle finished. Next check in 3600 seconds.
+dark-maximus-bot  | 2025-10-31 22:31:04,710 - [WARNING] - aiogram.dispatcher - Received SIGTERM signal
+dark-maximus-bot  | 2025-10-31 22:31:04,712 - [INFO] - aiogram.dispatcher - Polling stopped for bot @darkmaxi_support_bot id=8230014622 - 'TEST Maximus support bot'
+dark-maximus-bot  | 2025-10-31 22:31:04,713 - [INFO] - aiogram.dispatcher - Polling stopped
+dark-maximus-bot  | 2025-10-31 22:31:04,964 - [INFO] - shop_bot.bot_controller - BotController: Polling for 'SupportBot' has gracefully stopped.

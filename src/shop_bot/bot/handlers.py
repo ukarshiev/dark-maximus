@@ -979,15 +979,6 @@ def get_user_router() -> Router:
         await callback.answer()
         user_id = callback.from_user.id
         
-        # Сохраняем промокод в state, если он был применен ранее
-        current_data = await state.get_data()
-        if current_data.get('promo_code'):
-            await state.update_data(
-                promo_code=current_data.get('promo_code'),
-                final_price=current_data.get('final_price'),
-                promo_usage_id=current_data.get('promo_usage_id'),
-                promo_data=current_data.get('promo_data')
-            )
         hosts = get_all_hosts()
         if not hosts:
             await callback.message.edit_text("❌ В данный момент нет доступных серверов для покупки.")
@@ -3204,8 +3195,17 @@ def get_user_router() -> Router:
         user_id = callback.from_user.id
         host_name = callback.data[len("select_host_new_"):]
         
-        # Сохраняем host_name в состоянии для возможности возврата
-        await state.update_data(selected_host=host_name)
+        # Получаем текущие данные из state, чтобы сохранить промокод если он был применен
+        current_data = await state.get_data()
+        
+        # Сохраняем host_name И промокод в состоянии для возможности возврата
+        await state.update_data(
+            selected_host=host_name,
+            # Сохраняем промокод, если он был применен
+            promo_code=current_data.get('promo_code'),
+            promo_usage_id=current_data.get('promo_usage_id'),
+            promo_data=current_data.get('promo_data')
+        )
         
         plans = get_plans_for_host(host_name)
         
@@ -3333,19 +3333,25 @@ def get_user_router() -> Router:
         promo_code = data.get('promo_code')
         final_price = data.get('final_price')
         promo_usage_id = data.get('promo_usage_id')
+        promo_data = data.get('promo_data')
         
         await state.clear()
-        if selected_host:
-            await state.update_data(selected_host=selected_host)
         
-        # Восстанавливаем промокод если он был применен
+        # Восстанавливаем selected_host и промокод если они были применены
+        update_dict = {}
+        if selected_host:
+            update_dict['selected_host'] = selected_host
         if promo_code:
-            await state.update_data(
-                promo_code=promo_code,
-                final_price=final_price,
-                promo_usage_id=promo_usage_id,
-                promo_data=current_data.get('promo_data')
-            )
+            update_dict['promo_code'] = promo_code
+            if final_price is not None:
+                update_dict['final_price'] = final_price
+            if promo_usage_id is not None:
+                update_dict['promo_usage_id'] = promo_usage_id
+            if promo_data is not None:
+                update_dict['promo_data'] = promo_data
+        
+        if update_dict:
+            await state.update_data(**update_dict)
 
         if action == 'new' and host_name:
             # Возвращаемся к выбору тарифа для конкретного хоста
@@ -5609,6 +5615,8 @@ async def process_successful_onboarding(message_or_callback, state: FSMContext):
     deeplink_promos = state_data.get('deeplink_applied_promos', [])
     deeplink_already_applied_promos = state_data.get('deeplink_already_applied_promos', [])
     promo_data = state_data.get('promo_data', {})
+    promo_code = state_data.get('promo_code')
+    promo_usage_id = state_data.get('promo_usage_id')
     
     if hasattr(message_or_callback, 'answer'):
         await message_or_callback.answer("✅ Спасибо! Доступ предоставлен.")
@@ -5622,6 +5630,14 @@ async def process_successful_onboarding(message_or_callback, state: FSMContext):
     set_subscription_status(user_id, 'subscribed')
     
     await state.clear()
+    
+    # Восстанавливаем данные промокода если он был применен через deeplink
+    if promo_code:
+        await state.update_data(
+            promo_code=promo_code,
+            promo_usage_id=promo_usage_id,
+            promo_data=promo_data
+        )
     
     # Получаем сообщение для отправки
     if hasattr(message_or_callback, 'message'):

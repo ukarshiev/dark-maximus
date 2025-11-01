@@ -14,6 +14,10 @@
 	<i class="fas fa-redo"></i>
 	<span class="button-text">Сбросить триал</span>
 </button>
+<button class="button button-secondary" data-size="sm" onclick="openShareModal()" title="Поделиться ссылкой-приглашением">
+	<i class="fas fa-share-alt"></i>
+	<span class="button-text">Поделиться</span>
+</button>
 {% endblock %}
 
 {% block content %}
@@ -262,6 +266,50 @@
 			<button type="button" class="button button-danger" onclick="submitTrialReset()" id="submitTrialResetButton" title="Выполнить сброс триала" disabled>
 				<i class="fas fa-exclamation-triangle"></i>
 				Сбросить триал
+			</button>
+		</div>
+	</div>
+</div>
+
+<!-- Модальное окно для генерации deeplink -->
+<div id="shareModal" class="modal" style="display: none;">
+	<div class="modal-content">
+		<div class="modal-header">
+			<h3>Поделиться приглашением</h3>
+			<span class="close" onclick="closeShareModal()" title="Закрыть окно">&times;</span>
+		</div>
+		<div class="modal-body">
+			<div class="form-group">
+				<label for="shareBot">Бот *</label>
+				<select id="shareBot" class="form-select" required onchange="updateShareLink()" title="Выберите бота для генерации ссылки">
+					<option value="">Выберите бота</option>
+				</select>
+			</div>
+			<div class="form-group">
+				<label for="shareGroup">Группа</label>
+				<select id="shareGroup" class="form-select" onchange="updateShareLink()" title="Выберите группу пользователей (необязательно)">
+					<option value="">Без группы</option>
+				</select>
+			</div>
+			<div class="form-group">
+				<label for="sharePromo">Промокод</label>
+				<select id="sharePromo" class="form-select" onchange="updateShareLink()" title="Выберите промокод (необязательно)">
+					<option value="">Без промокода</option>
+				</select>
+			</div>
+			<div class="form-group">
+				<label>Ссылка</label>
+				<div class="share-link-container">
+					<input type="text" id="shareLink" class="form-input" readonly title="Сгенерированная ссылка-приглашение">
+					<button type="button" class="button button-secondary" onclick="copyShareLink()" title="Скопировать ссылку в буфер обмена">
+						<i class="fas fa-copy"></i>
+					</button>
+				</div>
+			</div>
+		</div>
+		<div class="modal-footer">
+			<button class="button button-secondary" onclick="closeShareModal()" title="Закрыть модальное окно">
+				Закрыть
 			</button>
 		</div>
 	</div>

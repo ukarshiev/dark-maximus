@@ -1,0 +1,8 @@
+> docker compose down bot
+
+ Container dark-maximus-bot  Stopping
+ Container dark-maximus-bot  Stopped
+ Container dark-maximus-bot  Removing
+ Container dark-maximus-bot  Removed
+ Network dark-maximus-network  Removing
+ Network dark-maximus-network  Resource is still in use

@@ -140,9 +140,79 @@ Get-Content $PROFILE
 notepad $PROFILE
 ```
 
+## Проблемы с кодировкой Python в Windows
+
+### Проблема с Unicode-символами в тестах
+
+При выполнении Python скриптов в Windows PowerShell могут возникать ошибки кодировки при выводе Unicode-символов (эмодзи):
+
+```
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2705' in position 0: character maps to <undefined>
+```
+
+### Причина
+
+Python использует UTF-8 как default encoding, но stdout/stderr используют cp1251 (Windows-1251), что приводит к ошибкам при выводе Unicode-символов.
+
+### Решение
+
+#### 1. Автоматическая настройка через PowerShell профиль
+
+В `Microsoft.PowerShell_profile.ps1` уже настроены переменные окружения:
+- `PYTHONIOENCODING=utf-8` - принудительная UTF-8 для stdin/stdout/stderr
+- `PYTHONUTF8=1` - активация UTF-8 режима (PEP 540)
+
+#### 2. Ручная настройка для текущей сессии
+
+```powershell
+# Установка переменных окружения
+$env:PYTHONIOENCODING = 'utf-8'
+$env:PYTHONUTF8 = '1'
+
+# Настройка консоли
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::InputEncoding = [System.Text.Encoding]::UTF8
+chcp 65001
+```
+
+#### 3. Использование setup-скрипта
+
+Запустите автоматическую настройку:
+```powershell
+.\tests\setup_test_environment.ps1 -Global
+```
+
+#### 4. Использование safe_print() в коде
+
+В тестовых скриптах используйте `safe_print()` вместо `print()`:
+
+```python
+from tests.test_utils import safe_print
+
+# Безопасный вывод с fallback
+safe_print("✅ Тест пройден", fallback_text="[OK] Тест пройден")
+
+# Обычный безопасный вывод
+safe_print("Привет, мир! 🚀")
+```
+
+### Проверка настроек
+
+Запустите диагностику кодировки:
+```powershell
+python tests\test_encoding.py
+```
+
+### Предотвращение проблем
+
+1. **Всегда используйте `safe_print()`** в тестовых скриптах
+2. **Проверяйте настройки** перед запуском тестов
+3. **Используйте setup-скрипт** для автоматической настройки
+
 ## Ссылки
 
 - [Git UTF-8 Configuration](https://git-scm.com/docs/git-config#Documentation/git-config.txt-i18ncommitEncoding)
 - [PowerShell Encoding](https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_character_encoding)
 - [Windows Console Code Pages](https://docs.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences)
+- [Python UTF-8 Mode](https://docs.python.org/3/using/cmdline.html#envvar-PYTHONUTF8)
 

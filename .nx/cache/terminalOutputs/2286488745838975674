@@ -1,0 +1,189 @@
+> docker compose logs -f bot
+
+dark-maximus-bot  | 2025-10-25 18:14:49,216 - [WARNING] - dark_maximus - (__main__.py).main(26) - 🚀 Dark Maximus: Запуск приложения...
+dark-maximus-bot  | 2025-10-25 18:14:49,216 - [WARNING] - dark_maximus - 🚀 Dark Maximus: Запуск приложения...
+dark-maximus-bot  | 2025-10-25 18:14:49,381 - [INFO] - root - Starting the migration of the database: /app/project/users.db
+dark-maximus-bot  | 2025-10-25 18:14:49,383 - [INFO] - root - The migration of the table 'users' ...
+dark-maximus-bot  | 2025-10-25 18:14:49,386 - [INFO] - root -  -> The column 'referred_by' already exists.
+dark-maximus-bot  | 2025-10-25 18:14:49,386 - [INFO] - root -  -> The column 'referral_balance' already exists.
+dark-maximus-bot  | 2025-10-25 18:14:49,387 - [INFO] - root -  -> The column 'referral_balance_all' already exists.
+dark-maximus-bot  | 2025-10-25 18:14:49,388 - [INFO] - root -  -> The column 'balance' already exists.
+dark-maximus-bot  | 2025-10-25 18:14:49,389 - [INFO] - root -  -> The column 'agreed_to_documents' already exists.
+dark-maximus-bot  | 2025-10-25 18:14:49,389 - [INFO] - root -  -> The column 'subscription_status' already exists.
+dark-maximus-bot  | 2025-10-25 18:14:49,390 - [INFO] - root -  -> The column 'key_id' already exists.
+dark-maximus-bot  | 2025-10-25 18:14:49,390 - [INFO] - root -  -> The column 'connection_string' already exists.
+dark-maximus-bot  | 2025-10-25 18:14:49,391 - [INFO] - root -  -> The column 'host_name' already exists.
+dark-maximus-bot  | 2025-10-25 18:14:49,392 - [INFO] - root -  -> The column 'plan_name' already exists.
+dark-maximus-bot  | 2025-10-25 18:14:49,392 - [INFO] - root -  -> The column 'price' already exists.
+dark-maximus-bot  | 2025-10-25 18:14:49,393 - [INFO] - root -  -> The column 'email' already exists.
+dark-maximus-bot  | 2025-10-25 18:14:49,394 - [INFO] - root -  -> The column 'created_date' already exists.
+dark-maximus-bot  | 2025-10-25 18:14:49,394 - [INFO] - root -  -> The column 'trial_days_given' already exists.
+dark-maximus-bot  | 2025-10-25 18:14:49,395 - [INFO] - root -  -> The column 'trial_reuses_count' already exists.
+dark-maximus-bot  | 2025-10-25 18:14:49,396 - [INFO] - root -  -> The column 'user_id' already exists.
+dark-maximus-bot  | 2025-10-25 18:14:49,396 - [INFO] - root -  -> The column 'fullname' already exists.
+dark-maximus-bot  | 2025-10-25 18:14:49,397 - [INFO] - root -  -> The column 'fio' already exists.
+dark-maximus-bot  | 2025-10-25 18:14:49,398 - [INFO] - root -  -> The column 'group_id' already exists.
+dark-maximus-bot  | 2025-10-25 18:14:49,398 - [INFO] - root - The table 'users' has been successfully updated.
+dark-maximus-bot  | 2025-10-25 18:14:49,399 - [INFO] - root - The migration of the table 'vpn_keys' ...
+dark-maximus-bot  | 2025-10-25 18:14:49,400 - [INFO] - root -  -> The column 'connection_string' already exists in vpn_keys table.
+dark-maximus-bot  | 2025-10-25 18:14:49,400 - [INFO] - root -  -> The column 'plan_name' already exists in vpn_keys table.
+dark-maximus-bot  | 2025-10-25 18:14:49,401 - [INFO] - root -  -> The column 'price' already exists in vpn_keys table.
+dark-maximus-bot  | 2025-10-25 18:14:49,402 - [INFO] - root -  -> The column 'protocol' already exists in vpn_keys table.
+dark-maximus-bot  | 2025-10-25 18:14:49,402 - [INFO] - root -  -> The column 'is_trial' already exists in vpn_keys table.
+dark-maximus-bot  | 2025-10-25 18:14:49,403 - [INFO] - root -  -> The column 'status' already exists in vpn_keys table.
+dark-maximus-bot  | 2025-10-25 18:14:49,403 - [INFO] - root -  -> The column 'remaining_seconds' already exists in vpn_keys table.
+dark-maximus-bot  | 2025-10-25 18:14:49,404 - [INFO] - root -  -> The column 'start_date' already exists in vpn_keys table.
+dark-maximus-bot  | 2025-10-25 18:14:49,405 - [INFO] - root -  -> The column 'enabled' already exists in vpn_keys table.
+dark-maximus-bot  | 2025-10-25 18:14:49,405 - [INFO] - root -  -> The column 'subscription_link' already exists in vpn_keys table.
+dark-maximus-bot  | 2025-10-25 18:14:49,406 - [INFO] - root - The table 'vpn_keys' has been successfully updated.
+dark-maximus-bot  | 2025-10-25 18:14:49,407 - [INFO] - root - The migration of the table 'Transactions' ...
+dark-maximus-bot  | 2025-10-25 18:14:49,408 - [INFO] - root -  -> The column 'transaction_hash' already exists in transactions table.
+dark-maximus-bot  | 2025-10-25 18:14:49,408 - [INFO] - root -  -> The column 'payment_link' already exists in transactions table.
+dark-maximus-bot  | 2025-10-25 18:14:49,409 - [INFO] - root -  -> The column 'yookassa_payment_id' already exists in transactions table.
+dark-maximus-bot  | 2025-10-25 18:14:49,410 - [INFO] - root -  -> The column 'rrn' already exists in transactions table.
+dark-maximus-bot  | 2025-10-25 18:14:49,410 - [INFO] - root -  -> The column 'authorization_code' already exists in transactions table.
+dark-maximus-bot  | 2025-10-25 18:14:49,411 - [INFO] - root -  -> The column 'payment_type' already exists in transactions table.
+dark-maximus-bot  | 2025-10-25 18:14:49,411 - [INFO] - root - The 'Transactions' table already has a new structure. Migration is not required.
+dark-maximus-bot  | 2025-10-25 18:14:49,412 - [INFO] - root - The migration of the table 'plans' ...
+dark-maximus-bot  | 2025-10-25 18:14:49,413 - [INFO] - root -  -> The column 'days' already exists in plans table.
+dark-maximus-bot  | 2025-10-25 18:14:49,413 - [INFO] - root -  -> The column 'hours' already exists in plans table.
+dark-maximus-bot  | 2025-10-25 18:14:49,414 - [INFO] - root -  -> The column 'traffic_gb' already exists in plans table.
+dark-maximus-bot  | 2025-10-25 18:14:49,415 - [INFO] - root -  -> The column 'key_provision_mode' already exists in plans table.
+dark-maximus-bot  | 2025-10-25 18:14:49,415 - [INFO] - root - The table 'plans' has been successfully updated.
+dark-maximus-bot  | 2025-10-25 18:14:54,440 - [INFO] - root - The migration of the table 'notifications' ...
+dark-maximus-bot  | 2025-10-25 18:14:54,441 - [INFO] - root - The table 'notifications' already exists. Migration is not required.
+dark-maximus-bot  | 2025-10-25 18:14:54,442 - [INFO] - root - The migration of the table 'promo_codes' ...
+dark-maximus-bot  | 2025-10-25 18:14:54,443 - [INFO] - root - Migrating bot logging settings...
+dark-maximus-bot  | 2025-10-25 18:14:54,443 - [INFO] - root -  -> Setting 'logging_bot_token' already exists
+dark-maximus-bot  | 2025-10-25 18:14:54,444 - [INFO] - root -  -> Setting 'logging_bot_username' already exists
+dark-maximus-bot  | 2025-10-25 18:14:54,445 - [INFO] - root -  -> Setting 'logging_bot_admin_chat_id' already exists
+dark-maximus-bot  | 2025-10-25 18:14:54,445 - [INFO] - root -  -> Setting 'logging_bot_level' already exists
+dark-maximus-bot  | 2025-10-25 18:14:54,446 - [INFO] - root - Migrating promo_codes new columns...
+dark-maximus-bot  | 2025-10-25 18:14:54,446 - [INFO] - root -  -> Migration 'promo_codes_new_columns' already applied, skipping
+dark-maximus-bot  | 2025-10-25 18:14:54,447 - [INFO] - root - Migrating user_groups table...
+dark-maximus-bot  | 2025-10-25 18:14:54,447 - [INFO] - root -  -> The column 'group_code' already exists in user_groups table.
+dark-maximus-bot  | 2025-10-25 18:14:54,448 - [INFO] - root - Migrating backup settings...
+dark-maximus-bot  | 2025-10-25 18:14:59,476 - [ERROR] - root - Failed to migrate backup settings: database is locked
+dark-maximus-bot  | 2025-10-25 18:14:59,477 - [INFO] - root - --- The database is successfully completed! ---
+dark-maximus-bot  | 2025-10-25 18:14:59,478 - [INFO] - root - Database indexes created successfully.
+dark-maximus-bot  | 2025-10-25 18:14:59,479 - [INFO] - root - Skip seeding default 'panel_login': bot_settings already initialized
+dark-maximus-bot  | 2025-10-25 18:14:59,480 - [INFO] - root - Skip seeding default 'panel_password': bot_settings already initialized
+dark-maximus-bot  | 2025-10-25 18:14:59,489 - [INFO] - root - Database initialized successfully.
+dark-maximus-bot  | 2025-10-25 18:14:59,490 - [INFO] - dark_maximus - (__main__.py).main(29) - Database initialization check complete.
+dark-maximus-bot  | 2025-10-25 18:14:59,490 - [INFO] - dark_maximus - Database initialization check complete.
+dark-maximus-bot  | 2025-10-25 18:14:59,527 - [INFO] - shop_bot.data_manager.async_database - AsyncDatabaseManager initialized with 10 connections
+dark-maximus-bot  | 2025-10-25 18:14:59,529 - [INFO] - shop_bot.data_manager.async_database - Async database initialized successfully
+dark-maximus-bot  | 2025-10-25 18:14:59,530 - [INFO] - dark_maximus - (__main__.py).main(33) - Async database initialized.
+dark-maximus-bot  | 2025-10-25 18:14:59,530 - [INFO] - dark_maximus - Async database initialized.
+dark-maximus-bot  | 2025-10-25 18:14:59,544 - [INFO] - dark_maximus - (__main__.py).main(62) - Telegram logging handler initialized with level: error
+dark-maximus-bot  | 2025-10-25 18:14:59,544 - [INFO] - dark_maximus - Telegram logging handler initialized with level: error
+dark-maximus-bot  | 2025-10-25 18:14:59,994 - [INFO] - database - (logger.py).info(97) - Database operation: backup_created on users
+dark-maximus-bot  | 2025-10-25 18:14:59,994 - [INFO] - database - Database operation: backup_created on users
+dark-maximus-bot  | 2025-10-25 18:14:59,997 - [INFO] - shop_bot.data_manager.backup - Database backup created successfully: backups/initial_backup.db
+dark-maximus-bot  | 2025-10-25 18:14:59,997 - [INFO] - shop_bot.data_manager.backup - Initial database backup created successfully
+dark-maximus-bot  | 2025-10-25 18:14:59,998 - [INFO] - shop_bot.data_manager.backup - Automatic backups started with interval: 1 hours
+dark-maximus-bot  | 2025-10-25 18:14:59,999 - [INFO] - shop_bot.data_manager.backup - Backup system initialized with 1h interval
+dark-maximus-bot  | 2025-10-25 18:14:59,999 - [INFO] - dark_maximus - (__main__.py).main(70) - Backup system initialized.
+dark-maximus-bot  | 2025-10-25 18:14:59,999 - [INFO] - dark_maximus - Backup system initialized.
+dark-maximus-bot  | --- DIAGNOSTIC INFORMATION ---
+dark-maximus-bot  | Current Working Directory: /app/project
+dark-maximus-bot  | Path of running app.py: /app/project/src/shop_bot/webhook_server/app.py
+dark-maximus-bot  | Directory of running app.py: /app/project/src/shop_bot/webhook_server
+dark-maximus-bot  | Expected templates directory: /app/project/src/shop_bot/webhook_server/templates
+dark-maximus-bot  | Expected login.html path: /app/project/src/shop_bot/webhook_server/templates/login.html
+dark-maximus-bot  | Does template directory exist? -> True
+dark-maximus-bot  | Does login.html file exist? -> True
+dark-maximus-bot  | --- END DIAGNOSTIC INFORMATION ---
+dark-maximus-bot  | 2025-10-25 18:15:00,388 - [INFO] - shop_bot.webhook_server.app - TON monitoring disabled - using webhook for payment processing
+dark-maximus-bot  | 2025-10-25 18:15:00,389 - [INFO] - shop_bot.bot_controller - BotController: Event loop has been set.
+dark-maximus-bot  | 2025-10-25 18:15:00,392 - [INFO] - dark_maximus - (__main__.py).start_services(133) - Flask server started in a background thread on http://0.0.0.0:1488
+dark-maximus-bot  |  * Serving Flask app 'shop_bot.webhook_server.app'
+dark-maximus-bot  | 2025-10-25 18:15:00,392 - [INFO] - dark_maximus - Flask server started in a background thread on http://0.0.0.0:1488
+dark-maximus-bot  |  * Debug mode: off
+dark-maximus-bot  | 2025-10-25 18:15:00,396 - [WARNING] - dark_maximus - (__main__.py).start_services(137) - 🔄 Dark Maximus: Автозапуск ботов...
+dark-maximus-bot  | 2025-10-25 18:15:00,396 - [WARNING] - dark_maximus - 🔄 Dark Maximus: Автозапуск ботов...
+dark-maximus-bot  | 2025-10-25 18:15:00,412 - [WARNING] - shop_bot.bot_controller - 🟢 ShopBot: Запуск бота...
+dark-maximus-bot  | 2025-10-25 18:15:00,519 - [INFO] - shop_bot.bot_controller - YooKassa configured (тестовый режим): shop_id=1176024, api_url=https://api.test.yookassa.ru/v3, verify_ssl=False
+dark-maximus-bot  | 2025-10-25 18:15:00,520 - [WARNING] - shop_bot.bot_controller - 🟢 ShopBot: Бот успешно запущен и работает
+dark-maximus-bot  | 2025-10-25 18:15:00,521 - [INFO] - shop_bot.bot_controller - BotController: Start command sent to event loop.
+dark-maximus-bot  | 2025-10-25 18:15:00,521 - [INFO] - dark_maximus - (__main__.py).start_services(142) - ✅ Autostart ShopBot: Команда на запуск бота отправлена.
+dark-maximus-bot  | 2025-10-25 18:15:00,521 - [INFO] - dark_maximus - ✅ Autostart ShopBot: Команда на запуск бота отправлена.
+dark-maximus-bot  | 2025-10-25 18:15:00,537 - [WARNING] - shop_bot.bot_controller - 🟢 SupportBot: Запуск бота...
+dark-maximus-bot  | 2025-10-25 18:15:00,550 - [WARNING] - shop_bot.bot_controller - 🟢 SupportBot: Бот успешно запущен и работает
+dark-maximus-bot  | 2025-10-25 18:15:00,551 - [INFO] - dark_maximus - (__main__.py).start_services(157) - ✅ Autostart SupportBot: Команда на запуск бота отправлена.
+dark-maximus-bot  | 2025-10-25 18:15:00,551 - [INFO] - dark_maximus - ✅ Autostart SupportBot: Команда на запуск бота отправлена.
+dark-maximus-bot  | 2025-10-25 18:15:00,553 - [WARNING] - dark_maximus - (__main__.py).start_services(171) - ✅ Dark Maximus: Приложение запущено и работает
+dark-maximus-bot  | 2025-10-25 18:15:00,553 - [WARNING] - dark_maximus - ✅ Dark Maximus: Приложение запущено и работает
+dark-maximus-bot  | 2025-10-25 18:15:00,554 - [INFO] - dark_maximus - (__main__.py).start_services(172) - Application is running. Bots are managed automatically and via web panel.
+dark-maximus-bot  | 2025-10-25 18:15:00,554 - [INFO] - dark_maximus - Application is running. Bots are managed automatically and via web panel.
+dark-maximus-bot  | 2025-10-25 18:15:00,556 - [INFO] - dark_maximus - (__main__.py).start_services(178) - Performance monitoring started.
+dark-maximus-bot  | 2025-10-25 18:15:00,556 - [INFO] - dark_maximus - Performance monitoring started.
+dark-maximus-bot  | 2025-10-25 18:15:00,558 - [INFO] - shop_bot.data_manager.scheduler - Scheduler has been started.
+dark-maximus-bot  | 2025-10-25 18:15:00,561 - [INFO] - shop_bot.bot_controller - BotController: Polling task for 'ShopBot' has been started.
+dark-maximus-bot  | DEBUG: Starting polling for ShopBot with bot 8226591457
+dark-maximus-bot  | 2025-10-25 18:15:00,562 - [INFO] - aiogram.dispatcher - Start polling
+dark-maximus-bot  | 2025-10-25 18:15:00,563 - [INFO] - shop_bot.bot_controller - BotController: Polling task for 'SupportBot' has been started.
+dark-maximus-bot  | DEBUG: Starting polling for SupportBot with bot 8230014622
+dark-maximus-bot  | 2025-10-25 18:15:00,564 - [INFO] - aiogram.dispatcher - Start polling
+dark-maximus-bot  | 2025-10-25 18:15:00,604 - [INFO] - database - (logger.py).info(97) - Database operation: backup_created on users
+dark-maximus-bot  | 2025-10-25 18:15:00,604 - [INFO] - database - Database operation: backup_created on users
+dark-maximus-bot  | 2025-10-25 18:15:00,607 - [INFO] - shop_bot.data_manager.backup - Database backup created successfully: backups/users_backup_20251025_181459.db
+dark-maximus-bot  | 2025-10-25 18:15:00,607 - [INFO] - shop_bot.data_manager.backup - Automatic backup completed successfully
+dark-maximus-bot  | 2025-10-25 18:15:00,715 - [INFO] - aiogram.dispatcher - Run polling for bot @darkmaxi_vpn_bot id=8226591457 - 'TEST Maximus bot'
+dark-maximus-bot  | 2025-10-25 18:15:00,722 - [INFO] - aiogram.dispatcher - Run polling for bot @darkmaxi_support_bot id=8230014622 - 'TEST Maximus support bot'
+dark-maximus-bot  | DEBUG: MAIN BOT START HANDLER CALLED for user 5089633490 (lovemetouchme)
+dark-maximus-bot  | 2025-10-25 18:15:00,765 - [INFO] - shop_bot.bot.handlers - MAIN BOT START HANDLER: User 5089633490 (lovemetouchme) started bot
+dark-maximus-bot  | FORCE DEBUG: START HANDLER EXECUTING for user 5089633490
+dark-maximus-bot  | 2025-10-25 18:15:00,779 - [INFO] - shop_bot.bot.handlers - User 5089633490 registered/updated before deeplink processing
+dark-maximus-bot  | 2025-10-25 18:15:00,780 - [INFO] - shop_bot.bot.handlers - DEBUG: Parsing deeplink start_param: 'user_groups=moi' for user 5089633490
+dark-maximus-bot  | 2025-10-25 18:15:00,781 - [INFO] - shop_bot.bot.handlers - DEBUG: Split into parts: ['user_groups=moi']
+dark-maximus-bot  | 2025-10-25 18:15:00,782 - [INFO] - shop_bot.bot.handlers - Processing group assignment: user 5089633490 -> group_code 'moi'
+dark-maximus-bot  | 2025-10-25 18:15:00,791 - [INFO] - root - Assigned user 5089633490 to group 22 (code: moi)
+dark-maximus-bot  | 2025-10-25 18:15:00,792 - [INFO] - shop_bot.bot.handlers - Successfully assigned user 5089633490 to group 'moi'
+dark-maximus-bot  | 2025-10-25 18:15:00,793 - [INFO] - shop_bot.bot.handlers - Deeplink processing completed for user 5089633490: groups=['moi'], promos=[]
+dark-maximus-bot  | 2025-10-25 18:15:00,806 - [INFO] - shop_bot.bot.handlers - START HANDLER: Settings - force_subscription: True, channel_url: https://t.me/dark_maximus, terms_url: https://panel.dark-maximus.com/terms, privacy_url: https://panel.dark-maximus.com/privacy
+dark-maximus-bot  | 2025-10-25 18:15:00,807 - [INFO] - shop_bot.bot.handlers - START HANDLER: User 5089633490 status - agreed_to_terms: 1, agreed_to_documents: 1, subscription_status: subscribed
+dark-maximus-bot  | 2025-10-25 18:15:00,808 - [INFO] - shop_bot.bot.handlers - START HANDLER: All checks passed for user 5089633490, showing main menu
+dark-maximus-bot  | 2025-10-25 18:15:01,031 - [INFO] - shop_bot.bot.handlers - Deeplink notification sent to user 5089633490: groups=['moi'], promos=[]
+dark-maximus-bot  | 2025-10-25 18:15:01,410 - [WARNING] - shop_bot.bot.middlewares - Slow request detected: Update from user unknown took 0.65s
+dark-maximus-bot  | 2025-10-25 18:15:01,411 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-10-25 18:15:01,412 - [INFO] - aiogram.event - Update id=415572934 is handled. Duration 648 ms by bot id=8226591457
+dark-maximus-bot  | 2025-10-25 18:15:10,573 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting sync with XUI panels...
+dark-maximus-bot  | 2025-10-25 18:15:10,579 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇪🇪 Эстония Test'
+dark-maximus-bot  | 2025-10-25 18:15:11,006 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager/' (attempt 1)
+dark-maximus-bot  | 2025-10-25 18:15:11,054 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 2 clients on the '🇪🇪 Эстония Test' panel.
+dark-maximus-bot  | 2025-10-25 18:15:11,058 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇫🇮 Финляндия 1 Test'
+dark-maximus-bot  | 2025-10-25 18:15:11,524 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv1.dark-maximus.com:8443/configpanel/' (attempt 1)
+dark-maximus-bot  | 2025-10-25 18:15:11,615 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇫🇮 Финляндия 1 Test' panel.
+dark-maximus-bot  | 2025-10-25 18:15:11,619 - [WARNING] - shop_bot.data_manager.scheduler - Scheduler: Found 1 orphan client(s) on host '🇫🇮 Финляндия 1 Test'
+dark-maximus-bot  | 2025-10-25 18:15:11,619 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Orphan client - Email: user2206685-key1@finland1.bot, ID: bc5fcabe-b947-4707-91c2-efd44396efce, Expiry: 1761392614078
+dark-maximus-bot  | 2025-10-25 18:15:11,620 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting auto-deletion of 1 orphan client(s) on '🇫🇮 Финляндия 1 Test'...
+dark-maximus-bot  | 2025-10-25 18:15:11,935 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv1.dark-maximus.com:8443/configpanel/' (attempt 1)
+dark-maximus-bot  | 2025-10-25 18:15:12,112 - [INFO] - shop_bot.modules.xui_api - Client 'user2206685-key1@finland1.bot' already deleted from host '🇫🇮 Финляндия 1 Test' (no longer exists on panel).
+dark-maximus-bot  | 2025-10-25 18:15:12,114 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Successfully deleted orphan client 'user2206685-key1@finland1.bot' on '🇫🇮 Финляндия 1 Test'.
+dark-maximus-bot  | 2025-10-25 18:15:12,117 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Auto-deletion complete on '🇫🇮 Финляндия 1 Test': 1 deleted, 0 failed.
+dark-maximus-bot  | 2025-10-25 18:15:12,118 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇳🇱 Нидерланды 1 Test'
+dark-maximus-bot  | 2025-10-25 18:15:12,656 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv2.dark-maximus.com:8443/configpanel/' (attempt 1)
+dark-maximus-bot  | 2025-10-25 18:15:12,800 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇳🇱 Нидерланды 1 Test' panel.
+dark-maximus-bot  | 2025-10-25 18:15:12,805 - [WARNING] - shop_bot.data_manager.scheduler - Scheduler: Found 1 orphan client(s) on host '🇳🇱 Нидерланды 1 Test'
+dark-maximus-bot  | 2025-10-25 18:15:12,806 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Orphan client - Email: dhtv8bz7, ID: be252a04-2c57-4bf7-8d92-071af3b959f6, Expiry: 0
+dark-maximus-bot  | 2025-10-25 18:15:12,807 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting auto-deletion of 1 orphan client(s) on '🇳🇱 Нидерланды 1 Test'...
+dark-maximus-bot  | 2025-10-25 18:15:13,199 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv2.dark-maximus.com:8443/configpanel/' (attempt 1)
+dark-maximus-bot  | 2025-10-25 18:15:13,461 - [INFO] - shop_bot.modules.xui_api - Client 'dhtv8bz7' already deleted from host '🇳🇱 Нидерланды 1 Test' (no longer exists on panel).
+dark-maximus-bot  | 2025-10-25 18:15:13,463 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Successfully deleted orphan client 'dhtv8bz7' on '🇳🇱 Нидерланды 1 Test'.
+dark-maximus-bot  | 2025-10-25 18:15:13,465 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Auto-deletion complete on '🇳🇱 Нидерланды 1 Test': 1 deleted, 0 failed.
+dark-maximus-bot  | 2025-10-25 18:15:13,466 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇩🇪 Германия 1 Test'
+dark-maximus-bot  | 2025-10-25 18:15:13,900 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv3.dark-maximus.com:8443/configpanel/' (attempt 1)
+dark-maximus-bot  | 2025-10-25 18:15:14,031 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇩🇪 Германия 1 Test' panel.
+dark-maximus-bot  | 2025-10-25 18:15:14,035 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Sync with XUI panels finished. Total records affected: 2.
+dark-maximus-bot  | 2025-10-25 18:15:14,036 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Checking for expiring subscriptions...
+dark-maximus-bot  | 2025-10-25 18:15:14,057 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Cycle finished. Next check in 3600 seconds.
+dark-maximus-bot  | 2025-10-25 18:15:17,923 - [INFO] - root - User count retrieved: 8
+dark-maximus-bot  | 2025-10-25 18:15:17,926 - [INFO] - root - Total keys count retrieved: 4
+dark-maximus-bot  | 2025-10-25 18:15:17,929 - [INFO] - root - Total earned sum retrieved: None
+dark-maximus-bot  | 2025-10-25 18:15:17,932 - [INFO] - root - Total notifications count retrieved: 5
+dark-maximus-bot  | 2025-10-25 18:15:17,933 - [INFO] - root - Dashboard stats: {'user_count': 8, 'total_keys': 4, 'total_spent': 0.0, 'host_count': 4, 'total_notifications': 5}
+dark-maximus-bot  | 2025-10-25 18:19:43,770 - [WARNING] - aiogram.dispatcher - Received SIGTERM signal
+dark-maximus-bot  | 2025-10-25 18:19:43,771 - [INFO] - aiogram.dispatcher - Polling stopped for bot @darkmaxi_support_bot id=8230014622 - 'TEST Maximus support bot'
+dark-maximus-bot  | 2025-10-25 18:19:43,772 - [INFO] - aiogram.dispatcher - Polling stopped
+dark-maximus-bot  | 2025-10-25 18:19:44,024 - [INFO] - shop_bot.bot_controller - BotController: Polling for 'SupportBot' has gracefully stopped.

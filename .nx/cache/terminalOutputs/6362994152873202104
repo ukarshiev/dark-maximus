@@ -1,6 +1,6 @@
 > docker compose up -d bot
 
- Container dark-maximus-bot  Recreate
- Container dark-maximus-bot  Recreated
+ Container dark-maximus-bot  Creating
+ Container dark-maximus-bot  Created
  Container dark-maximus-bot  Starting
  Container dark-maximus-bot  Started

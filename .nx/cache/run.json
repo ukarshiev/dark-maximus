@@ -1,20 +1,20 @@
 {
   "run": {
-    "command": "nx build shared-utils",
-    "startTime": "2025-10-24T15:43:21.217Z",
-    "endTime": "2025-10-24T15:43:21.270Z",
+    "command": "nx serve bot",
+    "startTime": "2025-10-31T23:53:53.990Z",
+    "endTime": "2025-10-31T23:53:54.659Z",
     "inner": false
   },
   "tasks": [
     {
-      "taskId": "shared-utils:build",
-      "target": "build",
-      "projectName": "shared-utils",
-      "hash": "1552450529447165472",
-      "startTime": "2025-10-24T15:43:21.225Z",
-      "endTime": "2025-10-24T15:43:21.268Z",
+      "taskId": "bot:serve",
+      "target": "serve",
+      "projectName": "bot",
+      "hash": "6362994152873202104",
+      "startTime": "2025-10-31T23:53:53.997Z",
+      "endTime": "2025-10-31T23:53:54.658Z",
       "params": "",
-      "cacheStatus": "local-cache-hit",
+      "cacheStatus": "cache-miss",
       "status": 0
     }
   ]

@@ -1,0 +1,8 @@
+> docker compose up -d codex-docs
+
+ Network dark-maximus-network  Creating
+ Network dark-maximus-network  Error
+ Container dark-maximus-codex-docs  Creating
+ Container dark-maximus-codex-docs  Created
+ Container dark-maximus-codex-docs  Starting
+ Container dark-maximus-codex-docs  Started
