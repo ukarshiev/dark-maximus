@@ -20,6 +20,8 @@ import json
 
 import bcrypt
 
+import time
+
 
 
 logger = logging.getLogger(__name__)
@@ -1630,12 +1632,24 @@ def run_migration():
             all_columns_exist = True
             for column_name, column_definition in new_columns:
                 if column_name not in promo_columns:
-                    try:
-                        cursor.execute(f"ALTER TABLE promo_codes ADD COLUMN {column_name} {column_definition}")
-                        logging.info(f" -> Added column '{column_name}' to promo_codes table")
-                    except sqlite3.OperationalError as e:
-                        logging.error(f" -> Failed to add column '{column_name}': {e}")
-                        all_columns_exist = False
+                    # Пытаемся добавить колонку с retry логикой для обработки блокировок БД
+                    max_retries = 5
+                    retry_delay = 0.5  # секунды
+                    
+                    for attempt in range(max_retries):
+                        try:
+                            cursor.execute(f"ALTER TABLE promo_codes ADD COLUMN {column_name} {column_definition}")
+                            logging.info(f" -> Added column '{column_name}' to promo_codes table")
+                            break  # Успех - выходим из retry цикла
+                        except sqlite3.OperationalError as e:
+                            if "database is locked" in str(e) and attempt < max_retries - 1:
+                                logging.warning(f" -> Database locked while adding '{column_name}', retry {attempt + 1}/{max_retries} in {retry_delay}s...")
+                                time.sleep(retry_delay)
+                                retry_delay *= 2  # Экспоненциальная задержка
+                            else:
+                                logging.error(f" -> Failed to add column '{column_name}' after {attempt + 1} attempts: {e}")
+                                all_columns_exist = False
+                                break
                 else:
                     logging.info(f" -> Column '{column_name}' already exists in promo_codes table")
             
