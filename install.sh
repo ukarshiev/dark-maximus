@@ -243,7 +243,7 @@ echo -e "\n${CYAN}Шаг 4: Генерация секретов...${NC}"
 
 # Генерируем секреты
 FLASK_SECRET_KEY=$(openssl rand -hex 32)
-ADMIN_PASSWORD=$(openssl rand -base64 18)
+# Примечание: ADMIN_PASSWORD не используется - учетные данные панели хранятся в базе данных users.db
 
 # Создаем .env файл на основе шаблона
 if [ -f "config/env.example" ]; then
@@ -258,8 +258,7 @@ else
 # Flask Secret Key
 FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
 
-# Admin Password
-ADMIN_PASSWORD=${ADMIN_PASSWORD}
+# Примечание: учетные данные панели (логин/пароль) хранятся в базе данных users.db
 
 # SSH Port
 SSH_PORT=22
@@ -277,7 +276,7 @@ fi
 cat > .env << EOF
 # Основные настройки
 FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
-ADMIN_PASSWORD=${ADMIN_PASSWORD}
+# Примечание: учетные данные панели (логин/пароль) хранятся в базе данных users.db, а не в .env
 DOMAIN=${MAIN_DOMAIN}
 
 # Дополнительные настройки из шаблона
@@ -293,12 +292,11 @@ DOCS_DOMAIN=${DOCS_DOMAIN}
 HELP_DOMAIN=${HELP_DOMAIN}
 EOF
 
-# Сохраняем пароль админа в отдельный файл
-echo "$ADMIN_PASSWORD" > .admin_pass
-chmod 600 .admin_pass
+# Примечание: учетные данные панели хранятся в базе данных users.db
+# Для просмотра текущего логина и пароля используйте веб-панель или базу данных
 
 echo -e "${GREEN}✔ Секреты сгенерированы и сохранены в .env${NC}"
-echo -e "${YELLOW}⚠️  Пароль админа сохранен в .admin_pass (только для чтения root)${NC}"
+echo -e "${YELLOW}⚠️  Учетные данные панели хранятся в базе данных users.db${NC}"
 
 echo -e "\n${CYAN}Шаг 4.1: Создание необходимых директорий...${NC}"
 
@@ -352,24 +350,34 @@ cursor.execute('''
     )
 ''')
 
-# Проверяем, существует ли уже пароль (режим обновления)
+# Проверяем, существуют ли уже логин и пароль (режим обновления)
 cursor.execute('SELECT value FROM bot_settings WHERE key = ?', ('panel_password',))
 existing_password = cursor.fetchone()
+cursor.execute('SELECT value FROM bot_settings WHERE key = ?', ('panel_login',))
+existing_login = cursor.fetchone()
 
-if existing_password is None:
-    # Только если пароля нет - создаём дефолтный
+# Вставляем дефолтные значения ТОЛЬКО если ОБА отсутствуют
+if existing_password is None and existing_login is None:
+    # Только если обоих нет - создаём дефолтные
     admin_password = 'admin'
     hashed_password = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_login', 'admin'))
     cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_password', hashed_password))
     print('Создан дефолтный пароль админа')
+elif existing_password is not None and existing_login is not None:
+    # Если оба существуют - сохраняем существующие, ничего не меняем
+    print('Логин и пароль админа уже существуют, сохраняем существующие')
 else:
-    # Если пароль уже существует - проверяем логин и сохраняем существующий пароль
-    cursor.execute('SELECT value FROM bot_settings WHERE key = ?', ('panel_login',))
-    existing_login = cursor.fetchone()
+    # Если одно есть, а другого нет - это нештатная ситуация, но сохраняем что есть
+    if existing_password is None:
+        print('Внимание: логин существует, но пароль отсутствует. Создаём дефолтный пароль.')
+        admin_password = 'admin'
+        hashed_password = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_password', hashed_password))
     if existing_login is None:
+        print('Внимание: пароль существует, но логин отсутствует. Создаём дефолтный логин.')
         cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_login', 'admin'))
-    print('Пароль админа уже существует, сохраняем существующий')
+    print('Сохраняем существующие учетные данные')
 
 # Добавляем остальные настройки по умолчанию
 default_settings = {
@@ -1093,7 +1101,7 @@ echo -e "  - Остановка: ${YELLOW}systemctl stop dark-maximus${NC}"
 echo -e "  - Перезапуск: ${YELLOW}systemctl restart dark-maximus${NC}"
 
 echo -e "\n${BLUE}🔒 Безопасность:${NC}"
-echo -e "- Пароль админа сохранен в: ${YELLOW}$PROJECT_DIR/.admin_pass${NC}"
+echo -e "- Учетные данные панели хранятся в: ${YELLOW}$PROJECT_DIR/users.db${NC}"
 echo -e "- Секреты в: ${YELLOW}$PROJECT_DIR/.env${NC}"
 echo -e "- Отладочные порты доступны только с localhost"
 echo -e "- UFW настроен безопасно (только 22, 80, 443)"

@@ -485,7 +485,7 @@ def initialize_db():
                 )
             ''')
 
-            # Хешируем пароль по умолчанию
+            # Хешируем пароль по умолчанию (только для случая, когда оба поля отсутствуют)
 
             default_password = "admin"
 
@@ -493,11 +493,29 @@ def initialize_db():
 
             
 
+            # Доп. защита: явно проверяем наличие panel_password и panel_login перед вставкой дефолтных значений
+            try:
+                cursor.execute("SELECT value FROM bot_settings WHERE key = ?", ("panel_password",))
+                panel_password_exists = cursor.fetchone() is not None
+                cursor.execute("SELECT value FROM bot_settings WHERE key = ?", ("panel_login",))
+                panel_login_exists = cursor.fetchone() is not None
+            except Exception as e:
+                logger.debug(f"Failed to check panel credentials during initialization: {e}")
+                panel_password_exists = False
+                panel_login_exists = False
+
+            # Вставляем дефолтные пароль и логин ТОЛЬКО если оба отсутствуют
+            seed_sensitive_defaults = not (panel_password_exists and panel_login_exists)
+
+            if seed_sensitive_defaults:
+                # Только если оба отсутствуют - вставляем дефолтные значения
+                cursor.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", ("panel_login", "admin"))
+                cursor.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", ("panel_password", hashed_password))
+                logging.info("Created default panel_login and panel_password")
+            else:
+                logging.info("Panel credentials already exist, skipping default values")
+
             default_settings = {
-
-                "panel_login": "admin",
-
-                "panel_password": hashed_password,
 
                 "about_content": None,
 
@@ -605,22 +623,8 @@ def initialize_db():
 
             
 
-            # Доп. защита: не сеем дефолтные panel_login/panel_password, если таблица уже не пустая
-            try:
-                cursor.execute("SELECT COUNT(*) FROM bot_settings")
-                settings_count = cursor.fetchone()[0]
-            except Exception as e:
-                logger.debug(f"Failed to count settings during initialization: {e}")
-                settings_count = 0
-
-            seed_sensitive_defaults = (settings_count == 0)
-
+            # Вставляем остальные настройки по умолчанию (panel_login и panel_password уже обработаны выше)
             for key, value in default_settings.items():
-
-                if key in ("panel_login", "panel_password") and not seed_sensitive_defaults:
-                    logging.info(f"Skip seeding default '{key}': bot_settings already initialized")
-                    continue
-
                 cursor.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", (key, value))
 
             conn.commit()
