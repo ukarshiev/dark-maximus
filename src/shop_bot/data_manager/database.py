@@ -1614,39 +1614,42 @@ def run_migration():
         # Миграция новых колонок для promo_codes
         logging.info("Migrating promo_codes new columns...")
         try:
-            # Проверяем, была ли выполнена миграция новых колонок promo_codes
-            cursor.execute("SELECT migration_id FROM migration_history WHERE migration_id = 'promo_codes_new_columns'")
-            migration_done = cursor.fetchone()
+            # Проверяем существующие колонки (не полагаемся на migration_history)
+            cursor.execute("PRAGMA table_info(promo_codes)")
+            promo_columns = [row[1] for row in cursor.fetchall()]
             
-            if not migration_done:
-                # Проверяем существующие колонки
-                cursor.execute("PRAGMA table_info(promo_codes)")
-                promo_columns = [row[1] for row in cursor.fetchall()]
-                
-                # Добавляем новые колонки
-                new_columns = [
-                    ("burn_after_value", "INTEGER DEFAULT NULL"),
-                    ("burn_after_unit", "TEXT DEFAULT NULL"),
-                    ("valid_until", "TIMESTAMP DEFAULT NULL"),
-                    ("target_group_ids", "TEXT DEFAULT NULL"),
-                    ("bot_username", "TEXT DEFAULT NULL")
-                ]
-                
-                for column_name, column_definition in new_columns:
-                    if column_name not in promo_columns:
-                        try:
-                            cursor.execute(f"ALTER TABLE promo_codes ADD COLUMN {column_name} {column_definition}")
-                            logging.info(f" -> Added column '{column_name}' to promo_codes table")
-                        except sqlite3.OperationalError as e:
-                            logging.warning(f" -> Failed to add column '{column_name}': {e}")
-                    else:
-                        logging.info(f" -> Column '{column_name}' already exists in promo_codes table")
-                
-                # Отмечаем миграцию как выполненную
-                cursor.execute("INSERT INTO migration_history (migration_id) VALUES ('promo_codes_new_columns')")
-                logging.info(" -> Promo codes new columns migration completed")
+            # Добавляем новые колонки
+            new_columns = [
+                ("burn_after_value", "INTEGER DEFAULT NULL"),
+                ("burn_after_unit", "TEXT DEFAULT NULL"),
+                ("valid_until", "TIMESTAMP DEFAULT NULL"),
+                ("target_group_ids", "TEXT DEFAULT NULL"),
+                ("bot_username", "TEXT DEFAULT NULL")
+            ]
+            
+            all_columns_exist = True
+            for column_name, column_definition in new_columns:
+                if column_name not in promo_columns:
+                    try:
+                        cursor.execute(f"ALTER TABLE promo_codes ADD COLUMN {column_name} {column_definition}")
+                        logging.info(f" -> Added column '{column_name}' to promo_codes table")
+                    except sqlite3.OperationalError as e:
+                        logging.error(f" -> Failed to add column '{column_name}': {e}")
+                        all_columns_exist = False
+                else:
+                    logging.info(f" -> Column '{column_name}' already exists in promo_codes table")
+            
+            # Отмечаем миграцию как выполненную только если все колонки существуют
+            if all_columns_exist:
+                # Проверяем, не добавлена ли уже запись в migration_history
+                cursor.execute("SELECT migration_id FROM migration_history WHERE migration_id = 'promo_codes_new_columns'")
+                if not cursor.fetchone():
+                    cursor.execute("INSERT INTO migration_history (migration_id) VALUES ('promo_codes_new_columns')")
+                    logging.info(" -> Promo codes new columns migration completed and marked in history")
+                else:
+                    logging.info(" -> Promo codes new columns migration completed (already marked in history)")
             else:
-                logging.info(" -> Migration 'promo_codes_new_columns' already applied, skipping")
+                logging.warning(" -> Some columns failed to migrate, will retry on next start")
                 
         except Exception as e:
             logging.error(f" -> Error migrating promo_codes new columns: {e}")
