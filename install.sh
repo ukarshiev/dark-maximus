@@ -336,9 +336,11 @@ pip3 install --break-system-packages bcrypt >/dev/null 2>&1 || echo "bcrypt ус
 python3 -c "
 import sqlite3
 import bcrypt
-import os
 
-# Подключаемся к базе данных
+# КРИТИЧНО: Защита учетных данных администратора
+# Best practice: Никогда не перезаписываем существующие логин и пароль
+# Если ЛЮБОЙ из параметров существует - полностью пропускаем создание дефолтных
+
 conn = sqlite3.connect('users.db')
 cursor = conn.cursor()
 
@@ -350,36 +352,39 @@ cursor.execute('''
     )
 ''')
 
-# Проверяем, существуют ли уже логин и пароль (режим обновления)
-cursor.execute('SELECT value FROM bot_settings WHERE key = ?', ('panel_password',))
-existing_password = cursor.fetchone()
-cursor.execute('SELECT value FROM bot_settings WHERE key = ?', ('panel_login',))
-existing_login = cursor.fetchone()
+# Оптимизированная проверка: один запрос для проверки обоих учетных данных
+cursor.execute('''
+    SELECT key, value FROM bot_settings 
+    WHERE key IN ('panel_login', 'panel_password')
+''')
+existing_credentials = dict(cursor.fetchall())
 
-# Вставляем дефолтные значения ТОЛЬКО если ОБА отсутствуют
-if existing_password is None and existing_login is None:
-    # Только если обоих нет - создаём дефолтные
+existing_login = existing_credentials.get('panel_login')
+existing_password = existing_credentials.get('panel_password')
+
+# КРИТИЧНО: Защита существующих учетных данных
+# Если ЛЮБОЙ из параметров уже существует - НЕ СОЗДАЕМ и НЕ ИЗМЕНЯЕМ ничего
+if existing_login is not None or existing_password is not None:
+    # Хотя бы один параметр существует - защищаем существующие данные
+    if existing_login and existing_password:
+        print(f'✓ Логин и пароль админа уже существуют, сохраняем существующие (логин: {existing_login})')
+    elif existing_login:
+        print(f'⚠️  Логин админа существует ({existing_login}), но пароль отсутствует. Пропускаем автоматическое создание.')
+        print('   Для безопасности создайте пароль вручную через веб-панель.')
+    elif existing_password:
+        print(f'⚠️  Пароль админа существует, но логин отсутствует. Пропускаем автоматическое создание.')
+        print('   Для безопасности создайте логин вручную через веб-панель.')
+else:
+    # ТОЛЬКО если ОБА параметра отсутствуют - создаём дефолтные значения
     admin_password = 'admin'
     hashed_password = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_login', 'admin'))
-    cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_password', hashed_password))
-    print('Создан дефолтный пароль админа')
-elif existing_password is not None and existing_login is not None:
-    # Если оба существуют - сохраняем существующие, ничего не меняем
-    print('Логин и пароль админа уже существуют, сохраняем существующие')
-else:
-    # Если одно есть, а другого нет - это нештатная ситуация, но сохраняем что есть
-    if existing_password is None:
-        print('Внимание: логин существует, но пароль отсутствует. Создаём дефолтный пароль.')
-        admin_password = 'admin'
-        hashed_password = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_password', hashed_password))
-    if existing_login is None:
-        print('Внимание: пароль существует, но логин отсутствует. Создаём дефолтный логин.')
-        cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_login', 'admin'))
-    print('Сохраняем существующие учетные данные')
+    cursor.execute('INSERT INTO bot_settings (key, value) VALUES (?, ?)', ('panel_login', 'admin'))
+    cursor.execute('INSERT INTO bot_settings (key, value) VALUES (?, ?)', ('panel_password', hashed_password))
+    print('✓ Созданы дефолтные учетные данные админа (логин: admin, пароль: admin)')
+    print('  ВАЖНО: Смените пароль при первом входе!')
 
 # Добавляем остальные настройки по умолчанию
+# КРИТИЧНО: Явно исключаем учетные данные из этого словаря
 default_settings = {
     'about_content': None,
     'terms_url': None,
@@ -432,12 +437,16 @@ default_settings = {
     'logging_bot_level': 'INFO'
 }
 
+# Явно исключаем учетные данные из обработки
+EXCLUDED_KEYS = {'panel_login', 'panel_password'}
 for key, value in default_settings.items():
-    cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', (key, value))
+    if key not in EXCLUDED_KEYS:
+        cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', (key, value))
 
+# Коммитим все изменения в одной транзакции
 conn.commit()
 conn.close()
-print('База данных инициализирована с правильным паролем админа')
+print('✓ База данных инициализирована')
 "
 
 echo -e "${GREEN}✔ База данных готова${NC}"
