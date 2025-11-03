@@ -493,27 +493,42 @@ def initialize_db():
 
             
 
-            # Доп. защита: явно проверяем наличие panel_password и panel_login перед вставкой дефолтных значений
+            # КРИТИЧНО: Доп. защита - проверяем наличие panel_password и panel_login перед вставкой дефолтных значений
+            # НИКОГДА не вставляем дефолтные значения, если в базе УЖЕ ЕСТЬ любые записи в bot_settings
             try:
+                # Проверяем общее количество записей в bot_settings
+                cursor.execute("SELECT COUNT(*) FROM bot_settings")
+                total_settings_count = cursor.fetchone()[0]
+                
+                # Проверяем наличие panel_password и panel_login
                 cursor.execute("SELECT value FROM bot_settings WHERE key = ?", ("panel_password",))
                 panel_password_exists = cursor.fetchone() is not None
                 cursor.execute("SELECT value FROM bot_settings WHERE key = ?", ("panel_login",))
                 panel_login_exists = cursor.fetchone() is not None
             except Exception as e:
                 logger.debug(f"Failed to check panel credentials during initialization: {e}")
+                total_settings_count = 0
                 panel_password_exists = False
                 panel_login_exists = False
 
-            # Вставляем дефолтные пароль и логин ТОЛЬКО если оба отсутствуют
-            seed_sensitive_defaults = not (panel_password_exists and panel_login_exists)
+            # Вставляем дефолтные пароль и логин ТОЛЬКО если:
+            # 1. В базе НЕТ НИ ОДНОЙ записи в bot_settings (полностью новая база)
+            # 2. И оба значения (логин и пароль) отсутствуют
+            # Если в базе УЖЕ ЕСТЬ хоть одна запись - значит база не пустая и мы НЕ ДОЛЖНЫ вставлять дефолтные значения
+            is_completely_empty_database = total_settings_count == 0
+            both_credentials_missing = not (panel_password_exists and panel_login_exists)
+            seed_sensitive_defaults = is_completely_empty_database and both_credentials_missing
 
             if seed_sensitive_defaults:
-                # Только если оба отсутствуют - вставляем дефолтные значения
+                # Только если база полностью пустая и оба значения отсутствуют - вставляем дефолтные значения
                 cursor.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", ("panel_login", "admin"))
                 cursor.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", ("panel_password", hashed_password))
-                logging.info("Created default panel_login and panel_password")
+                logging.info("Created default panel_login and panel_password (completely empty database)")
             else:
-                logging.info("Panel credentials already exist, skipping default values")
+                if total_settings_count > 0:
+                    logging.info(f"Panel credentials check: database has {total_settings_count} existing settings, skipping default values (protecting existing data)")
+                else:
+                    logging.info("Panel credentials already exist, skipping default values")
 
             default_settings = {
 
@@ -624,7 +639,13 @@ def initialize_db():
             
 
             # Вставляем остальные настройки по умолчанию (panel_login и panel_password уже обработаны выше)
+            # КРИТИЧНО: Никогда не вставляем panel_login и panel_password здесь, они обрабатываются отдельно выше
+            sensitive_keys = {"panel_login", "panel_password"}
             for key, value in default_settings.items():
+                if key in sensitive_keys:
+                    # Пропускаем чувствительные ключи - они уже обработаны выше
+                    logging.debug(f"Skipping sensitive key '{key}' in default_settings loop")
+                    continue
                 cursor.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", (key, value))
 
             conn.commit()
