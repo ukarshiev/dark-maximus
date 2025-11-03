@@ -4,9 +4,12 @@
 # =========================================
 # Stage 1: Сборка Codex.docs
 # =========================================
-FROM node:20-alpine AS builder
+FROM node:20.18-alpine3.19 AS builder
 
 WORKDIR /build
+
+# Обновляем системные пакеты для устранения уязвимостей безопасности
+RUN apk update && apk upgrade && apk add --no-cache libc6-compat
 
 # Копируем package.json и yarn.lock для установки зависимостей
 COPY codex.docs/package.json codex.docs/yarn.lock ./
@@ -32,7 +35,7 @@ RUN mkdir -p dist && \
 # =========================================
 # Stage 2: Подготовка конфигурации и контента
 # =========================================
-FROM alpine:3.22 AS config-builder
+FROM alpine:3.19 AS config-builder
 
 WORKDIR /build
 
@@ -41,13 +44,19 @@ COPY codex.docs/docs-config.yaml ./docs-config.yaml
 
 # Копируем собранный контент из builder stage
 COPY --from=builder /build/dist ./dist
-COPY codex.docs/public ./public
+COPY --from=builder /build/public ./public
 
-# Проверяем, что папка dist была скопирована
+# Проверяем, что папки были скопированы
 RUN echo "Проверяем скопированную папку dist..." && \
     ls -la dist/ && \
     test -d dist/backend && echo "✅ Папка dist/backend скопирована" || echo "❌ ОШИБКА: Папка dist/backend не скопирована!" && \
-    test -f dist/backend/app.js && echo "✅ Файл dist/backend/app.js скопирован" || echo "❌ ОШИБКА: Файл dist/backend/app.js не скопирован!"
+    test -f dist/backend/app.js && echo "✅ Файл dist/backend/app.js скопирован" || echo "❌ ОШИБКА: Файл dist/backend/app.js не скопирован!" && \
+    echo "Проверяем скопированную папку public..." && \
+    ls -la public/ && \
+    test -d public/dist && echo "✅ Папка public/dist скопирована" || echo "❌ ОШИБКА: Папка public/dist не скопирована!" && \
+    test -f public/dist/main.js && echo "✅ Файл public/dist/main.js скопирован" || echo "❌ ОШИБКА: Файл public/dist/main.js не скопирован!" && \
+    test -f public/dist/main.css && echo "✅ Файл public/dist/main.css скопирован" || echo "❌ ОШИБКА: Файл public/dist/main.css не скопирован!" && \
+    test -f public/favicon.png && echo "✅ Файл public/favicon.png скопирован" || echo "⚠️  Предупреждение: Файл public/favicon.png не найден (может быть загружен динамически)"
 
 # =========================================
 # Stage 3: Codex.docs runtime

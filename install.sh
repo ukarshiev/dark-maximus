@@ -352,13 +352,24 @@ cursor.execute('''
     )
 ''')
 
-# Хешируем пароль админа (используем простой пароль admin)
-admin_password = 'admin'
-hashed_password = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+# Проверяем, существует ли уже пароль (режим обновления)
+cursor.execute('SELECT value FROM bot_settings WHERE key = ?', ('panel_password',))
+existing_password = cursor.fetchone()
 
-# Вставляем настройки админа
-cursor.execute('INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_login', 'admin'))
-cursor.execute('INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_password', hashed_password))
+if existing_password is None:
+    # Только если пароля нет - создаём дефолтный
+    admin_password = 'admin'
+    hashed_password = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_login', 'admin'))
+    cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_password', hashed_password))
+    print('Создан дефолтный пароль админа')
+else:
+    # Если пароль уже существует - проверяем логин и сохраняем существующий пароль
+    cursor.execute('SELECT value FROM bot_settings WHERE key = ?', ('panel_login',))
+    existing_login = cursor.fetchone()
+    if existing_login is None:
+        cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_login', 'admin'))
+    print('Пароль админа уже существует, сохраняем существующий')
 
 # Добавляем остальные настройки по умолчанию
 default_settings = {
@@ -498,14 +509,76 @@ EOF
 
 echo -e "${GREEN}✔ docker-compose.yml создан с localhost-only портами${NC}"
 
-echo -e "\n${CYAN}Шаг 6: Создание nginx конфигурации (HTTP)...${NC}"
+echo -e "\n${CYAN}Шаг 6: Проверка nginx конфигурации...${NC}"
 
 # Создаем директорию для nginx конфигурации
 mkdir -p /etc/nginx/sites-available
 mkdir -p /etc/nginx/sites-enabled
 
-# Создаем HTTP конфигурацию nginx с улучшенными настройками
-cat > /etc/nginx/sites-available/dark-maximus << EOF
+# Проверяем, существует ли уже конфигурация с SSL
+NGINX_CONFIG_EXISTS=false
+NGINX_HAS_SSL=false
+
+# Проверяем наличие SSL конфигурации несколькими способами
+if [ -f "/etc/nginx/sites-available/dark-maximus" ]; then
+    NGINX_CONFIG_EXISTS=true
+    
+    # Проверяем наличие SSL директив в конфигурации
+    if grep -qiE "ssl_certificate|listen\s+443|ssl_protocols" /etc/nginx/sites-available/dark-maximus 2>/dev/null; then
+        NGINX_HAS_SSL=true
+    fi
+    
+    # Дополнительно проверяем наличие сертификатов Let's Encrypt
+    if [ -d "/etc/letsencrypt/live" ] && [ -n "$(find /etc/letsencrypt/live -mindepth 1 -maxdepth 1 -type d 2>/dev/null)" ]; then
+        # Если есть сертификаты, скорее всего SSL настроен
+        if ! grep -qiE "ssl_certificate|listen\s+443" /etc/nginx/sites-available/dark-maximus 2>/dev/null; then
+            # Сертификаты есть, но конфигурация может быть неправильной - не перезаписываем
+            echo -e "${YELLOW}⚠️  Обнаружены SSL сертификаты Let's Encrypt${NC}"
+            echo -e "${YELLOW}   Проверяем конфигурацию nginx...${NC}"
+            if nginx -t 2>/dev/null | grep -q "successful"; then
+                NGINX_HAS_SSL=true
+            fi
+        else
+            NGINX_HAS_SSL=true
+        fi
+    fi
+    
+    if [ "$NGINX_HAS_SSL" = "true" ]; then
+        echo -e "${GREEN}✔ Найдена существующая SSL конфигурация nginx - пропускаем обновление${NC}"
+        echo -e "${YELLOW}⚠️  Для изменения SSL настроек используйте ssl-install.sh${NC}"
+        # Убедимся, что конфигурация активирована
+        if [ ! -L "/etc/nginx/sites-enabled/dark-maximus" ]; then
+            ln -sf /etc/nginx/sites-available/dark-maximus /etc/nginx/sites-enabled/dark-maximus
+        fi
+        # Проверяем конфигурацию
+        if nginx -t 2>/dev/null | grep -q "successful"; then
+            echo -e "${GREEN}✔ Конфигурация nginx корректна${NC}"
+        else
+            echo -e "${YELLOW}⚠️  Обнаружена ошибка в конфигурации nginx, но она не перезаписана${NC}"
+            echo -e "${YELLOW}   Проверьте конфигурацию вручную или запустите ssl-install.sh${NC}"
+        fi
+    fi
+fi
+
+# Создаём конфигурацию только если SSL конфигурации нет
+if [ "$NGINX_HAS_SSL" = "false" ]; then
+    # Дополнительная защита: проверяем, работает ли nginx с текущей конфигурацией
+    if [ -f "/etc/nginx/sites-available/dark-maximus" ]; then
+        if nginx -t 2>/dev/null | grep -q "successful"; then
+            # Конфигурация работает - не перезаписываем
+            echo -e "${GREEN}✔ Существующая конфигурация nginx работает корректно - не перезаписываем${NC}"
+            echo -e "${YELLOW}⚠️  Если нужно обновить конфигурацию, используйте ssl-install.sh${NC}"
+            NGINX_HAS_SSL=true  # Помечаем как "не трогать"
+        else
+            echo -e "${YELLOW}Обнаружена ошибка в текущей конфигурации, создаём новую HTTP конфигурацию...${NC}"
+        fi
+    fi
+    
+    if [ "$NGINX_HAS_SSL" = "false" ]; then
+        echo -e "${YELLOW}Создание HTTP конфигурации nginx...${NC}"
+        
+        # Создаем HTTP конфигурацию nginx с улучшенными настройками
+    cat > /etc/nginx/sites-available/dark-maximus << EOF
 # Upstream серверы для Docker контейнеров (localhost)
 upstream bot_backend {
     server 127.0.0.1:1488;
@@ -652,16 +725,18 @@ server {
 }
 EOF
 
-# Очищаем старые конфигурации nginx
-rm -f /etc/nginx/sites-enabled/*
-# НЕ удаляем dark-maximus конфигурацию, она нужна для шага 9
+    # Очищаем старые конфигурации nginx
+    rm -f /etc/nginx/sites-enabled/*
+    # НЕ удаляем dark-maximus конфигурацию, она нужна для шага 9
 
-# Очищаем системную nginx конфигурацию, которая может содержать старые upstream
-# Сначала делаем резервную копию
-cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup 2>/dev/null || true
-# Полностью перезаписываем nginx.conf
-echo "# Nginx configuration for dark-maximus" > /etc/nginx/nginx.conf
-cat >> /etc/nginx/nginx.conf << 'EOF'
+    # Обновляем nginx.conf только если его нет или он повреждён
+    if [ ! -f "/etc/nginx/nginx.conf" ] || ! nginx -t >/dev/null 2>&1; then
+        # Очищаем системную nginx конфигурацию, которая может содержать старые upstream
+        # Сначала делаем резервную копию
+        cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup 2>/dev/null || true
+        # Перезаписываем nginx.conf
+        echo "# Nginx configuration for dark-maximus" > /etc/nginx/nginx.conf
+        cat >> /etc/nginx/nginx.conf << 'EOF'
 user www-data;
 worker_processes auto;
 pid /run/nginx.pid;
@@ -707,9 +782,10 @@ http {
     include /etc/nginx/sites-enabled/*;
 }
 EOF
+    fi
 
-# Создаем временную конфигурацию nginx без upstream (для проверки синтаксиса)
-cat > /etc/nginx/sites-available/dark-maximus-temp << EOF
+    # Создаем временную конфигурацию nginx без upstream (для проверки синтаксиса)
+    cat > /etc/nginx/sites-available/dark-maximus-temp << EOF
 # Временная конфигурация nginx (без upstream)
 server {
     listen 80 default_server;
@@ -718,17 +794,18 @@ server {
 }
 EOF
 
-# Активируем временную конфигурацию
-ln -sf /etc/nginx/sites-available/dark-maximus-temp /etc/nginx/sites-enabled/dark-maximus
+    # Активируем временную конфигурацию
+    ln -sf /etc/nginx/sites-available/dark-maximus-temp /etc/nginx/sites-enabled/dark-maximus
 
-# Проверяем базовую конфигурацию nginx
-nginx -t || {
-    echo -e "${RED}❌ Ошибка в базовой конфигурации nginx${NC}"
-    nginx -t
-    exit 1
-}
+    # Проверяем базовую конфигурацию nginx
+    nginx -t || {
+        echo -e "${RED}❌ Ошибка в базовой конфигурации nginx${NC}"
+        nginx -t
+        exit 1
+    }
 
-echo -e "${GREEN}✔ Временная nginx конфигурация создана и проверена${NC}"
+    echo -e "${GREEN}✔ Временная nginx конфигурация создана и проверена${NC}"
+fi
 
 echo -e "\n${CYAN}Шаг 7: Настройка UFW (файрвол)...${NC}"
 
@@ -843,9 +920,41 @@ ${DC[@]} ps
 
 echo -e "\n${CYAN}Шаг 9: Активация полной nginx конфигурации...${NC}"
 
-# Активируем полную конфигурацию nginx с upstream серверами
-echo -e "${YELLOW}Активация полной конфигурации nginx...${NC}"
-ln -sf /etc/nginx/sites-available/dark-maximus /etc/nginx/sites-enabled/dark-maximus
+# Проверяем, есть ли SSL конфигурация (из шага 6 или проверяем заново)
+NGINX_HAS_SSL_CHECK=false
+
+# Используем значение из шага 6, если оно есть
+if [ "${NGINX_HAS_SSL:-false}" = "true" ]; then
+    NGINX_HAS_SSL_CHECK=true
+else
+    # Проверяем заново на случай, если переменная не сохранилась
+    if [ -f "/etc/nginx/sites-available/dark-maximus" ]; then
+        if grep -qiE "ssl_certificate|listen\s+443|ssl_protocols" /etc/nginx/sites-available/dark-maximus 2>/dev/null; then
+            NGINX_HAS_SSL_CHECK=true
+        elif [ -d "/etc/letsencrypt/live" ] && [ -n "$(find /etc/letsencrypt/live -mindepth 1 -maxdepth 1 -type d 2>/dev/null)" ]; then
+            # Если есть сертификаты, скорее всего SSL настроен - не перезаписываем
+            if nginx -t 2>/dev/null | grep -q "successful"; then
+                NGINX_HAS_SSL_CHECK=true
+            fi
+        fi
+    fi
+fi
+
+if [ "$NGINX_HAS_SSL_CHECK" = "true" ]; then
+    echo -e "${GREEN}✔ SSL конфигурация уже активна, пропускаем активацию${NC}"
+    # Проверяем, что конфигурация активирована
+    if [ ! -L "/etc/nginx/sites-enabled/dark-maximus" ]; then
+        ln -sf /etc/nginx/sites-available/dark-maximus /etc/nginx/sites-enabled/dark-maximus
+    fi
+else
+    # Активируем полную конфигурацию nginx с upstream серверами
+    echo -e "${YELLOW}Активация полной конфигурации nginx...${NC}"
+    # Удаляем временную конфигурацию если она была создана
+    rm -f /etc/nginx/sites-available/dark-maximus-temp
+    rm -f /etc/nginx/sites-enabled/dark-maximus-temp
+    # Активируем основную конфигурацию
+    ln -sf /etc/nginx/sites-available/dark-maximus /etc/nginx/sites-enabled/dark-maximus
+fi
 
 # Проверяем конфигурацию nginx теперь, когда контейнеры запущены
 echo -e "${YELLOW}Проверка конфигурации nginx...${NC}"
