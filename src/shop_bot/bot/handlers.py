@@ -1541,15 +1541,6 @@ def get_user_router() -> Router:
         builder.adjust(1)
         await message.answer(text, reply_markup=builder.as_markup())
 
-    @user_router.message(F.text == "🌐 Как настроить VPN❓")
-    @registration_required
-    async def howto_message(message: types.Message):
-        await message.answer(
-            "Выберите вашу платформу для инструкции по подключению VLESS:",
-            reply_markup=keyboards.create_howto_vless_keyboard(),
-            disable_web_page_preview=True
-        )
-
     @user_router.message(F.text == "🆘 Поддержка")
     @registration_required
     async def support_message(message: types.Message):
@@ -5085,7 +5076,7 @@ def get_user_router() -> Router:
         interface_buttons = [
             "🏠 Главное меню", "🛒 Купить", "🛒 Купить VPN", "🛒 Купить новый VPN",
             "👤 Мой профиль", "🔑 Мои ключи", "💰Пополнить баланс", "💳 Пополнить баланс",
-            "🤝 Реферальная программа", "🌐 Как настроить VPN❓",
+            "🤝 Реферальная программа", "🌐 Инструкции❓",
             "🆘 Поддержка", "ℹ️ О проекте", "⚙️ Админ-панель", "🆓 Пробный период",
             "⁉️ Помощь и поддержка", "➕ Купить новый ключ", "🔄 Продлить ключ"
         ]

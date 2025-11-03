@@ -87,7 +87,7 @@ def create_help_center_keyboard() -> InlineKeyboardMarkup:
         support_enabled = False
     if support_enabled:
         builder.button(text="🆘 Поддержка", callback_data="show_help")
-    builder.button(text="🌐 Как настроить VPN❓", callback_data="howto_vless")
+    builder.button(text="🌐 Инструкции❓", callback_data="howto_vless")
     builder.button(text="ℹ️ О проекте", callback_data="show_about")
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
     builder.adjust(1)
@@ -366,19 +366,20 @@ def create_keys_management_keyboard(keys: list, trial_used: int = 1) -> InlineKe
 
 def create_key_info_keyboard(key_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+    builder.button(text="⚙️ Настройка VPN", web_app={"url": "https://help.dark-maximus.com/setup"})
     builder.button(text="🔄 Продлить этот ключ", callback_data=f"extend_key_{key_id}")
-    builder.button(text="📑 Скопировать ключ", callback_data=f"copy_key_{key_id}")    
-    builder.button(text="📱 Сканировать QR ключа", callback_data=f"show_qr_{key_id}")
-    builder.button(text="🌐 Как настроить VPN❓", callback_data=f"howto_vless_{key_id}")
+    # builder.button(text="📑 Скопировать ключ", callback_data=f"copy_key_{key_id}")    
+    # builder.button(text="📱 Сканировать QR ключа", callback_data=f"show_qr_{key_id}")
+    builder.button(text="🌐 Инструкции❓", callback_data=f"howto_vless_{key_id}")
     builder.button(text="⬅️ Назад к списку ключей", callback_data="manage_keys")
-    builder.adjust(1, 2, 1, 1)
+    builder.adjust(1, 1, 1, 1)
     return builder.as_markup()
 
 def create_qr_keyboard(key_id: int) -> InlineKeyboardMarkup:
     """Клавиатура для QR-кода ключа"""
     builder = InlineKeyboardBuilder()
     builder.button(text="📑 Скопировать ключ", callback_data=f"copy_key_{key_id}")
-    builder.button(text="🌐 Как настроить VPN❓", callback_data=f"howto_vless_{key_id}")
+    builder.button(text="🌐 Инструкции❓", callback_data=f"howto_vless_{key_id}")
     builder.button(text="⬅️ Назад к списку ключей", callback_data="manage_keys")
     builder.adjust(1, 1, 1)
     return builder.as_markup()
