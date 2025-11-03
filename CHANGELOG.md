@@ -1,3 +1,25 @@
+3.12.15 – 03.11.2025 16:44
+- [УЛУЧШЕНИЕ] (База данных) Полная синхронизация структуры баз данных между localhost и боевым сервером
+  - Проведён детальный анализ и сравнение структур баз данных
+  - Удалена временная таблица promo_code_usage_new на localhost (осталась от незавершённой миграции)
+  - Добавлена колонка description в migration_history для единообразия
+  - Расширена таблица promo_codes на боевом сервере - добавлено 5 новых колонок:
+    * bot_username (TEXT) - имя пользователя бота для промокода
+    * burn_after_unit (TEXT) - единица времени для автоуничтожения (days/hours/uses)
+    * burn_after_value (INTEGER) - значение для автоуничтожения
+    * target_group_ids (TEXT) - ID целевых групп (JSON array)
+    * valid_until (TIMESTAMP) - дата истечения срока действия промокода
+  - Результат: все важные таблицы (users, user_groups, promo_codes, promo_code_usage, migration_history) теперь полностью идентичны
+  - Создано 8 новых утилитарных скриптов для анализа и миграции БД:
+    * tests/cleanup_temp_table.py - очистка временных таблиц
+    * tests/add_description_to_migration_history.py - добавление описания в историю миграций
+    * tests/migrate_promo_codes_columns.py - расширение таблицы промокодов
+    * tests/compare_db_structure.py - анализ структуры БД
+    * tests/compare_json_structures.py - сравнение структур из JSON
+    * tests/final_comparison.py - финальная проверка синхронизации
+    * tests/check_promo_tables.py - проверка таблиц промокодов
+  - Структуры БД сохранены в JSON для документации и будущих сравнений
+
 3.12.14 – 03.11.2025 16:24
 - [КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ] (База данных) Исправлена ошибка "AttributeError: 'NoneType' object has no attribute 'get'" при запуске бота командой /start
   - Проблема: На боевом сервере отсутствовали колонки group_id, fullname, user_id в таблице users и колонка group_code в таблице user_groups
