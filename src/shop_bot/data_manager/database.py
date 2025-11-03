@@ -1656,12 +1656,19 @@ def run_migration():
             # Отмечаем миграцию как выполненную только если все колонки существуют
             if all_columns_exist:
                 # Проверяем, не добавлена ли уже запись в migration_history
-                cursor.execute("SELECT migration_id FROM migration_history WHERE migration_id = 'promo_codes_new_columns'")
-                if not cursor.fetchone():
-                    cursor.execute("INSERT INTO migration_history (migration_id) VALUES ('promo_codes_new_columns')")
-                    logging.info(" -> Promo codes new columns migration completed and marked in history")
-                else:
-                    logging.info(" -> Promo codes new columns migration completed (already marked in history)")
+                try:
+                    cursor.execute("SELECT migration_id FROM migration_history WHERE migration_id = 'promo_codes_new_columns'")
+                    if not cursor.fetchone():
+                        cursor.execute("INSERT INTO migration_history (migration_id) VALUES ('promo_codes_new_columns')")
+                        logging.info(" -> Promo codes new columns migration completed and marked in history")
+                    else:
+                        logging.info(" -> Promo codes new columns migration completed (already marked in history)")
+                except sqlite3.OperationalError as e:
+                    # Игнорируем ошибку блокировки при записи в migration_history - колонки уже на месте
+                    if "database is locked" in str(e):
+                        logging.warning(f" -> Could not update migration_history due to lock, but all columns exist - migration successful")
+                    else:
+                        raise
             else:
                 logging.warning(" -> Some columns failed to migrate, will retry on next start")
                 
