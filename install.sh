@@ -368,27 +368,24 @@ try:
     existing_login = existing_credentials.get('panel_login')
     existing_password = existing_credentials.get('panel_password')
 
-    # КРИТИЧНО: Защита существующих учетных данных
-    # Если ЛЮБОЙ из параметров уже существует - НЕ СОЗДАЕМ и НЕ ИЗМЕНЯЕМ ничего
-    if existing_login is not None or existing_password is not None:
-        # Хотя бы один параметр существует - защищаем существующие данные
-        if existing_login and existing_password:
-            print(f'✓ Логин и пароль админа уже существуют, сохраняем существующие (логин: {existing_login})')
-        elif existing_login:
-            print(f'⚠️  Логин админа существует ({existing_login}), но пароль отсутствует. Пропускаем автоматическое создание.')
-            print('   Для безопасности создайте пароль вручную через веб-панель.')
-        elif existing_password:
-            print(f'⚠️  Пароль админа существует, но логин отсутствует. Пропускаем автоматическое создание.')
-            print('   Для безопасности создайте логин вручную через веб-панель.')
-    else:
-        # ТОЛЬКО если ОБА параметра отсутствуют - создаём дефолтные значения
-        # ИСПОЛЬЗУЕМ INSERT OR IGNORE для дополнительной защиты от перезаписи
+    # ПРОСТАЯ логика: если логин == "admin" или пустой/None - можно обновить на дефолтный
+    # Если логин != "admin" и не пустой - НЕ ТРОГАЕМ (пользователь установил свой)
+    login_is_default_or_empty = (existing_login is None or existing_login == '' or existing_login == 'admin')
+    
+    if not login_is_default_or_empty:
+        # Пользователь установил свой логин - НЕ ТРОГАЕМ
+        print(f'✓ Сохраняем существующий логин: {existing_login}')
+    elif login_is_default_or_empty:
+        # Логин "admin" или пустой - можно установить/обновить дефолтный
         admin_password = 'admin'
         hashed_password = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_login', 'admin'))
-        cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_password', hashed_password))
-        print('✓ Созданы дефолтные учетные данные админа (логин: admin, пароль: admin)')
-        print('  ВАЖНО: Смените пароль при первом входе!')
+        cursor.execute('INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_login', 'admin'))
+        cursor.execute('INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_password', hashed_password))
+        if existing_login == 'admin':
+            print('✓ Обновлен дефолтный логин и пароль (логин: admin, пароль: admin)')
+        else:
+            print('✓ Созданы дефолтные учетные данные админа (логин: admin, пароль: admin)')
+            print('  ВАЖНО: Смените пароль при первом входе!')
 
     # Добавляем остальные настройки по умолчанию
     # КРИТИЧНО: Явно исключаем учетные данные из этого словаря
@@ -1146,7 +1143,24 @@ echo -e "  - Остановка: ${YELLOW}systemctl stop dark-maximus${NC}"
 echo -e "  - Перезапуск: ${YELLOW}systemctl restart dark-maximus${NC}"
 
 echo -e "\n${BLUE}🔒 Безопасность:${NC}"
+
+# Получаем текущий логин из базы данных для отображения
+CURRENT_LOGIN=$(python3 -c "
+import sqlite3
+try:
+    conn = sqlite3.connect('${PROJECT_DIR}/users.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT value FROM bot_settings WHERE key = ?', ('panel_login',))
+    result = cursor.fetchone()
+    current_login = result[0] if result else 'admin'
+    conn.close()
+    print(current_login)
+except:
+    print('admin')
+" 2>/dev/null || echo "admin")
+
 echo -e "- Учетные данные панели хранятся в: ${YELLOW}$PROJECT_DIR/users.db${NC}"
+echo -e "- Логин: ${YELLOW}${CURRENT_LOGIN}${NC}"
 echo -e "- Секреты в: ${YELLOW}$PROJECT_DIR/.env${NC}"
 echo -e "- Отладочные порты доступны только с localhost"
 echo -e "- UFW настроен безопасно (только 22, 80, 443)"

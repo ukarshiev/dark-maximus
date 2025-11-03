@@ -500,37 +500,29 @@ def initialize_db():
                 cursor.execute("SELECT COUNT(*) FROM bot_settings")
                 total_settings_count = cursor.fetchone()[0]
                 
-                # Проверяем наличие panel_password и panel_login
-                cursor.execute("SELECT value FROM bot_settings WHERE key = ?", ("panel_password",))
-                panel_password_exists = cursor.fetchone() is not None
+                # Проверяем текущий логин
                 cursor.execute("SELECT value FROM bot_settings WHERE key = ?", ("panel_login",))
-                panel_login_exists = cursor.fetchone() is not None
+                login_result = cursor.fetchone()
+                current_login = login_result[0] if login_result else None
             except Exception as e:
                 logger.debug(f"Failed to check panel credentials during initialization: {e}")
-                total_settings_count = 0
-                panel_password_exists = False
-                panel_login_exists = False
+                current_login = None
 
-            # Вставляем дефолтные пароль и логин ТОЛЬКО если:
-            # 1. В базе НЕТ НИ ОДНОЙ записи в bot_settings (полностью новая база)
-            # 2. И оба значения (логин и пароль) отсутствуют
-            # Если в базе УЖЕ ЕСТЬ хоть одна запись - значит база не пустая и мы НЕ ДОЛЖНЫ вставлять дефолтные значения
-            # КРИТИЧНО: Дополнительная проверка перед вставкой - даже если база пустая, но есть хотя бы один параметр - НЕ ТРОГАЕМ
-            is_completely_empty_database = total_settings_count == 0
-            both_credentials_missing = not (panel_password_exists or panel_login_exists)  # Изменено: используем OR вместо AND для более строгой проверки
-            seed_sensitive_defaults = is_completely_empty_database and both_credentials_missing
-
-            if seed_sensitive_defaults:
-                # Только если база полностью пустая и оба значения отсутствуют - вставляем дефолтные значения
-                # Используем INSERT OR IGNORE для защиты от возможных race conditions
-                cursor.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", ("panel_login", "admin"))
-                cursor.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", ("panel_password", hashed_password))
-                logging.info("Created default panel_login and panel_password (completely empty database)")
-            else:
-                if total_settings_count > 0:
-                    logging.info(f"Panel credentials check: database has {total_settings_count} existing settings, skipping default values (protecting existing data)")
+            # ПРОСТАЯ логика: если логин == "admin" или пустой/None - можно обновить на дефолтный
+            # Если логин != "admin" и не пустой - НЕ ТРОГАЕМ (пользователь установил свой)
+            login_is_default_or_empty = (current_login is None or current_login == '' or current_login == 'admin')
+            
+            if login_is_default_or_empty:
+                # Логин "admin" или пустой - можно установить/обновить дефолтный
+                cursor.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)", ("panel_login", "admin"))
+                cursor.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)", ("panel_password", hashed_password))
+                if current_login == 'admin':
+                    logging.info("Updated default panel_login and panel_password")
                 else:
-                    logging.info("Panel credentials already exist, skipping default values")
+                    logging.info("Created default panel_login and panel_password (empty or missing)")
+            else:
+                # Пользователь установил свой логин - НЕ ТРОГАЕМ
+                logging.info(f"Panel credentials check: preserving custom login '{current_login}' (not changing user-configured credentials)")
 
             default_settings = {
 
