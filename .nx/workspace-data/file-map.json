@@ -13,1720 +13,1716 @@
   "fileMap": {
     "nonProjectFiles": [
       {
-        "file": ".github/ISSUE_TEMPLATE/documentation.md",
-        "hash": "13514110517324411388"
-      },
-      {
-        "file": "docs/user-docs/WIKI-README.md",
-        "hash": "7695841528924853092"
-      },
-      {
-        "file": "src/shop_bot/data_manager/database.py",
-        "hash": "15665136987325347981"
-      },
-      {
-        "file": "codex.docs/src/frontend/svg/aside-logo.svg",
-        "hash": "1563856123635294244"
-      },
-      {
-        "file": "codex.docs/.github/workflows/release-drafter.yml",
-        "hash": "3563494680109496873"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/dev_page.html",
-        "hash": "12630336012822686899"
-      },
-      {
-        "file": "codex.docs/src/test/rest/transport.ts",
-        "hash": "496534540730960873"
-      },
-      {
-        "file": "codex.docs/src/frontend/svg/arrow-up.svg",
-        "hash": "9537476648984493741"
-      },
-      {
-        "file": ".cursor/rules/terminal-command.mdc",
-        "hash": "7788048897336045847"
-      },
-      {
-        "file": ".github/SUPPORT.md",
-        "hash": "1804850702371304726"
-      },
-      {
-        "file": "codex.docs/.nvmrc",
-        "hash": "4380310694088835021"
-      },
-      {
-        "file": "codex.docs/src/test/rest/pages.ts",
-        "hash": "7763989057132318524"
-      },
-      {
-        "file": "docs/guides/admin/admin-panel-guide.md",
-        "hash": "2144102990205638958"
-      },
-      {
-        "file": "README.md",
-        "hash": "4010361426270881941"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/security_vulnerability.md",
-        "hash": "3483952942093616562"
-      },
-      {
-        "file": "docs/architecture/project-info.md",
-        "hash": "13988209894938197857"
-      },
-      {
-        "file": "codex.docs/src/backend/app.ts",
-        "hash": "7397933426714748726"
-      },
-      {
-        "file": "codex.docs/docs/user-docs/admin/powershell-encoding-fix.md",
-        "hash": "1088532133182558511"
-      },
-      {
-        "file": "src/shop_bot/config.py",
-        "hash": "863126859210660942"
-      },
-      {
-        "file": "codex.docs/bin/db-converter/.gitignore",
-        "hash": "1216449025761897388"
-      },
-      {
-        "file": ".cursor/rules/docker-commands.mdc",
-        "hash": "8638037107080332121"
-      },
-      {
-        "file": "codex.docs/src/backend/utils/appConfig.ts",
-        "hash": "15631667688388482700"
-      },
-      {
-        "file": "src/shop_bot/data_manager/async_database.py",
-        "hash": "7666421278847683301"
-      },
-      {
-        "file": "src/shop_bot/data_manager/backup.py",
-        "hash": "17343668063522775230"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/needs_ux_review.md",
-        "hash": "2359737645648222350"
-      },
-      {
-        "file": "codex.docs/yarn.lock",
-        "hash": "5570074551536465865"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/bug_template.md",
-        "hash": "9690505603862677564"
-      },
-      {
-        "file": "docs/architecture/README.md",
-        "hash": "2303000502236289996"
-      },
-      {
-        "file": "docs/guides/deployment/docker-deployment.md",
-        "hash": "13342538372290228179"
-      },
-      {
-        "file": "tests/test_web_interface_deeplink.py",
-        "hash": "8954184973795272825"
-      },
-      {
-        "file": "codex.docs/.postcssrc",
-        "hash": "6091231535507781994"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/transactions.html",
-        "hash": "18380196650420860004"
-      },
-      {
-        "file": "codex.docs/src/backend/routes/pages.ts",
-        "hash": "13951954545143859187"
-      },
-      {
-        "file": "src/shop_bot/__init__.py",
-        "hash": "5968116748145454641"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/notifications.html",
-        "hash": "16759971769396472099"
-      },
-      {
-        "file": "codex.docs/src/frontend/js/utils/theme.js",
-        "hash": "15783111862118430454"
-      },
-      {
-        "file": "docs/guides/deployment/README.md",
-        "hash": "3749651188078284472"
-      },
-      {
-        "file": "codex.docs/src/frontend/styles/diff.pcss",
-        "hash": "18385358226035483711"
-      },
-      {
-        "file": "docs/internal/nx-guide.md",
-        "hash": "4667759846115693540"
-      },
-      {
-        "file": "tests/test_deeplink_base64.py",
-        "hash": "2424558924102744482"
-      },
-      {
-        "file": "codex.docs/src/backend/views/pages/blocks/checklist.twig",
-        "hash": "1358932128459244329"
-      },
-      {
-        "file": "docs/troubleshooting/encoding-issues.md",
-        "hash": "13016564522079352566"
-      },
-      {
-        "file": "codex.docs/src/frontend/styles/components/table-of-content.pcss",
-        "hash": "11027997011454194262"
-      },
-      {
-        "file": "codex.docs/src/backend/uploads/local.ts",
-        "hash": "3751509775631855694"
-      },
-      {
-        "file": "nginx/nginx-ssl.conf",
-        "hash": "8093946445322755949"
-      },
-      {
-        "file": "codex.docs/src/backend/routes/home.ts",
-        "hash": "11512408211676095781"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/login.html",
-        "hash": "8797317344539565818"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/app.py",
-        "hash": "15499866492223039939"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/performance.md",
-        "hash": "2489012924469245973"
-      },
-      {
-        "file": "codex.docs/src/backend/views/pages/blocks/image.twig",
-        "hash": "7942769827466618716"
-      },
-      {
-        "file": "docs/guides/user/README.md",
-        "hash": "2039682037081179546"
-      },
-      {
-        "file": "docs/architecture/agent-rules.md",
-        "hash": "9575508437351850685"
-      },
-      {
-        "file": "codex.docs/src/backend/views/pages/blocks/code.twig",
-        "hash": "2667080029781499966"
-      },
-      {
-        "file": "codex.docs/src/backend/controllers/pages.ts",
-        "hash": "17718189668849896268"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/settings.html",
-        "hash": "13918844989137513210"
-      },
-      {
-        "file": "docs/guides/README.md",
-        "hash": "2501580313177322598"
-      },
-      {
-        "file": "LICENSE",
-        "hash": "550515814021036392"
-      },
-      {
-        "file": "docs/architecture/performance-optimization.md",
-        "hash": "10946332169054399907"
-      },
-      {
-        "file": "docs/guides/admin/monitoring-tabs.md",
-        "hash": "7081033602252762142"
-      },
-      {
-        "file": "codex.docs/bin/db-converter/.yarn/install-state.gz",
-        "hash": "905656378808901137"
-      },
-      {
-        "file": "docs/reference/referral-program.md",
-        "hash": "531185063738452535"
-      },
-      {
-        "file": "codex.docs/src/backend/routes/middlewares/pages.ts",
-        "hash": "2107814672950217388"
-      },
-      {
-        "file": "codex.docs/README.md",
-        "hash": "1052712237708609683"
-      },
-      {
-        "file": "docs/setup-scripts/README.md",
-        "hash": "15077972713944007751"
-      },
-      {
-        "file": "codex.docs/src/frontend/styles/components/auth.pcss",
-        "hash": "6317251712635652020"
-      },
-      {
-        "file": "docs/guides/deployment/ssl-setup.md",
-        "hash": "4247761779498337102"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/base.html",
-        "hash": "624498639418477093"
-      },
-      {
-        "file": "codex.docs/src/frontend/styles/components/error.pcss",
-        "hash": "17249808958160011558"
-      },
-      {
-        "file": "codex.docs/src/backend/server.ts",
-        "hash": "15995297778464918600"
-      },
-      {
-        "file": "docs/user-docs/admin/security.md",
-        "hash": "5483928029380589712"
-      },
-      {
-        "file": "docs/architecture/documentation-structure.md",
-        "hash": "14018240902824641943"
-      },
-      {
-        "file": "codex.docs/src/test/models/file.ts",
-        "hash": "13139868243907749390"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/needs_compatibility_review.md",
-        "hash": "14639013477872547857"
-      },
-      {
-        "file": "tests/test_promo_deeplink_fix_REPORT.md",
-        "hash": "4736133100362955432"
-      },
-      {
-        "file": "docs/user-docs/_sidebar.md",
-        "hash": "1669087947296359022"
-      },
-      {
-        "file": "codex.docs/src/frontend/js/modules/sidebar.js",
-        "hash": "17503574616472449260"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/needs_dev_review.md",
-        "hash": "3047235996783131101"
-      },
-      {
-        "file": "src/shop_bot/security/validators.py",
-        "hash": "10645501552120251214"
-      },
-      {
-        "file": "codex.docs/nodemon.json",
-        "hash": "15462953372045145423"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/needs_investigation.md",
-        "hash": "3309113152791501760"
-      },
-      {
-        "file": "CONTRIBUTING.md",
-        "hash": "5347063722667771825"
-      },
-      {
-        "file": "docs/architecture/docker-architecture.md",
-        "hash": "4064211927728239733"
-      },
-      {
-        "file": "src/shop_bot/utils/error_handler.py",
-        "hash": "10955254357040694201"
-      },
-      {
-        "file": "docs/internal/nx-test-report.md",
-        "hash": "2751899313922273872"
-      },
-      {
-        "file": "codex.docs/src/frontend/svg/search.svg",
-        "hash": "11206038294825860595"
-      },
-      {
-        "file": "src/shop_bot/utils/logger.py",
-        "hash": "12127174999211581145"
-      },
-      {
-        "file": "src/shop_bot/bot/optimized_handlers.py",
-        "hash": "18348807364471272272"
-      },
-      {
-        "file": "codex.docs/src/frontend/js/classes/editor.js",
-        "hash": "1070755761991386331"
-      },
-      {
-        "file": "codex.docs/src/backend/views/pages/blocks/header.twig",
-        "hash": "15488715739571745579"
-      },
-      {
-        "file": ".github/CODE_OF_CONDUCT.md",
-        "hash": "14431577376517205954"
-      },
-      {
-        "file": "tests/test_deeplink_comma_format.py",
-        "hash": "5878317323294639929"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/needs_performance_review.md",
-        "hash": "1863969812775196968"
-      },
-      {
-        "file": "docs/guides/admin/README.md",
-        "hash": "13056892160354079201"
-      },
-      {
-        "file": "docs/user-docs/admin/api.md",
-        "hash": "10272547918285556111"
-      },
-      {
-        "file": ".cursor/plans/fix-pr-81541c68.plan.md",
-        "hash": "13091142082418324900"
-      },
-      {
-        "file": "docs/reference/README.md",
-        "hash": "2050426078000006917"
-      },
-      {
-        "file": "codex.docs/src/frontend/svg/trash.svg",
-        "hash": "12019462609462650680"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/bug_report.md",
-        "hash": "10348867939812732232"
-      },
-      {
-        "file": "src/shop_bot/utils/telegram_logger.py",
-        "hash": "1300010093213136088"
-      },
-      {
-        "file": "codex.docs/bin/db-converter/program.js",
-        "hash": "10680196219644867944"
-      },
-      {
-        "file": "docs/tutorials/admin-quickstart.md",
-        "hash": "9471672597215942077"
-      },
-      {
-        "file": "docs/guides/deployment/deployment-checklist.md",
-        "hash": "16164083493247774374"
-      },
-      {
-        "file": "codex.docs/src/backend/views/components/navigator.twig",
-        "hash": "7720104447556304997"
-      },
-      {
-        "file": "tests/test_utils.py",
-        "hash": "4154935750820671117"
-      },
-      {
-        "file": "codex.docs/src/frontend/svg/moon.svg",
-        "hash": "16848675879156070904"
-      },
-      {
-        "file": "codex.docs/src/backend/views/error.twig",
-        "hash": "17347293266606916875"
-      },
-      {
-        "file": "codex.docs/src/frontend/svg/check.svg",
-        "hash": "11296853668756754150"
-      },
-      {
-        "file": "codex.docs/bin/db-converter/index.js",
-        "hash": "15409539811890653968"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/help_wanted.md",
-        "hash": "14345494401480356301"
-      },
-      {
-        "file": ".cursor/rules/nx-usage.mdc",
-        "hash": "4956865623806805383"
-      },
-      {
-        "file": "deploy/nginx/docs.conf",
-        "hash": "3085339023245699431"
-      },
-      {
-        "file": "docs/reference/features-subscriptions.md",
-        "hash": "8043480499070332776"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/static/favicon.ico",
-        "hash": "7523365006937991406"
-      },
-      {
-        "file": "codex.docs/src/backend/utils/menu.ts",
-        "hash": "14527658497406629003"
-      },
-      {
-        "file": "codex.docs/src/backend/models/alias.ts",
-        "hash": "12050351899294411669"
-      },
-      {
-        "file": "docs/reference/generic-cqrs-typing.md",
-        "hash": "13434294001020094262"
-      },
-      {
-        "file": "codex.docs/src/frontend/styles/vars.pcss",
-        "hash": "15615687566374449804"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/needs_refactoring.md",
-        "hash": "9902326711046460467"
-      },
-      {
-        "file": "docs/reference/api/search-users.md",
-        "hash": "12820100789187394021"
-      },
-      {
-        "file": "docs/guides/deployment/auto-deploy.md",
-        "hash": "10580339354787362748"
-      },
-      {
-        "file": ".cursor/rules/docs-rules.mdc",
-        "hash": "16988302178944962078"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/check_payment.html",
-        "hash": "10024299292617276399"
-      },
-      {
-        "file": "tests/test_promo_fix.py",
-        "hash": "8600427088345388463"
-      },
-      {
-        "file": "src/shop_bot/bot/middlewares.py",
-        "hash": "9753433883631779930"
-      },
-      {
-        "file": "codex.docs/LICENSE",
-        "hash": "8339574096716829119"
-      },
-      {
-        "file": "codex.docs/src/frontend/js/modules/page.js",
-        "hash": "10635611205997270725"
-      },
-      {
-        "file": "codex.docs/src/backend/routes/api/index.ts",
-        "hash": "9549321467410427096"
-      },
-      {
-        "file": "docs/guides/development/README.md",
-        "hash": "4309755944757038072"
-      },
-      {
-        "file": "nx.json",
-        "hash": "6511971159565679990"
-      },
-      {
-        "file": "codex.docs/src/backend/models/pageOrder.ts",
-        "hash": "6952754128599812639"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/needs_security_review.md",
-        "hash": "13782955087902879285"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/video_drawer.html",
-        "hash": "11702572034940520930"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/translation.md",
-        "hash": "18063317777683030285"
-      },
-      {
-        "file": "Dockerfile.docs",
-        "hash": "9285013051513766835"
-      },
-      {
-        "file": "docs/user-docs/admin/quickstart.md",
-        "hash": "2399119148479850448"
-      },
-      {
-        "file": "codex.docs/package.json",
-        "hash": "13592425611209791414"
-      },
-      {
-        "file": "docs/integrations/stars.md",
-        "hash": "12090765255099966331"
-      },
-      {
-        "file": "codex.docs/.npmignore",
-        "hash": "14789017274250118342"
-      },
-      {
-        "file": "docs/integrations/yookassa-webhook-setup.md",
-        "hash": "2414992947945383000"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/demo.html",
-        "hash": "18023151995639168736"
-      },
-      {
-        "file": "codex.docs/src/backend/.eslintrc",
-        "hash": "11117070871794718542"
-      },
-      {
-        "file": "docs/README.md",
-        "hash": "18152996507487010438"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/instructions.html",
-        "hash": "2647058601905203468"
-      },
-      {
-        "file": "src/shop_bot/utils/__init__.py",
-        "hash": "16520538122960232479"
-      },
-      {
-        "file": "tests/test_deeplink_fix.py",
-        "hash": "11299570289435956940"
-      },
-      {
-        "file": "src/shop_bot/security/rate_limiter.py",
-        "hash": "17717159912656546581"
-      },
-      {
-        "file": "src/shop_bot/bot/keyboards.py",
-        "hash": "11817472559621776394"
-      },
-      {
-        "file": "Makefile",
-        "hash": "17024621718068632243"
-      },
-      {
-        "file": "codex.docs/src/backend/views/pages/blocks/raw.twig",
-        "hash": "8192458535569191269"
-      },
-      {
-        "file": "codex.docs/docker-compose.dev.yml",
-        "hash": "5355124941277105895"
-      },
-      {
-        "file": "docs/diagrams/reference/menu-uml.md",
-        "hash": "4864027920888956767"
-      },
-      {
-        "file": "tests/apply_migration.py",
-        "hash": "6391426553412375242"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/config.yml",
-        "hash": "14163414099967899008"
-      },
-      {
-        "file": "codex.docs/src/backend/views/pages/blocks/paragraph.twig",
-        "hash": "3008894448612333445"
-      },
-      {
-        "file": "codex.docs/src/backend/models/file.ts",
-        "hash": "3430361337101120302"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/wontfix.md",
-        "hash": "2693567502569004759"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/privacy.html",
-        "hash": "4620218214214666089"
-      },
-      {
-        "file": "codex.docs/src/backend/utils/downloadFavicon.ts",
-        "hash": "6864659876564107509"
-      },
-      {
-        "file": "tests/test_promo_deeplink_fix.py",
-        "hash": "13089668266040613934"
-      },
-      {
-        "file": "docs/guides/user/payment.md",
-        "hash": "10713027630984601946"
-      },
-      {
-        "file": "tests/test_deeplink_functionality.py",
-        "hash": "666208201401992638"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/needs_testing.md",
-        "hash": "10093256571143626590"
-      },
-      {
-        "file": "codex.docs/src/backend/views/pages/page.twig",
-        "hash": "10134468538337295354"
-      },
-      {
-        "file": "docs/migration/migration-completed.md",
-        "hash": "9056165750461128207"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/static/.well-known/tonconnect-manifest.json",
-        "hash": "17793405223260690606"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/invalid.md",
-        "hash": "8903283906095729537"
-      },
-      {
-        "file": "src/shop_bot/bot_controller.py",
-        "hash": "6688795389653259999"
-      },
-      {
-        "file": "codex.docs/src/frontend/styles/components/writing.pcss",
-        "hash": "9751610516396388561"
-      },
-      {
-        "file": "codex.docs/src/backend/views/pages/index.twig",
-        "hash": "12784557410249994726"
-      },
-      {
-        "file": "codex.docs/src/backend/routes/api/links.ts",
-        "hash": "11803943088087136084"
-      },
-      {
-        "file": "codex.docs/src/test/models/pageOrder.ts",
-        "hash": "3077055296296469489"
-      },
-      {
-        "file": "test_real_install.sh",
-        "hash": "2606831623227175779"
-      },
-      {
-        "file": "codex.docs/src/backend/views/components/button.twig",
-        "hash": "8142409275913956495"
-      },
-      {
-        "file": "codex.docs/src/backend/database/local.ts",
-        "hash": "15727181497843319972"
-      },
-      {
-        "file": "codex.docs/src/backend/exceptions/httpException.ts",
-        "hash": "15308185157742635605"
-      },
-      {
-        "file": "docs/tutorials/video-instructions.md",
-        "hash": "2832568003852352425"
-      },
-      {
-        "file": "codex.docs/src/frontend/styles/components/page.pcss",
-        "hash": "16126291822924510152"
-      },
-      {
-        "file": "codex.docs/src/backend/views/pages/blocks/list.twig",
-        "hash": "3563703248659393079"
-      },
-      {
-        "file": "codex.docs/src/frontend/js/app.js",
-        "hash": "14585339118515626625"
-      },
-      {
-        "file": "codex.docs/src/backend/uploads/types.ts",
-        "hash": "1194412504895723480"
-      },
-      {
-        "file": "tests/test_encoding.py",
-        "hash": "12735335464279636617"
-      },
-      {
-        "file": "codex.docs/src/backend/build-static.ts",
-        "hash": "16052318670364628436"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/needs_review.md",
-        "hash": "3316695492238537731"
-      },
-      {
-        "file": "nginx/nginx.conf",
-        "hash": "15161294170664144501"
-      },
-      {
-        "file": "codex.docs/src/frontend/svg/frog.svg",
-        "hash": "7946355079812040349"
-      },
-      {
-        "file": "codex.docs/src/backend/utils/banner.ts",
-        "hash": "17588882888167831596"
-      },
-      {
-        "file": "video_instructions/posters/.gitkeep",
-        "hash": "3244421341483603138"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/static/img/burger.png",
-        "hash": "7495720081620737300"
-      },
-      {
-        "file": "codex.docs/src/frontend/svg/copy.svg",
-        "hash": "16752137833468050782"
-      },
-      {
-        "file": "codex.docs/src/backend/routes/middlewares/token.ts",
-        "hash": "294656108520558120"
-      },
-      {
-        "file": "video_instructions/ИНСТРУКЦИЯ_ПРИМЕНЕНИЯ.md",
-        "hash": "16109392741669605207"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/needs_integration_review.md",
-        "hash": "12721368332612657940"
-      },
-      {
-        "file": "test_output.txt",
-        "hash": "182271607215678812"
-      },
-      {
-        "file": "codex.docs/src/backend/utils/urlify.ts",
-        "hash": "12808942842297884141"
-      },
-      {
-        "file": "codex.docs/src/backend/views/components/header.twig",
-        "hash": "8774961949068716765"
-      },
-      {
-        "file": "cookies.txt",
-        "hash": "6121101436419504923"
-      },
-      {
-        "file": "tests/generate_test_link.py",
-        "hash": "11737361144184692052"
-      },
-      {
-        "file": "codex.docs/src/frontend/svg/pencil.svg",
-        "hash": "9807981298434413334"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/static/logo.svg",
-        "hash": "13666467087305316925"
-      },
-      {
-        "file": "src/shop_bot/modules/__init__.py",
-        "hash": "9028582591306394727"
-      },
-      {
-        "file": "docs/internal/roadmap.md",
-        "hash": "6098059295094435430"
-      },
-      {
-        "file": "codex.docs/src/frontend/styles/main.pcss",
-        "hash": "8786151866936927972"
-      },
-      {
-        "file": "src/shop_bot/utils/deeplink.py",
-        "hash": "4946150732013330691"
-      },
-      {
-        "file": "docs/migration/migration-plan.md",
-        "hash": "11654861335959113289"
-      },
-      {
-        "file": "codex.docs/src/frontend/svg/loader.svg",
-        "hash": "3706661127280597728"
-      },
-      {
         "file": "docs/guides/user/faq.md",
         "hash": "8453293288284103387"
-      },
-      {
-        "file": "tests/get_credentials.py",
-        "hash": "18370030573217277716"
-      },
-      {
-        "file": "docs/integrations/yookassa.md",
-        "hash": "7367841563777638821"
-      },
-      {
-        "file": "codex.docs/src/frontend/svg/sun.svg",
-        "hash": "10429451293836373316"
-      },
-      {
-        "file": "docs/guides/deployment/advanced-setup.md",
-        "hash": "5727876327068275734"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/needs_reproduction.md",
-        "hash": "3686709804011358025"
-      },
-      {
-        "file": "codex.docs/src/backend/routes/middlewares/locals.ts",
-        "hash": "1179739047107519273"
-      },
-      {
-        "file": "tests/test_docker_promo.py",
-        "hash": "2631626661458708204"
-      },
-      {
-        "file": "codex.docs/src/backend/views/pages/form.twig",
-        "hash": "15562416686836702949"
-      },
-      {
-        "file": "codex.docs/DEVELOPMENT.md",
-        "hash": "17423041340345177207"
-      },
-      {
-        "file": ".cursor/plans/code-error-check-86312534.plan.md",
-        "hash": "2304186192092847915"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/needs_design.md",
-        "hash": "7443634125532282985"
-      },
-      {
-        "file": "codex.docs/webpack.config.js",
-        "hash": "5705242619152355888"
-      },
-      {
-        "file": ".cursor/rules/.cursorrules",
-        "hash": "11484758757033689724"
-      },
-      {
-        "file": "codex.docs/docker/Dockerfile.prod",
-        "hash": "8752783234038618843"
-      },
-      {
-        "file": "postcss.config.js",
-        "hash": "10302733817258008319"
-      },
-      {
-        "file": "docs/migration/test-cases-plan-unavailable.md",
-        "hash": "8253012441676783578"
-      },
-      {
-        "file": "codex.docs/public/favicon.png",
-        "hash": "14327443625038465655"
-      },
-      {
-        "file": "codex.docs/src/frontend/svg/arrow-down.svg",
-        "hash": "12930542000483035425"
-      },
-      {
-        "file": "tests/final_deeplink_test.py",
-        "hash": "5927222793798776717"
-      },
-      {
-        "file": "codex.docs/src/frontend/js/modules/extensions.js",
-        "hash": "12609885280606924309"
-      },
-      {
-        "file": "codex.docs/src/backend/utils/crypto.ts",
-        "hash": "2703208784765091305"
-      },
-      {
-        "file": "CHANGELOG.md",
-        "hash": "8836912788860614221"
-      },
-      {
-        "file": "codex.docs/src/frontend/styles/components/sidebar.pcss",
-        "hash": "3896620042142395321"
-      },
-      {
-        "file": "tests/simulate_new_user.py",
-        "hash": "3420839500865680625"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/static/icons/ton_icon_1758809072.png",
-        "hash": "3299726572473181501"
-      },
-      {
-        "file": "tailwind.config.js",
-        "hash": "8029604509427784966"
-      },
-      {
-        "file": "docs/reference/dialog-api.md",
-        "hash": "1092330297383509108"
-      },
-      {
-        "file": "src/shop_bot/utils/performance_monitor.py",
-        "hash": "3618043558260408344"
-      },
-      {
-        "file": "Dockerfile.codex-docs",
-        "hash": "7841359224713304582"
-      },
-      {
-        "file": "codex.docs/.eslintignore",
-        "hash": "3352724958526382824"
-      },
-      {
-        "file": "codex.docs/src/backend/views/pages/blocks/delimiter.twig",
-        "hash": "12662392600118987133"
-      },
-      {
-        "file": "codex.docs/bin/db-converter/.yarnrc.yml",
-        "hash": "939633790555701323"
-      },
-      {
-        "file": "docs/internal/README.md",
-        "hash": "3268288562929143245"
-      },
-      {
-        "file": "codex.docs/src/backend/controllers/aliases.ts",
-        "hash": "1632966087724638225"
-      },
-      {
-        "file": "docs/security/README.md",
-        "hash": "6678313371297332059"
-      },
-      {
-        "file": "codex.docs/src/frontend/js/utils/copyToClipboard.js",
-        "hash": "12120547438936683119"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/video_embed.html",
-        "hash": "9045388766465105413"
-      },
-      {
-        "file": "codex.docs/src/backend/utils/translation.ts",
-        "hash": "9768034293766291176"
-      },
-      {
-        "file": "codex.docs/src/frontend/styles/components/navigator.pcss",
-        "hash": "17405066150957760343"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/debug.html",
-        "hash": "7228863771365501647"
-      },
-      {
-        "file": "docs/reference/modules.md",
-        "hash": "7190168275577124020"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/key_drawer.html",
-        "hash": "14532361300828161117"
-      },
-      {
-        "file": "docs/security/security-improvements.md",
-        "hash": "4869203047924640084"
-      },
-      {
-        "file": "docs/troubleshooting/ENCODING-FIX-SUMMARY.md",
-        "hash": "16085897647315228721"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/needs_triage.md",
-        "hash": "16654082750760084453"
-      },
-      {
-        "file": "codex.docs/src/frontend/styles/components/greeting.pcss",
-        "hash": "8802377609278066013"
-      },
-      {
-        "file": "src/shop_bot/bot/__init__.py",
-        "hash": "3124795028084160874"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/edit_privacy.html",
-        "hash": "804834966860139994"
-      },
-      {
-        "file": "src/shop_bot/bot/support_handlers.py",
-        "hash": "13492069664754999611"
-      },
-      {
-        "file": ".cursor/rules/rights-rules.mdc",
-        "hash": "9727011208140752887"
-      },
-      {
-        "file": "tests/final_verification.py",
-        "hash": "8227049830076881016"
-      },
-      {
-        "file": "codex.docs/src/frontend/styles/components/header.pcss",
-        "hash": "381083471273506256"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/terms.html",
-        "hash": "8863890266046486750"
-      },
-      {
-        "file": "pyproject.toml",
-        "hash": "5816094736583667155"
-      },
-      {
-        "file": "codex.docs/src/frontend/js/classes/table-of-content.js",
-        "hash": "12901252966383322927"
-      },
-      {
-        "file": "docs/user-docs/admin/guide.md",
-        "hash": "3521539361686376649"
-      },
-      {
-        "file": "docs/architecture/architecture-rules.md",
-        "hash": "17406570941311013576"
-      },
-      {
-        "file": "codex.docs/src/backend/models/pagesFlatArray.ts",
-        "hash": "8348902720343534997"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/accessibility.md",
-        "hash": "13685069962426246672"
-      },
-      {
-        "file": "codex.docs/src/test/rest/test_image.png",
-        "hash": "3523641443278117990"
-      },
-      {
-        "file": "tests/test_deeplink_new_user.py",
-        "hash": "10759770758301112369"
-      },
-      {
-        "file": "docs/reference/api/resend-notification.md",
-        "hash": "15904622204864689934"
-      },
-      {
-        "file": "codex.docs/src/backend/views/components/copy-button.twig",
-        "hash": "15308839303268346292"
-      },
-      {
-        "file": "codex.docs/docs-config.yaml",
-        "hash": "11049525305255244740"
       },
       {
         "file": "docs/guides/development/powershell-utf8-setup.md",
         "hash": "5111293703992401504"
       },
       {
-        "file": "docs/reference/api/transaction-details.md",
-        "hash": "13236706104570014045"
-      },
-      {
-        "file": "codex.docs/src/backend/routes/index.ts",
-        "hash": "15182905631930495285"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/orphan_deletions_log.html",
-        "hash": "1283588862419341130"
-      },
-      {
-        "file": "codex.docs/src/frontend/.eslintrc",
-        "hash": "5235422704294166598"
-      },
-      {
-        "file": "src/shop_bot/data_manager/__init__.py",
-        "hash": "7500583692753786381"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/question.md",
-        "hash": "12153840966991291036"
-      },
-      {
-        "file": "docs/security/security.md",
-        "hash": "8921652086579751442"
-      },
-      {
-        "file": "docs/reference/api/create-notification.md",
-        "hash": "5458347799185282446"
-      },
-      {
-        "file": "src/shop_bot/data_manager/scheduler.py",
-        "hash": "12765267639198250764"
-      },
-      {
-        "file": "codex.docs/src/backend/views/pages/blocks/embed.twig",
-        "hash": "18090290207404922567"
-      },
-      {
-        "file": ".github/SECURITY.md",
-        "hash": "6990074075402428125"
-      },
-      {
-        "file": "video_instructions/README.md",
-        "hash": "9183526299222989681"
-      },
-      {
-        "file": "codex.docs/src/test/models/page.ts",
-        "hash": "11553999984167117019"
-      },
-      {
-        "file": "codex.docs/src/backend/utils/asyncMiddleware.ts",
-        "hash": "8560162229576730200"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/wiki_editor_edit.html",
-        "hash": "8832076564054084777"
-      },
-      {
-        "file": "codex.docs/bin/db-converter/yarn.lock",
-        "hash": "6158598442574879494"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/versions.html",
-        "hash": "10853698764603023947"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/static/css/tw.css",
-        "hash": "7277483471344622010"
-      },
-      {
-        "file": "codex.docs/src/backend/uploads/index.ts",
-        "hash": "13525340675733882507"
-      },
-      {
-        "file": ".gitignore",
-        "hash": "16554903997382384257"
-      },
-      {
-        "file": "codex.docs/src/backend/models/page.ts",
-        "hash": "5021991189047631116"
-      },
-      {
-        "file": "codex.docs/src/frontend/js/modules/writing.js",
-        "hash": "6386746287288559721"
-      },
-      {
-        "file": "codex.docs/tsconfig.json",
-        "hash": "13260534014547532352"
-      },
-      {
-        "file": "codex.docs/src/backend/database/types.ts",
-        "hash": "1126379500124693078"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/__init__.py",
-        "hash": "10228386416212150195"
-      },
-      {
-        "file": "codex.docs/src/frontend/js/utils/storage.js",
-        "hash": "5297545604717861652"
-      },
-      {
-        "file": "tests/fix_docker_database.py",
-        "hash": "8173819568935687227"
-      },
-      {
-        "file": "codex.docs/src/frontend/styles/components/button.pcss",
-        "hash": "5593578029812435618"
-      },
-      {
-        "file": "codex.docs/docker-compose.yml",
-        "hash": "5640998717791126131"
-      },
-      {
-        "file": "docs/tutorials/README.md",
-        "hash": "14277516111467111689"
-      },
-      {
-        "file": "docs/internal/roadmap-main.md",
-        "hash": "13767771774105203368"
-      },
-      {
-        "file": "docs/guides/deployment/wiki-deployment.md",
-        "hash": "12879329193147455556"
-      },
-      {
-        "file": "docs/troubleshooting/git-encoding-issues.md",
-        "hash": "11851333388099966655"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/good_first_issue.md",
-        "hash": "18271495659885090700"
-      },
-      {
-        "file": "docs/internal/roadmap-readme.md",
-        "hash": "13022053045054118575"
-      },
-      {
-        "file": "docs/reference/api/keys.md",
-        "hash": "11884508948240044299"
-      },
-      {
-        "file": "codex.docs/src/test/database.ts",
-        "hash": "1349532886978832365"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/needs_optimization.md",
-        "hash": "8701873530944956835"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/needs_documentation.md",
-        "hash": "2934579472369210123"
-      },
-      {
-        "file": "ssl-install.sh",
-        "hash": "6261648095743995214"
-      },
-      {
-        "file": ".cursor/rules/ui-design-style.mdc",
-        "hash": "590543728544434562"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/feature_request.md",
-        "hash": "4067894259603679354"
-      },
-      {
-        "file": "codex.docs/bin/db-converter/.pnp.loader.mjs",
-        "hash": "11653239853444995678"
-      },
-      {
-        "file": "codex.docs/bin/db-converter/package.json",
-        "hash": "15272188791237582126"
-      },
-      {
-        "file": "docs/security/security-checklist.md",
-        "hash": "2290615136551275812"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/static/logo.png",
-        "hash": "482004776479995458"
-      },
-      {
-        "file": "video_instructions/videos/.gitkeep",
-        "hash": "3244421341483603138"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/video_player.html",
-        "hash": "3353195099553490403"
-      },
-      {
-        "file": "codex.docs/src/frontend/svg/plus.svg",
-        "hash": "6699214529302316654"
-      },
-      {
-        "file": "pyrightconfig.json",
-        "hash": "14749455654818832681"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/edit_terms.html",
-        "hash": "16982746532986744086"
-      },
-      {
-        "file": "docs/internal/quick-commands.md",
-        "hash": "18065214441588324082"
-      },
-      {
-        "file": "tests/test_new_user_promo.py",
-        "hash": "12499567299200069060"
-      },
-      {
-        "file": "docs/user-docs/index.md",
-        "hash": "5703223997803801031"
-      },
-      {
-        "file": "docs/user-docs/admin/installation.md",
-        "hash": "14619531691865721637"
-      },
-      {
-        "file": "docs/user-docs/index.html",
-        "hash": "12450933393910973006"
-      },
-      {
-        "file": "docs/reference/api/promo-codes.md",
-        "hash": "9176836171193810976"
-      },
-      {
-        "file": "codex.docs/src/frontend/styles/layout.pcss",
-        "hash": "6831707254734722048"
-      },
-      {
-        "file": "codex.docs/src/test/rest/test_file.json",
-        "hash": "13405398715876953229"
-      },
-      {
-        "file": "codex.docs/src/frontend/styles/carbon.pcss",
-        "hash": "4200355089358572000"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/duplicate.md",
-        "hash": "6742897802011677191"
-      },
-      {
         "file": "config/docs-config.yaml",
         "hash": "4724715589670569380"
       },
       {
-        "file": "codex.docs/src/frontend/js/utils/dom.js",
-        "hash": "13673868585944118350"
-      },
-      {
-        "file": "codex.docs/src/frontend/svg/menu.svg",
-        "hash": "2220253298583214395"
-      },
-      {
-        "file": "codex.docs/src/backend/database/mongodb.ts",
-        "hash": "14209171455360112768"
-      },
-      {
-        "file": "codex.docs/src/frontend/svg/arrow-right.svg",
-        "hash": "15445448628592104343"
-      },
-      {
-        "file": "codex.docs/bin/db-converter/.eslintrc",
-        "hash": "4616835961381049194"
-      },
-      {
-        "file": "tests/check_promo_usage.py",
-        "hash": "12618825783664247516"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/performance.html",
-        "hash": "10731223962596673678"
-      },
-      {
-        "file": "codex.docs/bin/db-converter/lib.js",
-        "hash": "5747326277895921336"
-      },
-      {
-        "file": "codex.docs/src/backend/views/pages/blocks/warning.twig",
-        "hash": "15626038122374234571"
-      },
-      {
-        "file": "codex.docs/src/backend/views/pages/blocks/table.twig",
-        "hash": "6539272371032620365"
-      },
-      {
-        "file": "codex.docs/.github/workflows/build.yml",
-        "hash": "7843318746724448510"
-      },
-      {
-        "file": "src/shop_bot/ton_monitor.py",
-        "hash": "5801912120429464111"
-      },
-      {
-        "file": "codex.docs/src/backend/controllers/pagesOrder.ts",
-        "hash": "261524271961561633"
-      },
-      {
-        "file": "docs/reference/api/README.md",
-        "hash": "16886198280279228398"
-      },
-      {
-        "file": "docs/internal/documentation-summary.md",
-        "hash": "15226411730930334986"
-      },
-      {
-        "file": ".github/workflows/ci.yml",
-        "hash": "16165363149405305495"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/promo_codes.html",
-        "hash": "3544103415879863238"
-      },
-      {
-        "file": "tests/test_group_edit_fix.py",
-        "hash": "13966502951940233611"
-      },
-      {
-        "file": ".github/workflows/docker.yml",
-        "hash": "1033890282009311396"
-      },
-      {
-        "file": "docs/reference/api/topup-balance.md",
-        "hash": "14539930565044795101"
-      },
-      {
-        "file": "codex.docs/src/backend/views/pages/blocks/linkTool.twig",
-        "hash": "1454387609276687191"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/dashboard.html",
-        "hash": "3799861597153888956"
-      },
-      {
-        "file": "docs/reference/database.md",
-        "hash": "16668771629148753603"
-      },
-      {
-        "file": "codex.docs/src/backend/routes/api/pages.ts",
-        "hash": "3154260073908693060"
-      },
-      {
-        "file": "config/env.example",
-        "hash": "11258191990316885085"
-      },
-      {
-        "file": "docker-compose.yml",
-        "hash": "12833206323230002375"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/needs_more_info.md",
-        "hash": "10386060626597667729"
-      },
-      {
-        "file": "codex.docs/src/backend/utils/twig.ts",
-        "hash": "17848831709163700873"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/needs_architecture_review.md",
-        "hash": "8278281975453001521"
-      },
-      {
-        "file": "Dockerfile",
-        "hash": "76904370815765447"
-      },
-      {
-        "file": "src/shop_bot/bot/handlers.py",
-        "hash": "6755558051433789845"
-      },
-      {
-        "file": ".cursor/plans/fix-group-code-update-bea3d51a.plan.md",
-        "hash": "4871248182109744728"
-      },
-      {
-        "file": ".cursor/rules/tooltip-guide-ui.mdc",
-        "hash": "2607275202170955086"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/static/css/style.css",
-        "hash": "4269703627131358076"
-      },
-      {
-        "file": "codex.docs/src/frontend/js/classes/sidebar-filter.js",
-        "hash": "14005607241082747508"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/debug_settings.html",
-        "hash": "14675132248081927251"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/needs_qa_review.md",
-        "hash": "3220536696771832068"
-      },
-      {
-        "file": "codex.docs/src/test/express.ts",
-        "hash": "8511444528354168957"
-      },
-      {
-        "file": "codex.docs/src/backend/database/index.ts",
-        "hash": "16288209196169697837"
-      },
-      {
-        "file": "codex.docs/src/frontend/styles/components/copy-button.pcss",
-        "hash": "228939500479055947"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE/feature_template.md",
-        "hash": "8632029086680579465"
-      },
-      {
-        "file": "codex.docs/.github/release-drafter.yml",
-        "hash": "12492114802152273381"
-      },
-      {
-        "file": "codex.docs/src/backend/controllers/transport.ts",
-        "hash": "18135870678961450831"
-      },
-      {
-        "file": ".cursor/rules/docker-multi-stage-build.mdc",
-        "hash": "5868536418660389674"
+        "file": ".github/ISSUE_TEMPLATE/documentation.md",
+        "hash": "13514110517324411388"
       },
       {
         "file": "codex.docs/src/frontend/js/classes/codeStyler.js",
         "hash": "16438215488560558263"
       },
       {
-        "file": "docs/diagrams/README.md",
-        "hash": "14279082443127427997"
+        "file": "codex.docs/tsconfig.json",
+        "hash": "13260534014547532352"
       },
       {
-        "file": "src/shop_bot/webhook_server/static/css/tailwind.input.css",
-        "hash": "4208481858689243200"
+        "file": "src/shop_bot/utils/__init__.py",
+        "hash": "16520538122960232479"
       },
       {
-        "file": "codex.docs/src/test/rest/aliases.ts",
-        "hash": "17713198290530952315"
-      },
-      {
-        "file": "docs/internal/admin-docs-summary.md",
-        "hash": "4980395561942763127"
-      },
-      {
-        "file": "package-lock.json",
-        "hash": "8878792893402634725"
-      },
-      {
-        "file": "codex.docs/bin/db-converter/README.md",
-        "hash": "10551498779313419643"
-      },
-      {
-        "file": "src/shop_bot/security/__init__.py",
-        "hash": "6172935627204150808"
-      },
-      {
-        "file": "package.json",
-        "hash": "1479181991143116757"
-      },
-      {
-        "file": ".github/ISSUE_TEMPLATE.md",
-        "hash": "857701851614043364"
-      },
-      {
-        "file": "src/shop_bot/modules/xui_api.py",
-        "hash": "10660592301177000225"
-      },
-      {
-        "file": "docs/reference/features.md",
-        "hash": "350973482995093490"
-      },
-      {
-        "file": "codex.docs/bin/db-converter/.yarn/releases/yarn-3.2.3.cjs",
-        "hash": "11276196681167931448"
-      },
-      {
-        "file": "tests/setup_test_environment.ps1",
-        "hash": "12040338979386600142"
-      },
-      {
-        "file": "docs/user-docs/README.md",
-        "hash": "4344327621482411377"
-      },
-      {
-        "file": "docs/guides/development/powershell-utf8-quickstart.md",
-        "hash": "13861311694517909391"
-      },
-      {
-        "file": "docs/guides/development/web-grid-refactor.md",
-        "hash": "7005177397096503714"
-      },
-      {
-        "file": "codex.docs/src/backend/uploads/s3.ts",
-        "hash": "17980964476599312444"
-      },
-      {
-        "file": "codex.docs/bin/db-converter/.pnp.cjs",
-        "hash": "5691533691517151372"
-      },
-      {
-        "file": "tests/test_deeplink_integration.py",
-        "hash": "2487281079580562832"
-      },
-      {
-        "file": "codex.docs/.editorconfig",
-        "hash": "7552737609706192269"
-      },
-      {
-        "file": "docs/guides/user/getting-started.md",
-        "hash": "15016558374882089514"
-      },
-      {
-        "file": "tests/check_promo_status.py",
-        "hash": "11492236643572400848"
-      },
-      {
-        "file": "codex.docs/src/backend/routes/api/transport.ts",
-        "hash": "15932804954004498141"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/users.html",
-        "hash": "10564439481579590766"
-      },
-      {
-        "file": "SECURITY.md",
-        "hash": "561329048268368557"
-      },
-      {
-        "file": "tests/test_real_user.py",
-        "hash": "3127154623003580169"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/static/js/script.js",
-        "hash": "2071751778361123467"
-      },
-      {
-        "file": "docs/migration/README.md",
-        "hash": "17101263195002262797"
-      },
-      {
-        "file": "deploy/nginx/dark-maximus.conf.tpl",
-        "hash": "16527751771012990221"
-      },
-      {
-        "file": ".github/PULL_REQUEST_TEMPLATE.md",
-        "hash": "9006604960483397265"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/static/icons/ton_icon_1758808860.png",
-        "hash": "3299726572473181501"
-      },
-      {
-        "file": "docs/internal/prompts.md",
-        "hash": "17165704524569087793"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/keys.html",
-        "hash": "11484620830239089311"
-      },
-      {
-        "file": "tests/TESTSKIDKI50_ANALYSIS.md",
-        "hash": "891507242174520923"
-      },
-      {
-        "file": "codex.docs/src/backend/views/layout.twig",
-        "hash": "1839661546849848813"
-      },
-      {
-        "file": "src/shop_bot/webhook_server/templates/wiki_editor.html",
-        "hash": "69957490522603055"
-      },
-      {
-        "file": "install.sh",
-        "hash": "3188614920287429661"
-      },
-      {
-        "file": ".github/FUNDING.yml",
-        "hash": "1599350635037776818"
-      },
-      {
-        "file": "src/shop_bot/__main__.py",
-        "hash": "6431122879013368504"
-      },
-      {
-        "file": "codex.docs/src/frontend/svg/arrow-left.svg",
-        "hash": "4657870779532712900"
-      },
-      {
-        "file": "codex.docs/src/frontend/styles/components/theme-toggle.pcss",
-        "hash": "9111598151766153703"
+        "file": "codex.docs/src/backend/app.ts",
+        "hash": "7397933426714748726"
       },
       {
         "file": ".cursor/rules/changelog-rules.mdc",
         "hash": "1609121838885582782"
       },
       {
-        "file": "codex.docs/src/backend/routes/aliases.ts",
-        "hash": "4382331311532833117"
+        "file": ".github/ISSUE_TEMPLATE/wontfix.md",
+        "hash": "2693567502569004759"
       },
       {
-        "file": "docs/reference/tech-stack.md",
-        "hash": "13833981264177277654"
+        "file": "codex.docs/bin/db-converter/README.md",
+        "hash": "10551498779313419643"
       },
       {
-        "file": "codex.docs/src/backend/views/components/sidebar.twig",
-        "hash": "4062736366289185930"
+        "file": "codex.docs/src/frontend/svg/arrow-left.svg",
+        "hash": "4657870779532712900"
       },
       {
-        "file": "src/shop_bot/webhook_server/static/icons/ton_icon_1761342493.png",
-        "hash": "3117837362840112376"
+        "file": "codex.docs/src/backend/views/pages/blocks/warning.twig",
+        "hash": "15626038122374234571"
       },
       {
-        "file": "codex.docs/src/test/models/alias.ts",
-        "hash": "6471222997582109534"
+        "file": "codex.docs/src/backend/views/pages/blocks/paragraph.twig",
+        "hash": "3008894448612333445"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/greeting.pcss",
+        "hash": "8802377609278066013"
+      },
+      {
+        "file": ".github/workflows/docker.yml",
+        "hash": "1033890282009311396"
+      },
+      {
+        "file": "src/shop_bot/bot/optimized_handlers.py",
+        "hash": "18348807364471272272"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_performance_review.md",
+        "hash": "1863969812775196968"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_ux_review.md",
+        "hash": "2359737645648222350"
+      },
+      {
+        "file": ".github/SECURITY.md",
+        "hash": "6990074075402428125"
+      },
+      {
+        "file": "SECURITY.md",
+        "hash": "561329048268368557"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/orphan_deletions_log.html",
+        "hash": "1283588862419341130"
+      },
+      {
+        "file": "docs/troubleshooting/encoding-issues.md",
+        "hash": "13016564522079352566"
+      },
+      {
+        "file": "src/shop_bot/data_manager/__init__.py",
+        "hash": "7500583692753786381"
+      },
+      {
+        "file": "video_instructions/posters/.gitkeep",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_triage.md",
+        "hash": "16654082750760084453"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/writing.pcss",
+        "hash": "9751610516396388561"
+      },
+      {
+        "file": "codex.docs/src/test/express.ts",
+        "hash": "8511444528354168957"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/base.html",
+        "hash": "624498639418477093"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/performance.md",
+        "hash": "2489012924469245973"
+      },
+      {
+        "file": "docs/guides/user/payment.md",
+        "hash": "10713027630984601946"
+      },
+      {
+        "file": "src/shop_bot/modules/xui_api.py",
+        "hash": "10660592301177000225"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/css/tw.css",
+        "hash": "7277483471344622010"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/good_first_issue.md",
+        "hash": "18271495659885090700"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/trash.svg",
+        "hash": "12019462609462650680"
+      },
+      {
+        "file": "docs/tutorials/README.md",
+        "hash": "14277516111467111689"
+      },
+      {
+        "file": "package-lock.json",
+        "hash": "8878792893402634725"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/classes/sidebar-filter.js",
+        "hash": "14005607241082747508"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/plus.svg",
+        "hash": "6699214529302316654"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/arrow-right.svg",
+        "hash": "15445448628592104343"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_security_review.md",
+        "hash": "13782955087902879285"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/moon.svg",
+        "hash": "16848675879156070904"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_architecture_review.md",
+        "hash": "8278281975453001521"
+      },
+      {
+        "file": "codex.docs/src/backend/controllers/aliases.ts",
+        "hash": "1632966087724638225"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/dashboard.html",
+        "hash": "3799861597153888956"
+      },
+      {
+        "file": "codex.docs/src/backend/controllers/pages.ts",
+        "hash": "17718189668849896268"
+      },
+      {
+        "file": "codex.docs/src/test/models/file.ts",
+        "hash": "13139868243907749390"
+      },
+      {
+        "file": "docker-compose.yml",
+        "hash": "12833206323230002375"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/image.twig",
+        "hash": "7942769827466618716"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/carbon.pcss",
+        "hash": "4200355089358572000"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/demo.html",
+        "hash": "18023151995639168736"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/error.pcss",
+        "hash": "17249808958160011558"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/notifications.html",
+        "hash": "16759971769396472099"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/header.pcss",
+        "hash": "381083471273506256"
+      },
+      {
+        "file": "docs/migration/migration-plan.md",
+        "hash": "11654861335959113289"
+      },
+      {
+        "file": "src/shop_bot/data_manager/database.py",
+        "hash": "15665136987325347981"
+      },
+      {
+        "file": "ssl-install.sh",
+        "hash": "6261648095743995214"
+      },
+      {
+        "file": "codex.docs/src/test/rest/test_file.json",
+        "hash": "13405398715876953229"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/versions.html",
+        "hash": "10853698764603023947"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/linkTool.twig",
+        "hash": "1454387609276687191"
+      },
+      {
+        "file": "tests/test_deeplink_functionality.py",
+        "hash": "666208201401992638"
+      },
+      {
+        "file": "docs/internal/roadmap-main.md",
+        "hash": "13767771774105203368"
+      },
+      {
+        "file": "codex.docs/src/test/rest/aliases.ts",
+        "hash": "17713198290530952315"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/settings.html",
+        "hash": "13918844989137513210"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/checklist.twig",
+        "hash": "1358932128459244329"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/users.html",
+        "hash": "10564439481579590766"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/vars.pcss",
+        "hash": "15615687566374449804"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/arrow-up.svg",
+        "hash": "9537476648984493741"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/.well-known/tonconnect-manifest.json",
+        "hash": "17793405223260690606"
+      },
+      {
+        "file": "docs/user-docs/admin/guide.md",
+        "hash": "3521539361686376649"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/embed.twig",
+        "hash": "18090290207404922567"
+      },
+      {
+        "file": "src/shop_bot/modules/__init__.py",
+        "hash": "9028582591306394727"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/feature_request.md",
+        "hash": "4067894259603679354"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/theme-toggle.pcss",
+        "hash": "9111598151766153703"
+      },
+      {
+        "file": "codex.docs/src/backend/server.ts",
+        "hash": "15995297778464918600"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/arrow-down.svg",
+        "hash": "12930542000483035425"
+      },
+      {
+        "file": "src/shop_bot/security/rate_limiter.py",
+        "hash": "17717159912656546581"
+      },
+      {
+        "file": "tests/get_credentials.py",
+        "hash": "18370030573217277716"
+      },
+      {
+        "file": "docs/diagrams/README.md",
+        "hash": "14279082443127427997"
       },
       {
         "file": "codex.docs/src/backend/routes/auth.ts",
         "hash": "7353166747014873472"
       },
       {
-        "file": "codex.docs/src/frontend/js/utils/decorators.js",
-        "hash": "4918022356881119912"
+        "file": "docs/guides/admin/admin-panel-guide.md",
+        "hash": "2144102990205638958"
+      },
+      {
+        "file": "Dockerfile",
+        "hash": "76904370815765447"
+      },
+      {
+        "file": "codex.docs/src/backend/utils/appConfig.ts",
+        "hash": "15631667688388482700"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/navigator.pcss",
+        "hash": "17405066150957760343"
+      },
+      {
+        "file": "codex.docs/src/backend/views/error.twig",
+        "hash": "17347293266606916875"
+      },
+      {
+        "file": "docs/reference/api/keys.md",
+        "hash": "11884508948240044299"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/loader.svg",
+        "hash": "3706661127280597728"
+      },
+      {
+        "file": "deploy/nginx/docs.conf",
+        "hash": "3085339023245699431"
+      },
+      {
+        "file": "docs/reference/database.md",
+        "hash": "16668771629148753603"
+      },
+      {
+        "file": "codex.docs/src/backend/utils/downloadFavicon.ts",
+        "hash": "6864659876564107509"
+      },
+      {
+        "file": "docs/architecture/performance-optimization.md",
+        "hash": "10946332169054399907"
+      },
+      {
+        "file": "video_instructions/videos/.gitkeep",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "nx.json",
+        "hash": "6511971159565679990"
+      },
+      {
+        "file": "CHANGELOG.md",
+        "hash": "17970372883727751458"
+      },
+      {
+        "file": "src/shop_bot/utils/logger.py",
+        "hash": "12127174999211581145"
+      },
+      {
+        "file": "docs/reference/features.md",
+        "hash": "350973482995093490"
+      },
+      {
+        "file": "codex.docs/LICENSE",
+        "hash": "8339574096716829119"
+      },
+      {
+        "file": "video_instructions/ИНСТРУКЦИЯ_ПРИМЕНЕНИЯ.md",
+        "hash": "16109392741669605207"
+      },
+      {
+        "file": "docs/guides/deployment/advanced-setup.md",
+        "hash": "5727876327068275734"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/.pnp.loader.mjs",
+        "hash": "11653239853444995678"
+      },
+      {
+        "file": "docs/guides/README.md",
+        "hash": "2501580313177322598"
+      },
+      {
+        "file": "codex.docs/docs/user-docs/admin/powershell-encoding-fix.md",
+        "hash": "1088532133182558511"
+      },
+      {
+        "file": ".cursor/plans/code-error-check-86312534.plan.md",
+        "hash": "2304186192092847915"
+      },
+      {
+        "file": "src/shop_bot/bot/handlers.py",
+        "hash": "6755558051433789845"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/page.twig",
+        "hash": "10134468538337295354"
+      },
+      {
+        "file": "LICENSE",
+        "hash": "550515814021036392"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/wiki_editor.html",
+        "hash": "69957490522603055"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/modules/sidebar.js",
+        "hash": "17503574616472449260"
+      },
+      {
+        "file": "docs/user-docs/WIKI-README.md",
+        "hash": "7695841528924853092"
+      },
+      {
+        "file": "codex.docs/src/test/models/pageOrder.ts",
+        "hash": "3077055296296469489"
+      },
+      {
+        "file": "docs/reference/api/search-users.md",
+        "hash": "12820100789187394021"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/icons/ton_icon_1758809072.png",
+        "hash": "3299726572473181501"
+      },
+      {
+        "file": "docs/migration/README.md",
+        "hash": "17101263195002262797"
+      },
+      {
+        "file": "codex.docs/src/backend/database/index.ts",
+        "hash": "16288209196169697837"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/bug_template.md",
+        "hash": "9690505603862677564"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_qa_review.md",
+        "hash": "3220536696771832068"
+      },
+      {
+        "file": "docs/reference/api/transaction-details.md",
+        "hash": "13236706104570014045"
+      },
+      {
+        "file": ".cursor/rules/docker-multi-stage-build.mdc",
+        "hash": "5868536418660389674"
+      },
+      {
+        "file": "tests/test_encoding.py",
+        "hash": "12735335464279636617"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/terms.html",
+        "hash": "8863890266046486750"
+      },
+      {
+        "file": "docs/user-docs/_sidebar.md",
+        "hash": "1669087947296359022"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/invalid.md",
+        "hash": "8903283906095729537"
+      },
+      {
+        "file": "nginx/nginx.conf",
+        "hash": "15161294170664144501"
+      },
+      {
+        "file": "CONTRIBUTING.md",
+        "hash": "5347063722667771825"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/sidebar.pcss",
+        "hash": "3896620042142395321"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/modules/page.js",
+        "hash": "10635611205997270725"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/check.svg",
+        "hash": "11296853668756754150"
+      },
+      {
+        "file": "docs/reference/api/create-notification.md",
+        "hash": "5458347799185282446"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/table-of-content.pcss",
+        "hash": "11027997011454194262"
+      },
+      {
+        "file": "src/shop_bot/bot/support_handlers.py",
+        "hash": "13492069664754999611"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/diff.pcss",
+        "hash": "18385358226035483711"
+      },
+      {
+        "file": ".cursor/plans/fix-pr-81541c68.plan.md",
+        "hash": "13091142082418324900"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/lib.js",
+        "hash": "5747326277895921336"
+      },
+      {
+        "file": "codex.docs/src/test/rest/transport.ts",
+        "hash": "496534540730960873"
+      },
+      {
+        "file": "docs/README.md",
+        "hash": "18152996507487010438"
+      },
+      {
+        "file": "docs/reference/api/promo-codes.md",
+        "hash": "9176836171193810976"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/index.twig",
+        "hash": "12784557410249994726"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_more_info.md",
+        "hash": "10386060626597667729"
+      },
+      {
+        "file": "tests/setup_test_environment.ps1",
+        "hash": "12040338979386600142"
+      },
+      {
+        "file": "codex.docs/docs-config.yaml",
+        "hash": "11049525305255244740"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/translation.md",
+        "hash": "18063317777683030285"
+      },
+      {
+        "file": "codex.docs/.postcssrc",
+        "hash": "6091231535507781994"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/yarn.lock",
+        "hash": "6158598442574879494"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/.pnp.cjs",
+        "hash": "5691533691517151372"
+      },
+      {
+        "file": "tests/test_real_user.py",
+        "hash": "3127154623003580169"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE.md",
+        "hash": "857701851614043364"
+      },
+      {
+        "file": ".cursor/rules/docs-rules.mdc",
+        "hash": "16988302178944962078"
+      },
+      {
+        "file": ".github/FUNDING.yml",
+        "hash": "1599350635037776818"
+      },
+      {
+        "file": "docs/guides/admin/README.md",
+        "hash": "13056892160354079201"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/question.md",
+        "hash": "12153840966991291036"
+      },
+      {
+        "file": "tests/test_web_interface_deeplink.py",
+        "hash": "8954184973795272825"
+      },
+      {
+        "file": "codex.docs/public/favicon.png",
+        "hash": "14327443625038465655"
+      },
+      {
+        "file": "codex.docs/src/backend/utils/crypto.ts",
+        "hash": "2703208784765091305"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/copy.svg",
+        "hash": "16752137833468050782"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/code.twig",
+        "hash": "2667080029781499966"
+      },
+      {
+        "file": "Dockerfile.codex-docs",
+        "hash": "7586606594303149831"
+      },
+      {
+        "file": ".cursor/rules/ui-design-style.mdc",
+        "hash": "590543728544434562"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/login.html",
+        "hash": "8797317344539565818"
+      },
+      {
+        "file": "src/shop_bot/ton_monitor.py",
+        "hash": "5801912120429464111"
+      },
+      {
+        "file": "codex.docs/src/test/models/alias.ts",
+        "hash": "6471222997582109534"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/video_player.html",
+        "hash": "3353195099553490403"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/utils/dom.js",
+        "hash": "13673868585944118350"
+      },
+      {
+        "file": "codex.docs/.nvmrc",
+        "hash": "4380310694088835021"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/video_embed.html",
+        "hash": "9045388766465105413"
+      },
+      {
+        "file": "pyproject.toml",
+        "hash": "16875942749820997508"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/video_drawer.html",
+        "hash": "11702572034940520930"
+      },
+      {
+        "file": "docs/migration/migration-completed.md",
+        "hash": "9056165750461128207"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/check_payment.html",
+        "hash": "10024299292617276399"
+      },
+      {
+        "file": "src/shop_bot/__main__.py",
+        "hash": "6431122879013368504"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/img/burger.png",
+        "hash": "7495720081620737300"
+      },
+      {
+        "file": "docs/security/security-checklist.md",
+        "hash": "2290615136551275812"
+      },
+      {
+        "file": ".github/CODE_OF_CONDUCT.md",
+        "hash": "14431577376517205954"
+      },
+      {
+        "file": ".gitignore",
+        "hash": "16554903997382384257"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/page.pcss",
+        "hash": "16126291822924510152"
       },
       {
         "file": "codex.docs/.gitignore",
         "hash": "5436477124772277850"
       },
       {
+        "file": ".github/ISSUE_TEMPLATE/help_wanted.md",
+        "hash": "14345494401480356301"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/accessibility.md",
+        "hash": "13685069962426246672"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/debug.html",
+        "hash": "7228863771365501647"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_dev_review.md",
+        "hash": "3047235996783131101"
+      },
+      {
+        "file": "codex.docs/README.md",
+        "hash": "1052712237708609683"
+      },
+      {
+        "file": "package.json",
+        "hash": "1479181991143116757"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/transactions.html",
+        "hash": "18380196650420860004"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/list.twig",
+        "hash": "3563703248659393079"
+      },
+      {
+        "file": "docs/internal/prompts.md",
+        "hash": "17165704524569087793"
+      },
+      {
+        "file": "docs/guides/deployment/wiki-deployment.md",
+        "hash": "12879329193147455556"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_testing.md",
+        "hash": "10093256571143626590"
+      },
+      {
+        "file": "cookies.txt",
+        "hash": "6121101436419504923"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/performance.html",
+        "hash": "10731223962596673678"
+      },
+      {
+        "file": "tests/test_deeplink_integration.py",
+        "hash": "2487281079580562832"
+      },
+      {
+        "file": "README.md",
+        "hash": "4010361426270881941"
+      },
+      {
+        "file": ".cursor/rules/docker-commands.mdc",
+        "hash": "8638037107080332121"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_integration_review.md",
+        "hash": "12721368332612657940"
+      },
+      {
+        "file": "codex.docs/docker-compose.yml",
+        "hash": "5640998717791126131"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/css/tailwind.input.css",
+        "hash": "4208481858689243200"
+      },
+      {
+        "file": "codex.docs/src/backend/utils/menu.ts",
+        "hash": "14527658497406629003"
+      },
+      {
+        "file": "docs/security/security.md",
+        "hash": "8921652086579751442"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/api/pages.ts",
+        "hash": "3154260073908693060"
+      },
+      {
+        "file": ".cursor/rules/.cursorrules",
+        "hash": "11484758757033689724"
+      },
+      {
+        "file": "docs/security/security-improvements.md",
+        "hash": "4869203047924640084"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_investigation.md",
+        "hash": "3309113152791501760"
+      },
+      {
+        "file": "docs/integrations/yookassa-webhook-setup.md",
+        "hash": "2414992947945383000"
+      },
+      {
+        "file": "codex.docs/package.json",
+        "hash": "13592425611209791414"
+      },
+      {
+        "file": "docs/architecture/architecture-rules.md",
+        "hash": "17406570941311013576"
+      },
+      {
+        "file": "docs/reference/dialog-api.md",
+        "hash": "1092330297383509108"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/utils/theme.js",
+        "hash": "15783111862118430454"
+      },
+      {
+        "file": "codex.docs/src/backend/views/components/sidebar.twig",
+        "hash": "4062736366289185930"
+      },
+      {
+        "file": "src/shop_bot/utils/performance_monitor.py",
+        "hash": "3618043558260408344"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_optimization.md",
+        "hash": "8701873530944956835"
+      },
+      {
+        "file": "video_instructions/README.md",
+        "hash": "9183526299222989681"
+      },
+      {
+        "file": ".github/workflows/ci.yml",
+        "hash": "16165363149405305495"
+      },
+      {
+        "file": "src/shop_bot/security/__init__.py",
+        "hash": "6172935627204150808"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/utils/storage.js",
+        "hash": "5297545604717861652"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/frog.svg",
+        "hash": "7946355079812040349"
+      },
+      {
+        "file": "codex.docs/src/backend/models/file.ts",
+        "hash": "3430361337101120302"
+      },
+      {
+        "file": "docs/user-docs/admin/api.md",
+        "hash": "10272547918285556111"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/pencil.svg",
+        "hash": "9807981298434413334"
+      },
+      {
+        "file": "tests/test_deeplink_new_user.py",
+        "hash": "10759770758301112369"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/delimiter.twig",
+        "hash": "12662392600118987133"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/utils/copyToClipboard.js",
+        "hash": "12120547438936683119"
+      },
+      {
+        "file": "docs/reference/README.md",
+        "hash": "2050426078000006917"
+      },
+      {
+        "file": "codex.docs/src/backend/uploads/local.ts",
+        "hash": "3751509775631855694"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/home.ts",
+        "hash": "11512408211676095781"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/middlewares/locals.ts",
+        "hash": "1179739047107519273"
+      },
+      {
+        "file": "tests/fix_docker_database.py",
+        "hash": "8173819568935687227"
+      },
+      {
+        "file": "tests/test_utils.py",
+        "hash": "4154935750820671117"
+      },
+      {
+        "file": "src/shop_bot/data_manager/async_database.py",
+        "hash": "7666421278847683301"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/dev_page.html",
+        "hash": "12630336012822686899"
+      },
+      {
+        "file": "src/shop_bot/config.py",
+        "hash": "863126859210660942"
+      },
+      {
+        "file": "docs/guides/user/README.md",
+        "hash": "2039682037081179546"
+      },
+      {
+        "file": "codex.docs/src/backend/database/mongodb.ts",
+        "hash": "14209171455360112768"
+      },
+      {
+        "file": "codex.docs/src/backend/utils/banner.ts",
+        "hash": "17588882888167831596"
+      },
+      {
+        "file": "codex.docs/src/backend/models/pagesFlatArray.ts",
+        "hash": "8348902720343534997"
+      },
+      {
+        "file": "codex.docs/src/backend/uploads/index.ts",
+        "hash": "13525340675733882507"
+      },
+      {
+        "file": "codex.docs/src/backend/controllers/transport.ts",
+        "hash": "18135870678961450831"
+      },
+      {
+        "file": "tests/generate_test_link.py",
+        "hash": "11737361144184692052"
+      },
+      {
+        "file": "codex.docs/src/backend/models/alias.ts",
+        "hash": "12050351899294411669"
+      },
+      {
+        "file": "tests/test_group_edit_fix.py",
+        "hash": "13966502951940233611"
+      },
+      {
+        "file": "docs/guides/development/web-grid-refactor.md",
+        "hash": "7005177397096503714"
+      },
+      {
+        "file": "tests/test_promo_fix.py",
+        "hash": "8600427088345388463"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/.gitignore",
+        "hash": "1216449025761897388"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_design.md",
+        "hash": "7443634125532282985"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/api/links.ts",
+        "hash": "11803943088087136084"
+      },
+      {
+        "file": "src/shop_bot/__init__.py",
+        "hash": "5968116748145454641"
+      },
+      {
+        "file": "codex.docs/src/test/rest/pages.ts",
+        "hash": "7763989057132318524"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/layout.pcss",
+        "hash": "6831707254734722048"
+      },
+      {
+        "file": "codex.docs/src/backend/views/layout.twig",
+        "hash": "1839661546849848813"
+      },
+      {
+        "file": "codex.docs/src/backend/views/components/button.twig",
+        "hash": "8142409275913956495"
+      },
+      {
+        "file": "tests/test_promo_deeplink_fix.py",
+        "hash": "13089668266040613934"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/promo_codes.html",
+        "hash": "3544103415879863238"
+      },
+      {
+        "file": "docs/reference/generic-cqrs-typing.md",
+        "hash": "13434294001020094262"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/app.py",
+        "hash": "15499866492223039939"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/copy-button.pcss",
+        "hash": "228939500479055947"
+      },
+      {
+        "file": "tests/TESTSKIDKI50_ANALYSIS.md",
+        "hash": "891507242174520923"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/css/style.css",
+        "hash": "4269703627131358076"
+      },
+      {
+        "file": "codex.docs/.npmignore",
+        "hash": "14789017274250118342"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/button.pcss",
+        "hash": "5593578029812435618"
+      },
+      {
+        "file": "codex.docs/src/backend/models/pageOrder.ts",
+        "hash": "6952754128599812639"
+      },
+      {
+        "file": "docs/internal/admin-docs-summary.md",
+        "hash": "4980395561942763127"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/wiki_editor_edit.html",
+        "hash": "8832076564054084777"
+      },
+      {
+        "file": "codex.docs/src/backend/views/components/navigator.twig",
+        "hash": "7720104447556304997"
+      },
+      {
+        "file": "docs/guides/deployment/README.md",
+        "hash": "3749651188078284472"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/index.ts",
+        "hash": "15182905631930495285"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/.yarnrc.yml",
+        "hash": "939633790555701323"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/edit_terms.html",
+        "hash": "16982746532986744086"
+      },
+      {
+        "file": "tests/apply_migration.py",
+        "hash": "6391426553412375242"
+      },
+      {
+        "file": "deploy/nginx/dark-maximus.conf.tpl",
+        "hash": "16527751771012990221"
+      },
+      {
+        "file": "codex.docs/.editorconfig",
+        "hash": "7552737609706192269"
+      },
+      {
+        "file": "docs/architecture/docker-architecture.md",
+        "hash": "4064211927728239733"
+      },
+      {
+        "file": "codex.docs/src/test/rest/test_image.png",
+        "hash": "3523641443278117990"
+      },
+      {
+        "file": "codex.docs/src/backend/utils/translation.ts",
+        "hash": "9768034293766291176"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/package.json",
+        "hash": "15272188791237582126"
+      },
+      {
+        "file": "codex.docs/src/backend/database/local.ts",
+        "hash": "15727181497843319972"
+      },
+      {
+        "file": "docs/troubleshooting/git-encoding-issues.md",
+        "hash": "11851333388099966655"
+      },
+      {
+        "file": "src/shop_bot/bot/keyboards.py",
+        "hash": "11817472559621776394"
+      },
+      {
+        "file": "codex.docs/src/backend/database/types.ts",
+        "hash": "1126379500124693078"
+      },
+      {
+        "file": "pyrightconfig.json",
+        "hash": "14749455654818832681"
+      },
+      {
+        "file": "tests/test_docker_promo.py",
+        "hash": "2631626661458708204"
+      },
+      {
+        "file": "src/shop_bot/bot/__init__.py",
+        "hash": "3124795028084160874"
+      },
+      {
+        "file": "docs/reference/tech-stack.md",
+        "hash": "13833981264177277654"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/edit_privacy.html",
+        "hash": "804834966860139994"
+      },
+      {
+        "file": "config/env.example",
+        "hash": "11258191990316885085"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/debug_settings.html",
+        "hash": "14675132248081927251"
+      },
+      {
+        "file": "Dockerfile.docs",
+        "hash": "9285013051513766835"
+      },
+      {
+        "file": "codex.docs/src/backend/controllers/pagesOrder.ts",
+        "hash": "261524271961561633"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/aliases.ts",
+        "hash": "4382331311532833117"
+      },
+      {
+        "file": "docs/internal/roadmap-readme.md",
+        "hash": "13022053045054118575"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/.yarn/releases/yarn-3.2.3.cjs",
+        "hash": "11276196681167931448"
+      },
+      {
+        "file": "src/shop_bot/bot/middlewares.py",
+        "hash": "9753433883631779930"
+      },
+      {
+        "file": "codex.docs/.github/workflows/release-drafter.yml",
+        "hash": "3563494680109496873"
+      },
+      {
+        "file": "docs/guides/user/getting-started.md",
+        "hash": "15016558374882089514"
+      },
+      {
+        "file": "codex.docs/src/test/models/page.ts",
+        "hash": "11553999984167117019"
+      },
+      {
+        "file": "docs/security/README.md",
+        "hash": "6678313371297332059"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/privacy.html",
+        "hash": "4620218214214666089"
+      },
+      {
+        "file": "postcss.config.js",
+        "hash": "10302733817258008319"
+      },
+      {
+        "file": "codex.docs/src/backend/exceptions/httpException.ts",
+        "hash": "15308185157742635605"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/instructions.html",
+        "hash": "2647058601905203468"
+      },
+      {
+        "file": "codex.docs/src/backend/utils/twig.ts",
+        "hash": "17848831709163700873"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_refactoring.md",
+        "hash": "9902326711046460467"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/raw.twig",
+        "hash": "8192458535569191269"
+      },
+      {
+        "file": "tests/test_promo_deeplink_fix_REPORT.md",
+        "hash": "4736133100362955432"
+      },
+      {
+        "file": ".cursor/rules/terminal-command.mdc",
+        "hash": "7788048897336045847"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/icons/ton_icon_1761342493.png",
+        "hash": "3117837362840112376"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/key_drawer.html",
+        "hash": "14532361300828161117"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_review.md",
+        "hash": "3316695492238537731"
+      },
+      {
+        "file": ".cursor/plans/fix-group-code-update-bea3d51a.plan.md",
+        "hash": "4871248182109744728"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/modules/extensions.js",
+        "hash": "12609885280606924309"
+      },
+      {
+        "file": ".github/PULL_REQUEST_TEMPLATE.md",
+        "hash": "9006604960483397265"
+      },
+      {
+        "file": "src/shop_bot/utils/deeplink.py",
+        "hash": "4946150732013330691"
+      },
+      {
+        "file": "docs/guides/deployment/ssl-setup.md",
+        "hash": "4247761779498337102"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/middlewares/pages.ts",
+        "hash": "2107814672950217388"
+      },
+      {
+        "file": "codex.docs/src/backend/utils/urlify.ts",
+        "hash": "12808942842297884141"
+      },
+      {
+        "file": "codex.docs/src/backend/utils/asyncMiddleware.ts",
+        "hash": "8560162229576730200"
+      },
+      {
+        "file": "tests/test_deeplink_comma_format.py",
+        "hash": "5878317323294639929"
+      },
+      {
+        "file": ".cursor/rules/rights-rules.mdc",
+        "hash": "9727011208140752887"
+      },
+      {
+        "file": "docs/user-docs/index.html",
+        "hash": "12450933393910973006"
+      },
+      {
+        "file": "nginx/nginx-ssl.conf",
+        "hash": "8093946445322755949"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/icons/ton_icon_1758808860.png",
+        "hash": "3299726572473181501"
+      },
+      {
+        "file": "tests/simulate_new_user.py",
+        "hash": "3420839500865680625"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/security_vulnerability.md",
+        "hash": "3483952942093616562"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/duplicate.md",
+        "hash": "6742897802011677191"
+      },
+      {
+        "file": "codex.docs/src/backend/models/page.ts",
+        "hash": "5021991189047631116"
+      },
+      {
+        "file": "Makefile",
+        "hash": "17024621718068632243"
+      },
+      {
+        "file": "docs/integrations/stars.md",
+        "hash": "12090765255099966331"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/table.twig",
+        "hash": "6539272371032620365"
+      },
+      {
+        "file": "codex.docs/docker-compose.dev.yml",
+        "hash": "5355124941277105895"
+      },
+      {
+        "file": "docs/integrations/yookassa.md",
+        "hash": "7367841563777638821"
+      },
+      {
+        "file": "tests/check_promo_usage.py",
+        "hash": "12618825783664247516"
+      },
+      {
+        "file": "docs/tutorials/video-instructions.md",
+        "hash": "2832568003852352425"
+      },
+      {
+        "file": "docs/troubleshooting/ENCODING-FIX-SUMMARY.md",
+        "hash": "16085897647315228721"
+      },
+      {
+        "file": "docs/diagrams/reference/menu-uml.md",
+        "hash": "4864027920888956767"
+      },
+      {
+        "file": "codex.docs/DEVELOPMENT.md",
+        "hash": "17423041340345177207"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/modules/writing.js",
+        "hash": "6386746287288559721"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/__init__.py",
+        "hash": "10228386416212150195"
+      },
+      {
+        "file": "install.sh",
+        "hash": "15319070446313198584"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/utils/decorators.js",
+        "hash": "4918022356881119912"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/header.twig",
+        "hash": "15488715739571745579"
+      },
+      {
+        "file": "docs/guides/development/powershell-utf8-quickstart.md",
+        "hash": "13861311694517909391"
+      },
+      {
+        "file": "docs/internal/quick-commands.md",
+        "hash": "18065214441588324082"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_documentation.md",
+        "hash": "2934579472369210123"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/middlewares/token.ts",
+        "hash": "294656108520558120"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/sun.svg",
+        "hash": "10429451293836373316"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/api/index.ts",
+        "hash": "9549321467410427096"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/form.twig",
+        "hash": "15562416686836702949"
+      },
+      {
+        "file": "docs/internal/roadmap.md",
+        "hash": "6098059295094435430"
+      },
+      {
+        "file": "codex.docs/yarn.lock",
+        "hash": "5570074551536465865"
+      },
+      {
+        "file": "docs/architecture/documentation-structure.md",
+        "hash": "14018240902824641943"
+      },
+      {
+        "file": "docs/reference/api/topup-balance.md",
+        "hash": "14539930565044795101"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_compatibility_review.md",
+        "hash": "14639013477872547857"
+      },
+      {
+        "file": "docs/user-docs/README.md",
+        "hash": "4344327621482411377"
+      },
+      {
+        "file": "tests/check_promo_status.py",
+        "hash": "11492236643572400848"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/search.svg",
+        "hash": "11206038294825860595"
+      },
+      {
+        "file": "codex.docs/src/backend/views/components/header.twig",
+        "hash": "8774961949068716765"
+      },
+      {
+        "file": ".cursor/rules/tooltip-guide-ui.mdc",
+        "hash": "2607275202170955086"
+      },
+      {
+        "file": "codex.docs/src/backend/uploads/types.ts",
+        "hash": "1194412504895723480"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/index.js",
+        "hash": "15409539811890653968"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/bug_report.md",
+        "hash": "10348867939812732232"
+      },
+      {
+        "file": "codex.docs/webpack.config.js",
+        "hash": "5705242619152355888"
+      },
+      {
+        "file": "docs/guides/deployment/deployment-checklist.md",
+        "hash": "16164083493247774374"
+      },
+      {
+        "file": "tests/final_verification.py",
+        "hash": "8227049830076881016"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/keys.html",
+        "hash": "11484620830239089311"
+      },
+      {
+        "file": "codex.docs/docker/Dockerfile.prod",
+        "hash": "8752783234038618843"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/favicon.ico",
+        "hash": "7523365006937991406"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/js/script.js",
+        "hash": "2071751778361123467"
+      },
+      {
+        "file": "docs/migration/test-cases-plan-unavailable.md",
+        "hash": "8253012441676783578"
+      },
+      {
+        "file": "docs/reference/features-subscriptions.md",
+        "hash": "8043480499070332776"
+      },
+      {
+        "file": "tests/test_new_user_promo.py",
+        "hash": "12499567299200069060"
+      },
+      {
+        "file": "tests/final_deeplink_test.py",
+        "hash": "5927222793798776717"
+      },
+      {
+        "file": "src/shop_bot/data_manager/scheduler.py",
+        "hash": "12765267639198250764"
+      },
+      {
+        "file": "codex.docs/.github/workflows/build.yml",
+        "hash": "7843318746724448510"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/config.yml",
+        "hash": "14163414099967899008"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/aside-logo.svg",
+        "hash": "1563856123635294244"
+      },
+      {
+        "file": "src/shop_bot/utils/error_handler.py",
+        "hash": "10955254357040694201"
+      },
+      {
+        "file": "docs/reference/modules.md",
+        "hash": "7190168275577124020"
+      },
+      {
+        "file": "codex.docs/src/backend/build-static.ts",
+        "hash": "16052318670364628436"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/api/transport.ts",
+        "hash": "15932804954004498141"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/menu.svg",
+        "hash": "2220253298583214395"
+      },
+      {
+        "file": "tests/test_deeplink_base64.py",
+        "hash": "2424558924102744482"
+      },
+      {
+        "file": "docs/internal/nx-test-report.md",
+        "hash": "2751899313922273872"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/logo.png",
+        "hash": "482004776479995458"
+      },
+      {
+        "file": "docs/reference/api/README.md",
+        "hash": "16886198280279228398"
+      },
+      {
+        "file": "docs/user-docs/index.md",
+        "hash": "5703223997803801031"
+      },
+      {
+        "file": ".cursor/rules/nx-usage.mdc",
+        "hash": "4956865623806805383"
+      },
+      {
+        "file": "docs/internal/documentation-summary.md",
+        "hash": "15226411730930334986"
+      },
+      {
+        "file": "src/shop_bot/data_manager/backup.py",
+        "hash": "17343668063522775230"
+      },
+      {
+        "file": "src/shop_bot/utils/telegram_logger.py",
+        "hash": "1300010093213136088"
+      },
+      {
+        "file": "codex.docs/nodemon.json",
+        "hash": "15462953372045145423"
+      },
+      {
+        "file": "tests/test_real_install.sh",
+        "hash": "2606831623227175779"
+      },
+      {
+        "file": "tests/test_deeplink_fix.py",
+        "hash": "11299570289435956940"
+      },
+      {
+        "file": "docs/architecture/agent-rules.md",
+        "hash": "9575508437351850685"
+      },
+      {
+        "file": "codex.docs/src/backend/views/components/copy-button.twig",
+        "hash": "15308839303268346292"
+      },
+      {
+        "file": "docs/internal/nx-guide.md",
+        "hash": "4667759846115693540"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/classes/editor.js",
+        "hash": "1070755761991386331"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/app.js",
+        "hash": "14585339118515626625"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/logo.svg",
+        "hash": "13666467087305316925"
+      },
+      {
+        "file": "codex.docs/src/frontend/.eslintrc",
+        "hash": "5235422704294166598"
+      },
+      {
+        "file": "codex.docs/.github/release-drafter.yml",
+        "hash": "12492114802152273381"
+      },
+      {
+        "file": "docs/user-docs/admin/quickstart.md",
+        "hash": "2399119148479850448"
+      },
+      {
+        "file": "docs/reference/referral-program.md",
+        "hash": "531185063738452535"
+      },
+      {
+        "file": ".github/SUPPORT.md",
+        "hash": "1804850702371304726"
+      },
+      {
+        "file": "src/shop_bot/security/validators.py",
+        "hash": "10645501552120251214"
+      },
+      {
+        "file": "codex.docs/src/test/database.ts",
+        "hash": "1349532886978832365"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_reproduction.md",
+        "hash": "3686709804011358025"
+      },
+      {
+        "file": "docs/guides/deployment/docker-deployment.md",
+        "hash": "13342538372290228179"
+      },
+      {
+        "file": "docs/tutorials/admin-quickstart.md",
+        "hash": "9471672597215942077"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/classes/table-of-content.js",
+        "hash": "12901252966383322927"
+      },
+      {
+        "file": "docs/internal/README.md",
+        "hash": "3268288562929143245"
+      },
+      {
+        "file": "docs/guides/admin/monitoring-tabs.md",
+        "hash": "7081033602252762142"
+      },
+      {
+        "file": "src/shop_bot/bot_controller.py",
+        "hash": "6688795389653259999"
+      },
+      {
+        "file": "docs/guides/development/README.md",
+        "hash": "4309755944757038072"
+      },
+      {
+        "file": "codex.docs/.eslintignore",
+        "hash": "3352724958526382824"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/auth.pcss",
+        "hash": "6317251712635652020"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/pages.ts",
+        "hash": "13951954545143859187"
+      },
+      {
+        "file": "docs/user-docs/admin/security.md",
+        "hash": "5483928029380589712"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/feature_template.md",
+        "hash": "8632029086680579465"
+      },
+      {
+        "file": "docs/architecture/README.md",
+        "hash": "2303000502236289996"
+      },
+      {
+        "file": "docs/user-docs/admin/installation.md",
+        "hash": "14619531691865721637"
+      },
+      {
+        "file": "docs/setup-scripts/README.md",
+        "hash": "15077972713944007751"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/program.js",
+        "hash": "10680196219644867944"
+      },
+      {
+        "file": "codex.docs/src/backend/.eslintrc",
+        "hash": "11117070871794718542"
+      },
+      {
         "file": "codex.docs/src/backend/views/auth.twig",
         "hash": "17966859123893203170"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/.eslintrc",
+        "hash": "4616835961381049194"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/.yarn/install-state.gz",
+        "hash": "905656378808901137"
+      },
+      {
+        "file": "docs/guides/deployment/auto-deploy.md",
+        "hash": "10580339354787362748"
+      },
+      {
+        "file": "docs/reference/api/resend-notification.md",
+        "hash": "15904622204864689934"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/main.pcss",
+        "hash": "8786151866936927972"
+      },
+      {
+        "file": "docs/architecture/project-info.md",
+        "hash": "13988209894938197857"
+      },
+      {
+        "file": "tailwind.config.js",
+        "hash": "8029604509427784966"
+      },
+      {
+        "file": "codex.docs/src/backend/uploads/s3.ts",
+        "hash": "17980964476599312444"
       }
     ],
     "projectFileMap": {

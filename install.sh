@@ -560,20 +560,16 @@ if [ -f "/etc/nginx/sites-available/dark-maximus" ]; then
     fi
 fi
 
-# Создаём конфигурацию только если SSL конфигурации нет
+# Создаём конфигурацию только если SSL конфигурации нет И файла не существует
 if [ "$NGINX_HAS_SSL" = "false" ]; then
-    # Дополнительная защита: проверяем, работает ли nginx с текущей конфигурацией
+    # КРИТИЧЕСКАЯ ПРОВЕРКА: если файл конфигурации существует - НИКОГДА не трогаем его
     if [ -f "/etc/nginx/sites-available/dark-maximus" ]; then
-        if nginx -t 2>/dev/null | grep -q "successful"; then
-            # Конфигурация работает - не перезаписываем
-            echo -e "${GREEN}✔ Существующая конфигурация nginx работает корректно - не перезаписываем${NC}"
-            echo -e "${YELLOW}⚠️  Если нужно обновить конфигурацию, используйте ssl-install.sh${NC}"
-            NGINX_HAS_SSL=true  # Помечаем как "не трогать"
-        else
-            echo -e "${YELLOW}Обнаружена ошибка в текущей конфигурации, создаём новую HTTP конфигурацию...${NC}"
-        fi
+        echo -e "${GREEN}✔ Обнаружена существующая конфигурация nginx - НЕ трогаем её${NC}"
+        echo -e "${YELLOW}⚠️  Если нужно обновить конфигурацию, используйте ssl-install.sh${NC}"
+        NGINX_HAS_SSL=true  # Помечаем как "не трогать"
     fi
     
+    # ТОЛЬКО если файла нет - создаём базовую HTTP конфигурацию
     if [ "$NGINX_HAS_SSL" = "false" ]; then
         echo -e "${YELLOW}Создание HTTP конфигурации nginx...${NC}"
         
@@ -725,9 +721,16 @@ server {
 }
 EOF
 
-    # Очищаем старые конфигурации nginx
-    rm -f /etc/nginx/sites-enabled/*
-    # НЕ удаляем dark-maximus конфигурацию, она нужна для шага 9
+    # Очищаем старые конфигурации nginx, НО сохраняем dark-maximus если он уже активирован
+    if [ -L "/etc/nginx/sites-enabled/dark-maximus" ]; then
+        # Если dark-maximus уже активирован - не трогаем его
+        find /etc/nginx/sites-enabled -maxdepth 1 -type f -exec rm -f {} +
+        # Восстанавливаем ссылку на dark-maximus
+        ln -sf /etc/nginx/sites-available/dark-maximus /etc/nginx/sites-enabled/dark-maximus
+    else
+        # Если dark-maximus не активирован - очищаем всё
+        rm -f /etc/nginx/sites-enabled/*
+    fi
 
     # Обновляем nginx.conf только если его нет или он повреждён
     if [ ! -f "/etc/nginx/nginx.conf" ] || ! nginx -t >/dev/null 2>&1; then
@@ -883,8 +886,22 @@ echo -e "${GREEN}✔ Systemd сервис создан и включен${NC}"
 
 echo -e "\n${CYAN}Шаг 8: Запуск Docker контейнеров...${NC}"
 
-# Собираем и запускаем контейнеры
+# Принудительно останавливаем и удаляем существующие контейнеры по именам
+# Это необходимо, если контейнеры были созданы не через docker-compose или есть конфликты
+echo -e "${YELLOW}Проверка и удаление существующих контейнеров...${NC}"
+CONTAINER_NAMES=("dark-maximus-bot" "dark-maximus-docs" "dark-maximus-codex-docs")
+for container_name in "${CONTAINER_NAMES[@]}"; do
+    if docker ps -a --format '{{.Names}}' | grep -q "^${container_name}$"; then
+        echo -e "${YELLOW}Останавливаем и удаляем контейнер ${container_name}...${NC}"
+        docker stop "${container_name}" 2>/dev/null || true
+        docker rm -f "${container_name}" 2>/dev/null || true
+    fi
+done
+
+# Теперь выполняем docker compose down для очистки сетей и volumes
 ${DC[@]} down --remove-orphans 2>/dev/null || true
+
+# Собираем и запускаем контейнеры
 ${DC[@]} build --no-cache
 ${DC[@]} up -d
 
@@ -921,56 +938,77 @@ ${DC[@]} ps
 
 echo -e "\n${CYAN}Шаг 9: Активация полной nginx конфигурации...${NC}"
 
-# Проверяем, есть ли SSL конфигурация (из шага 6 или проверяем заново)
-NGINX_HAS_SSL_CHECK=false
-
-# Используем значение из шага 6, если оно есть
-if [ "${NGINX_HAS_SSL:-false}" = "true" ]; then
-    NGINX_HAS_SSL_CHECK=true
-else
-    # Проверяем заново на случай, если переменная не сохранилась
-    if [ -f "/etc/nginx/sites-available/dark-maximus" ]; then
-        if grep -qiE "ssl_certificate|listen\s+443|ssl_protocols" /etc/nginx/sites-available/dark-maximus 2>/dev/null; then
+# Проверяем, есть ли конфигурация вообще
+if [ -f "/etc/nginx/sites-available/dark-maximus" ]; then
+    # Проверяем, есть ли SSL конфигурация
+    if grep -qiE "ssl_certificate|listen\s+443|ssl_protocols" /etc/nginx/sites-available/dark-maximus 2>/dev/null; then
+        echo -e "${GREEN}✔ Найдена SSL конфигурация nginx - НЕ трогаем${NC}"
+        NGINX_HAS_SSL_CHECK=true
+    elif [ -d "/etc/letsencrypt/live" ] && [ -n "$(find /etc/letsencrypt/live -mindepth 1 -maxdepth 1 -type d 2>/dev/null)" ]; then
+        # Если есть сертификаты, скорее всего SSL настроен
+        if nginx -t 2>/dev/null | grep -q "successful"; then
+            echo -e "${GREEN}✔ Обнаружены SSL сертификаты, конфигурация работает - НЕ трогаем${NC}"
             NGINX_HAS_SSL_CHECK=true
-        elif [ -d "/etc/letsencrypt/live" ] && [ -n "$(find /etc/letsencrypt/live -mindepth 1 -maxdepth 1 -type d 2>/dev/null)" ]; then
-            # Если есть сертификаты, скорее всего SSL настроен - не перезаписываем
-            if nginx -t 2>/dev/null | grep -q "successful"; then
-                NGINX_HAS_SSL_CHECK=true
-            fi
         fi
     fi
-fi
-
-if [ "$NGINX_HAS_SSL_CHECK" = "true" ]; then
-    echo -e "${GREEN}✔ SSL конфигурация уже активна, пропускаем активацию${NC}"
-    # Проверяем, что конфигурация активирована
+    
+    # Активируем существующую конфигурацию (если она ещё не активирована)
     if [ ! -L "/etc/nginx/sites-enabled/dark-maximus" ]; then
         ln -sf /etc/nginx/sites-available/dark-maximus /etc/nginx/sites-enabled/dark-maximus
+        echo -e "${GREEN}✔ Конфигурация nginx активирована${NC}"
+    else
+        echo -e "${GREEN}✔ Конфигурация nginx уже активирована${NC}"
+    fi
+    
+    # Проверяем конфигурацию nginx
+    echo -e "${YELLOW}Проверка конфигурации nginx...${NC}"
+    if nginx -t 2>/dev/null | grep -q "successful"; then
+        echo -e "${GREEN}✔ Конфигурация nginx корректна${NC}"
+        
+        # Перезапускаем nginx только если конфигурация корректна
+        systemctl enable nginx
+        systemctl restart nginx
+        
+        # Проверяем статус nginx
+        systemctl status nginx --no-pager -l
+    else
+        echo -e "${RED}❌ Ошибка в конфигурации nginx${NC}"
+        nginx -t
+        echo -e "${YELLOW}⚠️  Nginx не перезапущен из-за ошибок в конфигурации${NC}"
+        echo -e "${YELLOW}   Исправьте конфигурацию вручную или запустите ssl-install.sh${NC}"
     fi
 else
-    # Активируем полную конфигурацию nginx с upstream серверами
-    echo -e "${YELLOW}Активация полной конфигурации nginx...${NC}"
-    # Удаляем временную конфигурацию если она была создана
-    rm -f /etc/nginx/sites-available/dark-maximus-temp
-    rm -f /etc/nginx/sites-enabled/dark-maximus-temp
-    # Активируем основную конфигурацию
-    ln -sf /etc/nginx/sites-available/dark-maximus /etc/nginx/sites-enabled/dark-maximus
+    # Активируем конфигурацию nginx с upstream серверами ТОЛЬКО если она была создана в этом скрипте
+    if [ -f "/etc/nginx/sites-available/dark-maximus-temp" ]; then
+        echo -e "${YELLOW}Активация полной конфигурации nginx...${NC}"
+        # Удаляем временную конфигурацию
+        rm -f /etc/nginx/sites-available/dark-maximus-temp
+        rm -f /etc/nginx/sites-enabled/dark-maximus-temp
+        # Активируем основную конфигурацию (только если она была создана)
+        if [ -f "/etc/nginx/sites-available/dark-maximus" ]; then
+            ln -sf /etc/nginx/sites-available/dark-maximus /etc/nginx/sites-enabled/dark-maximus
+            echo -e "${GREEN}✔ Конфигурация nginx активирована${NC}"
+        fi
+        
+        # Проверяем конфигурацию nginx теперь, когда контейнеры запущены
+        echo -e "${YELLOW}Проверка конфигурации nginx...${NC}"
+        nginx -t || {
+            echo -e "${RED}❌ Ошибка в конфигурации nginx${NC}"
+            nginx -t
+            exit 1
+        }
+
+        # Перезапускаем nginx
+        systemctl enable nginx
+        systemctl restart nginx
+
+        # Проверяем статус nginx
+        systemctl status nginx --no-pager -l
+    else
+        echo -e "${YELLOW}⚠️  Конфигурация nginx не создана - nginx не настроен${NC}"
+        echo -e "${YELLOW}   Для настройки nginx запустите: ${CYAN}curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/ssl-install.sh | sudo bash -s -- ${MAIN_DOMAIN}${NC}"
+    fi
 fi
-
-# Проверяем конфигурацию nginx теперь, когда контейнеры запущены
-echo -e "${YELLOW}Проверка конфигурации nginx...${NC}"
-nginx -t || {
-    echo -e "${RED}❌ Ошибка в конфигурации nginx${NC}"
-    nginx -t
-    exit 1
-}
-
-# Перезапускаем nginx
-systemctl enable nginx
-systemctl restart nginx
-
-# Проверяем статус nginx
-systemctl status nginx --no-pager -l
 
 echo -e "\n${CYAN}Шаг 10: Финальная проверка доступности...${NC}"
 
