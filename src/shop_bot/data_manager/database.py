@@ -508,21 +508,18 @@ def initialize_db():
                 logger.debug(f"Failed to check panel credentials during initialization: {e}")
                 current_login = None
 
-            # ПРОСТАЯ логика: если логин == "admin" или пустой/None - можно обновить на дефолтный
-            # Если логин != "admin" и не пустой - НЕ ТРОГАЕМ (пользователь установил свой)
-            login_is_default_or_empty = (current_login is None or current_login == '' or current_login == 'admin')
-            
-            if login_is_default_or_empty:
-                # Логин "admin" или пустой - можно установить/обновить дефолтный
-                cursor.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)", ("panel_login", "admin"))
-                cursor.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)", ("panel_password", hashed_password))
-                if current_login == 'admin':
-                    logging.info("Updated default panel_login and panel_password")
-                else:
-                    logging.info("Created default panel_login and panel_password (empty or missing)")
+            # ПРАВИЛЬНАЯ логика: создаём учетные данные ТОЛЬКО если их НЕТ вообще
+            # Если логин существует (ЛЮБОЙ, включая "admin") - НЕ ТРОГАЕМ!
+            # Это защищает от сброса пользовательских паролей
+            if current_login is not None and current_login != '':
+                # Логин существует - НИКОГДА НЕ МЕНЯЕМ
+                logging.info(f"Panel credentials exist (login: '{current_login}'), preserving user-configured credentials")
             else:
-                # Пользователь установил свой логин - НЕ ТРОГАЕМ
-                logging.info(f"Panel credentials check: preserving custom login '{current_login}' (not changing user-configured credentials)")
+                # Логина НЕТ - создаём дефолтные ТОЛЬКО ОДИН РАЗ
+                # Используем INSERT OR IGNORE для защиты от race conditions
+                cursor.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", ("panel_login", "admin"))
+                cursor.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", ("panel_password", hashed_password))
+                logging.info("Created default panel_login and panel_password (credentials were missing)")
 
             default_settings = {
 

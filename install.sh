@@ -368,24 +368,21 @@ try:
     existing_login = existing_credentials.get('panel_login')
     existing_password = existing_credentials.get('panel_password')
 
-    # ПРОСТАЯ логика: если логин == "admin" или пустой/None - можно обновить на дефолтный
-    # Если логин != "admin" и не пустой - НЕ ТРОГАЕМ (пользователь установил свой)
-    login_is_default_or_empty = (existing_login is None or existing_login == '' or existing_login == 'admin')
-    
-    if not login_is_default_or_empty:
-        # Пользователь установил свой логин - НЕ ТРОГАЕМ
-        print(f'✓ Сохраняем существующий логин: {existing_login}')
-    elif login_is_default_or_empty:
-        # Логин "admin" или пустой - можно установить/обновить дефолтный
+    # ПРАВИЛЬНАЯ логика: создаём учетные данные ТОЛЬКО если их НЕТ вообще
+    # Если логин существует (ЛЮБОЙ, включая "admin") - НЕ ТРОГАЕМ!
+    # Это защищает от сброса пользовательских паролей
+    if existing_login is not None and existing_login != '':
+        # Логин существует - НИКОГДА НЕ МЕНЯЕМ
+        print(f'✓ Сохраняем существующие учетные данные (логин: {existing_login})')
+    else:
+        # Логина НЕТ - создаём дефолтные ТОЛЬКО ОДИН РАЗ
+        # Используем INSERT OR IGNORE для защиты от race conditions
         admin_password = 'admin'
         hashed_password = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        cursor.execute('INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_login', 'admin'))
-        cursor.execute('INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_password', hashed_password))
-        if existing_login == 'admin':
-            print('✓ Обновлен дефолтный логин и пароль (логин: admin, пароль: admin)')
-        else:
-            print('✓ Созданы дефолтные учетные данные админа (логин: admin, пароль: admin)')
-            print('  ВАЖНО: Смените пароль при первом входе!')
+        cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_login', 'admin'))
+        cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_password', hashed_password))
+        print('✓ Созданы дефолтные учетные данные админа (логин: admin, пароль: admin)')
+        print('  ВАЖНО: Смените логин и пароль после первого входа!')
 
     # Добавляем остальные настройки по умолчанию
     # КРИТИЧНО: Явно исключаем учетные данные из этого словаря
