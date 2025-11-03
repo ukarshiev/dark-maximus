@@ -515,12 +515,14 @@ def initialize_db():
             # 1. В базе НЕТ НИ ОДНОЙ записи в bot_settings (полностью новая база)
             # 2. И оба значения (логин и пароль) отсутствуют
             # Если в базе УЖЕ ЕСТЬ хоть одна запись - значит база не пустая и мы НЕ ДОЛЖНЫ вставлять дефолтные значения
+            # КРИТИЧНО: Дополнительная проверка перед вставкой - даже если база пустая, но есть хотя бы один параметр - НЕ ТРОГАЕМ
             is_completely_empty_database = total_settings_count == 0
-            both_credentials_missing = not (panel_password_exists and panel_login_exists)
+            both_credentials_missing = not (panel_password_exists or panel_login_exists)  # Изменено: используем OR вместо AND для более строгой проверки
             seed_sensitive_defaults = is_completely_empty_database and both_credentials_missing
 
             if seed_sensitive_defaults:
                 # Только если база полностью пустая и оба значения отсутствуют - вставляем дефолтные значения
+                # Используем INSERT OR IGNORE для защиты от возможных race conditions
                 cursor.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", ("panel_login", "admin"))
                 cursor.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", ("panel_password", hashed_password))
                 logging.info("Created default panel_login and panel_password (completely empty database)")

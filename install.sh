@@ -333,127 +333,161 @@ apt-get install -y build-essential cargo python3-pip python3-dev >/dev/null 2>&1
 # Устанавливаем bcrypt
 pip3 install --break-system-packages bcrypt >/dev/null 2>&1 || echo "bcrypt установлен"
 
+# Используем абсолютный путь к базе данных для надежности
+DB_PATH="${PROJECT_DIR}/users.db"
+
 python3 -c "
 import sqlite3
 import bcrypt
+import sys
 
 # КРИТИЧНО: Защита учетных данных администратора
 # Best practice: Никогда не перезаписываем существующие логин и пароль
 # Если ЛЮБОЙ из параметров существует - полностью пропускаем создание дефолтных
 
-conn = sqlite3.connect('users.db')
-cursor = conn.cursor()
+db_path = sys.argv[1]
+try:
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
 
-# Создаем таблицу настроек если её нет
-cursor.execute('''
-    CREATE TABLE IF NOT EXISTS bot_settings (
-        key TEXT PRIMARY KEY,
-        value TEXT
-    )
-''')
+    # Создаем таблицу настроек если её нет
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS bot_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    ''')
 
-# Оптимизированная проверка: один запрос для проверки обоих учетных данных
-cursor.execute('''
-    SELECT key, value FROM bot_settings 
-    WHERE key IN ('panel_login', 'panel_password')
-''')
-existing_credentials = dict(cursor.fetchall())
+    # Оптимизированная проверка: один запрос для проверки обоих учетных данных
+    cursor.execute('''
+        SELECT key, value FROM bot_settings 
+        WHERE key IN ('panel_login', 'panel_password')
+    ''')
+    existing_credentials = dict(cursor.fetchall())
 
-existing_login = existing_credentials.get('panel_login')
-existing_password = existing_credentials.get('panel_password')
+    existing_login = existing_credentials.get('panel_login')
+    existing_password = existing_credentials.get('panel_password')
 
-# КРИТИЧНО: Защита существующих учетных данных
-# Если ЛЮБОЙ из параметров уже существует - НЕ СОЗДАЕМ и НЕ ИЗМЕНЯЕМ ничего
-if existing_login is not None or existing_password is not None:
-    # Хотя бы один параметр существует - защищаем существующие данные
-    if existing_login and existing_password:
-        print(f'✓ Логин и пароль админа уже существуют, сохраняем существующие (логин: {existing_login})')
-    elif existing_login:
-        print(f'⚠️  Логин админа существует ({existing_login}), но пароль отсутствует. Пропускаем автоматическое создание.')
-        print('   Для безопасности создайте пароль вручную через веб-панель.')
-    elif existing_password:
-        print(f'⚠️  Пароль админа существует, но логин отсутствует. Пропускаем автоматическое создание.')
-        print('   Для безопасности создайте логин вручную через веб-панель.')
-else:
-    # ТОЛЬКО если ОБА параметра отсутствуют - создаём дефолтные значения
-    admin_password = 'admin'
-    hashed_password = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-    cursor.execute('INSERT INTO bot_settings (key, value) VALUES (?, ?)', ('panel_login', 'admin'))
-    cursor.execute('INSERT INTO bot_settings (key, value) VALUES (?, ?)', ('panel_password', hashed_password))
-    print('✓ Созданы дефолтные учетные данные админа (логин: admin, пароль: admin)')
-    print('  ВАЖНО: Смените пароль при первом входе!')
+    # КРИТИЧНО: Защита существующих учетных данных
+    # Если ЛЮБОЙ из параметров уже существует - НЕ СОЗДАЕМ и НЕ ИЗМЕНЯЕМ ничего
+    if existing_login is not None or existing_password is not None:
+        # Хотя бы один параметр существует - защищаем существующие данные
+        if existing_login and existing_password:
+            print(f'✓ Логин и пароль админа уже существуют, сохраняем существующие (логин: {existing_login})')
+        elif existing_login:
+            print(f'⚠️  Логин админа существует ({existing_login}), но пароль отсутствует. Пропускаем автоматическое создание.')
+            print('   Для безопасности создайте пароль вручную через веб-панель.')
+        elif existing_password:
+            print(f'⚠️  Пароль админа существует, но логин отсутствует. Пропускаем автоматическое создание.')
+            print('   Для безопасности создайте логин вручную через веб-панель.')
+    else:
+        # ТОЛЬКО если ОБА параметра отсутствуют - создаём дефолтные значения
+        # ИСПОЛЬЗУЕМ INSERT OR IGNORE для дополнительной защиты от перезаписи
+        admin_password = 'admin'
+        hashed_password = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_login', 'admin'))
+        cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', ('panel_password', hashed_password))
+        print('✓ Созданы дефолтные учетные данные админа (логин: admin, пароль: admin)')
+        print('  ВАЖНО: Смените пароль при первом входе!')
 
-# Добавляем остальные настройки по умолчанию
-# КРИТИЧНО: Явно исключаем учетные данные из этого словаря
-default_settings = {
-    'about_content': None,
-    'terms_url': None,
-    'privacy_url': None,
-    'support_user': None,
-    'support_text': None,
-    'channel_url': None,
-    'force_subscription': 'true',
-    'receipt_email': 'example@example.com',
-    'telegram_bot_token': None,
-    'support_bot_token': None,
-    'telegram_bot_username': None,
-    'trial_enabled': 'true',
-    'trial_duration_days': '3',
-    'enable_referrals': 'true',
-    'referral_percentage': '10',
-    'referral_discount': '5',
-    'minimum_withdrawal': '100',
-    'support_group_id': None,
-    'admin_telegram_id': None,
-    'yookassa_shop_id': None,
-    'yookassa_secret_key': None,
-    'yookassa_test_mode': 'true',
-    'yookassa_test_shop_id': None,
-    'yookassa_test_secret_key': None,
-    'yookassa_api_url': 'https://api.yookassa.ru/v3',
-    'yookassa_test_api_url': 'https://api.test.yookassa.ru/v3',
-    'yookassa_verify_ssl': 'true',
-    'yookassa_test_verify_ssl': 'false',
-    'sbp_enabled': 'false',
-    'cryptobot_token': None,
-    'heleket_merchant_id': None,
-    'heleket_api_key': None,
-    'domain': None,
-    'global_domain': None,
-    'ton_wallet_address': None,
-    'tonapi_key': None,
-    'auto_delete_orphans': 'false',
-    'hidden_mode': '0',
-    'support_enabled': 'true',
-    'minimum_topup': '50',
-    'ton_manifest_name': 'Dark Maximus Shop Bot',
-    'ton_manifest_icon_url': None,
-    'ton_manifest_terms_url': None,
-    'ton_manifest_privacy_url': None,
-    'app_url': None,
-    'logging_bot_token': None,
-    'logging_bot_username': None,
-    'logging_bot_admin_chat_id': None,
-    'logging_bot_level': 'INFO'
-}
+    # Добавляем остальные настройки по умолчанию
+    # КРИТИЧНО: Явно исключаем учетные данные из этого словаря
+    default_settings = {
+        'about_content': None,
+        'terms_url': None,
+        'privacy_url': None,
+        'support_user': None,
+        'support_text': None,
+        'channel_url': None,
+        'force_subscription': 'true',
+        'receipt_email': 'example@example.com',
+        'telegram_bot_token': None,
+        'support_bot_token': None,
+        'telegram_bot_username': None,
+        'trial_enabled': 'true',
+        'trial_duration_days': '3',
+        'enable_referrals': 'true',
+        'referral_percentage': '10',
+        'referral_discount': '5',
+        'minimum_withdrawal': '100',
+        'support_group_id': None,
+        'admin_telegram_id': None,
+        'yookassa_shop_id': None,
+        'yookassa_secret_key': None,
+        'yookassa_test_mode': 'true',
+        'yookassa_test_shop_id': None,
+        'yookassa_test_secret_key': None,
+        'yookassa_api_url': 'https://api.yookassa.ru/v3',
+        'yookassa_test_api_url': 'https://api.test.yookassa.ru/v3',
+        'yookassa_verify_ssl': 'true',
+        'yookassa_test_verify_ssl': 'false',
+        'sbp_enabled': 'false',
+        'cryptobot_token': None,
+        'heleket_merchant_id': None,
+        'heleket_api_key': None,
+        'domain': None,
+        'global_domain': None,
+        'ton_wallet_address': None,
+        'tonapi_key': None,
+        'auto_delete_orphans': 'false',
+        'hidden_mode': '0',
+        'support_enabled': 'true',
+        'minimum_topup': '50',
+        'ton_manifest_name': 'Dark Maximus Shop Bot',
+        'ton_manifest_icon_url': None,
+        'ton_manifest_terms_url': None,
+        'ton_manifest_privacy_url': None,
+        'app_url': None,
+        'logging_bot_token': None,
+        'logging_bot_username': None,
+        'logging_bot_admin_chat_id': None,
+        'logging_bot_level': 'INFO'
+    }
 
-# Явно исключаем учетные данные из обработки
-EXCLUDED_KEYS = {'panel_login', 'panel_password'}
-for key, value in default_settings.items():
-    if key not in EXCLUDED_KEYS:
-        cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', (key, value))
+    # Явно исключаем учетные данные из обработки
+    EXCLUDED_KEYS = {'panel_login', 'panel_password'}
+    for key, value in default_settings.items():
+        if key not in EXCLUDED_KEYS:
+            cursor.execute('INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)', (key, value))
 
-# Коммитим все изменения в одной транзакции
-conn.commit()
-conn.close()
-print('✓ База данных инициализирована')
-"
+    # Коммитим все изменения в одной транзакции
+    conn.commit()
+    print('✓ База данных инициализирована')
+except Exception as e:
+    print(f'❌ Ошибка при инициализации базы данных: {e}')
+    sys.exit(1)
+finally:
+    try:
+        conn.close()
+    except:
+        pass
+" "${DB_PATH}"
 
 echo -e "${GREEN}✔ База данных готова${NC}"
 
 echo -e "\n${CYAN}Шаг 5: Создание docker-compose.yml...${NC}"
 
-# Создаем docker-compose.yml с localhost-only портами
+# КРИТИЧНО: Защита существующей конфигурации docker-compose.yml
+# Если файл уже существует и содержит важные настройки (например, volume маппинги для исходного кода),
+# мы НЕ должны его перезаписывать, чтобы сохранить пользовательские конфигурации
+if [ -f "docker-compose.yml" ]; then
+    echo -e "${GREEN}✔ Обнаружен существующий docker-compose.yml${NC}"
+    # Проверяем, содержит ли файл важные настройки (volume маппинги для src)
+    if grep -q "src:/app/project/src" docker-compose.yml; then
+        echo -e "${YELLOW}⚠️  Обнаружены пользовательские настройки в docker-compose.yml${NC}"
+        echo -e "${YELLOW}   Сохраняем существующий файл - он содержит важные volume маппинги${NC}"
+        echo -e "${YELLOW}   Для обновления конфигурации удалите файл вручную и запустите скрипт снова${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Обнаружен существующий docker-compose.yml без пользовательских настроек${NC}"
+        echo -e "${YELLOW}   Создаем резервную копию и обновляем файл...${NC}"
+        cp docker-compose.yml docker-compose.yml.backup
+        # Создаем новый docker-compose.yml
+    fi
+fi
+
+# Создаем docker-compose.yml только если его нет или он был сохранен в бэкап
+if [ ! -f "docker-compose.yml" ] || [ -f "docker-compose.yml.backup" ]; then
+    echo -e "${YELLOW}Создание docker-compose.yml с localhost-only портами...${NC}"
 cat > docker-compose.yml << EOF
 version: '3.8'
 
@@ -523,8 +557,10 @@ networks:
     driver: bridge
     name: dark-maximus-network
 EOF
-
-echo -e "${GREEN}✔ docker-compose.yml создан с localhost-only портами${NC}"
+    echo -e "${GREEN}✔ docker-compose.yml создан/обновлен с localhost-only портами${NC}"
+else
+    echo -e "${GREEN}✔ Сохранен существующий docker-compose.yml с пользовательскими настройками${NC}"
+fi
 
 echo -e "\n${CYAN}Шаг 6: Проверка nginx конфигурации...${NC}"
 
