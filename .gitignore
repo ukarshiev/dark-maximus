@@ -125,9 +125,9 @@ dmypy.json
 # Project specific
 users.db
 *.db
-!codex.docs/db/*.db
 *.sqlite
 *.sqlite3
+codex.docs/db/
 
 # Logs
 *.log
