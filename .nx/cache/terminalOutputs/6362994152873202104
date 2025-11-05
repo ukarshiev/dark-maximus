@@ -1,5 +1,7 @@
 > docker compose up -d bot
 
+ Network dark-maximus-network  Creating
+ Network dark-maximus-network  Created
  Container dark-maximus-bot  Creating
  Container dark-maximus-bot  Created
  Container dark-maximus-bot  Starting

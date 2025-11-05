@@ -69,7 +69,7 @@ export default class Writing {
 
     if (this.nodes.removeButton) {
       this.nodes.removeButton.addEventListener('click', () => {
-        const isUserAgree = window.confirm('Are you sure?');
+        const isUserAgree = window.confirm('Вы уверены?');
 
         if (!isUserAgree) {
           return;
@@ -101,7 +101,7 @@ export default class Writing {
     } : {};
 
     return new Editor(editorConfig, {
-      headerPlaceholder: 'Enter a title',
+      headerPlaceholder: 'Введите заголовок',
       holder: 'editorjs'
     });
   }
@@ -121,12 +121,12 @@ export default class Writing {
       if (this.nodes.uriInput.value.match(/^[a-z0-9'-]+$/i)) {
         uri = this.nodes.uriInput.value;
       } else {
-        throw new Error('Uri has unexpected characters');
+        throw new Error('URI содержит недопустимые символы');
       }
     }
 
     if (!title) {
-      throw new Error('Entry should start with Header');
+      throw new Error('Запись должна начинаться с заголовка');
     }
 
     /** get ordering selector value */

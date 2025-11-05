@@ -5,7 +5,7 @@
     <header class="page__header">
       <div class="page__header-nav">
         <a href="/" class="page__header-nav-item">
-          Documentation
+          Документация
         </a>
         {{ svg('arrow-right') }}
         {% if page._parent %}
@@ -20,10 +20,10 @@
         {% endif %}
       </div>
       <time class="page__header-time">
-        Last edit {{ (page.body.time / 1000)  | date("M d Y") }}
+        Последняя правка {{ (page.body.time / 1000)  | date("M d Y") }}
       </time>
       {% if isAuthorized == true %}
-        {% include 'components/button.twig' with {label: 'Edit', icon: 'pencil', size: 'small', url: '/page/edit/' ~ page._id, class: 'page__header-button'} %}
+        {% include 'components/button.twig' with {label: 'Редактировать', icon: 'pencil', size: 'small', url: '/page/edit/' ~ page._id, class: 'page__header-button'} %}
       {% endif %}
     </header>
     <h1 class="page__title">

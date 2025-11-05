@@ -1,8 +1,0 @@
-> docker compose down codex-docs
-
- Container dark-maximus-codex-docs  Stopping
- Container dark-maximus-codex-docs  Stopped
- Container dark-maximus-codex-docs  Removing
- Container dark-maximus-codex-docs  Removed
- Network dark-maximus-network  Removing
- Network dark-maximus-network  Removed

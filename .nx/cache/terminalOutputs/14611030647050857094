@@ -1,7 +1,0 @@
-> docker build -t dark-maximus-bot . --dry-run
-
-unknown flag: --dry-run
-
-Usage:  docker buildx build [OPTIONS] PATH | URL | -
-
-Run 'docker buildx build --help' for more information
