@@ -30,7 +30,13 @@ RUN mkdir -p dist && \
     test -d dist/backend && echo "✅ Папка dist/backend создана" || echo "❌ ОШИБКА: Папка dist/backend не создана!" && \
     test -f dist/backend/app.js && echo "✅ Файл dist/backend/app.js создан" || echo "❌ ОШИБКА: Файл dist/backend/app.js не создан!" && \
     test -d public/dist && echo "✅ Папка public/dist создана" || echo "❌ ОШИБКА: Папка public/dist не создана!" && \
-    test -f public/dist/main.js && echo "✅ Файл public/dist/main.js создан" || echo "❌ ОШИБКА: Файл public/dist/main.js не создан!"
+    test -f public/dist/main.js && echo "✅ Файл public/dist/main.js создан" || echo "❌ ОШИБКА: Файл public/dist/main.js не создан!" && \
+    test -f public/dist/main.css && echo "✅ Файл public/dist/main.css создан" || echo "❌ КРИТИЧЕСКАЯ ОШИБКА: Файл public/dist/main.css не создан!" && \
+    test -f public/dist/theme.js && echo "✅ Файл public/dist/theme.js создан" || echo "❌ ОШИБКА: Файл public/dist/theme.js не создан!" && \
+    echo "Проверка содержимого public/dist:" && \
+    ls -lah public/dist/ && \
+    echo "Размер main.css:" && \
+    du -h public/dist/main.css || echo "❌ main.css отсутствует!"
 
 # =========================================
 # Stage 2: Подготовка конфигурации и контента
@@ -71,7 +77,22 @@ COPY --from=config-builder /build/docs-config.yaml /usr/src/app/docs-config.yaml
 
 # Копируем предсобранный контент
 COPY --from=config-builder /build/dist /usr/src/app/dist
-COPY --from=config-builder /build/public /usr/src/app/public
+
+# КРИТИЧЕСКИ ВАЖНО: Удаляем старую папку dist из public базового образа (если есть)
+# и копируем только нашу собранную папку dist со стилями
+RUN rm -rf /usr/src/app/public/dist || true
+COPY --from=config-builder /build/public/dist /usr/src/app/public/dist
+
+# Копируем остальные файлы из public (favicon и т.д.), если они есть в сборке
+# Favicon копируется из config-builder stage, если он там есть
+RUN if [ -f /usr/src/app/public/favicon.png ]; then echo "✅ favicon.png уже на месте"; else echo "⚠️  favicon.png не найден (не критично)"; fi || true
+
+# Проверяем, что стили скопированы (эта проверка выполнится при сборке)
+RUN echo "Проверка финальной структуры public/dist:" && \
+    ls -lah /usr/src/app/public/dist/ && \
+    test -f /usr/src/app/public/dist/main.css && echo "✅ main.css на месте ($(du -h /usr/src/app/public/dist/main.css | cut -f1))" || (echo "❌ КРИТИЧЕСКАЯ ОШИБКА: main.css отсутствует!" && exit 1) && \
+    test -f /usr/src/app/public/dist/main.js && echo "✅ main.js на месте" || (echo "❌ ОШИБКА: main.js отсутствует!" && exit 1) && \
+    test -f /usr/src/app/public/dist/theme.js && echo "✅ theme.js на месте" || echo "⚠️  Предупреждение: theme.js отсутствует"
 
 # Volumes для данных (будут монтироваться через docker-compose)
 # - /usr/src/app/uploads

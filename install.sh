@@ -87,6 +87,15 @@ echo -e "${YELLOW}Клонирование репозитория...${NC}"
 if [ -d ".git" ]; then
     echo -e "${YELLOW}Репозиторий уже существует, обновляем...${NC}"
     
+    # Сохраняем базы данных codex-docs перед обновлением (на случай конфликтов)
+    CODEX_DB_BACKUP_DIR="/tmp/codex-docs-db-backup-$(date +%Y%m%d-%H%M%S)"
+    if [ -d "codex.docs/db" ] && [ "$(ls -A codex.docs/db 2>/dev/null)" ]; then
+        echo -e "${YELLOW}Сохраняем базу данных codex-docs...${NC}"
+        mkdir -p "$CODEX_DB_BACKUP_DIR"
+        cp -r codex.docs/db/* "$CODEX_DB_BACKUP_DIR/" 2>/dev/null || true
+        echo -e "${GREEN}✔ Резервная копия базы данных сохранена в $CODEX_DB_BACKUP_DIR${NC}"
+    fi
+    
     # Настраиваем git для слияния
     git config pull.rebase false
     
@@ -98,11 +107,24 @@ if [ -d ".git" ]; then
     fi
     
     # Обновляем репозиторий
-    git pull origin main || {
+    if ! git pull origin main; then
         echo -e "${RED}❌ Ошибка при обновлении репозитория. Попробуем принудительное обновление...${NC}"
         git fetch origin main
         git reset --hard origin/main
-    }
+        
+        # Восстанавливаем базу данных после reset
+        if [ -d "$CODEX_DB_BACKUP_DIR" ] && [ "$(ls -A "$CODEX_DB_BACKUP_DIR" 2>/dev/null)" ]; then
+            echo -e "${YELLOW}Восстанавливаем базу данных codex-docs после reset...${NC}"
+            mkdir -p codex.docs/db
+            cp -r "$CODEX_DB_BACKUP_DIR"/* codex.docs/db/ 2>/dev/null || true
+            echo -e "${GREEN}✔ База данных codex-docs восстановлена${NC}"
+        fi
+    else
+        # Если pull успешен, удаляем временную резервную копию
+        if [ -d "$CODEX_DB_BACKUP_DIR" ]; then
+            rm -rf "$CODEX_DB_BACKUP_DIR"
+        fi
+    fi
 else
     git clone https://github.com/ukarshiev/dark-maximus.git .
 fi
