@@ -10,7 +10,7 @@
 
 import sqlite3
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import logging
 
@@ -7000,7 +7000,6 @@ def can_user_use_promo_code(user_id: int, promo_code: str, bot: str) -> dict:
                 
                 # Проверяем срок сгорания промокода (burn_after)
                 if promo_dict.get('burn_after_value') and promo_dict.get('burn_after_unit'):
-                    from datetime import datetime, timedelta
                     try:
                         burn_value = int(promo_dict['burn_after_value'])
                         burn_unit = promo_dict['burn_after_unit']

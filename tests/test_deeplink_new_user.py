@@ -28,7 +28,7 @@ from test_utils import safe_print, print_test_header, print_test_success, print_
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-async def test_deeplink_new_user():
+async def _run_deeplink_new_user() -> bool:
     """Тестирование обработки deeplink для нового пользователя"""
     
     print_test_header("Обработка deeplink для нового пользователя")
@@ -183,7 +183,7 @@ async def main():
     """Главная функция"""
     safe_print("\nЗапуск тестирования обработки deeplink...")
     
-    success = await test_deeplink_new_user()
+    success = await _run_deeplink_new_user()
     
     if success:
         safe_print("\n✅ Тестирование завершено успешно!", fallback_text="\n[OK] Тестирование завершено успешно!")
@@ -191,6 +191,13 @@ async def main():
         safe_print("\n❌ Тестирование завершено с ошибками!", fallback_text="\n[X] Тестирование завершено с ошибками!")
     
     return success
+
+
+def test_deeplink_new_user() -> None:
+    """Обёртка для запуска асинхронного сценария внутри pytest."""
+
+    result = asyncio.run(_run_deeplink_new_user())
+    assert result, "Сценарий deeplink для нового пользователя должен завершиться без ошибок"
 
 if __name__ == "__main__":
     asyncio.run(main())

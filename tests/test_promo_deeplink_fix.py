@@ -9,11 +9,11 @@ import sys
 import os
 import sqlite3
 
+from _io_encoding import ensure_utf8_output
+
 # Устанавливаем UTF-8 кодировку для Windows
 if sys.platform == 'win32':
-    import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    ensure_utf8_output()
 
 # Добавляем путь к модулям бота
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))

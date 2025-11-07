@@ -58,6 +58,7 @@ class TelegramLoggerHandler(logging.Handler):
         
         # Флаг для предотвращения множественных отправок
         self._sending = False
+        self._pending_start = False
         
         # Настройка уровня логирования
         self._setup_log_level()
@@ -80,6 +81,8 @@ class TelegramLoggerHandler(logging.Handler):
     def set_loop(self, loop: asyncio.AbstractEventLoop):
         """Устанавливает event loop для запуска фоновых задач логгера"""
         self._loop = loop
+        # Если очередь не пуста и цикл уже запущен — сразу инициируем обработку
+        self._ensure_processing(loop)
     
     def emit(self, record: logging.LogRecord):
         """
@@ -104,18 +107,18 @@ class TelegramLoggerHandler(logging.Handler):
             
             # Запускаем асинхронную отправку если не запущена
             if not self._sending:
-                loop = self._loop
-                if loop is not None and loop.is_running():
-                    # Потокобезопасный запуск на заданном цикле событий
-                    asyncio.run_coroutine_threadsafe(self._process_queue(), loop)
-                else:
-                    # Пытаемся использовать текущий running loop, если вызов из async-кода
-                    try:
-                        running_loop = asyncio.get_running_loop()
-                        running_loop.create_task(self._process_queue())
-                    except RuntimeError:
-                        # Нет активного цикла событий — оставляем в очереди, обработаем позже
-                        pass
+                target_loop = self._loop
+
+                # Если цикл не задан, пробуем использовать текущий активный
+                try:
+                    running_loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    running_loop = None
+
+                if target_loop is None:
+                    target_loop = running_loop
+
+                self._ensure_processing(target_loop, running_loop)
                 
         except Exception as e:
             # Не логируем ошибки обработчика, чтобы избежать рекурсии
@@ -295,6 +298,61 @@ class TelegramLoggerHandler(logging.Handler):
         
         return header + stats + logs_text
     
+    def _ensure_processing(
+        self,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        running_loop: Optional[asyncio.AbstractEventLoop] = None
+    ) -> None:
+        """
+        Гарантирует запуск фоновой задачи обработки очереди.
+
+        Args:
+            loop: Целевой цикл событий. Если не передан, используется сохраненный.
+            running_loop: Активный цикл, из которого вызвали метод (если есть).
+        """
+        loop = loop or self._loop
+
+        if loop is None:
+            # Нет доступного цикла — обработаем позже при появлении
+            self._pending_start = True
+            return
+
+        if not loop.is_running():
+            # Цикл еще не стартовал — отметим и вернемся позже
+            self._pending_start = True
+            return
+
+        self._pending_start = False
+
+        def runner():
+            if self._sending:
+                return
+            task = loop.create_task(self._process_queue())
+            task.add_done_callback(self._handle_task_exception)
+
+        try:
+            current_loop = running_loop or asyncio.get_running_loop()
+        except RuntimeError:
+            current_loop = None
+
+        try:
+            if current_loop is loop:
+                loop.call_soon(runner)
+            else:
+                loop.call_soon_threadsafe(runner)
+        except RuntimeError as err:
+            # Возможны ситуации с закрытым циклом — запомним и попробуем позже
+            self._pending_start = True
+            print(f"TelegramLoggerHandler: failed to schedule queue processing: {err}")
+
+    @staticmethod
+    def _handle_task_exception(task: asyncio.Task) -> None:
+        """Выводит исключения фоновой задачи, если они возникли."""
+        try:
+            task.result()
+        except Exception as exc:  # noqa: BLE001
+            print(f"TelegramLoggerHandler: queue processing error: {exc}")
+
     async def _check_rate_limits(self):
         """
         Проверка и соблюдение rate limits Telegram API

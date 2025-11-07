@@ -6235,7 +6235,9 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
         host_name = metadata.get('host_name')
         plan_id = _to_int(metadata.get('plan_id'))
         customer_email = metadata.get('customer_email')
-        payment_method = metadata.get('payment_method')
+        payment_method_raw = metadata.get('payment_method')
+        payment_method = (str(payment_method_raw).strip() if payment_method_raw is not None else "")
+        payment_method_normalized = payment_method.lower()
         
         # Дополнительные данные YooKassa
         yookassa_payment_id = metadata.get('yookassa_payment_id')
@@ -6662,13 +6664,13 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
         )
         
         # Добавляем информацию о транзакции, если есть
-        if tx_hash and payment_method == "TON Connect":
+        if tx_hash and payment_method_normalized == "ton connect":
             transaction_url = get_ton_transaction_url(tx_hash)
             final_text += f"\n\n🔗 <a href='{transaction_url}'>Проверить транзакцию в TON Explorer</a>"
         
         # Если это автопродление, не отправляем сообщение "Ваш ключ готов"
         # Уведомление о списании отправит send_balance_deduction_notice в perform_auto_renewals
-        if payment_method == 'Auto-Renewal':
+        if payment_method_normalized == 'auto-renewal':
             # Обновляем квоту и уведомляем админа даже при автопродлении
             try:
                 from shop_bot.modules.xui_api import get_key_details_from_host

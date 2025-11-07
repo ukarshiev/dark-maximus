@@ -2,8 +2,11 @@
 # -*- coding: utf-8 -*-
 """Финальная проверка timezone после исправлений"""
 import sys
-import io
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+from _io_encoding import ensure_utf8_output
+
+if sys.platform == 'win32':
+    ensure_utf8_output()
 sys.path.insert(0, 'src')
 
 from shop_bot.data_manager.database import (

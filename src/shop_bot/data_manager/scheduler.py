@@ -21,7 +21,7 @@ from shop_bot.modules import xui_api
 from shop_bot.bot import keyboards
 from shop_bot.utils.datetime_utils import ensure_utc_datetime, format_datetime_for_user
 
-CHECK_INTERVAL_SECONDS = 3600
+CHECK_INTERVAL_SECONDS = 900
 NOTIFY_BEFORE_HOURS = {24, 1}
 notified_users = {}
 
@@ -141,9 +141,14 @@ async def send_subscription_notification(bot: Bot, user_id: int, key_id: int, ti
             balance_val = 0.0
         balance_str = f"{balance_val:.2f} RUB"
 
+        if time_left_hours == 1:
+            expiry_line = f"Срок действия вашего ключа {key_descriptor} истекает в течение 1 часа.\n"
+        else:
+            expiry_line = f"Срок действия вашего ключа {key_descriptor} истекает через **{time_text}**.\n"
+
         message = (
             f"⚠️ **Внимание!** ⚠️\n\n"
-            f"Срок действия вашего ключа {key_descriptor} истекает через **{time_text}**.\n"
+            f"{expiry_line}"
             f"📅 Дата окончания: **{expiry_str}**\n"
             f"💰 Ваш баланс : **{balance_str}**\n\n"
             f"Пополните счет, чтобы произошло автоматическое списание с баланса или продлите подписку прямо сейчас, чтобы не остаться без доступа к VPN!"
@@ -378,6 +383,7 @@ async def send_autorenew_balance_notice(bot: Bot, user_id: int, key_id: int, tim
         
         time_text = format_time_left(time_left_hours)
         expiry_str = _format_datetime_for_user(user_id, expiry_date)
+        expiry_date_only = expiry_str.split(' в ')[0] if ' в ' in expiry_str else expiry_str
 
         # Получаем номер ключа и имя сервера
         try:
@@ -399,14 +405,27 @@ async def send_autorenew_balance_notice(bot: Bot, user_id: int, key_id: int, tim
             price_to_renew = float(key_data.get('price') or 0.0)
         price_str = f"{float(price_to_renew or 0):.2f} RUB"
 
+        time_phrase = "в течении" if time_left_hours == 1 else "через"
+        time_text_for_message = "1 часа" if time_left_hours == 1 else time_text
+
+        key_label = f"#{key_number}" if key_number > 0 else f"ID {key_id}"
+
         message = (
             "❕ Информация о ключе ❔\n\n"
-            f"Срок действия ключа #{key_number} ({host_name}) истекает через {time_text}.\n"
+            f"Срок действия ключа #{key_number} ({host_name}) истекает {time_phrase} {time_text_for_message}.\n"
             f"📅 Окончание: {expiry_str}\n"
             f"💰 Баланс: {balance_str}\n\n"
             f"🔄 Не беспокойтесь - вам ничего делать не нужно! Услуга продлится автоматически, сумма {price_str} будет списана с вашего баланса.\n\n"
             "❤️ Спасибо, что остаётесь с нами!"
         )
+
+        keyboard_builder = InlineKeyboardBuilder()
+        keyboard_builder.button(
+            text=f"🔑 Ключ {key_label} ({host_name}) до {expiry_date_only}",
+            callback_data=f"show_key_{key_id}"
+        )
+        keyboard_builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
+        keyboard_builder.adjust(1)
 
         # Сначала логируем уведомление в БД, чтобы предотвратить дублирование
         try:
@@ -440,7 +459,11 @@ async def send_autorenew_balance_notice(bot: Bot, user_id: int, key_id: int, tim
             return  # Не отправляем сообщение, если не удалось записать в БД
 
         # Теперь отправляем сообщение
-        await bot.send_message(chat_id=user_id, text=message)
+        await bot.send_message(
+            chat_id=user_id,
+            text=message,
+            reply_markup=keyboard_builder.as_markup()
+        )
         logger.info(f"Sent autorenew balance notice to user {user_id} for key {key_id} ({time_left_hours} hours left).")
     except Exception as e:
         logger.error(f"Error sending autorenew notice to user {user_id}: {e}")

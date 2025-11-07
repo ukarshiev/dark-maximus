@@ -1,0 +1,160 @@
+> python -m pytest tests/
+
+============================= test session starts =============================
+platform win32 -- Python 3.13.7, pytest-8.4.2, pluggy-1.6.0
+rootdir: e:\GitHub\dark-maximus
+configfile: pyproject.toml
+plugins: anyio-4.10.0
+collected 93 items
+
+tests\test_auto_renewal_functionality.py ........                        [  8%]
+tests\test_autorenew_notice.py .                                         [  9%]
+tests\test_config_fix.py ...                                             [ 12%]
+tests\test_database_locks_fix.py ..........                              [ 23%]
+tests\test_deeplink_base64.py .............                              [ 37%]
+tests\test_deeplink_comma_format.py .                                    [ 38%]
+tests\test_deeplink_fix.py ..                                            [ 40%]
+tests\test_deeplink_functionality.py .                                   [ 41%]
+tests\test_deeplink_integration.py ..                                    [ 44%]
+tests\test_deeplink_new_user.py .                                        [ 45%]
+tests\test_docker_promo.py .                                             [ 46%]
+tests\test_encoding.py ....                                              [ 50%]
+tests\test_group_edit_fix.py .                                           [ 51%]
+tests\test_new_user_promo.py .                                           [ 52%]
+tests\test_notifications_fix.py .....                                    [ 58%]
+tests\test_promo_deeplink_fix.py ....                                    [ 62%]
+tests\test_promo_fix.py .                                                [ 63%]
+tests\test_real_user.py .                                                [ 64%]
+tests\test_telegram_logger.py ..                                         [ 66%]
+tests\test_timezone_functions.py ....                                    [ 70%]
+tests\test_timezone_integration.py ........                              [ 79%]
+tests\test_timezone_utils.py .................                           [ 97%]
+tests\test_utils.py .                                                    [ 98%]
+tests\test_web_interface_deeplink.py .                                   [100%]
+
+============================== warnings summary ===============================
+tests/test_auto_renewal_functionality.py: 2 warnings
+tests/test_notifications_fix.py: 10 warnings
+  e:\GitHub\dark-maximus\src\shop_bot\data_manager\database.py:5897: DeprecationWarning: The default datetime adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    cursor.execute(
+
+tests/test_auto_renewal_functionality.py::TestAutoRenewalIntegration::test_autorenewal_skipped_when_disabled
+  e:\GitHub\dark-maximus\tests\test_auto_renewal_functionality.py:267: DeprecationWarning: The default datetime adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    cursor.execute("""
+
+tests/test_deeplink_fix.py::test_deeplink_creation
+  C:\Users\umidt\AppData\Roaming\Python\Python313\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_deeplink_fix.py::test_deeplink_creation returned <class 'str'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_deeplink_fix.py::test_original_deeplink
+  C:\Users\umidt\AppData\Roaming\Python\Python313\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_deeplink_fix.py::test_original_deeplink returned <class 'str'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_deeplink_integration.py::test_deeplink_generation
+  C:\Users\umidt\AppData\Roaming\Python\Python313\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_deeplink_integration.py::test_deeplink_generation returned <class 'dict'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_encoding.py::test_unicode_output
+  C:\Users\umidt\AppData\Roaming\Python\Python313\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_encoding.py::test_unicode_output returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_encoding.py::test_console_output
+  C:\Users\umidt\AppData\Roaming\Python\Python313\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_encoding.py::test_console_output returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_encoding.py::test_file_operations
+  C:\Users\umidt\AppData\Roaming\Python\Python313\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_encoding.py::test_file_operations returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_encoding.py::test_import_unicode
+  C:\Users\umidt\AppData\Roaming\Python\Python313\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_encoding.py::test_import_unicode returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_group_edit_fix.py::test_group_edit_fix
+  C:\Users\umidt\AppData\Roaming\Python\Python313\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_group_edit_fix.py::test_group_edit_fix returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_promo_deeplink_fix.py::test_deeplink_creation
+  C:\Users\umidt\AppData\Roaming\Python\Python313\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_promo_deeplink_fix.py::test_deeplink_creation returned <class 'str'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_promo_deeplink_fix.py::test_promo_code_exists
+  C:\Users\umidt\AppData\Roaming\Python\Python313\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_promo_deeplink_fix.py::test_promo_code_exists returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_promo_deeplink_fix.py::test_group_exists
+  C:\Users\umidt\AppData\Roaming\Python\Python313\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_promo_deeplink_fix.py::test_group_exists returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_promo_deeplink_fix.py::test_user_promo_usage
+  C:\Users\umidt\AppData\Roaming\Python\Python313\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_promo_deeplink_fix.py::test_user_promo_usage returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_promo_fix.py::test_promo_code_usage
+  C:\Users\umidt\AppData\Roaming\Python\Python313\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_promo_fix.py::test_promo_code_usage returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_real_user.py::test_real_user_deeplink
+  C:\Users\umidt\AppData\Roaming\Python\Python313\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_real_user.py::test_real_user_deeplink returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_timezone_functions.py::test_feature_flag
+  C:\Users\umidt\AppData\Roaming\Python\Python313\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_timezone_functions.py::test_feature_flag returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_timezone_functions.py::test_admin_timezone
+  C:\Users\umidt\AppData\Roaming\Python\Python313\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_timezone_functions.py::test_admin_timezone returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_timezone_functions.py::test_user_timezone
+  C:\Users\umidt\AppData\Roaming\Python\Python313\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_timezone_functions.py::test_user_timezone returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_timezone_functions.py::test_database_structure
+  C:\Users\umidt\AppData\Roaming\Python\Python313\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_timezone_functions.py::test_database_structure returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+tests/test_utils.py::test_unicode_output
+  C:\Users\umidt\AppData\Roaming\Python\Python313\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_utils.py::test_unicode_output returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+====================== 93 passed, 32 warnings in 14.40s =======================

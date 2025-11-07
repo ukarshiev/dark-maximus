@@ -2,8 +2,11 @@
 # -*- coding: utf-8 -*-
 """Список пользователей с timezone"""
 import sys
-import io
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+from _io_encoding import ensure_utf8_output
+
+if sys.platform == 'win32':
+    ensure_utf8_output()
 sys.path.insert(0, 'src')
 
 import sqlite3

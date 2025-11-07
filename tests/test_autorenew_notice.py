@@ -9,11 +9,11 @@ import os
 import json
 import sqlite3
 
+from _io_encoding import ensure_utf8_output
+
 # Настройка кодировки для Windows
 if sys.platform == 'win32':
-    import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    ensure_utf8_output()
 
 # Добавляем корневую директорию проекта в путь
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -23,7 +23,7 @@ from shop_bot.data_manager.database import get_key_by_id, get_setting, DB_FILE
 from shop_bot.data_manager.scheduler import send_balance_deduction_notice
 
 
-async def test_autorenew_notice():
+async def _run_autorenew_notice() -> None:
     """Тестирует отправку уведомления о списании при автопродлении"""
     
     # Параметры для теста
@@ -127,13 +127,19 @@ async def test_autorenew_notice():
         await bot.session.close()
 
 
+def test_autorenew_notice() -> None:
+    """Запуск основного сценария через asyncio.run внутри pytest."""
+
+    asyncio.run(_run_autorenew_notice())
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("Тест уведомления о списании при автопродлении")
     print("=" * 60)
     print()
     
-    asyncio.run(test_autorenew_notice())
+    asyncio.run(_run_autorenew_notice())
     
     print("\n" + "=" * 60)
     print("Тест завершен")

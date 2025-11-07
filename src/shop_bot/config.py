@@ -204,7 +204,13 @@ def get_purchase_success_text(
         subscription_link: ссылка на подписку (опционально)
         provision_mode: режим предоставления ('key', 'subscription', 'both')
     """
-    action_text = "обновлен" if action == "extend" else "готов"
+    action_normalized = (str(action or "").strip().lower())
+    if action_normalized in {"extend", "продлен", "продлён"}:
+        action_text = "продлен"
+    elif action_normalized in {"new", "создан"}:
+        action_text = "готов"
+    else:
+        action_text = "готов"
     expiry_dt = expiry_date if isinstance(expiry_date, datetime) else datetime.fromisoformat(str(expiry_date))
     expiry_utc = ensure_utc_datetime(expiry_dt if expiry_dt.tzinfo else expiry_dt.replace(tzinfo=timezone.utc))
     expiry_formatted = format_datetime_for_user(expiry_utc, user_timezone=user_timezone, feature_enabled=feature_enabled)

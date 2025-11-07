@@ -16,9 +16,15 @@ sys.path.insert(0, str(project_root / "src"))
 sys.path.insert(0, str(project_root / "tests"))
 
 from shop_bot.data_manager.database import (
-    create_user_group, get_user_group_by_code, assign_user_to_group_by_code,
-    create_promo_code, can_user_use_promo_code, record_promo_code_usage,
-    get_user, register_user_if_not_exists
+    create_user_group,
+    get_user_group_by_code,
+    assign_user_to_group_by_code,
+    create_promo_code,
+    can_user_use_promo_code,
+    record_promo_code_usage,
+    get_user,
+    register_user_if_not_exists,
+    get_promo_code_by_code,
 )
 
 # Импортируем утилиты для безопасного вывода
@@ -28,7 +34,7 @@ from test_utils import safe_print, print_test_header, print_test_success, print_
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-async def test_deeplink_functionality():
+async def _run_deeplink_functionality() -> bool:
     """Тестирование функционала deeplink"""
     
     print_test_header("Функционал deeplink")
@@ -42,21 +48,25 @@ async def test_deeplink_functionality():
     try:
         # 1. Создаем тестовую группу пользователей
         safe_print(f"\n1. Создаем тестовую группу с кодом '{test_group_code}'...")
-        group_id = create_user_group(
-            group_name="Тестовая группа для deeplink 2",
-            group_description="Группа для тестирования deeplink функционала 2",
-            group_code=test_group_code
-        )
-        
-        if group_id:
-            safe_print(f"+ Группа создана с ID: {group_id}")
+        group = get_user_group_by_code(test_group_code)
+        if group:
+            group_id = group['group_id']
+            safe_print(f"+ Группа уже существует: {group['group_name']} (ID: {group_id})")
         else:
-            safe_print("- Ошибка создания группы")
-            return False
+            group_id = create_user_group(
+                group_name="Тестовая группа для deeplink 2",
+                group_description="Группа для тестирования deeplink функционала 2",
+                group_code=test_group_code
+            )
+            if group_id:
+                safe_print(f"+ Группа создана с ID: {group_id}")
+                group = get_user_group_by_code(test_group_code)
+            else:
+                safe_print("- Ошибка создания группы")
+                return False
         
         # 2. Проверяем, что группа найдена по коду
         safe_print(f"\n2. Проверяем поиск группы по коду '{test_group_code}'...")
-        group = get_user_group_by_code(test_group_code)
         if group:
             safe_print(f"+ Группа найдена: {group['group_name']} (ID: {group['group_id']})")
         else:
@@ -84,23 +94,37 @@ async def test_deeplink_functionality():
         
         # 5. Создаем тестовый промокод
         safe_print(f"\n5. Создаем тестовый промокод '{test_promo_code}'...")
-        promo_id = create_promo_code(
-            code=test_promo_code,
-            bot="shop",
-            vpn_plan_id=None,
-            tariff_code=None,
-            discount_amount=100.0,
-            discount_percent=0.0,
-            discount_bonus=50.0,
-            usage_limit_per_bot=10,
-            is_active=True
-        )
-        
-        if promo_id:
-            safe_print(f"+ Промокод создан с ID: {promo_id}")
+        promo = get_promo_code_by_code(test_promo_code, "shop")
+        if promo:
+            promo_id = promo['promo_id']
+            safe_print(f"+ Промокод уже существует с ID: {promo_id}")
         else:
-            safe_print("- Ошибка создания промокода")
-            return False
+            try:
+                promo_id = create_promo_code(
+                    code=test_promo_code,
+                    bot="shop",
+                    vpn_plan_id=None,
+                    tariff_code=None,
+                    discount_amount=100.0,
+                    discount_percent=0.0,
+                    discount_bonus=50.0,
+                    usage_limit_per_bot=10,
+                    is_active=True
+                )
+            except ValueError as exc:
+                safe_print(f"- Ошибка создания промокода: {exc}")
+                promo = get_promo_code_by_code(test_promo_code, "shop")
+                if promo:
+                    promo_id = promo['promo_id']
+                    safe_print(f"+ Используем существующий промокод (ID: {promo_id})")
+                else:
+                    return False
+            else:
+                if promo_id:
+                    safe_print(f"+ Промокод создан с ID: {promo_id}")
+                else:
+                    safe_print("- Ошибка создания промокода")
+                    return False
         
         # 6. Тестируем валидацию промокода
         safe_print(f"\n6. Тестируем валидацию промокода '{test_promo_code}'...")
@@ -188,7 +212,7 @@ async def main():
     """Главная функция"""
     safe_print("Запуск тестирования функционала deeplink...")
     
-    success = await test_deeplink_functionality()
+    success = await _run_deeplink_functionality()
     
     if success:
         safe_print("\nТестирование завершено успешно!")
@@ -204,6 +228,13 @@ async def main():
         safe_print("\nТестирование завершено с ошибками!")
     
     await cleanup_test_data()
+
+
+def test_deeplink_functionality() -> None:
+    """Обёртка для запуска асинхронного сценария внутри pytest."""
+
+    result = asyncio.run(_run_deeplink_functionality())
+    assert result, "Сценарий deeplink должен завершиться без ошибок"
 
 if __name__ == "__main__":
     asyncio.run(main())
