@@ -1,3 +1,17 @@
+3.16.0 – 07.11.2025 06:28
+- [Новый функционал] (Timezone Support) Завершено тестирование и подготовка к развёртыванию (Этап 6-7)
+  - Создано 8 integration тестов для полной проверки lifecycle timezone support
+  - Все unit тесты пройдены (17/17): ensure_utc_datetime, timestamp_to_utc_datetime, format_datetime_moscow, format_datetime_for_user, calculate_remaining_seconds
+  - Все integration тесты пройдены (8/8): создание ключа, уведомления, смена timezone, автопродление, обратная совместимость, граничные случаи
+  - Создан скрипт бэкапа БД: tests/backup_before_timezone_migration.py (с проверкой целостности и инструкциями по восстановлению)
+  - Создан чек-лист развёртывания: docs/guides/deployment/timezone-rollout-checklist.md (поэтапный план на 4+ дня)
+  - Создана сводка по тестированию: docs/guides/deployment/timezone-testing-summary.md (результаты, метрики, rollback сценарии)
+  - Создан итоговый отчёт: docs/reports/KAR-30-STAGE-6-7-TESTING-DEPLOYMENT.md
+  - Подготовлены 3 уровня rollback: выключение feature flag, восстановление БД, откат кода
+  - Определены метрики для мониторинга: уведомления (пропущенных = 0), конвертация timezone, производительность
+  - Система полностью готова к развёртыванию (требуется ручное тестирование и поэтапный деплой)
+  - Linear Task: KAR-30 (Этап 6-7: Тестирование и подготовка к развёртыванию)
+
 3.15.0 – 07.11.2025 05:38
 - [Новый функционал] (Timezone Support) Добавлена структура базы данных для поддержки часовых поясов (Этап 2)
   - Добавлена колонка timezone в таблицу users (DEFAULT 'Europe/Moscow')
