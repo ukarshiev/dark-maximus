@@ -21,7 +21,7 @@ from shop_bot.modules import xui_api
 from shop_bot.bot import keyboards
 from shop_bot.utils.datetime_utils import ensure_utc_datetime, format_datetime_for_user
 
-CHECK_INTERVAL_SECONDS = 900
+CHECK_INTERVAL_SECONDS = 300
 NOTIFY_BEFORE_HOURS = {24, 1}
 notified_users = {}
 
