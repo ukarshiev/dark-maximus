@@ -4641,6 +4641,12 @@ def get_user_router() -> Router:
 
             # Определяем тестовый режим для YooKassa
             yookassa_test_mode = get_setting("yookassa_test_mode") == "true"
+            current_shop_id = get_setting("yookassa_shop_id")
+            
+            # Валидация согласованности настроек
+            logger.info(f"Creating Yookassa payment: test_mode={yookassa_test_mode}, shop_id={current_shop_id}")
+            if yookassa_test_mode and current_shop_id:
+                logger.warning(f"⚠️ ATTENTION: test_mode=true with shop_id={current_shop_id}. Ensure settings are synchronized!")
 
             receipt = None
             if customer_email and is_valid_email(customer_email):

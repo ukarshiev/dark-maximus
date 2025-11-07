@@ -2741,6 +2741,7 @@ function toggleYooKassaMode() {
     const testModeCheckbox = document.getElementById('yookassa_test_mode');
     const productionMode = document.getElementById('yookassa_production_mode');
     const testModeFields = document.getElementById('yookassa_test_mode_fields');
+    const labelText = document.getElementById('mode-label-text');
     
     if (testModeCheckbox.checked) {
         // Подсвечиваем тестовый режим как активный
@@ -2748,12 +2749,18 @@ function toggleYooKassaMode() {
         productionMode.style.border = '2px solid #28a745';
         testModeFields.style.opacity = '1';
         testModeFields.style.border = '2px solid #28a745';
+        if (labelText) {
+            labelText.textContent = 'Режим: Боевой отключен, включен тестовый';
+        }
     } else {
         // Подсвечиваем боевой режим как активный
         productionMode.style.opacity = '1';
         productionMode.style.border = '2px solid #dc3545';
         testModeFields.style.opacity = '0.5';
         testModeFields.style.border = '2px solid #6c757d';
+        if (labelText) {
+            labelText.textContent = 'Режим: Боевой включен';
+        }
     }
 }
 
