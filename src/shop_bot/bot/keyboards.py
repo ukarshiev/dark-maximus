@@ -50,12 +50,15 @@ def create_buy_root_keyboard(user_keys: list) -> InlineKeyboardMarkup:
     builder.adjust(1)
     return builder.as_markup()
 
-def create_profile_menu_keyboard(total_keys_count: int | None = None, trial_used: int = 1) -> InlineKeyboardMarkup:
+def create_profile_menu_keyboard(total_keys_count: int | None = None, trial_used: int = 1, auto_renewal_enabled: bool = True) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     keys_suffix = f" [{total_keys_count}] шт." if isinstance(total_keys_count, int) and total_keys_count >= 0 else ""
     builder.button(text=f"🔑 Мои ключи{keys_suffix}", callback_data="manage_keys")
     
-    builder.button(text="💳 Пополнить баланс", callback_data="topup_root")
+    # Кнопка автопродления с динамическим статусом
+    auto_renewal_text = "Автопродление с баланса (вкл🟢)" if auto_renewal_enabled else "Автопродление с баланса (откл🔴)"
+    builder.button(text=auto_renewal_text, callback_data="toggle_auto_renewal")
+    
     if get_setting("enable_referrals") == "true":
         builder.button(text="🤝 Реферальная программа", callback_data="show_referral_program")
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")

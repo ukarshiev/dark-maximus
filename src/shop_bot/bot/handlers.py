@@ -1217,8 +1217,9 @@ def get_user_router() -> Router:
                 return
             username = html.bold(user_db_data.get('username', 'Пользователь'))
             total_spent, total_months = user_db_data.get('total_spent', 0), user_db_data.get('total_months', 0)
-            from shop_bot.data_manager.database import get_user_balance, get_setting
+            from shop_bot.data_manager.database import get_user_balance, get_setting, get_auto_renewal_enabled
             balance = get_user_balance(user_id)
+            auto_renewal_enabled = get_auto_renewal_enabled(user_id)
             now = datetime.now()
             active_keys = [key for key in user_keys if datetime.fromisoformat(key['expiry_date']) > now]
             if active_keys:
@@ -1237,8 +1238,8 @@ def get_user_router() -> Router:
                 bot_username = (await callback.bot.get_me()).username
                 referral_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
                 referral_percentage = get_setting("referral_percentage") or "10"
-            final_text = get_profile_text(username, balance, total_spent, total_months, vpn_status_text, referral_balance, show_referral, referral_link, referral_percentage)
-            await callback.message.edit_text(final_text, reply_markup=keyboards.create_profile_menu_keyboard(total_keys_count=len(user_keys or []), trial_used=trial_used))
+            final_text = get_profile_text(username, balance, total_spent, total_months, vpn_status_text, referral_balance, show_referral, referral_link, referral_percentage, auto_renewal_enabled)
+            await callback.message.edit_text(final_text, reply_markup=keyboards.create_profile_menu_keyboard(total_keys_count=len(user_keys or []), trial_used=trial_used, auto_renewal_enabled=auto_renewal_enabled))
         else:
             # Возврат в главное меню
             try:
@@ -1259,8 +1260,9 @@ def get_user_router() -> Router:
             return
         username = html.bold(user_db_data.get('username', 'Пользователь'))
         total_spent, total_months = user_db_data.get('total_spent', 0), user_db_data.get('total_months', 0)
-        from shop_bot.data_manager.database import get_user_balance, get_setting
+        from shop_bot.data_manager.database import get_user_balance, get_setting, get_auto_renewal_enabled
         balance = get_user_balance(user_id)
+        auto_renewal_enabled = get_auto_renewal_enabled(user_id)
         now = datetime.now()
         active_keys = [key for key in user_keys if datetime.fromisoformat(key['expiry_date']) > now]
         if active_keys:
@@ -1284,8 +1286,8 @@ def get_user_router() -> Router:
             referral_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
             referral_percentage = get_setting("referral_percentage") or "10"
         
-        final_text = get_profile_text(username, balance, total_spent, total_months, vpn_status_text, referral_balance, show_referral, referral_link, referral_percentage)
-        await message.answer(final_text, reply_markup=keyboards.create_profile_menu_keyboard(total_keys_count=len(user_keys or []), trial_used=trial_used))
+        final_text = get_profile_text(username, balance, total_spent, total_months, vpn_status_text, referral_balance, show_referral, referral_link, referral_percentage, auto_renewal_enabled)
+        await message.answer(final_text, reply_markup=keyboards.create_profile_menu_keyboard(total_keys_count=len(user_keys or []), trial_used=trial_used, auto_renewal_enabled=auto_renewal_enabled))
 
     @user_router.message(F.text == "🔑 Мои ключи")
     @registration_required
@@ -1340,6 +1342,58 @@ def get_user_router() -> Router:
                 "Выберите сервер для создания пробного ключа:",
                 reply_markup=keyboards.create_host_selection_keyboard(hosts, action="trial", back_to="buy_vpn_service_selection")
             )
+
+    @user_router.callback_query(F.data == "toggle_auto_renewal")
+    @documents_consent_required
+    @subscription_required
+    @measure_performance("toggle_auto_renewal")
+    async def toggle_auto_renewal_handler(callback: types.CallbackQuery):
+        """Обработчик переключения автопродления с баланса"""
+        await callback.answer()
+        user_id = callback.from_user.id
+        from shop_bot.data_manager.database import get_auto_renewal_enabled, set_auto_renewal_enabled, get_user, get_user_keys
+        
+        # Получаем текущий статус
+        current_status = get_auto_renewal_enabled(user_id)
+        new_status = not current_status
+        
+        # Устанавливаем новый статус
+        if set_auto_renewal_enabled(user_id, new_status):
+            status_text = "включено" if new_status else "отключено"
+            status_emoji = "🟢" if new_status else "🔴"
+            
+            # Получаем данные для обновления клавиатуры
+            user_db_data = get_user(user_id)
+            user_keys = get_user_keys(user_id)
+            trial_used = user_db_data.get('trial_used', 1) if user_db_data else 1
+            
+            # Обновляем сообщение с новым статусом
+            await callback.message.edit_reply_markup(
+                reply_markup=keyboards.create_profile_menu_keyboard(
+                    total_keys_count=len(user_keys or []),
+                    trial_used=trial_used,
+                    auto_renewal_enabled=new_status
+                )
+            )
+            
+            # Отправляем подтверждающее сообщение
+            message_text = (
+                f"✅ Автопродление с баланса {status_text} {status_emoji}\n\n"
+            )
+            if new_status:
+                message_text += (
+                    "Теперь при истечении срока действия ключа и достаточном балансе "
+                    "продление будет происходить автоматически. Спасибо, что остаётесь с нами! ❤️"
+                )
+            else:
+                message_text += (
+                    "Автоматическое списание с баланса отключено. "
+                    "Вы сможете продлить ключ вручную в любое время."
+                )
+            
+            await callback.message.answer(message_text)
+        else:
+            await callback.message.answer("❌ Произошла ошибка при изменении настроек. Попробуйте позже.")
 
     @user_router.callback_query(F.data == "promo_code")
     @documents_consent_required
@@ -1526,12 +1580,13 @@ def get_user_router() -> Router:
         balance = user_data.get('referral_balance', 0) if user_data else 0
         from shop_bot.data_manager.database import get_setting
         min_withdraw = get_setting("minimum_withdrawal") or "100"
+        referral_percentage = get_setting("referral_percentage") or "10"
         text = (
             "🤝 <b>Реферальная программа</b>\n\n"
-            f"🗣 Приглашай друзей и получайте 10% от их расходов, которые затем ты сможешь вывести на свой счет! Вывод доступен от {min_withdraw} RUB\n\n"
+            f"🗣 Приглашай друзей и получайте {referral_percentage}% от их расходов, которые затем ты сможешь вывести на свой счет! Вывод доступен от {min_withdraw} руб.\n\n"
             f"<b>Ваша реферальная ссылка:</b>\n<code>{referral_link}</code>\n\n"
             f"<b>Приглашено пользователей:</b> {referral_count}\n"
-            f"<b>Ваш баланс:</b> {balance:.2f} RUB"
+            f"<b>Ваш баланс:</b> {balance:.2f} руб."
         )
         builder = InlineKeyboardBuilder()
         if balance >= 100:
@@ -1670,8 +1725,9 @@ def get_user_router() -> Router:
             return
         username = html.bold(user_db_data.get('username', 'Пользователь'))
         total_spent, total_months = user_db_data.get('total_spent', 0), user_db_data.get('total_months', 0)
-        from shop_bot.data_manager.database import get_user_balance, get_setting
+        from shop_bot.data_manager.database import get_user_balance, get_setting, get_auto_renewal_enabled
         balance = get_user_balance(user_id)
+        auto_renewal_enabled = get_auto_renewal_enabled(user_id)
         now = datetime.now()
         active_keys = [key for key in user_keys if datetime.fromisoformat(key['expiry_date']) > now]
         if active_keys:
@@ -1681,6 +1737,8 @@ def get_user_router() -> Router:
             vpn_status_text = get_vpn_active_text(time_left.days, time_left.seconds // 3600)
         elif user_keys: vpn_status_text = VPN_INACTIVE_TEXT
         else: vpn_status_text = VPN_NO_DATA_TEXT
+        
+        trial_used = user_db_data.get('trial_used', 1) if user_db_data else 1
         
         # Получаем реферальный баланс и проверяем, включена ли реферальная система
         referral_balance = user_db_data.get('referral_balance', 0)
@@ -1694,8 +1752,8 @@ def get_user_router() -> Router:
             referral_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
             referral_percentage = get_setting("referral_percentage") or "10"
         
-        final_text = get_profile_text(username, balance, total_spent, total_months, vpn_status_text, referral_balance, show_referral, referral_link, referral_percentage)
-        await callback.message.edit_text(final_text, reply_markup=keyboards.create_profile_menu_keyboard(total_keys_count=len(user_keys or [])))
+        final_text = get_profile_text(username, balance, total_spent, total_months, vpn_status_text, referral_balance, show_referral, referral_link, referral_percentage, auto_renewal_enabled)
+        await callback.message.edit_text(final_text, reply_markup=keyboards.create_profile_menu_keyboard(total_keys_count=len(user_keys or []), trial_used=trial_used, auto_renewal_enabled=auto_renewal_enabled))
 
     @user_router.callback_query(F.data == "start_broadcast")
     @registration_required
@@ -1882,13 +1940,14 @@ def get_user_router() -> Router:
         balance = user_data.get('referral_balance', 0)
         from shop_bot.data_manager.database import get_setting
         min_withdraw = get_setting("minimum_withdrawal") or "100"
+        referral_percentage = get_setting("referral_percentage") or "10"
 
         text = (
             "🤝 <b>Реферальная программа</b>\n\n"
-            f"🗣 Приглашай друзей и получайте 10% от их расходов, которые затем ты сможешь вывести на свой счет! Вывод доступен от {min_withdraw} RUB\n\n"
+            f"🗣 Приглашай друзей и получайте {referral_percentage}% от их расходов, которые затем ты сможешь вывести на свой счет! Вывод доступен от {min_withdraw} руб.\n\n"
             f"<b>Ваша реферальная ссылка:</b>\n<code>{referral_link}</code>\n\n"
             f"<b>Приглашено пользователей:</b> {referral_count}\n"
-            f"<b>Ваш баланс:</b> {balance:.2f} RUB"
+            f"<b>Ваш баланс:</b> {balance:.2f} руб."
         )
 
         builder = InlineKeyboardBuilder()

@@ -1738,6 +1738,12 @@ async function loadUserDetails(userId) {
 		detailEarned.setAttribute('data-original', detailEarnedText)
 		detailEarned.textContent = detailEarnedText
 		
+		const detailAutoRenewal = document.getElementById('detailAutoRenewal')
+		const autoRenewalEnabled = user.auto_renewal_enabled !== undefined ? user.auto_renewal_enabled : true
+		const detailAutoRenewalText = autoRenewalEnabled ? 'Включено' : 'Отключено'
+		detailAutoRenewal.setAttribute('data-original', detailAutoRenewalText)
+		detailAutoRenewal.textContent = detailAutoRenewalText
+		
 		document.getElementById('detailTotalMonths').textContent = user.total_months || '0'
 		document.getElementById('detailTrialUsed').textContent = user.trial_used ? 'Да' : 'Нет'
 		document.getElementById('detailTrialDaysGiven').textContent = user.trial_days_given || '0'

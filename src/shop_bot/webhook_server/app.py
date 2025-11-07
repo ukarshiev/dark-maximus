@@ -3306,6 +3306,7 @@ def create_webhook_app(bot_controller_instance):
                         u.is_banned,
                         u.email,
                         u.group_id,
+                        u.auto_renewal_enabled,
                         ug.group_name,
                         (SELECT COUNT(*) FROM vpn_keys WHERE user_id = u.telegram_id) as keys_count,
                         (SELECT COUNT(*) FROM notifications WHERE user_id = u.telegram_id) as notifications_count
@@ -3320,6 +3321,12 @@ def create_webhook_app(bot_controller_instance):
                     return {'error': 'Пользователь не найден'}, 404
                 
                 user_data = dict(row)
+                
+                # Преобразуем auto_renewal_enabled в boolean
+                if user_data.get('auto_renewal_enabled') is not None:
+                    user_data['auto_renewal_enabled'] = bool(user_data['auto_renewal_enabled'])
+                else:
+                    user_data['auto_renewal_enabled'] = True  # По умолчанию включено
                 
                 # Преобразуем registration_date в строку для JSON
                 if user_data.get('registration_date'):

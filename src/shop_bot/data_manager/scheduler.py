@@ -21,7 +21,7 @@ from shop_bot.modules import xui_api
 from shop_bot.bot import keyboards
 
 CHECK_INTERVAL_SECONDS = 3600
-NOTIFY_BEFORE_HOURS = {72, 48, 24, 1}
+NOTIFY_BEFORE_HOURS = {24, 1}
 notified_users = {}
 
 logger = logging.getLogger(__name__)
@@ -42,8 +42,8 @@ def log_orphan_deletion(host_name: str, client_email: str, client_id: str, expir
         else:
             expiry_str = "Без срока"
         
-        # Текущая дата и время
-        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        # Текущая дата и время (UTC для консистентности)
+        now_str = datetime.now(timezone.utc).replace(tzinfo=None).strftime('%Y-%m-%d %H:%M:%S')
         
         # Формируем запись
         log_entry = {
@@ -62,6 +62,18 @@ def log_orphan_deletion(host_name: str, client_email: str, client_id: str, expir
         logger.error(f"Failed to log orphan deletion: {e}")
 
 def format_time_left(hours: int) -> str:
+    """Форматирует оставшееся время в читаемый формат.
+    
+    Args:
+        hours: Количество часов (может быть 0 для ключей с остатком < 1 часа)
+    
+    Returns:
+        Строка с отформатированным временем
+    """
+    # Если часов 0 или меньше, показываем "менее часа"
+    if hours <= 0:
+        return "менее часа"
+    
     if hours >= 24:
         days = hours // 24
         if days % 10 == 1 and days % 100 != 11:
@@ -91,8 +103,9 @@ async def send_subscription_notification(bot: Bot, user_id: int, key_id: int, ti
         # Проверяем, что time_left_hours соответствует реальному времени до истечения
         actual_time_left = expiry_date - current_time_utc
         actual_hours_left = int(actual_time_left.total_seconds() / 3600)
-        if time_left_hours <= 0 or actual_hours_left <= 0:
-            logger.warning(f"Invalid time_left_hours ({time_left_hours}) or actual_hours_left ({actual_hours_left}) for key {key_id}. Skipping notification.")
+        # Исправлено: проверяем секунды, а не часы, чтобы разрешить уведомления для ключей с остатком < 1 часа
+        if time_left_hours <= 0 or actual_time_left.total_seconds() <= 0:
+            logger.warning(f"Invalid time_left_hours ({time_left_hours}) or actual_time_left ({actual_time_left.total_seconds():.0f}s) for key {key_id}. Skipping notification.")
             return
         
         time_text = format_time_left(time_left_hours)
@@ -140,7 +153,7 @@ async def send_subscription_notification(bot: Bot, user_id: int, key_id: int, ti
         try:
             from shop_bot.data_manager.database import log_notification, get_user
             user = get_user(user_id)
-            log_notification(
+            notification_id = log_notification(
                 user_id=user_id,
                 username=(user or {}).get('username'),
                 notif_type='subscription_expiry',
@@ -157,6 +170,10 @@ async def send_subscription_notification(bot: Bot, user_id: int, key_id: int, ti
                 key_id=key_id,
                 marker_hours=time_left_hours
             )
+            # Проверяем, что логирование прошло успешно (возвращает ID > 0)
+            if notification_id == 0:
+                logger.warning(f"Failed to log notification for user {user_id}: log_notification returned 0")
+                return  # Не отправляем сообщение, если не удалось записать в БД
         except Exception as le:
             logger.warning(f"Failed to log notification for user {user_id}: {le}")
             return  # Не отправляем сообщение, если не удалось записать в БД
@@ -201,6 +218,12 @@ def _marker_logged(user_id: int, key_id: int, marker_hours: int, notif_type: str
         import sqlite3
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
+            # Устанавливаем PRAGMA настройки для предотвращения блокировок
+            try:
+                cursor.execute("PRAGMA busy_timeout=30000")
+                cursor.execute("PRAGMA journal_mode=WAL")
+            except Exception:
+                pass
             cursor.execute(
                 "SELECT 1 FROM notifications WHERE user_id = ? AND key_id = ? AND marker_hours = ? AND type = ? LIMIT 1",
                 (user_id, key_id, marker_hours, notif_type)
@@ -219,6 +242,13 @@ def cleanup_duplicate_notifications():
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             
+            # Устанавливаем PRAGMA настройки для предотвращения блокировок
+            try:
+                cursor.execute("PRAGMA busy_timeout=30000")
+                cursor.execute("PRAGMA journal_mode=WAL")
+            except Exception:
+                pass
+            
             # Удаляем дублирующиеся уведомления, оставляя только самое свежее
             cursor.execute("""
                 DELETE FROM notifications 
@@ -234,11 +264,11 @@ def cleanup_duplicate_notifications():
             if deleted_count > 0:
                 logger.info(f"Cleaned up {deleted_count} duplicate plan unavailable notifications")
             
-            # Удаляем уведомления старше 7 дней
-            week_ago = datetime.now() - timedelta(days=7)
+            # Удаляем уведомления старше 7 дней (используем UTC для консистентности)
+            week_ago = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7)
             cursor.execute("""
                 DELETE FROM notifications 
-                WHERE created_date < ? AND type IN ('subscription_plan_unavailable', 'subscription_expiry', 'subscription_autorenew_notice')
+                WHERE created_date < ? AND type IN ('subscription_plan_unavailable', 'subscription_expiry', 'subscription_autorenew_notice', 'subscription_autorenew_disabled')
             """, (week_ago,))
             
             old_deleted = cursor.rowcount
@@ -295,7 +325,7 @@ async def send_plan_unavailable_notice(bot: Bot, user_id: int, key_id: int, time
         try:
             from shop_bot.data_manager.database import log_notification, get_user
             user = get_user(user_id)
-            log_notification(
+            notification_id = log_notification(
                 user_id=user_id,
                 username=(user or {}).get('username'),
                 notif_type='subscription_plan_unavailable',
@@ -312,6 +342,10 @@ async def send_plan_unavailable_notice(bot: Bot, user_id: int, key_id: int, time
                 key_id=key_id,
                 marker_hours=time_left_hours
             )
+            # Проверяем, что логирование прошло успешно (возвращает ID > 0)
+            if notification_id == 0:
+                logger.warning(f"Failed to log plan unavailable notification: log_notification returned 0")
+                return  # Не отправляем сообщение, если не удалось записать в БД
         except Exception as e:
             logger.warning(f"Failed to log plan unavailable notification: {e}")
             return  # Не отправляем сообщение, если не удалось записать в БД
@@ -337,8 +371,9 @@ async def send_autorenew_balance_notice(bot: Bot, user_id: int, key_id: int, tim
         # Проверяем, что time_left_hours соответствует реальному времени до истечения
         actual_time_left = expiry_date - current_time_utc
         actual_hours_left = int(actual_time_left.total_seconds() / 3600)
-        if time_left_hours <= 0 or actual_hours_left <= 0:
-            logger.warning(f"Invalid time_left_hours ({time_left_hours}) or actual_hours_left ({actual_hours_left}) for autorenew notice key {key_id}. Skipping notification.")
+        # Исправлено: проверяем секунды, а не часы, чтобы разрешить уведомления для ключей с остатком < 1 часа
+        if time_left_hours <= 0 or actual_time_left.total_seconds() <= 0:
+            logger.warning(f"Invalid time_left_hours ({time_left_hours}) or actual_time_left ({actual_time_left.total_seconds():.0f}s) for autorenew notice key {key_id}. Skipping notification.")
             return
         
         time_text = format_time_left(time_left_hours)
@@ -380,7 +415,7 @@ async def send_autorenew_balance_notice(bot: Bot, user_id: int, key_id: int, tim
         try:
             from shop_bot.data_manager.database import log_notification, get_user
             user = get_user(user_id)
-            log_notification(
+            notification_id = log_notification(
                 user_id=user_id,
                 username=(user or {}).get('username'),
                 notif_type='subscription_autorenew_notice',
@@ -399,6 +434,10 @@ async def send_autorenew_balance_notice(bot: Bot, user_id: int, key_id: int, tim
                 key_id=key_id,
                 marker_hours=time_left_hours
             )
+            # Проверяем, что логирование прошло успешно (возвращает ID > 0)
+            if notification_id == 0:
+                logger.warning(f"Failed to log autorenew notice for user {user_id}: log_notification returned 0")
+                return  # Не отправляем сообщение, если не удалось записать в БД
         except Exception as le:
             logger.warning(f"Failed to log autorenew notice for user {user_id}: {le}")
             return  # Не отправляем сообщение, если не удалось записать в БД
@@ -408,6 +447,87 @@ async def send_autorenew_balance_notice(bot: Bot, user_id: int, key_id: int, tim
         logger.info(f"Sent autorenew balance notice to user {user_id} for key {key_id} ({time_left_hours} hours left).")
     except Exception as e:
         logger.error(f"Error sending autorenew notice to user {user_id}: {e}")
+
+async def send_balance_deduction_notice(bot: Bot, user_id: int, key_id: int, amount: float, plan_name: str, host_name: str):
+    """Отправляет уведомление о списании баланса при автопродлении."""
+    try:
+        from shop_bot.bot import keyboards
+        from shop_bot.data_manager.database import get_user_keys
+        
+        # Получаем номер ключа для пользователя
+        user_keys = get_user_keys(user_id) or []
+        key_number = next((i + 1 for i, k in enumerate(user_keys) if k.get('key_id') == key_id), 0)
+        
+        message = (
+            f"💳 Произошло списание {amount:.2f} RUB по тарифу {plan_name} "
+            f"на сервере {host_name}.\n\n"
+            f"Спасибо, что остаётесь с нами! ❤️"
+        )
+        
+        await bot.send_message(
+            chat_id=user_id,
+            text=message,
+            reply_markup=keyboards.create_back_to_menu_keyboard()
+        )
+        logger.info(f"Sent balance deduction notice to user {user_id} for key {key_id}")
+    except Exception as e:
+        logger.error(f"Failed to send balance deduction notice to user {user_id}: {e}")
+
+async def send_autorenew_disabled_notice(bot: Bot, user_id: int, key_id: int, time_left_hours: int, expiry_date: datetime, balance_val: float, price_to_renew: float):
+    """Отправляет уведомление о том, что автопродление отключено, но баланс достаточен."""
+    try:
+        from datetime import timezone, timedelta
+        from shop_bot.bot import keyboards
+        from shop_bot.data_manager.database import get_user_keys, get_key_by_id
+        
+        # Проверяем, что время не истекло
+        current_time_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+        if expiry_date <= current_time_utc:
+            logger.warning(f"Attempted to send autorenew disabled notice for already expired key {key_id} (user {user_id}). Skipping.")
+            return
+        
+        time_text = format_time_left(time_left_hours)
+        # Конвертируем время из UTC в UTC+3 (Moscow) для отображения пользователю
+        moscow_tz = timezone(timedelta(hours=3))
+        expiry_moscow = expiry_date.replace(tzinfo=timezone.utc).astimezone(moscow_tz)
+        expiry_str = expiry_moscow.strftime('%d.%m.%Y в %H:%M')
+
+        # Получаем номер ключа и имя сервера
+        try:
+            key_data = get_key_by_id(key_id) or {}
+            host_name = key_data.get('host_name', 'Неизвестный сервер')
+            user_keys = get_user_keys(user_id) or []
+            key_number = next((i + 1 for i, k in enumerate(user_keys) if k.get('key_id') == key_id), 0)
+        except Exception:
+            host_name = 'Неизвестный сервер'
+            key_number = 0
+
+        balance_str = f"{float(balance_val or 0):.2f} RUB"
+        price_str = f"{float(price_to_renew or 0):.2f} RUB"
+
+        message = (
+            f"⚠️ Автопродление с баланса отключено.\n\n"
+            f"Ключ #{key_number} ({host_name}) истекает через {time_text}.\n"
+            f"📅 Окончание: {expiry_str}\n"
+            f"💰 Ваш баланс: {balance_str}\n"
+            f"💳 Сумма продления: {price_str}\n\n"
+            f"Ваш баланс достаточен для продления, но списание не произойдет автоматически.\n"
+            f"Включите автопродление в профиле, чтобы не остаться без доступа."
+        )
+
+        builder = InlineKeyboardBuilder()
+        builder.button(text="⚙️ Настройки профиля", callback_data="back_to_main_menu")
+        builder.button(text="🔄 Продлить ключ", callback_data=f"extend_key_{key_id}")
+        builder.adjust(1)
+
+        await bot.send_message(
+            chat_id=user_id,
+            text=message,
+            reply_markup=builder.as_markup()
+        )
+        logger.info(f"Sent autorenew disabled notice to user {user_id} for key {key_id} ({time_left_hours} hours left).")
+    except Exception as e:
+        logger.error(f"Failed to send autorenew disabled notice to user {user_id}: {e}")
 
 def _get_plan_info_for_key(key: dict) -> tuple[dict | None, float, int, int | None, bool]:
     """Возвращает (plan_dict, price, months, plan_id, is_available) для ключа.
@@ -457,6 +577,7 @@ async def check_expiring_subscriptions(bot: Bot):
                 continue
 
             total_hours_left = int(time_left.total_seconds() / 3600)
+            total_seconds_left = int(time_left.total_seconds())
             user_id = key['user_id']
             key_id = key['key_id']
 
@@ -465,13 +586,21 @@ async def check_expiring_subscriptions(bot: Bot):
             from shop_bot.data_manager.database import get_user_balance
             user_balance = float(get_user_balance(user_id) or 0.0)
 
+            # Логируем информацию о ключе для отладки (только для ключей с остатком < 2 часов)
+            if total_seconds_left < 7200:  # Меньше 2 часов
+                logger.info(f"Key {key_id} (user {user_id}): {total_seconds_left}s left ({total_hours_left}h), balance={user_balance}, price={price_to_renew}, plan_available={is_plan_available}")
+
             # Catch-up: решаем, что отправлять на каждом маркере
             # Важно: не отправляем уведомления, если ключ уже истек
             # Проверяем по секундам, а не по целым часам, чтобы обрабатывать ключи с оставшимся временем < 1 часа
             if time_left.total_seconds() > 0:
                 # Ищем наименьший подходящий маркер (сортируем по возрастанию: 1, 24, 48, 72)
                 for hours_mark in sorted(NOTIFY_BEFORE_HOURS):
-                    if total_hours_left <= hours_mark:
+                    # Проверяем, что осталось времени меньше или равно маркеру (в секундах)
+                    # Для маркера 1 час: осталось <= 3600 секунд (1 час)
+                    # Для маркера 24 часа: осталось <= 86400 секунд (24 часа)
+                    mark_seconds = hours_mark * 3600
+                    if total_seconds_left <= mark_seconds:
                         # Проверяем доступность тарифа для автопродления
                         if not is_plan_available:
                             # Тариф удален или скрыт - отправляем предупреждение
@@ -486,15 +615,34 @@ async def check_expiring_subscriptions(bot: Bot):
                         
                         balance_covers = price_to_renew > 0 and user_balance >= price_to_renew
                         if balance_covers:
-                            # Подавляем стандартные уведомления. На 24ч — отправляем новый тип, один раз.
-                            if hours_mark == 24 and not _marker_logged(user_id, key_id, hours_mark, 'subscription_autorenew_notice'):
-                                try:
-                                    await send_autorenew_balance_notice(bot, user_id, key_id, hours_mark, expiry_date, user_balance)
-                                    notified_users.setdefault(user_id, {}).setdefault(key_id, set()).add(hours_mark)
-                                    logger.info(f"Sent autorenew notice for user {user_id}, key {key_id}, marker {hours_mark}h")
-                                except Exception as e:
-                                    logger.error(f"Failed to send autorenew notice: {e}")
-                            break  # ВАЖНО: выходим из цикла после проверки автопродления
+                            # Проверяем статус автопродления
+                            from shop_bot.data_manager.database import get_auto_renewal_enabled
+                            auto_renewal_enabled = get_auto_renewal_enabled(user_id)
+                            
+                            # Логируем для отладки
+                            if total_seconds_left < 7200:  # Меньше 2 часов
+                                logger.info(f"Key {key_id}: balance_covers={balance_covers}, auto_renewal_enabled={auto_renewal_enabled}, hours_mark={hours_mark}, marker_logged={_marker_logged(user_id, key_id, hours_mark, 'subscription_autorenew_notice')}")
+                            
+                            if auto_renewal_enabled:
+                                # Подавляем стандартные уведомления. На 24ч и 1ч — отправляем новый тип, один раз.
+                                if hours_mark in (24, 1) and not _marker_logged(user_id, key_id, hours_mark, 'subscription_autorenew_notice'):
+                                    try:
+                                        await send_autorenew_balance_notice(bot, user_id, key_id, hours_mark, expiry_date, user_balance)
+                                        notified_users.setdefault(user_id, {}).setdefault(key_id, set()).add(hours_mark)
+                                        logger.info(f"Sent autorenew notice for user {user_id}, key {key_id}, marker {hours_mark}h")
+                                    except Exception as e:
+                                        logger.error(f"Failed to send autorenew notice: {e}")
+                                break  # ВАЖНО: выходим из цикла после проверки автопродления
+                            else:
+                                # Автопродление отключено, но баланс достаточен - отправляем специальное уведомление
+                                if not _marker_logged(user_id, key_id, hours_mark, 'subscription_autorenew_disabled'):
+                                    try:
+                                        await send_autorenew_disabled_notice(bot, user_id, key_id, hours_mark, expiry_date, user_balance, price_to_renew)
+                                        notified_users.setdefault(user_id, {}).setdefault(key_id, set()).add(hours_mark)
+                                        logger.info(f"Sent autorenew disabled notice for user {user_id}, key {key_id}, marker {hours_mark}h")
+                                    except Exception as e:
+                                        logger.error(f"Failed to send autorenew disabled notice: {e}")
+                                break  # ВАЖНО: выходим из цикла после отправки уведомления об отключенном автопродлении
                         else:
                             # Обычные уведомления
                             if not _marker_logged(user_id, key_id, hours_mark, 'subscription_expiry'):
@@ -520,7 +668,8 @@ async def perform_auto_renewals(bot: Bot):
     """Автопродление по истечении срока при достаточном балансе."""
     try:
         all_keys = database.get_all_keys()
-        now = datetime.now()
+        # Используем UTC для консистентности с данными в БД
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         for key in all_keys:
             try:
                 expiry_date = datetime.fromisoformat(key['expiry_date'])
@@ -540,19 +689,47 @@ async def perform_auto_renewals(bot: Bot):
             plan_info, price_to_renew, months_to_renew, plan_id, is_plan_available = _get_plan_info_for_key(key)
 
             # Требуем валидный план, цену и доступность тарифа
-            if not plan_info or not months_to_renew or not plan_id or price_to_renew <= 0 or not is_plan_available:
+            # Исправлено: проверяем не только месяцы, но и дни/часы для тарифов с months=0
+            plan_has_duration = False
+            if plan_info:
+                months = plan_info.get('months', 0) or 0
+                days = plan_info.get('days', 0) or 0
+                hours = plan_info.get('hours', 0) or 0
+                plan_has_duration = months > 0 or days > 0 or hours > 0
+            
+            if not plan_info or not plan_has_duration or not plan_id or price_to_renew <= 0 or not is_plan_available:
+                if not plan_has_duration:
+                    logger.debug(f"Auto-renewal skipped for key {key_id}: plan has no valid duration (months={plan_info.get('months', 0) if plan_info else 0}, days={plan_info.get('days', 0) if plan_info else 0}, hours={plan_info.get('hours', 0) if plan_info else 0})")
                 continue
 
-            from shop_bot.data_manager.database import get_user_balance, add_to_user_balance, log_transaction, get_user
+            from shop_bot.data_manager.database import get_user_balance, add_to_user_balance, log_transaction, get_user, get_key_by_id
             current_balance = float(get_user_balance(user_id) or 0.0)
             if current_balance < price_to_renew:
                 continue
 
+            # Проверяем, включено ли автопродление для пользователя
+            from shop_bot.data_manager.database import get_auto_renewal_enabled
+            if not get_auto_renewal_enabled(user_id):
+                logger.info(f"Auto-renewal skipped for user {user_id}, key {key_id}: auto-renewal is disabled")
+                continue
+
+            # Сохраняем старое expiry_date для проверки на дублирование
+            old_expiry_date = expiry_date
+
+            # Получаем название тарифа для уведомления
+            plan_name = plan_info.get('plan_name', key.get('plan_name', 'Неизвестный тариф'))
+
             # Метаданные платежа
             payment_id = str(uuid.uuid4())
+            # Для тарифов с months=0 используем days и hours из plan_info
+            plan_months = plan_info.get('months', 0) or 0
+            plan_days = plan_info.get('days', 0) or 0
+            plan_hours = plan_info.get('hours', 0) or 0
             metadata = {
                 'user_id': user_id,
-                'months': int(months_to_renew),
+                'months': int(plan_months),
+                'days': int(plan_days),
+                'hours': int(plan_hours),
                 'price': float(price_to_renew),
                 'action': 'extend',
                 'key_id': key_id,
@@ -584,7 +761,23 @@ async def perform_auto_renewals(bot: Bot):
                 # Обработка, как при обычной оплате
                 from shop_bot.bot.handlers import process_successful_payment
                 await process_successful_payment(bot, metadata)
-                logger.info(f"Auto-renewal completed for user {user_id}, key {key_id} on host '{host_name}'.")
+                
+                # Проверяем, что ключ действительно был продлен (защита от дублирования)
+                updated_key = get_key_by_id(key_id)
+                if updated_key:
+                    new_expiry_date = datetime.fromisoformat(updated_key['expiry_date'])
+                    if new_expiry_date.tzinfo is not None:
+                        new_expiry_date = new_expiry_date.replace(tzinfo=None)
+                    
+                    # Если expiry_date изменился, значит продление прошло успешно
+                    if new_expiry_date > old_expiry_date:
+                        # Отправляем уведомление о списании
+                        await send_balance_deduction_notice(bot, user_id, key_id, price_to_renew, plan_name, host_name)
+                        logger.info(f"Auto-renewal completed for user {user_id}, key {key_id} on host '{host_name}'. Deduction notice sent.")
+                    else:
+                        logger.warning(f"Auto-renewal: expiry_date did not change for key {key_id}. Possible duplicate renewal attempt.")
+                else:
+                    logger.warning(f"Auto-renewal: could not retrieve updated key {key_id} after renewal.")
             except ValueError as e:
                 logger.error(f"Invalid data for auto-renewal user {user_id}, key {key_id}: {e}")
             except KeyError as e:
@@ -635,7 +828,8 @@ async def sync_keys_with_panels():
                 # Убираем timezone info для совместимости
                 if expiry_date.tzinfo is not None:
                     expiry_date = expiry_date.replace(tzinfo=None)
-                now = datetime.now()
+                # Используем UTC для консистентности с данными в БД
+                now = datetime.now(timezone.utc).replace(tzinfo=None)
                 if expiry_date < now - timedelta(days=5):
                     logger.info(f"Scheduler: Key '{key_email}' expired more than 5 days ago. Deleting from panel and DB.")
                     try:

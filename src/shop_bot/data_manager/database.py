@@ -614,6 +614,9 @@ def initialize_db():
 
                 "ton_manifest_privacy_url": "https://panel.dark-maximus.com/privacy",
 
+                # Feature flags
+                "feature_timezone_enabled": "0",  # Поддержка timezone (0 = выключена, 1 = включена)
+
             }
 
             run_migration()
@@ -801,325 +804,293 @@ def run_migration():
 
     try:
 
-        conn = sqlite3.connect(DB_FILE)
+        with sqlite3.connect(DB_FILE) as conn:
 
-        cursor = conn.cursor()
-
-
-
-        logging.info("The migration of the table 'users' ...")
-
-    
-
-        cursor.execute("PRAGMA table_info(users)")
-
-        columns = [row[1] for row in cursor.fetchall()]
-
-        
-
-        if 'referred_by' not in columns:
-
-            cursor.execute("ALTER TABLE users ADD COLUMN referred_by INTEGER")
-
-            logging.info(" -> The column 'referred_by' is successfully added.")
-
-        else:
-
-            logging.info(" -> The column 'referred_by' already exists.")
-
+            cursor = conn.cursor()
             
+            # Устанавливаем PRAGMA для предотвращения блокировок
+            cursor.execute("PRAGMA busy_timeout=30000")
+            cursor.execute("PRAGMA journal_mode=WAL")
 
-        if 'referral_balance' not in columns:
+            logging.info("The migration of the table 'users' ...")
 
-            cursor.execute("ALTER TABLE users ADD COLUMN referral_balance REAL DEFAULT 0")
+            cursor.execute("PRAGMA table_info(users)")
 
-            logging.info(" -> The column 'referral_balance' is successfully added.")
+            columns = [row[1] for row in cursor.fetchall()]
 
-        else:
+            if 'referred_by' not in columns:
 
-            logging.info(" -> The column 'referral_balance' already exists.")
+                cursor.execute("ALTER TABLE users ADD COLUMN referred_by INTEGER")
 
-        
+                logging.info(" -> The column 'referred_by' is successfully added.")
 
-        if 'referral_balance_all' not in columns:
+            else:
 
-            cursor.execute("ALTER TABLE users ADD COLUMN referral_balance_all REAL DEFAULT 0")
+                logging.info(" -> The column 'referred_by' already exists.")
 
-            logging.info(" -> The column 'referral_balance_all' is successfully added.")
+            if 'referral_balance' not in columns:
 
-        else:
+                cursor.execute("ALTER TABLE users ADD COLUMN referral_balance REAL DEFAULT 0")
 
-            logging.info(" -> The column 'referral_balance_all' already exists.")
+                logging.info(" -> The column 'referral_balance' is successfully added.")
 
+            else:
 
+                logging.info(" -> The column 'referral_balance' already exists.")
 
-        if 'balance' not in columns:
+            if 'referral_balance_all' not in columns:
 
-            cursor.execute("ALTER TABLE users ADD COLUMN balance REAL DEFAULT 0")
+                cursor.execute("ALTER TABLE users ADD COLUMN referral_balance_all REAL DEFAULT 0")
 
-            logging.info(" -> The column 'balance' is successfully added.")
+                logging.info(" -> The column 'referral_balance_all' is successfully added.")
 
-        else:
+            else:
 
-            logging.info(" -> The column 'balance' already exists.")
+                logging.info(" -> The column 'referral_balance_all' already exists.")
 
-            
+            if 'balance' not in columns:
 
-        if 'agreed_to_documents' not in columns:
+                cursor.execute("ALTER TABLE users ADD COLUMN balance REAL DEFAULT 0")
 
-            cursor.execute("ALTER TABLE users ADD COLUMN agreed_to_documents BOOLEAN DEFAULT 0")
+                logging.info(" -> The column 'balance' is successfully added.")
 
-            logging.info(" -> The column 'agreed_to_documents' is successfully added.")
+            else:
 
-        else:
+                logging.info(" -> The column 'balance' already exists.")
 
-            logging.info(" -> The column 'agreed_to_documents' already exists.")
+            if 'agreed_to_documents' not in columns:
 
-            
+                cursor.execute("ALTER TABLE users ADD COLUMN agreed_to_documents BOOLEAN DEFAULT 0")
 
-        if 'subscription_status' not in columns:
+                logging.info(" -> The column 'agreed_to_documents' is successfully added.")
 
-            cursor.execute("ALTER TABLE users ADD COLUMN subscription_status TEXT DEFAULT 'not_checked'")
+            else:
 
-            logging.info(" -> The column 'subscription_status' is successfully added.")
+                logging.info(" -> The column 'agreed_to_documents' already exists.")
 
-        else:
+            if 'subscription_status' not in columns:
 
-            logging.info(" -> The column 'subscription_status' already exists.")
+                cursor.execute("ALTER TABLE users ADD COLUMN subscription_status TEXT DEFAULT 'not_checked'")
 
-        
+                logging.info(" -> The column 'subscription_status' is successfully added.")
 
-        # Добавляем колонки для ключей
+            else:
 
-        if 'key_id' not in columns:
+                logging.info(" -> The column 'subscription_status' already exists.")
 
-            cursor.execute("ALTER TABLE users ADD COLUMN key_id INTEGER")
+            # Добавляем колонки для ключей
 
-            logging.info(" -> The column 'key_id' is successfully added.")
+            if 'key_id' not in columns:
 
-        else:
+                cursor.execute("ALTER TABLE users ADD COLUMN key_id INTEGER")
 
-            logging.info(" -> The column 'key_id' already exists.")
+                logging.info(" -> The column 'key_id' is successfully added.")
 
-            
+            else:
 
-        if 'connection_string' not in columns:
+                logging.info(" -> The column 'key_id' already exists.")
 
-            cursor.execute("ALTER TABLE users ADD COLUMN connection_string TEXT")
+            if 'connection_string' not in columns:
 
-            logging.info(" -> The column 'connection_string' is successfully added.")
+                cursor.execute("ALTER TABLE users ADD COLUMN connection_string TEXT")
 
-        else:
+                logging.info(" -> The column 'connection_string' is successfully added.")
 
-            logging.info(" -> The column 'connection_string' already exists.")
+            else:
 
-            
+                logging.info(" -> The column 'connection_string' already exists.")
 
-        if 'host_name' not in columns:
+            if 'host_name' not in columns:
 
-            cursor.execute("ALTER TABLE users ADD COLUMN host_name TEXT")
+                cursor.execute("ALTER TABLE users ADD COLUMN host_name TEXT")
 
-            logging.info(" -> The column 'host_name' is successfully added.")
+                logging.info(" -> The column 'host_name' is successfully added.")
 
-        else:
+            else:
 
-            logging.info(" -> The column 'host_name' already exists.")
+                logging.info(" -> The column 'host_name' already exists.")
 
-            
+            if 'plan_name' not in columns:
 
-        if 'plan_name' not in columns:
+                cursor.execute("ALTER TABLE users ADD COLUMN plan_name TEXT")
 
-            cursor.execute("ALTER TABLE users ADD COLUMN plan_name TEXT")
+                logging.info(" -> The column 'plan_name' is successfully added.")
 
-            logging.info(" -> The column 'plan_name' is successfully added.")
+            else:
 
-        else:
+                logging.info(" -> The column 'plan_name' already exists.")
 
-            logging.info(" -> The column 'plan_name' already exists.")
+            if 'price' not in columns:
 
-            
+                cursor.execute("ALTER TABLE users ADD COLUMN price REAL")
 
-        if 'price' not in columns:
+                logging.info(" -> The column 'price' is successfully added.")
 
-            cursor.execute("ALTER TABLE users ADD COLUMN price REAL")
+            else:
 
-            logging.info(" -> The column 'price' is successfully added.")
+                logging.info(" -> The column 'price' already exists.")
 
-        else:
+            if 'email' not in columns:
 
-            logging.info(" -> The column 'price' already exists.")
+                cursor.execute("ALTER TABLE users ADD COLUMN email TEXT")
 
-            
+                logging.info(" -> The column 'email' is successfully added.")
 
-        if 'email' not in columns:
+            else:
 
-            cursor.execute("ALTER TABLE users ADD COLUMN email TEXT")
+                logging.info(" -> The column 'email' already exists.")
 
-            logging.info(" -> The column 'email' is successfully added.")
+            if 'created_date' not in columns:
 
-        else:
+                cursor.execute("ALTER TABLE users ADD COLUMN created_date TIMESTAMP")
 
-            logging.info(" -> The column 'email' already exists.")
+                logging.info(" -> The column 'created_date' is successfully added.")
 
-            
+            else:
 
-        if 'created_date' not in columns:
+                logging.info(" -> The column 'created_date' already exists.")
 
-            cursor.execute("ALTER TABLE users ADD COLUMN created_date TIMESTAMP")
+            if 'trial_days_given' not in columns:
 
-            logging.info(" -> The column 'created_date' is successfully added.")
+                cursor.execute("ALTER TABLE users ADD COLUMN trial_days_given INTEGER DEFAULT 0")
 
-        else:
+                logging.info(" -> The column 'trial_days_given' is successfully added.")
 
-            logging.info(" -> The column 'created_date' already exists.")
+            else:
 
-            
+                logging.info(" -> The column 'trial_days_given' already exists.")
 
-        if 'trial_days_given' not in columns:
+            if 'trial_reuses_count' not in columns:
 
-            cursor.execute("ALTER TABLE users ADD COLUMN trial_days_given INTEGER DEFAULT 0")
+                cursor.execute("ALTER TABLE users ADD COLUMN trial_reuses_count INTEGER DEFAULT 0")
 
-            logging.info(" -> The column 'trial_days_given' is successfully added.")
+                logging.info(" -> The column 'trial_reuses_count' is successfully added.")
 
-        else:
+            else:
 
-            logging.info(" -> The column 'trial_days_given' already exists.")
+                logging.info(" -> The column 'trial_reuses_count' already exists.")
 
-            
+            if 'user_id' not in columns:
 
-        if 'trial_reuses_count' not in columns:
+                # SQLite не позволяет добавить колонку с UNIQUE напрямую, добавляем без него
 
-            cursor.execute("ALTER TABLE users ADD COLUMN trial_reuses_count INTEGER DEFAULT 0")
+                cursor.execute("ALTER TABLE users ADD COLUMN user_id INTEGER")
 
-            logging.info(" -> The column 'trial_reuses_count' is successfully added.")
+                logging.info(" -> The column 'user_id' is successfully added.")
 
-        else:
+                
 
-            logging.info(" -> The column 'trial_reuses_count' already exists.")
+                # Заполняем существующие записи значениями, начиная с 1000
 
-        
+                cursor.execute("""
 
-        if 'user_id' not in columns:
+                    SELECT telegram_id, ROW_NUMBER() OVER (ORDER BY registration_date ASC) as row_num
 
-            # SQLite не позволяет добавить колонку с UNIQUE напрямую, добавляем без него
+                    FROM users
 
-            cursor.execute("ALTER TABLE users ADD COLUMN user_id INTEGER")
+                """)
 
-            logging.info(" -> The column 'user_id' is successfully added.")
+                users_to_update = cursor.fetchall()
 
-            
+                
 
-            # Заполняем существующие записи значениями, начиная с 1000
+                for telegram_id, row_num in users_to_update:
 
-            cursor.execute("""
+                    new_user_id = 999 + row_num  # Начинаем с 1000
 
-                SELECT telegram_id, ROW_NUMBER() OVER (ORDER BY registration_date ASC) as row_num
+                    cursor.execute("UPDATE users SET user_id = ? WHERE telegram_id = ?", (new_user_id, telegram_id))
 
-                FROM users
+                
 
-            """)
+                logging.info(f" -> Заполнено {len(users_to_update)} записей user_id, начиная с 1000.")
 
-            users_to_update = cursor.fetchall()
+                
 
-            
+                # Создаем уникальный индекс на user_id
 
-            for telegram_id, row_num in users_to_update:
+                try:
 
-                new_user_id = 999 + row_num  # Начинаем с 1000
+                    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_user_id ON users(user_id)")
 
-                cursor.execute("UPDATE users SET user_id = ? WHERE telegram_id = ?", (new_user_id, telegram_id))
+                    logging.info(" -> Уникальный индекс на user_id успешно создан.")
 
-            
+                except sqlite3.Error as e:
 
-            logging.info(f" -> Заполнено {len(users_to_update)} записей user_id, начиная с 1000.")
+                    logging.warning(f" -> Не удалось создать уникальный индекс (возможно, уже существует): {e}")
 
-            
+            else:
 
-            # Создаем уникальный индекс на user_id
+                logging.info(" -> The column 'user_id' already exists.")
 
-            try:
+            if 'fullname' not in columns:
 
-                cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_user_id ON users(user_id)")
+                cursor.execute("ALTER TABLE users ADD COLUMN fullname TEXT")
 
-                logging.info(" -> Уникальный индекс на user_id успешно создан.")
+                logging.info(" -> The column 'fullname' is successfully added.")
 
-            except sqlite3.Error as e:
+            else:
 
-                logging.warning(f" -> Не удалось создать уникальный индекс (возможно, уже существует): {e}")
-
-        else:
-
-            logging.info(" -> The column 'user_id' already exists.")
+                logging.info(" -> The column 'fullname' already exists.")
 
         
         
-        if 'fullname' not in columns:
+            if 'fio' not in columns:
 
-            cursor.execute("ALTER TABLE users ADD COLUMN fullname TEXT")
+                cursor.execute("ALTER TABLE users ADD COLUMN fio TEXT")
 
-            logging.info(" -> The column 'fullname' is successfully added.")
+                logging.info(" -> The column 'fio' is successfully added.")
 
-        else:
+            else:
 
-            logging.info(" -> The column 'fullname' already exists.")
-
-        
-        
-        if 'fio' not in columns:
-
-            cursor.execute("ALTER TABLE users ADD COLUMN fio TEXT")
-
-            logging.info(" -> The column 'fio' is successfully added.")
-
-        else:
-
-            logging.info(" -> The column 'fio' already exists.")
+                logging.info(" -> The column 'fio' already exists.")
 
         
-        if 'group_id' not in columns:
+            if 'group_id' not in columns:
 
-            cursor.execute("ALTER TABLE users ADD COLUMN group_id INTEGER")
+                cursor.execute("ALTER TABLE users ADD COLUMN group_id INTEGER")
 
-            logging.info(" -> The column 'group_id' is successfully added.")
+                logging.info(" -> The column 'group_id' is successfully added.")
 
-            # Находим ID группы по умолчанию и назначаем её всем существующим пользователям
-            cursor.execute("SELECT group_id FROM user_groups WHERE is_default = 1 LIMIT 1")
-            default_group = cursor.fetchone()
-            
-            if default_group:
-                default_group_id = default_group[0]
-                cursor.execute("UPDATE users SET group_id = ? WHERE group_id IS NULL", (default_group_id,))
-                logging.info(f" -> Все существующие пользователи назначены в группу с ID {default_group_id}")
+                # Находим ID группы по умолчанию и назначаем её всем существующим пользователям
+                cursor.execute("SELECT group_id FROM user_groups WHERE is_default = 1 LIMIT 1")
+                default_group = cursor.fetchone()
+                
+                if default_group:
+                    default_group_id = default_group[0]
+                    cursor.execute("UPDATE users SET group_id = ? WHERE group_id IS NULL", (default_group_id,))
+                    logging.info(f" -> Все существующие пользователи назначены в группу с ID {default_group_id}")
 
-        else:
+            else:
 
-            logging.info(" -> The column 'group_id' already exists.")
+                logging.info(" -> The column 'group_id' already exists.")
 
-        
+            if 'auto_renewal_enabled' not in columns:
 
-        logging.info("The table 'users' has been successfully updated.")
+                cursor.execute("ALTER TABLE users ADD COLUMN auto_renewal_enabled INTEGER DEFAULT 1")
 
+                logging.info(" -> The column 'auto_renewal_enabled' is successfully added.")
 
+            else:
 
-        logging.info("The migration of the table 'vpn_keys' ...")
+                logging.info(" -> The column 'auto_renewal_enabled' already exists.")
 
-        
+            logging.info("The table 'users' has been successfully updated.")
 
-        cursor.execute("PRAGMA table_info(vpn_keys)")
+            logging.info("The migration of the table 'vpn_keys' ...")
 
-        vpn_keys_columns = [row[1] for row in cursor.fetchall()]
+            cursor.execute("PRAGMA table_info(vpn_keys)")
 
-        
+            vpn_keys_columns = [row[1] for row in cursor.fetchall()]
 
-        if 'connection_string' not in vpn_keys_columns:
+            if 'connection_string' not in vpn_keys_columns:
 
-            cursor.execute("ALTER TABLE vpn_keys ADD COLUMN connection_string TEXT")
+                cursor.execute("ALTER TABLE vpn_keys ADD COLUMN connection_string TEXT")
 
-            logging.info(" -> The column 'connection_string' is successfully added to vpn_keys table.")
+                logging.info(" -> The column 'connection_string' is successfully added to vpn_keys table.")
 
-        else:
+            else:
 
-            logging.info(" -> The column 'connection_string' already exists in vpn_keys table.")
+                logging.info(" -> The column 'connection_string' already exists in vpn_keys table.")
 
             
 
@@ -1757,46 +1728,66 @@ def run_migration():
                 columns = [row[1] for row in cursor.fetchall()]
                 
                 if 'user_id' in columns:
-                    # Создаем новую таблицу с правильным ограничением UNIQUE
-                    cursor.execute('''
-                        CREATE TABLE promo_code_usage_new (
-                            usage_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            promo_id INTEGER NOT NULL,
-                            user_id INTEGER,
-                            bot TEXT NOT NULL,
-                            plan_id INTEGER,
-                            discount_amount REAL DEFAULT 0,
-                            discount_percent REAL DEFAULT 0,
-                            discount_bonus REAL DEFAULT 0,
-                            metadata TEXT,
-                            used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                            status TEXT DEFAULT 'applied',
-                            FOREIGN KEY (promo_id) REFERENCES promo_codes (promo_id),
-                            FOREIGN KEY (plan_id) REFERENCES plans (plan_id),
-                            FOREIGN KEY (user_id) REFERENCES users (telegram_id),
-                            UNIQUE (promo_id, user_id, bot)
-                        )
-                    ''')
+                    # Используем retry логику для критичных операций миграции
+                    max_retries = 5
+                    retry_delay = 0.5  # секунды
+                    migration_success = False
                     
-                    # Копируем данные из старой таблицы
-                    cursor.execute('''
-                        INSERT INTO promo_code_usage_new 
-                        SELECT * FROM promo_code_usage
-                    ''')
+                    for attempt in range(max_retries):
+                        try:
+                            # Создаем новую таблицу с правильным ограничением UNIQUE
+                            cursor.execute('''
+                                CREATE TABLE promo_code_usage_new (
+                                    usage_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    promo_id INTEGER NOT NULL,
+                                    user_id INTEGER,
+                                    bot TEXT NOT NULL,
+                                    plan_id INTEGER,
+                                    discount_amount REAL DEFAULT 0,
+                                    discount_percent REAL DEFAULT 0,
+                                    discount_bonus REAL DEFAULT 0,
+                                    metadata TEXT,
+                                    used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                                    status TEXT DEFAULT 'applied',
+                                    FOREIGN KEY (promo_id) REFERENCES promo_codes (promo_id),
+                                    FOREIGN KEY (plan_id) REFERENCES plans (plan_id),
+                                    FOREIGN KEY (user_id) REFERENCES users (telegram_id),
+                                    UNIQUE (promo_id, user_id, bot)
+                                )
+                            ''')
+                            
+                            # Копируем данные из старой таблицы
+                            cursor.execute('''
+                                INSERT INTO promo_code_usage_new 
+                                SELECT * FROM promo_code_usage
+                            ''')
+                            
+                            # Удаляем старую таблицу и переименовываем новую
+                            cursor.execute('DROP TABLE promo_code_usage')
+                            cursor.execute('ALTER TABLE promo_code_usage_new RENAME TO promo_code_usage')
+                            
+                            # Создаем индексы
+                            cursor.execute('CREATE INDEX IF NOT EXISTS idx_promo_code_usage_promo_id ON promo_code_usage(promo_id)')
+                            cursor.execute('CREATE INDEX IF NOT EXISTS idx_promo_code_usage_user_id ON promo_code_usage(user_id)')
+                            cursor.execute('CREATE INDEX IF NOT EXISTS idx_promo_code_usage_bot ON promo_code_usage(bot)')
+                            cursor.execute('CREATE INDEX IF NOT EXISTS idx_promo_code_usage_status ON promo_code_usage(status)')
+                            
+                            # Отмечаем миграцию как выполненную
+                            cursor.execute("INSERT INTO migration_history (migration_id) VALUES ('promo_code_usage_fix_unique_constraint')")
+                            logging.info(" -> Promo code usage unique constraint migration completed")
+                            migration_success = True
+                            break  # Успех - выходим из retry цикла
+                        except sqlite3.OperationalError as e:
+                            if "database is locked" in str(e) and attempt < max_retries - 1:
+                                logging.warning(f" -> Database locked during promo_code_usage migration, retry {attempt + 1}/{max_retries} in {retry_delay}s...")
+                                time.sleep(retry_delay)
+                                retry_delay *= 2  # Экспоненциальная задержка
+                            else:
+                                logging.error(f" -> Failed to migrate promo_code_usage after {attempt + 1} attempts: {e}")
+                                raise
                     
-                    # Удаляем старую таблицу и переименовываем новую
-                    cursor.execute('DROP TABLE promo_code_usage')
-                    cursor.execute('ALTER TABLE promo_code_usage_new RENAME TO promo_code_usage')
-                    
-                    # Создаем индексы
-                    cursor.execute('CREATE INDEX IF NOT EXISTS idx_promo_code_usage_promo_id ON promo_code_usage(promo_id)')
-                    cursor.execute('CREATE INDEX IF NOT EXISTS idx_promo_code_usage_user_id ON promo_code_usage(user_id)')
-                    cursor.execute('CREATE INDEX IF NOT EXISTS idx_promo_code_usage_bot ON promo_code_usage(bot)')
-                    cursor.execute('CREATE INDEX IF NOT EXISTS idx_promo_code_usage_status ON promo_code_usage(status)')
-                    
-                    # Отмечаем миграцию как выполненную
-                    cursor.execute("INSERT INTO migration_history (migration_id) VALUES ('promo_code_usage_fix_unique_constraint')")
-                    logging.info(" -> Promo code usage unique constraint migration completed")
+                    if not migration_success:
+                        logging.error(" -> Failed to complete promo_code_usage migration after all retries")
                 else:
                     logging.warning(" -> Column 'user_id' not found in promo_code_usage table, skipping migration")
             else:
@@ -1804,12 +1795,6 @@ def run_migration():
                 
         except Exception as e:
             logging.error(f" -> Error migrating promo_code_usage unique constraint: {e}")
-
-        conn.commit()
-
-        conn.close()
-
-        
 
         # Миграция настроек бекапов
         logging.info("Migrating backup settings...")
@@ -2145,6 +2130,141 @@ def update_setting(key: str, value: str):
         logging.error(f"Failed to update setting '{key}': {e}")
 
 
+# ============================================================================
+# Timezone Support Functions
+# ============================================================================
+
+def is_timezone_feature_enabled() -> bool:
+    """
+    Проверяет, включена ли функциональность timezone.
+    
+    Returns:
+        True если feature_timezone_enabled = '1', иначе False
+    """
+    try:
+        value = get_setting('feature_timezone_enabled')
+        return value == '1' if value is not None else False
+    except Exception as e:
+        logger.error(f"Error checking timezone feature flag: {e}")
+        return False
+
+
+def get_admin_timezone() -> str:
+    """
+    Получает timezone администратора из настроек.
+    
+    Returns:
+        Название timezone (например, 'Europe/Moscow').
+        По умолчанию 'Europe/Moscow' при ошибке.
+    """
+    try:
+        timezone = get_setting('admin_timezone')
+        if timezone:
+            return timezone
+        logger.warning("admin_timezone not found in settings, using default 'Europe/Moscow'")
+        return 'Europe/Moscow'
+    except Exception as e:
+        logger.error(f"Error getting admin timezone: {e}")
+        return 'Europe/Moscow'
+
+
+def set_admin_timezone(timezone: str) -> bool:
+    """
+    Устанавливает timezone администратора.
+    
+    Args:
+        timezone: Название timezone (например, 'Europe/Moscow')
+        
+    Returns:
+        True если успешно, иначе False
+    """
+    try:
+        # Валидация timezone (опциональная в Windows)
+        try:
+            from zoneinfo import ZoneInfo
+            ZoneInfo(timezone)
+        except Exception as e:
+            # В Windows может не быть timezone данных, это нормально для разработки
+            logger.warning(f"Could not validate timezone '{timezone}': {e} (this is OK in Windows dev environment)")
+        
+        update_setting('admin_timezone', timezone)
+        logger.info(f"Admin timezone updated to: {timezone}")
+        return True
+    except Exception as e:
+        logger.error(f"Error setting admin timezone: {e}")
+        return False
+
+
+def get_user_timezone(user_id: int) -> str:
+    """
+    Получает timezone пользователя из таблицы users.
+    
+    Args:
+        user_id: Telegram ID пользователя
+        
+    Returns:
+        Название timezone пользователя.
+        Fallback на admin_timezone при отсутствии/ошибке.
+    """
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT timezone FROM users WHERE telegram_id = ?", (user_id,))
+            result = cursor.fetchone()
+            
+            if result and result[0]:
+                return result[0]
+            
+            # Fallback на admin timezone
+            return get_admin_timezone()
+    except Exception as e:
+        logger.error(f"Error getting user timezone for {user_id}: {e}")
+        return get_admin_timezone()
+
+
+def set_user_timezone(user_id: int, timezone: str) -> bool:
+    """
+    Устанавливает timezone для пользователя.
+    
+    Args:
+        user_id: Telegram ID пользователя
+        timezone: Название timezone (например, 'Europe/Moscow')
+        
+    Returns:
+        True если успешно, иначе False
+    """
+    try:
+        # Валидация timezone (опциональная в Windows)
+        try:
+            from zoneinfo import ZoneInfo
+            ZoneInfo(timezone)
+        except Exception as e:
+            # В Windows может не быть timezone данных, это нормально для разработки
+            logger.warning(f"Could not validate timezone '{timezone}': {e} (this is OK in Windows dev environment)")
+        
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE users SET timezone = ? WHERE telegram_id = ?",
+                (timezone, user_id)
+            )
+            conn.commit()
+            
+            if cursor.rowcount > 0:
+                logger.info(f"User {user_id} timezone updated to: {timezone}")
+                return True
+            else:
+                logger.warning(f"User {user_id} not found when setting timezone")
+                return False
+    except Exception as e:
+        logger.error(f"Error setting user timezone for {user_id}: {e}")
+        return False
+
+
+# ============================================================================
+# End Timezone Support Functions
+# ============================================================================
+
 def get_backup_setting(key: str) -> str | None:
     """Получить настройку бекапа"""
     try:
@@ -2191,6 +2311,9 @@ def migrate_backup_settings():
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
+            
+            # Устанавливаем PRAGMA busy_timeout для предотвращения блокировок
+            cursor.execute("PRAGMA busy_timeout=30000")
             
             # Список настроек бекапов для миграции
             backup_keys = [
@@ -3944,6 +4067,114 @@ def get_user_balance(user_id: int) -> float:
 
 
 
+def get_auto_renewal_enabled(user_id: int) -> bool:
+
+    """Получает статус автопродления для пользователя. По умолчанию True (включено)."""
+
+    try:
+
+        with sqlite3.connect(DB_FILE) as conn:
+
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT auto_renewal_enabled FROM users WHERE telegram_id = ?", (user_id,))
+
+            row = cursor.fetchone()
+
+            # По умолчанию автопродление включено (1), если поле NULL или отсутствует - возвращаем True
+
+            if row and row[0] is not None:
+
+                return bool(row[0])
+
+            return True  # По умолчанию включено
+
+    except sqlite3.OperationalError as e:
+
+        # Если колонка еще не существует (миграция не выполнилась), возвращаем True по умолчанию
+
+        if "no such column" in str(e).lower():
+
+            logging.debug(f"Column auto_renewal_enabled does not exist yet for user {user_id}, returning default True")
+
+            return True  # По умолчанию включено
+
+        logging.error(f"Failed to get auto_renewal_enabled for user {user_id}: {e}")
+
+        return True  # По умолчанию включено при ошибке
+
+    except sqlite3.Error as e:
+
+        logging.error(f"Failed to get auto_renewal_enabled for user {user_id}: {e}")
+
+        return True  # По умолчанию включено при ошибке
+
+
+
+def set_auto_renewal_enabled(user_id: int, enabled: bool) -> bool:
+
+    """Устанавливает статус автопродления для пользователя."""
+
+    try:
+
+        with sqlite3.connect(DB_FILE) as conn:
+
+            cursor = conn.cursor()
+
+            cursor.execute("UPDATE users SET auto_renewal_enabled = ? WHERE telegram_id = ?", (1 if enabled else 0, user_id))
+
+            conn.commit()
+
+            return True
+
+    except sqlite3.OperationalError as e:
+
+        # Если колонка еще не существует (миграция не выполнилась), пытаемся выполнить миграцию
+
+        if "no such column" in str(e).lower():
+
+            logging.warning(f"Column auto_renewal_enabled does not exist yet. Attempting to add it...")
+
+            try:
+
+                # Пытаемся добавить колонку напрямую
+
+                with sqlite3.connect(DB_FILE) as conn2:
+
+                    cursor2 = conn2.cursor()
+
+                    cursor2.execute("ALTER TABLE users ADD COLUMN auto_renewal_enabled INTEGER DEFAULT 1")
+
+                    conn2.commit()
+
+                    # Теперь устанавливаем значение
+
+                    cursor2.execute("UPDATE users SET auto_renewal_enabled = ? WHERE telegram_id = ?", (1 if enabled else 0, user_id))
+
+                    conn2.commit()
+
+                    logging.info(f"Column auto_renewal_enabled added and value set for user {user_id}")
+
+                    return True
+
+            except Exception as e2:
+
+                logging.error(f"Failed to add column auto_renewal_enabled: {e2}")
+
+                return False
+
+        logging.error(f"Failed to set auto_renewal_enabled for user {user_id}: {e}")
+
+        return False
+
+    except sqlite3.Error as e:
+
+        logging.error(f"Failed to set auto_renewal_enabled for user {user_id}: {e}")
+
+        return False
+
+
+
 def add_to_user_balance(user_id: int, amount: float) -> bool:
 
     try:
@@ -5039,24 +5270,18 @@ def add_new_key(user_id: int, host_name: str, xui_client_uuid: str, key_email: s
             cursor = conn.cursor()
 
             from datetime import timezone, timedelta
+            # Импортируем новые утилиты для работы с timezone
+            from shop_bot.utils.datetime_utils import timestamp_to_utc_datetime, calculate_remaining_seconds, get_moscow_now
 
             local_tz = timezone(timedelta(hours=3))
             
-            # Используем UTC для совместимости с 3x-ui
-            from datetime import timezone as _tz
-            utc_tz = _tz.utc
-            
-            # Преобразуем expiry_timestamp_ms в UTC datetime
-            expiry_date = datetime.fromtimestamp(expiry_timestamp_ms / 1000, tz=utc_tz)
-            
-            # Убираем timezone для совместимости с БД
-            expiry_date = expiry_date.replace(tzinfo=None)
+            # Используем новую утилиту для корректной конвертации timestamp в UTC
+            expiry_date = timestamp_to_utc_datetime(expiry_timestamp_ms)
 
-            local_now = datetime.now(local_tz)
+            local_now = get_moscow_now()
 
-            # Рассчитываем remaining_seconds используя UTC
-            now_ms = int(datetime.now(utc_tz).timestamp() * 1000)
-            remaining_seconds = max(0, int((expiry_timestamp_ms - now_ms) / 1000))
+            # Рассчитываем remaining_seconds с помощью утилиты
+            remaining_seconds = calculate_remaining_seconds(expiry_timestamp_ms)
 
             try:
 
@@ -5254,15 +5479,14 @@ def update_key_info(key_id: int, new_xui_uuid: str, new_expiry_ms: int, subscrip
 
             cursor = conn.cursor()
 
-            expiry_date = datetime.fromtimestamp(new_expiry_ms / 1000)
+            # Используем новую утилиту для корректной конвертации timestamp в UTC
+            from shop_bot.utils.datetime_utils import timestamp_to_utc_datetime, calculate_remaining_seconds
+            
+            expiry_date = timestamp_to_utc_datetime(new_expiry_ms)
 
-            # Пересчёт remaining_seconds
+            # Пересчёт remaining_seconds с помощью утилиты
 
-            from datetime import timezone as _tz
-
-            now_ms = int(datetime.now(_tz.utc).timestamp() * 1000)
-
-            remaining_seconds = max(0, int((new_expiry_ms - now_ms) / 1000))
+            remaining_seconds = calculate_remaining_seconds(new_expiry_ms)
 
             if subscription_link:
                 cursor.execute("UPDATE vpn_keys SET xui_client_uuid = ?, expiry_date = ?, remaining_seconds = ?, subscription_link = ? WHERE key_id = ?", (new_xui_uuid, expiry_date, remaining_seconds, subscription_link, key_id))
@@ -5343,7 +5567,10 @@ def update_key_status_from_server(key_email: str, xui_client_data):
 
             if xui_client_data:
 
-                expiry_date = datetime.fromtimestamp(xui_client_data.expiry_time / 1000)
+                # Используем новую утилиту для корректной конвертации timestamp в UTC
+                from shop_bot.utils.datetime_utils import timestamp_to_utc_datetime, calculate_remaining_seconds
+                
+                expiry_date = timestamp_to_utc_datetime(xui_client_data.expiry_time)
 
                 
 
@@ -5377,10 +5604,8 @@ def update_key_status_from_server(key_email: str, xui_client_data):
 
                 
 
-                # Вычисляем remaining_seconds
-                from datetime import timezone as _tz
-                now_ms = int(datetime.now(_tz.utc).timestamp() * 1000)
-                remaining_seconds = max(0, int((xui_client_data.expiry_time - now_ms) / 1000))
+                # Вычисляем remaining_seconds с помощью утилиты
+                remaining_seconds = calculate_remaining_seconds(xui_client_data.expiry_time)
                 
                 # Получаем квоту трафика из клиента
                 quota_total_gb = None
@@ -5642,6 +5867,13 @@ def log_notification(user_id: int, username: str | None, notif_type: str, title:
         with sqlite3.connect(DB_FILE) as conn:
 
             cursor = conn.cursor()
+            
+            # Устанавливаем PRAGMA настройки для предотвращения блокировок
+            try:
+                cursor.execute("PRAGMA busy_timeout=30000")
+                cursor.execute("PRAGMA journal_mode=WAL")
+            except sqlite3.Error as e:
+                logging.debug(f"Failed to set PRAGMA settings in log_notification: {e}")
 
             from datetime import timezone, timedelta
 
