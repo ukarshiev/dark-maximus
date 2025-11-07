@@ -1286,7 +1286,13 @@ def get_user_router() -> Router:
             referral_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
             referral_percentage = get_setting("referral_percentage") or "10"
         
-        final_text = get_profile_text(username, balance, total_spent, total_months, vpn_status_text, referral_balance, show_referral, referral_link, referral_percentage, auto_renewal_enabled)
+        # Получаем timezone для отображения
+        from shop_bot.data_manager.database import get_user_timezone
+        from shop_bot.data.timezones import get_timezone_display_name
+        user_timezone = get_user_timezone(user_id)
+        timezone_display = get_timezone_display_name(user_timezone) if user_timezone else None
+        
+        final_text = get_profile_text(username, balance, total_spent, total_months, vpn_status_text, referral_balance, show_referral, referral_link, referral_percentage, auto_renewal_enabled, timezone_display)
         await message.answer(final_text, reply_markup=keyboards.create_profile_menu_keyboard(total_keys_count=len(user_keys or []), trial_used=trial_used, auto_renewal_enabled=auto_renewal_enabled))
 
     @user_router.message(F.text == "🔑 Мои ключи")
@@ -1394,6 +1400,246 @@ def get_user_router() -> Router:
             await callback.message.answer(message_text)
         else:
             await callback.message.answer("❌ Произошла ошибка при изменении настроек. Попробуйте позже.")
+
+    @user_router.callback_query(F.data == "change_timezone")
+    @documents_consent_required
+    @subscription_required
+    @measure_performance("change_timezone")
+    async def timezone_change_handler(callback: types.CallbackQuery):
+        """Обработчик кнопки изменения часового пояса"""
+        await callback.answer()
+        user_id = callback.from_user.id
+        from shop_bot.data_manager.database import get_user_timezone
+        
+        # Получаем текущий часовой пояс пользователя
+        current_timezone = get_user_timezone(user_id)
+        
+        # Показываем список часовых поясов
+        await callback.message.edit_text(
+            "🌍 <b>Выбор часового пояса</b>\n\n"
+            "Выберите ваш часовой пояс из списка ниже.\n"
+            "Это повлияет на отображение дат и времени в боте.",
+            reply_markup=keyboards.create_timezone_selection_keyboard(page=0, current_timezone=current_timezone),
+            parse_mode="HTML"
+        )
+
+    @user_router.callback_query(F.data.startswith("tz_page:"))
+    @documents_consent_required
+    @subscription_required
+    @measure_performance("timezone_page_navigation")
+    async def timezone_page_handler(callback: types.CallbackQuery):
+        """Обработчик навигации по страницам часовых поясов"""
+        await callback.answer()
+        user_id = callback.from_user.id
+        from shop_bot.data_manager.database import get_user_timezone
+        
+        # Извлекаем номер страницы из callback_data
+        page = int(callback.data.split(":")[1])
+        
+        # Получаем текущий часовой пояс пользователя
+        current_timezone = get_user_timezone(user_id)
+        
+        # Обновляем клавиатуру с новой страницей
+        try:
+            await callback.message.edit_reply_markup(
+                reply_markup=keyboards.create_timezone_selection_keyboard(page=page, current_timezone=current_timezone)
+            )
+        except TelegramBadRequest as e:
+            # Если сообщение не изменилось, просто игнорируем
+            if "message is not modified" not in str(e).lower():
+                raise
+
+    @user_router.callback_query(F.data == "tz_page_info")
+    async def timezone_page_info_handler(callback: types.CallbackQuery):
+        """Обработчик кнопки информации о странице (ничего не делает)"""
+        await callback.answer()
+
+    @user_router.callback_query(F.data.startswith("select_tz:"))
+    @documents_consent_required
+    @subscription_required
+    @measure_performance("timezone_select")
+    async def timezone_select_handler(callback: types.CallbackQuery):
+        """Обработчик выбора часового пояса"""
+        await callback.answer()
+        user_id = callback.from_user.id
+        
+        # Извлекаем timezone из callback_data
+        timezone_name = callback.data.split(":", 1)[1]
+        
+        # Валидируем timezone
+        from shop_bot.data.timezones import validate_timezone, get_timezone_display_name
+        if not validate_timezone(timezone_name):
+            await callback.answer("❌ Неверный часовой пояс", show_alert=True)
+            return
+        
+        # Получаем отображаемое имя
+        timezone_display = get_timezone_display_name(timezone_name)
+        
+        # Показываем текущее время в выбранном часовом поясе
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        try:
+            tz = ZoneInfo(timezone_name)
+            current_time = datetime.now(tz).strftime('%H:%M:%S')
+            current_date = datetime.now(tz).strftime('%d.%m.%Y')
+        except Exception as e:
+            logger.error(f"Error getting time for timezone {timezone_name}: {e}")
+            current_time = "—"
+            current_date = "—"
+        
+        # Показываем подтверждение с текущим временем
+        await callback.message.edit_text(
+            f"🌍 <b>Подтверждение выбора часового пояса</b>\n\n"
+            f"<b>Выбран:</b> {timezone_display}\n\n"
+            f"<b>Текущее время:</b> {current_time}\n"
+            f"<b>Текущая дата:</b> {current_date}\n\n"
+            f"Подтвердите выбор часового пояса:",
+            reply_markup=keyboards.create_timezone_confirmation_keyboard(timezone_name),
+            parse_mode="HTML"
+        )
+
+    @user_router.callback_query(F.data.startswith("confirm_tz:"))
+    @documents_consent_required
+    @subscription_required
+    @measure_performance("timezone_confirm")
+    async def timezone_confirm_handler(callback: types.CallbackQuery):
+        """Обработчик подтверждения выбора часового пояса"""
+        await callback.answer()
+        user_id = callback.from_user.id
+        
+        # Извлекаем timezone из callback_data
+        timezone_name = callback.data.split(":", 1)[1]
+        
+        # Валидируем timezone
+        from shop_bot.data.timezones import validate_timezone, get_timezone_display_name
+        if not validate_timezone(timezone_name):
+            await callback.answer("❌ Неверный часовой пояс", show_alert=True)
+            return
+        
+        # Сохраняем timezone в БД
+        from shop_bot.data_manager.database import set_user_timezone
+        set_user_timezone(user_id, timezone_name)
+        
+        # Получаем отображаемое имя
+        timezone_display = get_timezone_display_name(timezone_name)
+        
+        # Возвращаемся в профиль с обновлёнными данными
+        user_db_data = get_user(user_id)
+        user_keys = get_user_keys(user_id)
+        if not user_db_data:
+            await callback.answer("Не удалось получить данные профиля.", show_alert=True)
+            return
+        
+        username = html.bold(user_db_data.get('username', 'Пользователь'))
+        total_spent, total_months = user_db_data.get('total_spent', 0), user_db_data.get('total_months', 0)
+        from shop_bot.data_manager.database import get_user_balance, get_setting, get_auto_renewal_enabled
+        balance = get_user_balance(user_id)
+        auto_renewal_enabled = get_auto_renewal_enabled(user_id)
+        now = datetime.now()
+        active_keys = [key for key in user_keys if datetime.fromisoformat(key['expiry_date']) > now]
+        if active_keys:
+            latest_key = max(active_keys, key=lambda k: datetime.fromisoformat(k['expiry_date']))
+            latest_expiry_date = datetime.fromisoformat(latest_key['expiry_date'])
+            time_left = latest_expiry_date - now
+            vpn_status_text = get_vpn_active_text(time_left.days, time_left.seconds // 3600)
+        elif user_keys: vpn_status_text = VPN_INACTIVE_TEXT
+        else: vpn_status_text = VPN_NO_DATA_TEXT
+        
+        trial_used = user_db_data.get('trial_used', 1) if user_db_data else 1
+        
+        # Получаем реферальный баланс и проверяем, включена ли реферальная система
+        referral_balance = user_db_data.get('referral_balance', 0)
+        show_referral = get_setting("enable_referrals") == "true"
+        
+        # Формируем реферальную ссылку и получаем процент вознаграждения
+        referral_link = None
+        referral_percentage = None
+        if show_referral:
+            bot_username = (await callback.bot.get_me()).username
+            referral_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
+            referral_percentage = get_setting("referral_percentage") or "10"
+        
+        # Формируем текст профиля с новым часовым поясом
+        final_text = get_profile_text(
+            username, balance, total_spent, total_months, vpn_status_text, 
+            referral_balance, show_referral, referral_link, referral_percentage, 
+            auto_renewal_enabled, timezone_display
+        )
+        
+        await callback.message.edit_text(
+            final_text, 
+            reply_markup=keyboards.create_profile_menu_keyboard(
+                total_keys_count=len(user_keys or []), 
+                trial_used=trial_used, 
+                auto_renewal_enabled=auto_renewal_enabled
+            )
+        )
+        
+        # Отправляем подтверждающее сообщение
+        await callback.message.answer(f"✅ Часовой пояс изменён на {timezone_display}")
+
+    @user_router.callback_query(F.data == "back_to_profile")
+    @documents_consent_required
+    @subscription_required
+    async def back_to_profile_handler(callback: types.CallbackQuery):
+        """Обработчик возврата в профиль"""
+        await callback.answer()
+        user_id = callback.from_user.id
+        user_db_data = get_user(user_id)
+        user_keys = get_user_keys(user_id)
+        if not user_db_data:
+            await callback.answer("Не удалось получить данные профиля.", show_alert=True)
+            return
+        
+        username = html.bold(user_db_data.get('username', 'Пользователь'))
+        total_spent, total_months = user_db_data.get('total_spent', 0), user_db_data.get('total_months', 0)
+        from shop_bot.data_manager.database import get_user_balance, get_setting, get_auto_renewal_enabled, get_user_timezone
+        from shop_bot.data.timezones import get_timezone_display_name
+        balance = get_user_balance(user_id)
+        auto_renewal_enabled = get_auto_renewal_enabled(user_id)
+        
+        # Получаем timezone для отображения
+        user_timezone = get_user_timezone(user_id)
+        timezone_display = get_timezone_display_name(user_timezone) if user_timezone else None
+        
+        now = datetime.now()
+        active_keys = [key for key in user_keys if datetime.fromisoformat(key['expiry_date']) > now]
+        if active_keys:
+            latest_key = max(active_keys, key=lambda k: datetime.fromisoformat(k['expiry_date']))
+            latest_expiry_date = datetime.fromisoformat(latest_key['expiry_date'])
+            time_left = latest_expiry_date - now
+            vpn_status_text = get_vpn_active_text(time_left.days, time_left.seconds // 3600)
+        elif user_keys: vpn_status_text = VPN_INACTIVE_TEXT
+        else: vpn_status_text = VPN_NO_DATA_TEXT
+        
+        trial_used = user_db_data.get('trial_used', 1) if user_db_data else 1
+        
+        # Получаем реферальный баланс и проверяем, включена ли реферальная система
+        referral_balance = user_db_data.get('referral_balance', 0)
+        show_referral = get_setting("enable_referrals") == "true"
+        
+        # Формируем реферальную ссылку и получаем процент вознаграждения
+        referral_link = None
+        referral_percentage = None
+        if show_referral:
+            bot_username = (await callback.bot.get_me()).username
+            referral_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
+            referral_percentage = get_setting("referral_percentage") or "10"
+        
+        final_text = get_profile_text(
+            username, balance, total_spent, total_months, vpn_status_text, 
+            referral_balance, show_referral, referral_link, referral_percentage, 
+            auto_renewal_enabled, timezone_display
+        )
+        
+        await callback.message.edit_text(
+            final_text, 
+            reply_markup=keyboards.create_profile_menu_keyboard(
+                total_keys_count=len(user_keys or []), 
+                trial_used=trial_used, 
+                auto_renewal_enabled=auto_renewal_enabled
+            )
+        )
 
     @user_router.callback_query(F.data == "promo_code")
     @documents_consent_required
@@ -1752,7 +1998,13 @@ def get_user_router() -> Router:
             referral_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
             referral_percentage = get_setting("referral_percentage") or "10"
         
-        final_text = get_profile_text(username, balance, total_spent, total_months, vpn_status_text, referral_balance, show_referral, referral_link, referral_percentage, auto_renewal_enabled)
+        # Получаем timezone для отображения
+        from shop_bot.data_manager.database import get_user_timezone
+        from shop_bot.data.timezones import get_timezone_display_name
+        user_timezone = get_user_timezone(user_id)
+        timezone_display = get_timezone_display_name(user_timezone) if user_timezone else None
+        
+        final_text = get_profile_text(username, balance, total_spent, total_months, vpn_status_text, referral_balance, show_referral, referral_link, referral_percentage, auto_renewal_enabled, timezone_display)
         await callback.message.edit_text(final_text, reply_markup=keyboards.create_profile_menu_keyboard(total_keys_count=len(user_keys or []), trial_used=trial_used, auto_renewal_enabled=auto_renewal_enabled))
 
     @user_router.callback_query(F.data == "start_broadcast")

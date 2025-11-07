@@ -5131,6 +5131,32 @@ def reset_trial_used(telegram_id: int):
 
 
 
+def set_user_timezone(telegram_id: int, timezone: str):
+    """Устанавливает часовой пояс для пользователя"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET timezone = ? WHERE telegram_id = ?", (timezone, telegram_id))
+            conn.commit()
+            logging.info(f"Timezone set to '{timezone}' for user {telegram_id}.")
+    except sqlite3.Error as e:
+        logging.error(f"Failed to set timezone for user {telegram_id}: {e}")
+
+
+def get_user_timezone(telegram_id: int) -> str | None:
+    """Получает часовой пояс пользователя"""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT timezone FROM users WHERE telegram_id = ?", (telegram_id,))
+            result = cursor.fetchone()
+            return result['timezone'] if result and result['timezone'] else None
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get timezone for user {telegram_id}: {e}")
+        return None
+
+
 def admin_reset_trial_completely(telegram_id: int):
 
     """Полностью сбрасывает всю информацию о триале пользователя (админская функция)"""

@@ -59,6 +59,9 @@ def create_profile_menu_keyboard(total_keys_count: int | None = None, trial_used
     auto_renewal_text = "Автопродление с баланса (вкл🟢)" if auto_renewal_enabled else "Автопродление с баланса (откл🔴)"
     builder.button(text=auto_renewal_text, callback_data="toggle_auto_renewal")
     
+    # Кнопка изменения часового пояса
+    builder.button(text="🌍 Изменить часовой пояс", callback_data="change_timezone")
+    
     if get_setting("enable_referrals") == "true":
         builder.button(text="🤝 Реферальная программа", callback_data="show_referral_program")
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
@@ -547,5 +550,73 @@ def create_video_instructions_keyboard(videos: list) -> InlineKeyboardMarkup:
     
     builder.button(text="⬅️ Назад", callback_data="back_to_instructions")
     builder.adjust(1)
+    return builder.as_markup()
+
+
+def create_timezone_selection_keyboard(page: int = 0, current_timezone: str = None) -> InlineKeyboardMarkup:
+    """
+    Создает клавиатуру для выбора часового пояса с пагинацией
+    
+    Args:
+        page: Номер страницы (начиная с 0)
+        current_timezone: Текущий часовой пояс пользователя для выделения
+        
+    Returns:
+        InlineKeyboardMarkup с кнопками выбора часового пояса
+    """
+    from shop_bot.data.timezones import get_timezones_page
+    
+    builder = InlineKeyboardBuilder()
+    
+    # Получаем часовые пояса для текущей страницы
+    timezones_on_page, total_pages, has_prev, has_next = get_timezones_page(page)
+    
+    # Добавляем кнопки для каждого часового пояса
+    for tz_name, tz_display, tz_offset in timezones_on_page:
+        # Добавляем маркер, если это текущий часовой пояс
+        button_text = f"✅ {tz_display}" if tz_name == current_timezone else tz_display
+        builder.button(text=button_text, callback_data=f"select_tz:{tz_name}")
+    
+    # Добавляем кнопки навигации
+    nav_buttons = []
+    if has_prev:
+        nav_buttons.append(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"tz_page:{page-1}"))
+    
+    # Показываем номер страницы
+    nav_buttons.append(InlineKeyboardButton(text=f"📄 {page+1}/{total_pages}", callback_data="tz_page_info"))
+    
+    if has_next:
+        nav_buttons.append(InlineKeyboardButton(text="➡️ Вперёд", callback_data=f"tz_page:{page+1}"))
+    
+    # Добавляем кнопку "Назад в профиль"
+    builder.adjust(1)  # Все часовые пояса по одной кнопке в ряд
+    
+    # Добавляем навигационные кнопки
+    markup = builder.as_markup()
+    if nav_buttons:
+        markup.inline_keyboard.append(nav_buttons)
+    
+    # Добавляем кнопку возврата
+    markup.inline_keyboard.append([InlineKeyboardButton(text="⬅️ Назад в профиль", callback_data="back_to_profile")])
+    
+    return markup
+
+
+def create_timezone_confirmation_keyboard(timezone_name: str) -> InlineKeyboardMarkup:
+    """
+    Создает клавиатуру подтверждения выбора часового пояса
+    
+    Args:
+        timezone_name: Имя выбранного часового пояса
+        
+    Returns:
+        InlineKeyboardMarkup с кнопками подтверждения
+    """
+    builder = InlineKeyboardBuilder()
+    
+    builder.button(text="✅ Подтвердить", callback_data=f"confirm_tz:{timezone_name}")
+    builder.button(text="❌ Отмена", callback_data="change_timezone")
+    
+    builder.adjust(2)
     return builder.as_markup()
 

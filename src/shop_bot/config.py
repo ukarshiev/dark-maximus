@@ -29,12 +29,19 @@ VPN_NO_DATA_TEXT = "У вас пока нет активных ключей."
 VIDEO_INSTRUCTIONS_ENABLED = True
 VIDEO_INSTRUCTIONS_DIR = "video_instructions"
 
-def get_profile_text(username, balance, total_spent, total_months, vpn_status_text, referral_balance=None, show_referral=False, referral_link=None, referral_percentage=None, auto_renewal_enabled=True):
+def get_profile_text(username, balance, total_spent, total_months, vpn_status_text, referral_balance=None, show_referral=False, referral_link=None, referral_percentage=None, auto_renewal_enabled=True, timezone_display=None):
     text = (
         f"👤 <b>Профиль:</b> {username}\n"
         f"💰 <b>Баланс:</b> {balance:.2f} RUB\n"
-        f"🔄 <b>Автопродление с баланса:</b> {'Включено 🟢' if auto_renewal_enabled else 'Отключено 🔴'}\n\n"
-        f"💸 <b>Потрачено всего:</b> {total_spent:.2f} RUB\n"
+        f"🔄 <b>Автопродление с баланса:</b> {'Включено 🟢' if auto_renewal_enabled else 'Отключено 🔴'}\n"
+    )
+    
+    # Добавляем часовой пояс, если передан
+    if timezone_display:
+        text += f"🌍 <b>Часовой пояс:</b> {timezone_display}\n"
+    
+    text += (
+        f"\n💸 <b>Потрачено всего:</b> {total_spent:.2f} RUB\n"
         f"📅 <b>Приобретено месяцев:</b> {total_months}\n"
         f"ℹ️ <b>Статус VPN:</b> {vpn_status_text}\n"
     )
