@@ -4041,7 +4041,6 @@ def get_user_router() -> Router:
             price_float_for_metadata = float(amount_rub)
 
             # Определяем тестовый режим для YooKassa
-            from src.shop_bot.data_manager.database import get_setting
             yookassa_test_mode = get_setting("yookassa_test_mode") == "true"
 
             payment_payload = {
@@ -4641,7 +4640,6 @@ def get_user_router() -> Router:
             price_float_for_metadata = float(price_rub)
 
             # Определяем тестовый режим для YooKassa
-            from src.shop_bot.data_manager.database import get_setting
             yookassa_test_mode = get_setting("yookassa_test_mode") == "true"
 
             receipt = None
