@@ -731,11 +731,12 @@ def create_webhook_app(bot_controller_instance):
                     value = DEFAULT_TIMEZONE
             update_setting(key, value)
         
-        # Обработка чекбоксов
-        auto_delete_orphans = 'true' if 'auto_delete_orphans' in request.form else 'false'
-        update_setting('auto_delete_orphans', auto_delete_orphans)
-        monitoring_enabled = 'true' if 'monitoring_enabled' in request.form else 'false'
-        update_setting('monitoring_enabled', monitoring_enabled)
+        # Обработка чекбоксов панели
+        panel_checkboxes = ['auto_delete_orphans', 'monitoring_enabled']
+        for checkbox_key in panel_checkboxes:
+            values = request.form.getlist(checkbox_key)
+            value = 'true' if 'true' in values else 'false'
+            update_setting(checkbox_key, value)
         
         flash('Настройки панели успешно сохранены!', 'success')
         return redirect(url_for('settings_page', tab='panel'))
@@ -754,11 +755,11 @@ def create_webhook_app(bot_controller_instance):
         
         bot_checkboxes = ['force_subscription', 'trial_enabled', 'enable_referrals', 'support_enabled']
         
-        # Обрабатываем чекбоксы
+        # Обрабатываем чекбоксы (стандартные: checked = 'true')
         for checkbox_key in bot_checkboxes:
             values = request.form.getlist(checkbox_key)
-            value = values[-1] if values else 'false'
-            update_setting(checkbox_key, 'true' if value == 'true' else 'false')
+            value = 'true' if 'true' in values else 'false'
+            update_setting(checkbox_key, value)
         
         # Обрабатываем остальные настройки
         for key in bot_keys:
@@ -783,8 +784,16 @@ def create_webhook_app(bot_controller_instance):
         # Обрабатываем чекбоксы
         for checkbox_key in payment_checkboxes:
             values = request.form.getlist(checkbox_key)
-            value = values[-1] if values else 'false'
-            update_setting(checkbox_key, 'true' if value == 'true' else 'false')
+            # Если checkbox отмечен, в списке будет 'false' (для yookassa_test_mode это значит боевой режим)
+            # Если НЕ отмечен, будет только 'true' из hidden input (тестовый режим)
+            # Проверяем наличие 'false' в списке для определения состояния checkbox
+            if checkbox_key == 'yookassa_test_mode':
+                # Для yookassa_test_mode: checked = 'false' в списке = боевой режим
+                value = 'false' if 'false' in values else 'true'
+            else:
+                # Для остальных чекбоксов: checked = 'true' в списке
+                value = 'true' if 'true' in values else 'false'
+            update_setting(checkbox_key, value)
         
         # Обрабатываем остальные настройки
         for key in payment_keys:
