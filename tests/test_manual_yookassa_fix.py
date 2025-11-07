@@ -23,8 +23,8 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# ID платежа для обработки
-PAYMENT_ID = "30a03e8b-000f-5001-9000-1a3cbd78f7de"
+# ID платежа для обработки (можно переопределить через переменную окружения)
+PAYMENT_ID = os.getenv("PAYMENT_ID", "30a03e8b-000f-5001-9000-1a3cbd78f7de")
 
 def get_payment_from_yookassa(payment_id: str) -> dict:
     """Получает данные платежа из Yookassa API"""
