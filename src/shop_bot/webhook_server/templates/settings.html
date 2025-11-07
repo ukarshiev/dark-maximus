@@ -842,16 +842,16 @@
 								<div class="toggle-container">
 									<label for="yookassa_test_mode" class="toggle-label-text">
 										<span id="mode-label-text">
-											{% if settings.yookassa_test_mode == 'false' %}
-												Режим: Боевой ON
-											{% else %}
+											{% if settings.yookassa_test_mode == 'true' %}
 												Режим: Боевой OFF, Тестовый ON
+											{% else %}
+												Режим: Боевой ON, Тестовый OFF
 											{% endif %}
 										</span>
 									</label>
 									<label class="modern-toggle">
 										<input type="checkbox" id="yookassa_test_mode" name="yookassa_test_mode"
-										value="false" {% if settings.yookassa_test_mode == 'false' %}checked{% endif
+										value="true" {% if settings.yookassa_test_mode == 'true' %}checked{% endif
 										%} onchange="toggleYooKassaMode()">
 										<span class="toggle-slider"></span>
 									</label>

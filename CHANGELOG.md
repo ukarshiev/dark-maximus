@@ -1,3 +1,12 @@
+3.19.16 – 07.11.2025 21:49
+- [FIX] (Админка) settings.html, script.js, app.py — ПОЛНОСТЬЮ ПЕРЕДЕЛАНА логика переключателя yookassa_test_mode
+  - Теперь СТАНДАРТНАЯ логика checkbox: checked='true' (тестовый), unchecked='false' (боевой)
+  - Изменены надписи: 
+    * ON (checked): "Режим: Боевой OFF, Тестовый ON"
+    * OFF (unchecked): "Режим: Боевой ON, Тестовый OFF"
+  - Backend упрощен: стандартная проверка `checkbox_key in request.form`
+  - Теперь значение РЕАЛЬНО сохраняется в БД при переключении
+
 3.19.15 – 07.11.2025 21:42
 - [REFACTOR] (Админка) settings.html, app.py — Упрощена логика переключателя yookassa_test_mode
   - Удален лишний hidden input, оставлен только один checkbox

@@ -779,15 +779,11 @@ def create_webhook_app(bot_controller_instance):
             'ton_wallet_address', 'tonapi_key', 'stars_conversion_rate'
         ]
         
-        # Обрабатываем стандартные чекбоксы (checked = 'true')
-        standard_checkboxes = ['sbp_enabled', 'stars_enabled', 'yookassa_verify_ssl', 'yookassa_test_verify_ssl']
-        for checkbox_key in standard_checkboxes:
+        # Обрабатываем все чекбоксы стандартно: checked = 'true', unchecked = 'false'
+        payment_checkboxes = ['sbp_enabled', 'stars_enabled', 'yookassa_verify_ssl', 'yookassa_test_verify_ssl', 'yookassa_test_mode']
+        for checkbox_key in payment_checkboxes:
             value = 'true' if checkbox_key in request.form else 'false'
             update_setting(checkbox_key, value)
-        
-        # yookassa_test_mode имеет инвертированную логику: checked (value='false') = боевой режим
-        yookassa_test_mode_value = request.form.get('yookassa_test_mode', 'true')  # Если нет в форме = тестовый
-        update_setting('yookassa_test_mode', yookassa_test_mode_value)
         
         # Обрабатываем остальные настройки
         for key in payment_keys:

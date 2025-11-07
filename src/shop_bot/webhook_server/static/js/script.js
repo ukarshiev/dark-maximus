@@ -2744,22 +2744,22 @@ function toggleYooKassaMode() {
     const labelText = document.getElementById('mode-label-text');
     
     if (testModeCheckbox.checked) {
-        // Подсвечиваем боевой режим как активный (checked = боевой)
+        // Checkbox включен = тестовый режим активен
+        productionMode.style.opacity = '0.5';
+        productionMode.style.border = '2px solid #6c757d';
+        testModeFields.style.opacity = '1';
+        testModeFields.style.border = '2px solid #28a745';
+        if (labelText) {
+            labelText.textContent = 'Режим: Боевой OFF, Тестовый ON';
+        }
+    } else {
+        // Checkbox выключен = боевой режим активен
         productionMode.style.opacity = '1';
         productionMode.style.border = '2px solid #dc3545';
         testModeFields.style.opacity = '0.5';
         testModeFields.style.border = '2px solid #6c757d';
         if (labelText) {
-            labelText.textContent = 'Режим: Боевой ON';
-        }
-    } else {
-        // Подсвечиваем тестовый режим как активный (unchecked = тестовый)
-        productionMode.style.opacity = '0.5';
-        productionMode.style.border = '2px solid #28a745';
-        testModeFields.style.opacity = '1';
-        testModeFields.style.border = '2px solid #28a745';
-        if (labelText) {
-            labelText.textContent = 'Режим: Боевой OFF, Тестовый ON';
+            labelText.textContent = 'Режим: Боевой ON, Тестовый OFF';
         }
     }
 }
