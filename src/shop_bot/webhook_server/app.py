@@ -779,21 +779,15 @@ def create_webhook_app(bot_controller_instance):
             'ton_wallet_address', 'tonapi_key', 'stars_conversion_rate'
         ]
         
-        payment_checkboxes = ['sbp_enabled', 'stars_enabled', 'yookassa_test_mode', 'yookassa_verify_ssl', 'yookassa_test_verify_ssl']
-        
-        # Обрабатываем чекбоксы
-        for checkbox_key in payment_checkboxes:
-            values = request.form.getlist(checkbox_key)
-            # Если checkbox отмечен, в списке будет 'false' (для yookassa_test_mode это значит боевой режим)
-            # Если НЕ отмечен, будет только 'true' из hidden input (тестовый режим)
-            # Проверяем наличие 'false' в списке для определения состояния checkbox
-            if checkbox_key == 'yookassa_test_mode':
-                # Для yookassa_test_mode: checked = 'false' в списке = боевой режим
-                value = 'false' if 'false' in values else 'true'
-            else:
-                # Для остальных чекбоксов: checked = 'true' в списке
-                value = 'true' if 'true' in values else 'false'
+        # Обрабатываем стандартные чекбоксы (checked = 'true')
+        standard_checkboxes = ['sbp_enabled', 'stars_enabled', 'yookassa_verify_ssl', 'yookassa_test_verify_ssl']
+        for checkbox_key in standard_checkboxes:
+            value = 'true' if checkbox_key in request.form else 'false'
             update_setting(checkbox_key, value)
+        
+        # yookassa_test_mode имеет инвертированную логику: checked (value='false') = боевой режим
+        yookassa_test_mode_value = request.form.get('yookassa_test_mode', 'true')  # Если нет в форме = тестовый
+        update_setting('yookassa_test_mode', yookassa_test_mode_value)
         
         # Обрабатываем остальные настройки
         for key in payment_keys:
