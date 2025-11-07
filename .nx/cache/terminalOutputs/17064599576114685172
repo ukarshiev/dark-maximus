@@ -1,0 +1,332 @@
+> docker compose logs -f bot --tail=200
+
+dark-maximus-bot  | 2025-11-07 06:52:46,253 - [INFO] - root -  -> The column 'subscription_status' already exists.
+dark-maximus-bot  | 2025-11-07 06:52:46,254 - [INFO] - root -  -> The column 'key_id' already exists.
+dark-maximus-bot  | 2025-11-07 06:52:46,254 - [INFO] - root -  -> The column 'connection_string' already exists.
+dark-maximus-bot  | 2025-11-07 06:52:46,255 - [INFO] - root -  -> The column 'host_name' already exists.
+dark-maximus-bot  | 2025-11-07 06:52:46,255 - [INFO] - root -  -> The column 'plan_name' already exists.
+dark-maximus-bot  | 2025-11-07 06:52:46,256 - [INFO] - root -  -> The column 'price' already exists.
+dark-maximus-bot  | 2025-11-07 06:52:46,256 - [INFO] - root -  -> The column 'email' already exists.
+dark-maximus-bot  | 2025-11-07 06:52:46,257 - [INFO] - root -  -> The column 'created_date' already exists.
+dark-maximus-bot  | 2025-11-07 06:52:46,257 - [INFO] - root -  -> The column 'trial_days_given' already exists.
+dark-maximus-bot  | 2025-11-07 06:52:46,258 - [INFO] - root -  -> The column 'trial_reuses_count' already exists.
+dark-maximus-bot  | 2025-11-07 06:52:46,258 - [INFO] - root -  -> The column 'user_id' already exists.
+dark-maximus-bot  | 2025-11-07 06:52:46,259 - [INFO] - root -  -> The column 'fullname' already exists.
+dark-maximus-bot  | 2025-11-07 06:52:46,259 - [INFO] - root -  -> The column 'fio' already exists.
+dark-maximus-bot  | 2025-11-07 06:52:46,260 - [INFO] - root -  -> The column 'group_id' already exists.
+dark-maximus-bot  | 2025-11-07 06:52:46,260 - [INFO] - root -  -> The column 'auto_renewal_enabled' already exists.
+dark-maximus-bot  | 2025-11-07 06:52:46,261 - [INFO] - root - The table 'users' has been successfully updated.
+dark-maximus-bot  | 2025-11-07 06:52:46,261 - [INFO] - root - The migration of the table 'vpn_keys' ...
+dark-maximus-bot  | 2025-11-07 06:52:46,262 - [INFO] - root -  -> The column 'connection_string' already exists in vpn_keys table.
+dark-maximus-bot  | 2025-11-07 06:52:46,262 - [INFO] - root -  -> The column 'plan_name' already exists in vpn_keys table.
+dark-maximus-bot  | 2025-11-07 06:52:46,263 - [INFO] - root -  -> The column 'price' already exists in vpn_keys table.
+dark-maximus-bot  | 2025-11-07 06:52:46,263 - [INFO] - root -  -> The column 'protocol' already exists in vpn_keys table.
+dark-maximus-bot  | 2025-11-07 06:52:46,264 - [INFO] - root -  -> The column 'is_trial' already exists in vpn_keys table.
+dark-maximus-bot  | 2025-11-07 06:52:46,264 - [INFO] - root -  -> The column 'status' already exists in vpn_keys table.
+dark-maximus-bot  | 2025-11-07 06:52:46,265 - [INFO] - root -  -> The column 'remaining_seconds' already exists in vpn_keys table.
+dark-maximus-bot  | 2025-11-07 06:52:46,265 - [INFO] - root -  -> The column 'start_date' already exists in vpn_keys table.
+dark-maximus-bot  | 2025-11-07 06:52:46,266 - [INFO] - root -  -> The column 'enabled' already exists in vpn_keys table.
+dark-maximus-bot  | 2025-11-07 06:52:46,266 - [INFO] - root -  -> The column 'subscription_link' already exists in vpn_keys table.
+dark-maximus-bot  | 2025-11-07 06:52:46,267 - [INFO] - root - The table 'vpn_keys' has been successfully updated.
+dark-maximus-bot  | 2025-11-07 06:52:46,267 - [INFO] - root - The migration of the table 'Transactions' ...
+dark-maximus-bot  | 2025-11-07 06:52:46,268 - [INFO] - root -  -> The column 'transaction_hash' already exists in transactions table.
+dark-maximus-bot  | 2025-11-07 06:52:46,268 - [INFO] - root -  -> The column 'payment_link' already exists in transactions table.
+dark-maximus-bot  | 2025-11-07 06:52:46,269 - [INFO] - root -  -> The column 'yookassa_payment_id' already exists in transactions table.
+dark-maximus-bot  | 2025-11-07 06:52:46,269 - [INFO] - root -  -> The column 'rrn' already exists in transactions table.
+dark-maximus-bot  | 2025-11-07 06:52:46,270 - [INFO] - root -  -> The column 'authorization_code' already exists in transactions table.
+dark-maximus-bot  | 2025-11-07 06:52:46,271 - [INFO] - root -  -> The column 'payment_type' already exists in transactions table.
+dark-maximus-bot  | 2025-11-07 06:52:46,271 - [INFO] - root - The 'Transactions' table already has a new structure. Migration is not required.
+dark-maximus-bot  | 2025-11-07 06:52:46,272 - [INFO] - root - The migration of the table 'plans' ...
+dark-maximus-bot  | 2025-11-07 06:52:46,272 - [INFO] - root -  -> The column 'days' already exists in plans table.
+dark-maximus-bot  | 2025-11-07 06:52:46,273 - [INFO] - root -  -> The column 'hours' already exists in plans table.
+dark-maximus-bot  | 2025-11-07 06:52:46,273 - [INFO] - root -  -> The column 'traffic_gb' already exists in plans table.
+dark-maximus-bot  | 2025-11-07 06:52:46,274 - [INFO] - root -  -> The column 'key_provision_mode' already exists in plans table.
+dark-maximus-bot  | 2025-11-07 06:52:46,274 - [INFO] - root -  -> The column 'display_mode_groups' already exists in plans table.
+dark-maximus-bot  | 2025-11-07 06:52:46,275 - [INFO] - root - The table 'plans' has been successfully updated.
+dark-maximus-bot  | 2025-11-07 06:53:16,405 - [INFO] - root - The migration of the table 'notifications' ...
+dark-maximus-bot  | 2025-11-07 06:53:16,407 - [INFO] - root - The table 'notifications' already exists. Migration is not required.
+dark-maximus-bot  | 2025-11-07 06:53:16,407 - [INFO] - root - The migration of the table 'promo_codes' ...
+dark-maximus-bot  | 2025-11-07 06:53:16,409 - [INFO] - root - Migrating bot logging settings...
+dark-maximus-bot  | 2025-11-07 06:53:16,409 - [INFO] - root -  -> Setting 'logging_bot_token' already exists
+dark-maximus-bot  | 2025-11-07 06:53:16,410 - [INFO] - root -  -> Setting 'logging_bot_username' already exists
+dark-maximus-bot  | 2025-11-07 06:53:16,411 - [INFO] - root -  -> Setting 'logging_bot_admin_chat_id' already exists
+dark-maximus-bot  | 2025-11-07 06:53:16,412 - [INFO] - root -  -> Setting 'logging_bot_level' already exists
+dark-maximus-bot  | 2025-11-07 06:53:16,412 - [INFO] - root - Migrating promo_codes new columns...
+dark-maximus-bot  | 2025-11-07 06:53:16,413 - [INFO] - root -  -> Column 'burn_after_value' already exists in promo_codes table
+dark-maximus-bot  | 2025-11-07 06:53:16,414 - [INFO] - root -  -> Column 'burn_after_unit' already exists in promo_codes table
+dark-maximus-bot  | 2025-11-07 06:53:16,414 - [INFO] - root -  -> Column 'valid_until' already exists in promo_codes table
+dark-maximus-bot  | 2025-11-07 06:53:16,415 - [INFO] - root -  -> Column 'target_group_ids' already exists in promo_codes table
+dark-maximus-bot  | 2025-11-07 06:53:16,415 - [INFO] - root -  -> Column 'bot_username' already exists in promo_codes table
+dark-maximus-bot  | 2025-11-07 06:53:16,416 - [INFO] - root -  -> Promo codes new columns migration completed (already marked in history)
+dark-maximus-bot  | 2025-11-07 06:53:16,417 - [INFO] - root - Migrating user_groups table...
+dark-maximus-bot  | 2025-11-07 06:53:16,417 - [INFO] - root -  -> The column 'group_code' already exists in user_groups table.
+dark-maximus-bot  | 2025-11-07 06:53:16,418 - [INFO] - root - Migrating promo_code_usage unique constraint...
+dark-maximus-bot  | 2025-11-07 06:53:16,419 - [INFO] - root -  -> Migration 'promo_code_usage_fix_unique_constraint' already applied, skipping
+dark-maximus-bot  | 2025-11-07 06:53:16,420 - [INFO] - root - Migrating backup settings...
+dark-maximus-bot  | 2025-11-07 06:53:46,554 - [ERROR] - root - Failed to migrate backup settings: database is locked
+dark-maximus-bot  | 2025-11-07 06:53:46,555 - [INFO] - root - --- The database is successfully completed! ---
+dark-maximus-bot  | 2025-11-07 06:53:46,556 - [INFO] - root - Database indexes created successfully.
+dark-maximus-bot  | 2025-11-07 06:53:46,576 - [INFO] - root - Database initialized successfully.
+dark-maximus-bot  | 2025-11-07 06:53:46,576 - [INFO] - dark_maximus - (__main__.py).main(29) - Database initialization check complete.
+dark-maximus-bot  | 2025-11-07 06:53:46,576 - [INFO] - dark_maximus - Database initialization check complete.
+dark-maximus-bot  | 2025-11-07 06:53:46,613 - [INFO] - shop_bot.data_manager.async_database - AsyncDatabaseManager initialized with 10 connections
+dark-maximus-bot  | 2025-11-07 06:53:46,615 - [INFO] - shop_bot.data_manager.async_database - Async database initialized successfully
+dark-maximus-bot  | 2025-11-07 06:53:46,616 - [INFO] - dark_maximus - (__main__.py).main(33) - Async database initialized.
+dark-maximus-bot  | 2025-11-07 06:53:46,616 - [INFO] - dark_maximus - Async database initialized.
+dark-maximus-bot  | 2025-11-07 06:53:46,631 - [INFO] - dark_maximus - (__main__.py).main(62) - Telegram logging handler initialized with level: error
+dark-maximus-bot  | 2025-11-07 06:53:46,631 - [INFO] - dark_maximus - Telegram logging handler initialized with level: error
+dark-maximus-bot  | 2025-11-07 06:53:47,316 - [INFO] - database - (logger.py).info(97) - Database operation: backup_created on users
+dark-maximus-bot  | 2025-11-07 06:53:47,316 - [INFO] - database - Database operation: backup_created on users
+dark-maximus-bot  | 2025-11-07 06:53:47,318 - [INFO] - shop_bot.data_manager.backup - Database backup created successfully: backups/initial_backup.db
+dark-maximus-bot  | 2025-11-07 06:53:47,318 - [INFO] - shop_bot.data_manager.backup - Initial database backup created successfully
+dark-maximus-bot  | 2025-11-07 06:53:47,319 - [INFO] - shop_bot.data_manager.backup - Automatic backups started with interval: 1 hours
+dark-maximus-bot  | 2025-11-07 06:53:47,320 - [INFO] - shop_bot.data_manager.backup - Backup system initialized with 1h interval
+dark-maximus-bot  | 2025-11-07 06:53:47,320 - [INFO] - dark_maximus - (__main__.py).main(70) - Backup system initialized.
+dark-maximus-bot  | 2025-11-07 06:53:47,320 - [INFO] - dark_maximus - Backup system initialized.
+dark-maximus-bot  | --- DIAGNOSTIC INFORMATION ---
+dark-maximus-bot  | Current Working Directory: /app/project
+dark-maximus-bot  | Path of running app.py: /app/project/src/shop_bot/webhook_server/app.py
+dark-maximus-bot  | Directory of running app.py: /app/project/src/shop_bot/webhook_server
+dark-maximus-bot  | Expected templates directory: /app/project/src/shop_bot/webhook_server/templates
+dark-maximus-bot  | Expected login.html path: /app/project/src/shop_bot/webhook_server/templates/login.html
+dark-maximus-bot  | Does template directory exist? -> True
+dark-maximus-bot  | Does login.html file exist? -> True
+dark-maximus-bot  | --- END DIAGNOSTIC INFORMATION ---
+dark-maximus-bot  | 2025-11-07 06:53:47,664 - [INFO] - shop_bot.webhook_server.app - TON monitoring disabled - using webhook for payment processing
+dark-maximus-bot  | 2025-11-07 06:53:47,665 - [INFO] - shop_bot.bot_controller - BotController: Event loop has been set.
+dark-maximus-bot  | 2025-11-07 06:53:47,666 - [INFO] - dark_maximus - (__main__.py).start_services(133) - Flask server started in a background thread on http://0.0.0.0:1488
+dark-maximus-bot  | 2025-11-07 06:53:47,666 - [INFO] - dark_maximus - Flask server started in a background thread on http://0.0.0.0:1488
+dark-maximus-bot  | 2025-11-07 06:53:47,669 - [WARNING] - dark_maximus - (__main__.py).start_services(137) - 🔄 Dark Maximus: Автозапуск ботов...
+dark-maximus-bot  | 2025-11-07 06:53:47,669 - [WARNING] - dark_maximus - 🔄 Dark Maximus: Автозапуск ботов...
+dark-maximus-bot  |  * Serving Flask app 'shop_bot.webhook_server.app'
+dark-maximus-bot  |  * Debug mode: off
+dark-maximus-bot  | 2025-11-07 06:53:47,687 - [WARNING] - shop_bot.bot_controller - 🟢 ShopBot: Запуск бота...
+dark-maximus-bot  | 2025-11-07 06:53:47,786 - [INFO] - shop_bot.bot_controller - YooKassa configured (тестовый режим): shop_id=1176024, api_url=https://api.test.yookassa.ru/v3, verify_ssl=False
+dark-maximus-bot  | 2025-11-07 06:53:47,787 - [WARNING] - shop_bot.bot_controller - 🟢 ShopBot: Бот успешно запущен и работает
+dark-maximus-bot  | 2025-11-07 06:53:47,788 - [INFO] - shop_bot.bot_controller - BotController: Start command sent to event loop.
+dark-maximus-bot  | 2025-11-07 06:53:47,788 - [INFO] - dark_maximus - (__main__.py).start_services(142) - ✅ Autostart ShopBot: Команда на запуск бота отправлена.
+dark-maximus-bot  | 2025-11-07 06:53:47,788 - [INFO] - dark_maximus - ✅ Autostart ShopBot: Команда на запуск бота отправлена.
+dark-maximus-bot  | 2025-11-07 06:53:47,804 - [WARNING] - shop_bot.bot_controller - 🟢 SupportBot: Запуск бота...
+dark-maximus-bot  | 2025-11-07 06:53:47,817 - [WARNING] - shop_bot.bot_controller - 🟢 SupportBot: Бот успешно запущен и работает
+dark-maximus-bot  | 2025-11-07 06:53:47,818 - [INFO] - dark_maximus - (__main__.py).start_services(157) - ✅ Autostart SupportBot: Команда на запуск бота отправлена.
+dark-maximus-bot  | 2025-11-07 06:53:47,818 - [INFO] - dark_maximus - ✅ Autostart SupportBot: Команда на запуск бота отправлена.
+dark-maximus-bot  | 2025-11-07 06:53:47,820 - [WARNING] - dark_maximus - (__main__.py).start_services(171) - ✅ Dark Maximus: Приложение запущено и работает
+dark-maximus-bot  | 2025-11-07 06:53:47,820 - [WARNING] - dark_maximus - ✅ Dark Maximus: Приложение запущено и работает
+dark-maximus-bot  | 2025-11-07 06:53:47,821 - [INFO] - dark_maximus - (__main__.py).start_services(172) - Application is running. Bots are managed automatically and via web panel.
+dark-maximus-bot  | 2025-11-07 06:53:47,821 - [INFO] - dark_maximus - Application is running. Bots are managed automatically and via web panel.
+dark-maximus-bot  | 2025-11-07 06:53:47,823 - [INFO] - dark_maximus - (__main__.py).start_services(178) - Performance monitoring started.
+dark-maximus-bot  | 2025-11-07 06:53:47,823 - [INFO] - dark_maximus - Performance monitoring started.
+dark-maximus-bot  | 2025-11-07 06:53:47,824 - [INFO] - shop_bot.data_manager.scheduler - Scheduler has been started.
+dark-maximus-bot  | 2025-11-07 06:53:47,828 - [INFO] - shop_bot.bot_controller - BotController: Polling task for 'ShopBot' has been started.
+dark-maximus-bot  | DEBUG: Starting polling for ShopBot with bot 8226591457
+dark-maximus-bot  | 2025-11-07 06:53:47,829 - [INFO] - aiogram.dispatcher - Start polling
+dark-maximus-bot  | 2025-11-07 06:53:47,829 - [INFO] - shop_bot.bot_controller - BotController: Polling task for 'SupportBot' has been started.
+dark-maximus-bot  | DEBUG: Starting polling for SupportBot with bot 8230014622
+dark-maximus-bot  | 2025-11-07 06:53:47,830 - [INFO] - aiogram.dispatcher - Start polling
+dark-maximus-bot  | 2025-11-07 06:53:47,876 - [INFO] - database - (logger.py).info(97) - Database operation: backup_created on users
+dark-maximus-bot  | 2025-11-07 06:53:47,876 - [INFO] - database - Database operation: backup_created on users
+dark-maximus-bot  | 2025-11-07 06:53:47,878 - [INFO] - shop_bot.data_manager.backup - Database backup created successfully: backups/users_backup_20251107_065347.db
+dark-maximus-bot  | 2025-11-07 06:53:47,878 - [INFO] - shop_bot.data_manager.backup - Automatic backup completed successfully
+dark-maximus-bot  | 2025-11-07 06:53:47,882 - [INFO] - shop_bot.data_manager.backup - Deleted old backup: backups/users_backup_20251031_064837.db
+dark-maximus-bot  | 2025-11-07 06:53:47,971 - [INFO] - database - (logger.py).info(97) - Database operation: backups_cleaned on users
+dark-maximus-bot  | 2025-11-07 06:53:47,971 - [INFO] - database - Database operation: backups_cleaned on users
+dark-maximus-bot  | 2025-11-07 06:53:47,973 - [INFO] - shop_bot.data_manager.backup - Cleaned up 1 old backups
+dark-maximus-bot  | 2025-11-07 06:53:47,990 - [INFO] - aiogram.dispatcher - Run polling for bot @darkmaxi_vpn_bot id=8226591457 - 'TEST Maximus bot'
+dark-maximus-bot  | 2025-11-07 06:53:47,992 - [INFO] - aiogram.dispatcher - Run polling for bot @darkmaxi_support_bot id=8230014622 - 'TEST Maximus support bot'
+dark-maximus-bot  | 2025-11-07 06:53:48,315 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 06:53:48,316 - [INFO] - aiogram.event - Update id=415573400 is handled. Duration 280 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 06:53:57,839 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting sync with XUI panels...
+dark-maximus-bot  | 2025-11-07 06:53:57,845 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇪🇪 Эстония Test'
+dark-maximus-bot  | 2025-11-07 06:53:58,248 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager/' (attempt 1)
+dark-maximus-bot  | 2025-11-07 06:53:58,292 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 6 clients on the '🇪🇪 Эстония Test' panel.
+dark-maximus-bot  | 2025-11-07 06:53:58,322 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Synced (updated) key 'user2206685-key1@🇪🇪estonia1test.bot' for host '🇪🇪 Эстония Test'.
+dark-maximus-bot  | 2025-11-07 06:53:58,338 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Synced (updated) key 'user2206685-key2@🇪🇪estonia1test.bot' for host '🇪🇪 Эстония Test'.
+dark-maximus-bot  | 2025-11-07 06:53:58,351 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Synced (updated) key 'user2206685-key3@🇪🇪estonia1test.bot' for host '🇪🇪 Эстония Test'.
+dark-maximus-bot  | 2025-11-07 06:53:58,352 - [WARNING] - shop_bot.data_manager.scheduler - Scheduler: Found 1 orphan client(s) on host '🇪🇪 Эстония Test'
+dark-maximus-bot  | 2025-11-07 06:53:58,352 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Orphan client - Email: user2206685-key4@🇪🇪estonia1test.bot, ID: a3616884-89b7-4625-8c7a-344aebcfc892, Expiry: 1762501395359
+dark-maximus-bot  | 2025-11-07 06:53:58,353 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting auto-deletion of 1 orphan client(s) on '🇪🇪 Эстония Test'...
+dark-maximus-bot  | 2025-11-07 06:53:58,652 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager/' (attempt 1)
+dark-maximus-bot  | 2025-11-07 06:53:58,755 - [INFO] - shop_bot.modules.xui_api - Successfully deleted client 'a3616884-89b7-4625-8c7a-344aebcfc892' (email: 'user2206685-key4@🇪🇪estonia1test.bot') from host '🇪🇪 Эстония Test'.
+dark-maximus-bot  | 2025-11-07 06:53:58,755 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Successfully deleted orphan client 'user2206685-key4@🇪🇪estonia1test.bot' on '🇪🇪 Эстония Test'.
+dark-maximus-bot  | 2025-11-07 06:53:58,757 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Auto-deletion complete on '🇪🇪 Эстония Test': 1 deleted, 0 failed.
+dark-maximus-bot  | 2025-11-07 06:53:58,758 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇫🇮 Финляндия 1 Test'
+dark-maximus-bot  | 2025-11-07 06:53:59,325 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv1.dark-maximus.com:8443/configpanel/' (attempt 1)
+dark-maximus-bot  | 2025-11-07 06:53:59,408 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇫🇮 Финляндия 1 Test' panel.
+dark-maximus-bot  | 2025-11-07 06:53:59,411 - [WARNING] - shop_bot.data_manager.scheduler - Scheduler: Found 1 orphan client(s) on host '🇫🇮 Финляндия 1 Test'
+dark-maximus-bot  | 2025-11-07 06:53:59,412 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Orphan client - Email: user6044240344-key4@finland1.bot, ID: bc86f291-4f18-4067-b79f-c57a10e50264, Expiry: 1762492062487
+dark-maximus-bot  | 2025-11-07 06:53:59,412 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting auto-deletion of 1 orphan client(s) on '🇫🇮 Финляндия 1 Test'...
+dark-maximus-bot  | 2025-11-07 06:53:59,815 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv1.dark-maximus.com:8443/configpanel/' (attempt 1)
+dark-maximus-bot  | 2025-11-07 06:54:00,008 - [INFO] - shop_bot.modules.xui_api - Client 'user6044240344-key4@finland1.bot' already deleted from host '🇫🇮 Финляндия 1 Test' (no longer exists on panel).
+dark-maximus-bot  | 2025-11-07 06:54:00,010 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Successfully deleted orphan client 'user6044240344-key4@finland1.bot' on '🇫🇮 Финляндия 1 Test'.
+dark-maximus-bot  | 2025-11-07 06:54:00,013 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Auto-deletion complete on '🇫🇮 Финляндия 1 Test': 1 deleted, 0 failed.
+dark-maximus-bot  | 2025-11-07 06:54:00,013 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇳🇱 Нидерланды 1 Test'
+dark-maximus-bot  | 2025-11-07 06:54:00,450 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv2.dark-maximus.com:8443/configpanel/' (attempt 1)
+dark-maximus-bot  | 2025-11-07 06:54:00,571 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇳🇱 Нидерланды 1 Test' panel.
+dark-maximus-bot  | 2025-11-07 06:54:00,574 - [WARNING] - shop_bot.data_manager.scheduler - Scheduler: Found 1 orphan client(s) on host '🇳🇱 Нидерланды 1 Test'
+dark-maximus-bot  | 2025-11-07 06:54:00,574 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Orphan client - Email: dhtv8bz7, ID: be252a04-2c57-4bf7-8d92-071af3b959f6, Expiry: 0
+dark-maximus-bot  | 2025-11-07 06:54:00,575 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting auto-deletion of 1 orphan client(s) on '🇳🇱 Нидерланды 1 Test'...
+dark-maximus-bot  | 2025-11-07 06:54:00,979 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv2.dark-maximus.com:8443/configpanel/' (attempt 1)
+dark-maximus-bot  | 2025-11-07 06:54:01,208 - [INFO] - shop_bot.modules.xui_api - Client 'dhtv8bz7' already deleted from host '🇳🇱 Нидерланды 1 Test' (no longer exists on panel).
+dark-maximus-bot  | 2025-11-07 06:54:01,210 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Successfully deleted orphan client 'dhtv8bz7' on '🇳🇱 Нидерланды 1 Test'.
+dark-maximus-bot  | 2025-11-07 06:54:01,212 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Auto-deletion complete on '🇳🇱 Нидерланды 1 Test': 1 deleted, 0 failed.
+dark-maximus-bot  | 2025-11-07 06:54:01,213 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇩🇪 Германия 1 Test'
+dark-maximus-bot  | 2025-11-07 06:54:01,688 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv3.dark-maximus.com:8443/configpanel/' (attempt 1)
+dark-maximus-bot  | 2025-11-07 06:54:01,831 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇩🇪 Германия 1 Test' panel.
+dark-maximus-bot  | 2025-11-07 06:54:01,835 - [WARNING] - shop_bot.data_manager.scheduler - Scheduler: Found 1 orphan client(s) on host '🇩🇪 Германия 1 Test'
+dark-maximus-bot  | 2025-11-07 06:54:01,836 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Orphan client - Email: user1588069616-key1-trial@🇩🇪germany1test.bot, ID: f610165e-32c0-4902-8743-a369ec2dbd9c, Expiry: 1761226042779
+dark-maximus-bot  | 2025-11-07 06:54:01,837 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting auto-deletion of 1 orphan client(s) on '🇩🇪 Германия 1 Test'...
+dark-maximus-bot  | 2025-11-07 06:54:02,326 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv3.dark-maximus.com:8443/configpanel/' (attempt 1)
+dark-maximus-bot  | 2025-11-07 06:54:02,585 - [INFO] - shop_bot.modules.xui_api - Client 'user1588069616-key1-trial@🇩🇪germany1test.bot' already deleted from host '🇩🇪 Германия 1 Test' (no longer exists on panel).
+dark-maximus-bot  | 2025-11-07 06:54:02,587 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Successfully deleted orphan client 'user1588069616-key1-trial@🇩🇪germany1test.bot' on '🇩🇪 Германия 1 Test'.
+dark-maximus-bot  | 2025-11-07 06:54:02,590 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Auto-deletion complete on '🇩🇪 Германия 1 Test': 1 deleted, 0 failed.
+dark-maximus-bot  | 2025-11-07 06:54:02,591 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Sync with XUI panels finished. Total records affected: 7.
+dark-maximus-bot  | 2025-11-07 06:54:02,591 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Checking for expiring subscriptions...
+dark-maximus-bot  | 2025-11-07 06:54:02,614 - [INFO] - shop_bot.data_manager.scheduler - Key 116 (user 2206685): 1130s left (0h), balance=67.0, price=1.0, plan_available=True
+dark-maximus-bot  | 2025-11-07 06:54:02,620 - [INFO] - shop_bot.data_manager.scheduler - Key 116: balance_covers=True, auto_renewal_enabled=True, hours_mark=1, marker_logged=True
+dark-maximus-bot  | 2025-11-07 06:54:02,628 - [INFO] - shop_bot.data_manager.scheduler - Key 117 (user 2206685): 1131s left (0h), balance=67.0, price=1.0, plan_available=True
+dark-maximus-bot  | 2025-11-07 06:54:02,633 - [INFO] - shop_bot.data_manager.scheduler - Key 117: balance_covers=True, auto_renewal_enabled=True, hours_mark=1, marker_logged=True
+dark-maximus-bot  | 2025-11-07 06:54:02,642 - [INFO] - shop_bot.data_manager.scheduler - Key 118 (user 2206685): 1132s left (0h), balance=67.0, price=1.0, plan_available=True
+dark-maximus-bot  | 2025-11-07 06:54:02,647 - [INFO] - shop_bot.data_manager.scheduler - Key 118: balance_covers=True, auto_renewal_enabled=True, hours_mark=1, marker_logged=True
+dark-maximus-bot  | 2025-11-07 06:54:02,653 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Cycle finished. Next check in 3600 seconds.
+dark-maximus-bot  | 2025-11-07 06:54:02,845 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 06:54:02,846 - [INFO] - aiogram.event - Update id=415573401 is handled. Duration 148 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 06:54:09,964 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager/' (attempt 1)
+dark-maximus-bot  | 2025-11-07 06:54:10,072 - [INFO] - shop_bot.webhook_server.app - XUI traffic debug (clientStats) for user2206685-key1@🇪🇪estonia1test.bot: total=0, up=0, down=0
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'shop.karumweb.ru'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'shop.karumweb.ru'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-07 06:54:10,260 - [INFO] - shop_bot.modules.xui_api - Generated subURI from settings: http://shop.karumweb.ru:2096/subs/
+dark-maximus-bot  | 2025-11-07 06:54:10,344 - [WARNING] - shop_bot.bot.middlewares - Slow request detected: Update from user unknown took 0.76s
+dark-maximus-bot  | 2025-11-07 06:54:10,345 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 06:54:10,346 - [INFO] - aiogram.event - Update id=415573402 is handled. Duration 764 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:12:14,722 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:12:14,724 - [INFO] - aiogram.event - Update id=415573403 is handled. Duration 166 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:12:24,516 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:12:24,517 - [INFO] - aiogram.event - Update id=415573404 is handled. Duration 140 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:12:31,619 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager/' (attempt 1)
+dark-maximus-bot  | 2025-11-07 07:12:31,732 - [INFO] - shop_bot.webhook_server.app - XUI traffic debug (clientStats) for user2206685-key1@🇪🇪estonia1test.bot: total=0, up=0, down=0
+dark-maximus-bot  | 2025-11-07 07:12:31,804 - [WARNING] - shop_bot.bot.middlewares - Slow request detected: Update from user unknown took 0.65s
+dark-maximus-bot  | 2025-11-07 07:12:31,805 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:12:31,806 - [INFO] - aiogram.event - Update id=415573405 is handled. Duration 653 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:13:06,162 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:13:06,163 - [INFO] - aiogram.event - Update id=415573406 is handled. Duration 150 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:13:08,001 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager/' (attempt 1)
+dark-maximus-bot  | 2025-11-07 07:13:08,109 - [INFO] - shop_bot.webhook_server.app - XUI traffic debug (clientStats) for user2206685-key1@🇪🇪estonia1test.bot: total=0, up=0, down=0
+dark-maximus-bot  | 2025-11-07 07:13:08,221 - [WARNING] - shop_bot.bot.middlewares - Slow request detected: Update from user unknown took 0.69s
+dark-maximus-bot  | 2025-11-07 07:13:08,222 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:13:08,223 - [INFO] - aiogram.event - Update id=415573407 is handled. Duration 687 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:13:19,274 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:13:19,275 - [INFO] - aiogram.event - Update id=415573408 is handled. Duration 475 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:13:24,403 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager/' (attempt 1)
+dark-maximus-bot  | 2025-11-07 07:13:24,505 - [INFO] - shop_bot.webhook_server.app - XUI traffic debug (clientStats) for user2206685-key2@🇪🇪estonia1test.bot: total=0, up=0, down=0
+dark-maximus-bot  | 2025-11-07 07:13:24,621 - [WARNING] - shop_bot.bot.middlewares - Slow request detected: Update from user unknown took 0.62s
+dark-maximus-bot  | 2025-11-07 07:13:24,622 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:13:24,623 - [INFO] - aiogram.event - Update id=415573409 is handled. Duration 622 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:13:27,530 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:13:27,530 - [INFO] - aiogram.event - Update id=415573410 is handled. Duration 144 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:13:30,551 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:13:30,552 - [INFO] - aiogram.event - Update id=415573411 is handled. Duration 116 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:13:31,787 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager/' (attempt 1)
+dark-maximus-bot  | 2025-11-07 07:13:31,893 - [INFO] - shop_bot.webhook_server.app - XUI traffic debug (clientStats) for user2206685-key3@🇪🇪estonia1test.bot: total=0, up=0, down=0
+dark-maximus-bot  | 2025-11-07 07:13:31,967 - [WARNING] - shop_bot.bot.middlewares - Slow request detected: Update from user unknown took 0.51s
+dark-maximus-bot  | 2025-11-07 07:13:31,968 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:13:31,969 - [INFO] - aiogram.event - Update id=415573412 is handled. Duration 510 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:13:42,673 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:13:42,674 - [INFO] - aiogram.event - Update id=415573413 is handled. Duration 143 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:13:50,313 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:13:50,314 - [INFO] - aiogram.event - Update id=415573414 is handled. Duration 154 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:13:56,034 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager/' (attempt 1)
+dark-maximus-bot  | 2025-11-07 07:13:56,144 - [INFO] - shop_bot.webhook_server.app - XUI traffic debug (clientStats) for user2206685-key1@🇪🇪estonia1test.bot: total=0, up=0, down=0
+dark-maximus-bot  | 2025-11-07 07:13:56,313 - [WARNING] - shop_bot.bot.middlewares - Slow request detected: Update from user unknown took 0.76s
+dark-maximus-bot  | 2025-11-07 07:13:56,314 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:13:56,315 - [INFO] - aiogram.event - Update id=415573415 is handled. Duration 762 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:14:12,601 - [INFO] - root - User count retrieved: 5
+dark-maximus-bot  | 2025-11-07 07:14:12,605 - [INFO] - root - Total keys count retrieved: 6
+dark-maximus-bot  | 2025-11-07 07:14:12,608 - [INFO] - root - Total earned sum retrieved: None
+dark-maximus-bot  | 2025-11-07 07:14:12,611 - [INFO] - root - Total notifications count retrieved: 3
+dark-maximus-bot  | 2025-11-07 07:14:12,612 - [INFO] - root - Dashboard stats: {'user_count': 5, 'total_keys': 6, 'total_spent': 0.0, 'host_count': 4, 'total_notifications': 3}
+dark-maximus-bot  | 2025-11-07 07:14:52,544 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:14:52,545 - [INFO] - aiogram.event - Update id=415573416 is handled. Duration 147 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:17:07,985 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:17:07,986 - [INFO] - aiogram.event - Update id=415573417 is handled. Duration 152 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:17:09,739 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:17:09,740 - [INFO] - aiogram.event - Update id=415573418 is handled. Duration 361 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:17:12,601 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:17:12,602 - [INFO] - aiogram.event - Update id=415573419 is handled. Duration 129 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:17:16,690 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:17:16,691 - [INFO] - aiogram.event - Update id=415573420 is handled. Duration 121 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:17:18,544 - [INFO] - shop_bot.bot.keyboards - Creating TON button with callback_data: 'pay_tonconnect'
+dark-maximus-bot  | 2025-11-07 07:17:18,655 - [INFO] - shop_bot.bot.handlers - User 1588069616: State set to waiting_for_payment_method
+dark-maximus-bot  | 2025-11-07 07:17:18,656 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:17:18,656 - [INFO] - aiogram.event - Update id=415573421 is handled. Duration 324 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:17:21,425 - [INFO] - shop_bot.modules.xui_api - Starting key creation/update process for 'user1588069616-key1@🇪🇪estonia1test.bot' on host '🇪🇪 Эстония Test' (days: 0.041666666666666664)
+dark-maximus-bot  | 2025-11-07 07:17:21,428 - [INFO] - shop_bot.modules.xui_api - Attempting to connect to host '🇪🇪 Эстония Test' at https://shop.karumweb.ru:8443/manager/
+dark-maximus-bot  | 2025-11-07 07:17:21,801 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager/' (attempt 1)
+dark-maximus-bot  | 2025-11-07 07:17:21,803 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host '🇪🇪 Эстония Test', attempting to create/update client 'user1588069616-key1@🇪🇪estonia1test.bot'
+dark-maximus-bot  | 2025-11-07 07:17:21,988 - [INFO] - shop_bot.webhook_server.app - XUI verify traffic for user1588069616-key1@🇪🇪estonia1test.bot: total=0, totalGB=None
+dark-maximus-bot  | 2025-11-07 07:17:21,989 - [INFO] - shop_bot.modules.xui_api - Client 'user1588069616-key1@🇪🇪estonia1test.bot' created/updated successfully, generating connection string
+dark-maximus-bot  | 2025-11-07 07:17:21,990 - [INFO] - shop_bot.modules.xui_api - Successfully processed key for 'user1588069616-key1@🇪🇪estonia1test.bot' on host '🇪🇪 Эстония Test'.
+dark-maximus-bot  | 2025-11-07 07:17:21,991 - [INFO] - shop_bot.modules.xui_api - Created subscription link: http://shop.karumweb.ru:2096/subs/1588069616-gmenergy
+dark-maximus-bot  | 2025-11-07 07:17:22,017 - [INFO] - shop_bot.bot.handlers - Processing payment for user 1588069616, promo_code: None, metadata: {'user_id': 1588069616, 'months': 0, 'price': 1.0, 'action': 'new', 'key_id': 0, 'host_name': '🇪🇪 Эстония Test', 'plan_id': 62, 'customer_email': None, 'payment_method': 'Из баланса', 'payment_id': 'f1cdf9bc-4400-4171-9cf2-a1605631c27e', 'promo_code': None, 'promo_usage_id': None}
+dark-maximus-bot  | 2025-11-07 07:17:22,566 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager/' (attempt 1)
+dark-maximus-bot  | 2025-11-07 07:17:22,674 - [INFO] - shop_bot.webhook_server.app - XUI traffic debug (clientStats) for user1588069616-key1@🇪🇪estonia1test.bot: total=0, up=0, down=0
+dark-maximus-bot  | 2025-11-07 07:17:22,766 - [INFO] - shop_bot.bot.handlers - Admin notification sent for a new purchase by user 1588069616.
+dark-maximus-bot  | 2025-11-07 07:17:22,767 - [WARNING] - shop_bot.bot.middlewares - Slow request detected: Update from user unknown took 1.60s
+dark-maximus-bot  | 2025-11-07 07:17:22,768 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:17:22,769 - [INFO] - aiogram.event - Update id=415573422 is handled. Duration 1599 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:17:30,390 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:17:30,391 - [INFO] - aiogram.event - Update id=415573423 is handled. Duration 160 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:18:04,144 - [INFO] - root - Updated plan id=62 with provision mode 'subscription' and display mode 'all'.
+dark-maximus-bot  | 2025-11-07 07:18:15,531 - [INFO] - shop_bot.webhook_server.app - Updated user 1588069616 fields: ['group_id']
+dark-maximus-bot  | 2025-11-07 07:18:34,557 - [INFO] - root - Created new plan 'Два часа' for host '🇪🇪 Эстония Test' with provision mode 'key' and display mode 'all'.
+dark-maximus-bot  | 2025-11-07 07:18:54,219 - [INFO] - root - Created new plan 'Три часа' for host '🇪🇪 Эстония Test' with provision mode 'subscription' and display mode 'all'.
+dark-maximus-bot  | 2025-11-07 07:19:02,353 - [INFO] - root - Updated plan id=63 with provision mode 'subscription' and display mode 'all'.
+dark-maximus-bot  | 2025-11-07 07:19:25,832 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:19:25,833 - [INFO] - aiogram.event - Update id=415573424 is handled. Duration 125 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:19:27,647 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:19:27,648 - [INFO] - aiogram.event - Update id=415573425 is handled. Duration 194 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:19:28,406 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:19:28,407 - [INFO] - aiogram.event - Update id=415573426 is handled. Duration 162 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:21:40,099 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:21:40,100 - [INFO] - aiogram.event - Update id=415573427 is handled. Duration 128 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:21:41,861 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager/' (attempt 1)
+dark-maximus-bot  | 2025-11-07 07:21:41,970 - [INFO] - shop_bot.webhook_server.app - XUI traffic debug (clientStats) for user1588069616-key1@🇪🇪estonia1test.bot: total=0, up=0, down=0
+dark-maximus-bot  | 2025-11-07 07:21:42,051 - [WARNING] - shop_bot.bot.middlewares - Slow request detected: Update from user unknown took 0.66s
+dark-maximus-bot  | 2025-11-07 07:21:42,052 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:21:42,053 - [INFO] - aiogram.event - Update id=415573428 is handled. Duration 666 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:21:56,660 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:21:56,661 - [INFO] - aiogram.event - Update id=415573429 is handled. Duration 292 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:21:57,850 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:21:57,851 - [INFO] - aiogram.event - Update id=415573430 is handled. Duration 293 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:22:00,185 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:22:00,186 - [INFO] - aiogram.event - Update id=415573431 is handled. Duration 218 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:22:03,265 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:22:03,266 - [INFO] - aiogram.event - Update id=415573432 is handled. Duration 273 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:22:04,248 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:22:04,249 - [INFO] - aiogram.event - Update id=415573433 is handled. Duration 197 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:22:06,343 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:22:06,344 - [INFO] - aiogram.event - Update id=415573434 is handled. Duration 119 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:22:07,477 - [INFO] - root - Timezone set to 'Pacific/Auckland' for user 1588069616.
+dark-maximus-bot  | 2025-11-07 07:22:07,664 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:22:07,665 - [INFO] - aiogram.event - Update id=415573435 is handled. Duration 268 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:22:10,158 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:22:10,159 - [INFO] - aiogram.event - Update id=415573436 is handled. Duration 121 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:22:11,929 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager/' (attempt 1)
+dark-maximus-bot  | 2025-11-07 07:22:12,031 - [INFO] - shop_bot.webhook_server.app - XUI traffic debug (clientStats) for user1588069616-key1@🇪🇪estonia1test.bot: total=0, up=0, down=0
+dark-maximus-bot  | 2025-11-07 07:22:12,107 - [WARNING] - shop_bot.bot.middlewares - Slow request detected: Update from user unknown took 0.60s
+dark-maximus-bot  | 2025-11-07 07:22:12,108 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:22:12,109 - [INFO] - aiogram.event - Update id=415573437 is handled. Duration 601 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:22:24,535 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:22:24,536 - [INFO] - aiogram.event - Update id=415573438 is handled. Duration 303 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:22:25,913 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:22:25,914 - [INFO] - aiogram.event - Update id=415573439 is handled. Duration 139 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:22:27,440 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager/' (attempt 1)
+dark-maximus-bot  | 2025-11-07 07:22:27,543 - [INFO] - shop_bot.webhook_server.app - XUI traffic debug (clientStats) for user1588069616-key1@🇪🇪estonia1test.bot: total=0, up=0, down=0
+dark-maximus-bot  | 2025-11-07 07:22:27,621 - [WARNING] - shop_bot.bot.middlewares - Slow request detected: Update from user unknown took 0.59s
+dark-maximus-bot  | 2025-11-07 07:22:27,622 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-07 07:22:27,623 - [INFO] - aiogram.event - Update id=415573440 is handled. Duration 590 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-07 07:32:58,380 - [WARNING] - aiogram.dispatcher - Received SIGTERM signal
+dark-maximus-bot  | 2025-11-07 07:32:58,382 - [INFO] - aiogram.dispatcher - Polling stopped for bot @darkmaxi_support_bot id=8230014622 - 'TEST Maximus support bot'
+dark-maximus-bot  | 2025-11-07 07:32:58,383 - [INFO] - aiogram.dispatcher - Polling stopped
+dark-maximus-bot  | 2025-11-07 07:32:58,635 - [INFO] - shop_bot.bot_controller - BotController: Polling for 'SupportBot' has gracefully stopped.

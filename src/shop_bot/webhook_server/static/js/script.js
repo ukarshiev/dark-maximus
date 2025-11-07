@@ -40,6 +40,77 @@ function closeKebabMenu(menuId) {
 	}
 }
 
+const PANEL_LOCALE = 'ru-RU'
+const PANEL_TIMEZONE = window.panelTimeZone || 'Europe/Moscow'
+
+function parseToPanelDate(value) {
+	try {
+		if (!value && value !== 0) {
+			return null
+		}
+
+		if (value instanceof Date) {
+			return isNaN(value.getTime()) ? null : value
+		}
+
+		const date = new Date(value)
+		return isNaN(date.getTime()) ? null : date
+	} catch (error) {
+		console.warn('parseToPanelDate error:', error, value)
+		return null
+	}
+}
+
+function formatPanelDate(value, options = {}) {
+	try {
+		const date = parseToPanelDate(value)
+		if (!date) {
+			return 'N/A'
+		}
+
+		const formatter = new Intl.DateTimeFormat(PANEL_LOCALE, {
+			timeZone: PANEL_TIMEZONE,
+			...options,
+		})
+
+		return formatter.format(date)
+	} catch (error) {
+		console.warn('formatPanelDate error:', error, value)
+		return 'N/A'
+	}
+}
+
+function formatPanelDateTime(value, options = {}) {
+	try {
+		const defaultOptions = {
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+			hour: '2-digit',
+			minute: '2-digit',
+			second: '2-digit',
+		}
+		return formatPanelDate(value, { ...defaultOptions, ...options })
+	} catch (error) {
+		console.warn('formatPanelDateTime error:', error, value)
+		return 'N/A'
+	}
+}
+
+function formatPanelTime(value, options = {}) {
+	try {
+		const defaultOptions = {
+			hour: '2-digit',
+			minute: '2-digit',
+			second: '2-digit',
+		}
+		return formatPanelDate(value, { ...defaultOptions, ...options })
+	} catch (error) {
+		console.warn('formatPanelTime error:', error, value)
+		return 'N/A'
+	}
+}
+
 // Fallback функция для копирования текста
 function fallbackCopyTextToClipboard(text) {
 	const textArea = document.createElement("textarea");
@@ -1338,14 +1409,9 @@ function populateTransactionDrawer(tx) {
 	setValue('txDetailPaymentId', tx.payment_id);
 	
 	// Дата
-	let dateText = '—';
-	if (tx.created_date) {
-		try {
-			const date = new Date(tx.created_date);
-			dateText = date.toLocaleString('ru-RU');
-		} catch (e) {
-			dateText = tx.created_date;
-		}
+	let dateText = formatPanelDateTime(tx.created_date);
+	if (dateText === 'N/A') {
+		dateText = tx.created_date || '—';
 	}
 	setValue('txDetailDate', dateText);
 	setHTML('txDetailStatus', statusBadge);
@@ -1552,7 +1618,8 @@ async function loadUserPayments(userId) {
 					description = `${payment.host_name || 'N/A'} · ${payment.plan_name || 'N/A'}`
 				}
 				
-				const dateCell = payment.created_date ? new Date(payment.created_date).toLocaleString('ru-RU') : 'N/A'
+			const formattedPaymentDate = formatPanelDateTime(payment.created_date)
+			const dateCell = formattedPaymentDate !== 'N/A' ? formattedPaymentDate : (payment.created_date || 'N/A')
 				const amountCell = payment.amount_rub ? payment.amount_rub.toFixed(2) + ' RUB' : 'N/A'
 				
 				row.innerHTML = `
@@ -1585,6 +1652,11 @@ async function loadUserKeys(userId) {
 			data.keys.forEach(key => {
 				const row = document.createElement('tr')
 				const planName = key.is_trial == 1 ? 'Триал' : (key.plan_name || 'N/A')
+			const keyCreatedDisplay = (() => {
+				const formatted = formatPanelDateTime(key.created_date)
+				return formatted !== 'N/A' ? formatted : (key.created_date || 'N/A')
+			})()
+
 				row.innerHTML = `
 					<td>${key.key_id}</td>
 					<td>${key.host_name || 'N/A'}</td>
@@ -1598,7 +1670,7 @@ async function loadUserKeys(userId) {
 							'-'
 						}
 					</td>
-					<td>${key.created_date ? new Date(key.created_date).toLocaleString('ru-RU') : 'N/A'}</td>
+				<td>${keyCreatedDisplay}</td>
 				`
 				tbody.appendChild(row)
 			})
@@ -1769,7 +1841,8 @@ async function loadUserDetails(userId) {
 		document.getElementById('detailSubscriptionStatus').textContent = subscriptionStatusText
 		
 		// Дата регистрации
-		const registrationDate = user.registration_date ? new Date(user.registration_date).toLocaleString('ru-RU') : 'N/A'
+	const registrationDateFormatted = formatPanelDateTime(user.registration_date)
+	const registrationDate = registrationDateFormatted !== 'N/A' ? registrationDateFormatted : (user.registration_date || 'N/A')
 		document.getElementById('detailRegistrationDate').textContent = registrationDate
 		
 		document.getElementById('detailIsBanned').innerHTML = user.is_banned ? 
@@ -2747,8 +2820,10 @@ function fillKeyDrawerData(key) {
 	document.getElementById('keyDetailProtocol').textContent = key.protocol || '—';
 	document.getElementById('keyDetailEnabled').textContent = key.enabled ? 'Да' : 'Нет';
 	document.getElementById('keyDetailTrial').textContent = key.is_trial ? 'Да' : 'Нет';
-	document.getElementById('keyDetailCreatedDate').textContent = key.created_date ? new Date(key.created_date).toLocaleString() : '—';
-	document.getElementById('keyDetailExpiryDate').textContent = key.expiry_date ? new Date(key.expiry_date).toLocaleString() : '—';
+	const createdDateFormatted = formatPanelDateTime(key.created_date)
+	const expiryDateFormatted = formatPanelDateTime(key.expiry_date)
+	document.getElementById('keyDetailCreatedDate').textContent = createdDateFormatted !== 'N/A' ? createdDateFormatted : (key.created_date || '—')
+	document.getElementById('keyDetailExpiryDate').textContent = expiryDateFormatted !== 'N/A' ? expiryDateFormatted : (key.expiry_date || '—')
 	
 	// Оставшееся время
 	if (key.remaining_seconds !== null && key.remaining_seconds !== undefined) {

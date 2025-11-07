@@ -80,8 +80,13 @@ block content %}
 						</td>
 						<td>
 							{% if tx.created_date %}
-								{{ tx.created_date.strftime('%Y-%m-%d %H:%M:%S') }}
+							{% set tx_date_line = tx.created_date | panel_datetime('%Y-%m-%d %H:%M:%S') %}
+							{% if tx_date_line != 'N/A' %}
+								{{ tx_date_line }}
 							{% else %}
+								{{ tx.created_date }}
+							{% endif %}
+						{% else %}
 								N/A
 							{% endif %}
 						</td>

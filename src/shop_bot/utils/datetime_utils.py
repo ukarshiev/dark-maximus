@@ -8,8 +8,8 @@
 - Обратную совместимость со старым кодом
 """
 
-from datetime import datetime, timezone, timedelta
-from typing import Optional
+from datetime import datetime, timezone, timedelta, tzinfo
+from typing import Optional, Tuple
 import logging
 
 # Константы
@@ -28,6 +28,84 @@ except ImportError:
     # Python < 3.9 или tzdata не установлена
     MOSCOW_TZ = timezone(timedelta(hours=3))
     logging.warning("ZoneInfo не доступен (Python < 3.9 или tzdata не установлена), используем статический UTC+3")
+
+# Дефолтная timezone для панели управления (UTC+3 / Europe/Moscow)
+DEFAULT_PANEL_TIMEZONE = "Europe/Moscow"
+
+
+def _load_timezone(timezone_name: Optional[str]) -> tzinfo:
+    """Возвращает tzinfo для указанного timezone с fallback на Москву."""
+    if not timezone_name:
+        return MOSCOW_TZ
+
+    try:
+        from zoneinfo import ZoneInfo  # type: ignore
+
+        return ZoneInfo(timezone_name)
+    except Exception as exc:
+        logging.warning(
+            "Не удалось загрузить timezone %s, используем Moscow: %s",
+            timezone_name,
+            exc,
+        )
+        return MOSCOW_TZ
+
+
+def normalize_to_timezone(dt: datetime, timezone_name: Optional[str]) -> datetime:
+    """Конвертирует datetime в указанный timezone (aware)."""
+    tz = _load_timezone(timezone_name)
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+
+    return dt.astimezone(tz)
+
+
+def ensure_isoformat_for_timezone(dt: Optional[datetime], timezone_name: Optional[str]) -> Optional[str]:
+    """Возвращает ISO строку в заданном timezone или None."""
+    if dt is None:
+        return None
+
+    localized = normalize_to_timezone(dt, timezone_name)
+    return localized.isoformat()
+
+
+def get_timezone_meta(timezone_name: Optional[str]) -> Tuple[str, str]:
+    """Возвращает (timezone_name, offset_str) c fallback."""
+    tz = _load_timezone(timezone_name)
+    tz_name = timezone_name
+    if hasattr(tz, "key"):
+        tz_name = getattr(tz, "key")
+    if not tz_name:
+        tz_name = "Europe/Moscow"
+
+    current_local = datetime.now(UTC).astimezone(tz)
+    offset_text = _format_utc_offset(current_local.utcoffset())
+    return tz_name, offset_text
+
+
+def format_datetime_for_timezone(
+    dt: datetime,
+    timezone_name: Optional[str],
+    fmt: str = "%d.%m.%Y %H:%M",
+    include_offset: bool = False,
+    fallback: str = "N/A",
+) -> str:
+    """Форматирует datetime для указанного timezone."""
+    if dt is None:
+        return fallback
+
+    try:
+        localized = normalize_to_timezone(dt, timezone_name)
+    except Exception as exc:
+        logging.warning("Не удалось преобразовать дату %s: %s", dt, exc)
+        return fallback
+
+    result = localized.strftime(fmt)
+    if include_offset:
+        offset = _format_utc_offset(localized.utcoffset())
+        result = f"{result} ({offset})"
+    return result
 
 
 def ensure_utc_datetime(dt: datetime) -> datetime:
@@ -91,6 +169,23 @@ def timestamp_to_utc_datetime(timestamp_ms: int) -> datetime:
     return dt_utc.replace(tzinfo=None)
 
 
+def _format_utc_offset(offset: Optional[timedelta]) -> str:
+    """Форматирует смещение таймзоны в строку вида UTC+3 или UTC-05:30"""
+    if offset is None:
+        return "UTC+0"
+
+    total_minutes = int(offset.total_seconds() // 60)
+    sign = '+' if total_minutes >= 0 else '-'
+    abs_minutes = abs(total_minutes)
+    hours = abs_minutes // 60
+    minutes = abs_minutes % 60
+
+    if minutes == 0:
+        return f"UTC{sign}{hours}"
+
+    return f"UTC{sign}{hours:02d}:{minutes:02d}"
+
+
 def format_datetime_moscow(dt: datetime) -> str:
     """
     Legacy функция для обратной совместимости
@@ -115,7 +210,8 @@ def format_datetime_moscow(dt: datetime) -> str:
     # Конвертируем в московское время
     dt_moscow = dt.astimezone(MOSCOW_TZ)
     
-    return dt_moscow.strftime('%d.%m.%Y в %H:%M')
+    offset_text = _format_utc_offset(dt_moscow.utcoffset())
+    return f"{dt_moscow.strftime('%d.%m.%Y в %H:%M')} ({offset_text})"
 
 
 def format_datetime_for_user(
@@ -166,8 +262,10 @@ def format_datetime_for_user(
     
     # Конвертируем в нужный timezone
     dt_local = dt.astimezone(tz)
-    
-    return dt_local.strftime('%d.%m.%Y в %H:%M')
+
+    offset_text = _format_utc_offset(dt_local.utcoffset())
+
+    return f"{dt_local.strftime('%d.%m.%Y в %H:%M')} ({offset_text})"
 
 
 def get_current_utc_naive() -> datetime:
@@ -234,5 +332,10 @@ __all__ = [
     'calculate_remaining_seconds',
     'UTC',
     'MOSCOW_TZ',
+    'DEFAULT_PANEL_TIMEZONE',
+    'normalize_to_timezone',
+    'ensure_isoformat_for_timezone',
+    'get_timezone_meta',
+    'format_datetime_for_timezone',
 ]
 

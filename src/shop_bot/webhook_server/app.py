@@ -11,9 +11,11 @@ import re
 from hmac import compare_digest
 from datetime import datetime
 from datetime import timedelta
+from datetime import timezone
 from functools import wraps
 from math import ceil
-from flask import Flask, request, render_template, redirect, url_for, flash, session, current_app, jsonify
+from typing import Optional, Tuple
+from flask import Flask, request, render_template, redirect, url_for, flash, session, current_app, jsonify, g
 # CSRF отключен
 from pathlib import Path
 
@@ -56,6 +58,14 @@ from shop_bot.data_manager.database import (
 from shop_bot.data_manager.scheduler import send_subscription_notification
 from shop_bot.ton_monitor import start_ton_monitoring
 from shop_bot.utils.performance_monitor import get_performance_monitor, get_performance_report, measure_performance
+from shop_bot.utils.datetime_utils import (
+    ensure_isoformat_for_timezone,
+    format_datetime_for_timezone,
+    get_timezone_meta,
+    normalize_to_timezone,
+    DEFAULT_PANEL_TIMEZONE,
+)
+from shop_bot.data.timezones import TIMEZONES, DEFAULT_TIMEZONE, validate_timezone
 
 _bot_controller = None
 
@@ -72,6 +82,52 @@ ALL_SETTINGS_KEYS = [
     # Настройки мониторинга производительности
     "monitoring_enabled", "monitoring_max_metrics", "monitoring_slow_threshold", "monitoring_cleanup_hours"
 ]
+
+
+def resolve_panel_timezone(raw_timezone: Optional[str] = None) -> Tuple[str, str]:
+    """Определяет timezone панели и сохраняет его в контекст запроса."""
+    if raw_timezone is None:
+        cached = getattr(g, "_panel_timezone_cache", None)
+        if cached:
+            return cached
+
+    timezone_value = raw_timezone
+    if not timezone_value:
+        try:
+            timezone_value = database.get_admin_timezone()
+        except Exception:
+            timezone_value = DEFAULT_PANEL_TIMEZONE
+
+    if not timezone_value:
+        timezone_value = DEFAULT_PANEL_TIMEZONE
+
+    tz_name, tz_offset = get_timezone_meta(timezone_value)
+    g.panel_timezone = tz_name
+    g.panel_timezone_offset = tz_offset
+    g._panel_timezone_cache = (tz_name, tz_offset)
+    return tz_name, tz_offset
+
+
+def to_panel_iso(value):
+    """Конвертирует значение даты в ISO формате timezone панели."""
+    if value in (None, ''):
+        return None
+
+    tz_name, _ = resolve_panel_timezone()
+
+    try:
+        if isinstance(value, datetime):
+            dt_value = value
+        elif isinstance(value, (int, float)):
+            dt_value = datetime.fromtimestamp(float(value), tz=timezone.utc)
+        elif isinstance(value, str):
+            dt_value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        else:
+            return value
+    except (ValueError, TypeError):
+        return value
+
+    return ensure_isoformat_for_timezone(dt_value, tz_name)
 
 def create_webhook_app(bot_controller_instance):
     global _bot_controller
@@ -164,7 +220,11 @@ def create_webhook_app(bot_controller_instance):
         if timestamp is None:
             return None
         try:
-            return datetime.fromtimestamp(timestamp)
+            if isinstance(timestamp, str):
+                timestamp = float(timestamp)
+            dt_utc = datetime.fromtimestamp(float(timestamp), tz=timezone.utc)
+            tz_name, _ = resolve_panel_timezone()
+            return normalize_to_timezone(dt_utc, tz_name)
         except (ValueError, TypeError):
             return None
 
@@ -177,6 +237,48 @@ def create_webhook_app(bot_controller_instance):
             return dt.strftime(format_string)
         except (AttributeError, ValueError):
             return 'N/A'
+
+    @flask_app.template_filter('panel_datetime')
+    def panel_datetime_filter(value, fmt='%d.%m.%Y %H:%M', include_offset=False):
+        """Форматирует значение даты для timezone панели."""
+        if value in (None, ''):
+            return 'N/A'
+
+        try:
+            if isinstance(value, datetime):
+                dt_value = value
+            elif isinstance(value, (int, float)):
+                dt_value = datetime.fromtimestamp(float(value), tz=timezone.utc)
+            elif isinstance(value, str):
+                dt_value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+            else:
+                return str(value)
+        except (ValueError, TypeError):
+            return str(value)
+
+        tz_name, _ = resolve_panel_timezone()
+        return format_datetime_for_timezone(dt_value, tz_name, fmt, include_offset=include_offset)
+
+    @flask_app.template_filter('panel_iso')
+    def panel_iso_filter(value):
+        """Формирует ISO строку для timezone панели."""
+        if value in (None, ''):
+            return None
+
+        try:
+            if isinstance(value, datetime):
+                dt_value = value
+            elif isinstance(value, (int, float)):
+                dt_value = datetime.fromtimestamp(float(value), tz=timezone.utc)
+            elif isinstance(value, str):
+                dt_value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+            else:
+                return None
+        except (ValueError, TypeError):
+            return None
+
+        tz_name, _ = resolve_panel_timezone()
+        return ensure_isoformat_for_timezone(dt_value, tz_name)
 
     def login_required(f):
         @wraps(f)
@@ -220,6 +322,7 @@ def create_webhook_app(bot_controller_instance):
     def get_common_template_data():
         bot_status = _bot_controller.get_status()
         settings = get_all_settings()
+        tz_name, tz_offset = resolve_panel_timezone(settings.get('admin_timezone'))
         required_for_start = ['telegram_bot_token', 'telegram_bot_username', 'admin_telegram_id']
         all_settings_ok = all(settings.get(key) for key in required_for_start)
         hidden_mode_enabled = (str(settings.get('hidden_mode')) in ['1', 'true', 'True'])
@@ -277,7 +380,9 @@ def create_webhook_app(bot_controller_instance):
             "project_version": project_version,
             "global_settings": settings,
             "wiki_url": wiki_url,
-            "knowledge_base_url": knowledge_base_url
+            "knowledge_base_url": knowledge_base_url,
+            "panel_timezone": tz_name,
+            "panel_timezone_offset": tz_offset,
         }
 
     @flask_app.route('/')
@@ -590,22 +695,25 @@ def create_webhook_app(bot_controller_instance):
             user_groups = get_all_user_groups()
         except Exception:
             user_groups = []
-        return render_template('settings.html', 
-                             hosts=hosts, 
-                             settings=current_settings,
-                             active_tab=active_tab,
-                             about_content=about_content,
-                             support_content=support_content,
-                             terms_content=terms_content,
-                             privacy_content=privacy_content,
-                             user_groups=user_groups,
-                             **common_data)
+        return render_template(
+            'settings.html',
+            hosts=hosts,
+            settings=current_settings,
+            active_tab=active_tab,
+            about_content=about_content,
+            support_content=support_content,
+            terms_content=terms_content,
+            privacy_content=privacy_content,
+            user_groups=user_groups,
+            timezone_options=TIMEZONES,
+            **common_data,
+        )
 
     @flask_app.route('/settings/panel', methods=['POST'])
     @login_required
     def save_panel_settings():
         """Сохранение настроек панели - v2.1"""
-        panel_keys = ['panel_login', 'global_domain', 'docs_domain', 'codex_docs_domain', 'monitoring_max_metrics', 'monitoring_slow_threshold', 'monitoring_cleanup_hours']
+        panel_keys = ['panel_login', 'global_domain', 'docs_domain', 'codex_docs_domain', 'admin_timezone', 'monitoring_max_metrics', 'monitoring_slow_threshold', 'monitoring_cleanup_hours']
         
         # Пароль отдельно, если указан
         if 'panel_password' in request.form and request.form.get('panel_password'):
@@ -616,7 +724,12 @@ def create_webhook_app(bot_controller_instance):
         
         # Обновляем остальные настройки панели
         for key in panel_keys:
-            update_setting(key, request.form.get(key, ''))
+            value = request.form.get(key, '')
+            if key == 'admin_timezone':
+                value = (value or '').strip()
+                if not validate_timezone(value):
+                    value = DEFAULT_TIMEZONE
+            update_setting(key, value)
         
         # Обработка чекбоксов
         auto_delete_orphans = 'true' if 'auto_delete_orphans' in request.form else 'false'
@@ -3046,10 +3159,7 @@ def create_webhook_app(bot_controller_instance):
                     
                     # Преобразуем created_date в строку для JSON
                     if payment['created_date']:
-                        if isinstance(payment['created_date'], str):
-                            payment['created_date'] = payment['created_date']
-                        else:
-                            payment['created_date'] = payment['created_date'].isoformat()
+                        payment['created_date'] = to_panel_iso(payment['created_date'])
                     payments.append(payment)
                 
                 return {'payments': payments}
@@ -3088,10 +3198,7 @@ def create_webhook_app(bot_controller_instance):
                     key = dict(row)
                     # Преобразуем created_date в строку для JSON
                     if key['created_date']:
-                        if isinstance(key['created_date'], str):
-                            key['created_date'] = key['created_date']
-                        else:
-                            key['created_date'] = key['created_date'].isoformat()
+                        key['created_date'] = to_panel_iso(key['created_date'])
                     keys.append(key)
                 
                 return {'keys': keys}
@@ -3151,16 +3258,10 @@ def create_webhook_app(bot_controller_instance):
                 
                 # Преобразуем даты в строки для JSON
                 if key['created_date']:
-                    if isinstance(key['created_date'], str):
-                        key['created_date'] = key['created_date']
-                    else:
-                        key['created_date'] = key['created_date'].isoformat()
+                    key['created_date'] = to_panel_iso(key['created_date'])
                 
                 if key['expiry_date']:
-                    if isinstance(key['expiry_date'], str):
-                        key['expiry_date'] = key['expiry_date']
-                    else:
-                        key['expiry_date'] = key['expiry_date'].isoformat()
+                    key['expiry_date'] = to_panel_iso(key['expiry_date'])
                 
                 # Вычисляем оставшееся время
                 # ВАЖНО: expiry_date хранится в UTC, поэтому для расчета используем UTC+3 (Moscow timezone)
@@ -3262,10 +3363,7 @@ def create_webhook_app(bot_controller_instance):
                     notification = dict(row)
                     # Преобразуем created_date в строку для JSON
                     if notification['created_date']:
-                        if isinstance(notification['created_date'], str):
-                            notification['created_date'] = notification['created_date']
-                        else:
-                            notification['created_date'] = notification['created_date'].isoformat()
+                        notification['created_date'] = to_panel_iso(notification['created_date'])
                     notifications.append(notification)
                 
                 return {'notifications': notifications}
@@ -3330,10 +3428,7 @@ def create_webhook_app(bot_controller_instance):
                 
                 # Преобразуем registration_date в строку для JSON
                 if user_data.get('registration_date'):
-                    if isinstance(user_data['registration_date'], str):
-                        user_data['registration_date'] = user_data['registration_date']
-                    else:
-                        user_data['registration_date'] = user_data['registration_date'].isoformat()
+                    user_data['registration_date'] = to_panel_iso(user_data['registration_date'])
                 
                 # Получаем сумму заработанных средств (пока отключено из-за отсутствия колонки referred_by)
                 user_data['earned'] = 0
@@ -4310,6 +4405,8 @@ def create_webhook_app(bot_controller_instance):
         """Получить все группы пользователей"""
         try:
             groups = get_all_user_groups()
+            for group in groups:
+                group['created_date'] = to_panel_iso(group.get('created_date'))
             return jsonify({
                 'success': True,
                 'groups': groups
@@ -4611,43 +4708,26 @@ def create_webhook_app(bot_controller_instance):
         try:
             from shop_bot.data_manager.backup import backup_manager
             from datetime import datetime, timedelta
-            try:
-                from zoneinfo import ZoneInfo
-                tz_msk = ZoneInfo('Europe/Moscow')
-                tz_utc = ZoneInfo('UTC')
-            except Exception:
-                tz_msk = None
-                tz_utc = None
 
             stats = backup_manager.get_backup_statistics()
 
-            # last_backup в Московском времени
+            # last_backup в часовом поясе панели
             last_backup_iso = stats.get('last_backup_time')
-            last_backup_msk_iso = None
-            if last_backup_iso:
-                try:
-                    dt = datetime.fromisoformat(last_backup_iso)
-                    if dt.tzinfo is None and tz_utc is not None:
-                        dt = dt.replace(tzinfo=tz_utc)
-                    last_backup_msk_iso = dt.astimezone(tz_msk).isoformat() if tz_msk else dt.isoformat()
-                except Exception:
-                    last_backup_msk_iso = last_backup_iso
+            last_backup_panel_iso = to_panel_iso(last_backup_iso)
 
             # next_backup расчёт от last_backup или now + interval
             next_backup_iso = None
-            next_backup_msk_iso = None
+            next_backup_panel_iso = None
             try:
                 if backup_manager.is_running:
                     interval_h = int(backup_manager.backup_interval_hours or 24)
-                    now_dt = datetime.utcnow()
-                    if tz_utc is not None:
-                        now_dt = now_dt.replace(tzinfo=tz_utc)
+                    now_dt = datetime.now(timezone.utc)
                     base_dt = None
                     if last_backup_iso:
                         try:
-                            lb = datetime.fromisoformat(last_backup_iso)
-                            if lb.tzinfo is None and tz_utc is not None:
-                                lb = lb.replace(tzinfo=tz_utc)
+                            lb = datetime.fromisoformat(last_backup_iso.replace('Z', '+00:00'))
+                            if lb.tzinfo is None:
+                                lb = lb.replace(tzinfo=timezone.utc)
                             base_dt = lb
                         except Exception:
                             base_dt = None
@@ -4656,8 +4736,9 @@ def create_webhook_app(bot_controller_instance):
                     candidate = base_dt + timedelta(hours=interval_h)
                     if candidate <= now_dt:
                         candidate = now_dt + timedelta(hours=interval_h)
+                    candidate = candidate.astimezone(timezone.utc)
                     next_backup_iso = candidate.isoformat()
-                    next_backup_msk_iso = candidate.astimezone(tz_msk).isoformat() if tz_msk else next_backup_iso
+                    next_backup_panel_iso = to_panel_iso(candidate)
             except Exception:
                 pass
 
@@ -4671,9 +4752,11 @@ def create_webhook_app(bot_controller_instance):
                 'is_running': backup_manager.is_running,  # Технический статус потока
                 'interval_hours': backup_manager.backup_interval_hours,
                 'last_backup': stats.get('last_backup_time'),
-                'last_backup_msk': last_backup_msk_iso,
+                'last_backup_panel': last_backup_panel_iso or last_backup_iso,
+                'last_backup_msk': last_backup_panel_iso or last_backup_iso,  # Backward compatibility
                 'next_backup': next_backup_iso,
-                'next_backup_msk': next_backup_msk_iso,
+                'next_backup_panel': next_backup_panel_iso or next_backup_iso,
+                'next_backup_msk': next_backup_panel_iso or next_backup_iso,  # Backward compatibility
                 'total_backups': stats.get('total_backups', 0),
                 'total_size': stats.get('total_size', 0),
                 'failed_backups': stats.get('failed_backups', 0),

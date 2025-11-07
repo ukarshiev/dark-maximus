@@ -182,7 +182,7 @@
                 <tbody>
                     {% for op in slow_operations[:20] %}
                     <tr>
-                        <td>{{ op.timestamp | timestamp_to_datetime | strftime('%H:%M:%S') if op.timestamp else 'N/A' }}</td>
+                        <td>{{ op.timestamp | timestamp_to_datetime | panel_datetime('%H:%M:%S') if op.timestamp else 'N/A' }}</td>
                         <td><code>{{ op.operation }}</code></td>
                         <td class="text-danger">{{ "%.3f"|format(op.duration) }}с</td>
                         <td>{{ op.user_id or 'N/A' }}</td>
@@ -219,7 +219,7 @@
                 <tbody>
                     {% for error in recent_errors[:20] %}
                     <tr>
-                        <td>{{ error.timestamp | timestamp_to_datetime | strftime('%H:%M:%S') if error.timestamp else 'N/A' }}</td>
+                        <td>{{ error.timestamp | timestamp_to_datetime | panel_datetime('%H:%M:%S') if error.timestamp else 'N/A' }}</td>
                         <td><code>{{ error.operation }}</code></td>
                         <td>{{ "%.3f"|format(error.duration) }}с</td>
                         <td>{{ error.user_id or 'N/A' }}</td>

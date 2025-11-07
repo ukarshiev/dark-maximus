@@ -112,15 +112,23 @@
 						</td>
 						<td>
 							{% if key.created_date %}
-								{{ key.created_date.strftime('%Y-%m-%d') }}<br/>{{ key.created_date.strftime('%H:%M:%S') }}
+							{% set created_date_line = key.created_date | panel_datetime('%Y-%m-%d') %}
+							{% set created_time_line = key.created_date | panel_datetime('%H:%M:%S') %}
+							{% if created_date_line != 'N/A' %}
+								{{ created_date_line }}<br/>{{ created_time_line }}
+							{% else %}
+								{{ key.created_date }}
+							{% endif %}
 							{% else %}
 								N/A
 							{% endif %}
 						</td>
 						<td>
 							{% if key.expiry_date %}
-								{% if key.expiry_date.strftime is defined %}
-									{{ key.expiry_date.strftime('%Y-%m-%d') }}<br/>{{ key.expiry_date.strftime('%H:%M:%S') }}
+							{% set expiry_date_line = key.expiry_date | panel_datetime('%Y-%m-%d') %}
+							{% set expiry_time_line = key.expiry_date | panel_datetime('%H:%M:%S') %}
+							{% if expiry_date_line != 'N/A' %}
+								{{ expiry_date_line }}<br/>{{ expiry_time_line }}
 								{% else %}
 									{{ key.expiry_date }}
 								{% endif %}
@@ -848,15 +856,15 @@ async function openKeyDrawer(keyId) {
 		
 		// Даты
 		if (key.created_date) {
-			const createdDate = new Date(key.created_date);
-			document.getElementById('keyDetailCreatedDate').textContent = createdDate.toLocaleString('ru-RU');
+			const formattedCreated = formatPanelDateTime(key.created_date)
+			document.getElementById('keyDetailCreatedDate').textContent = formattedCreated !== 'N/A' ? formattedCreated : (key.created_date || 'N/A')
 		} else {
 			document.getElementById('keyDetailCreatedDate').textContent = 'N/A';
 		}
 		
 		if (key.expiry_date) {
-			const expiryDate = new Date(key.expiry_date);
-			document.getElementById('keyDetailExpiryDate').textContent = expiryDate.toLocaleString('ru-RU');
+			const formattedExpiry = formatPanelDateTime(key.expiry_date)
+			document.getElementById('keyDetailExpiryDate').textContent = formattedExpiry !== 'N/A' ? formattedExpiry : (key.expiry_date || 'N/A')
 		} else {
 			document.getElementById('keyDetailExpiryDate').textContent = 'N/A';
 		}

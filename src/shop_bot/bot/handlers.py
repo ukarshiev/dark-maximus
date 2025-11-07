@@ -21,7 +21,7 @@ from io import BytesIO
 from datetime import datetime, timedelta, timezone
 from aiosend import CryptoPay, TESTNET
 from decimal import Decimal, ROUND_HALF_UP, ROUND_CEILING
-from typing import Dict
+from typing import Dict, Tuple
 
 from pytonconnect import TonConnect
 from pytonconnect.exceptions import UserRejectsError
@@ -65,6 +65,16 @@ CRYPTO_BOT_TOKEN = get_setting("cryptobot_token")
 logger = logging.getLogger(__name__)
 admin_router = Router()
 user_router = Router()
+
+
+def _get_user_timezone_context(user_id: int) -> Tuple[bool, str | None]:
+    """Возвращает флаг включения timezone и значение timezone пользователя"""
+    from shop_bot.data_manager.database import get_user_timezone, is_timezone_feature_enabled
+
+    feature_enabled = is_timezone_feature_enabled()
+    user_timezone = get_user_timezone(user_id) if feature_enabled else None
+    return feature_enabled, user_timezone
+
 
 # Добавляем обработчик ошибок для admin_router
 @admin_router.error()
@@ -1476,23 +1486,25 @@ def get_user_router() -> Router:
         timezone_display = get_timezone_display_name(timezone_name)
         
         # Показываем текущее время в выбранном часовом поясе
-        from datetime import datetime
+        from datetime import datetime, timezone as dt_timezone
         from zoneinfo import ZoneInfo
+        from shop_bot.utils.datetime_utils import format_datetime_for_user
         try:
             tz = ZoneInfo(timezone_name)
-            current_time = datetime.now(tz).strftime('%H:%M:%S')
-            current_date = datetime.now(tz).strftime('%d.%m.%Y')
+            current_dt = format_datetime_for_user(
+                datetime.now(dt_timezone.utc),
+                user_timezone=timezone_name,
+                feature_enabled=True,
+            )
         except Exception as e:
             logger.error(f"Error getting time for timezone {timezone_name}: {e}")
-            current_time = "—"
-            current_date = "—"
+            current_dt = "—"
         
         # Показываем подтверждение с текущим временем
         await callback.message.edit_text(
             f"🌍 <b>Подтверждение выбора часового пояса</b>\n\n"
             f"<b>Выбран:</b> {timezone_display}\n\n"
-            f"<b>Текущее время:</b> {current_time}\n"
-            f"<b>Текущая дата:</b> {current_date}\n\n"
+            f"<b>Текущая дата и время:</b> {current_dt}\n\n"
             f"Подтвердите выбор часового пояса:",
             reply_markup=keyboards.create_timezone_confirmation_keyboard(timezone_name),
             parse_mode="HTML"
@@ -3089,7 +3101,17 @@ def get_user_router() -> Router:
             
             new_expiry_date = datetime.fromtimestamp(result['expiry_timestamp_ms'] / 1000)
             subscription_link = result.get('subscription_link')
-            final_text = get_purchase_success_text("готов", get_next_key_number(user_id) -1, new_expiry_date, result['connection_string'], subscription_link, 'key')
+            feature_enabled, user_timezone = _get_user_timezone_context(user_id)
+            final_text = get_purchase_success_text(
+                "готов",
+                get_next_key_number(user_id) - 1,
+                new_expiry_date,
+                result['connection_string'],
+                subscription_link,
+                'key',
+                user_timezone=user_timezone,
+                feature_enabled=feature_enabled,
+            )
             
             # Проверяем, что new_key_id не None перед созданием клавиатуры
             if new_key_id is not None:
@@ -3180,7 +3202,17 @@ def get_user_router() -> Router:
             await message.delete()
             new_expiry_date = datetime.fromtimestamp(result['expiry_timestamp_ms'] / 1000)
             subscription_link = result.get('subscription_link')
-            final_text = get_purchase_success_text("готов", get_next_key_number(user_id) -1, new_expiry_date, result['connection_string'], subscription_link, 'key')
+            feature_enabled, user_timezone = _get_user_timezone_context(user_id)
+            final_text = get_purchase_success_text(
+                "готов",
+                get_next_key_number(user_id) - 1,
+                new_expiry_date,
+                result['connection_string'],
+                subscription_link,
+                'key',
+                user_timezone=user_timezone,
+                feature_enabled=feature_enabled,
+            )
             
             # Проверяем, что new_key_id не None перед созданием клавиатуры
             if new_key_id is not None:
@@ -3231,7 +3263,19 @@ def get_user_router() -> Router:
                 if plan:
                     provision_mode = plan.get('key_provision_mode', 'key')
             
-            final_text = get_key_info_text(key_number, expiry_date, created_date, connection_string, status, subscription_link, provision_mode)
+            feature_enabled, user_timezone = _get_user_timezone_context(user_id)
+
+            final_text = get_key_info_text(
+                key_number,
+                expiry_date,
+                created_date,
+                connection_string,
+                status,
+                subscription_link,
+                provision_mode,
+                user_timezone=user_timezone,
+                feature_enabled=feature_enabled,
+            )
             
             await callback.message.edit_text(
                 text=final_text,
@@ -4561,13 +4605,17 @@ def get_user_router() -> Router:
                         logger.error(f"Error getting subscription link: {e}")
                         provision_mode = 'key'
 
+                feature_enabled, user_timezone = _get_user_timezone_context(user_id)
+
                 final_text = get_purchase_success_text(
                     action="создан" if action == "new" else "продлен",
                     key_number=key_number,
                     expiry_date=new_expiry_date,
                     connection_string=connection_string,
                     subscription_link=subscription_link,
-                    provision_mode=provision_mode
+                    provision_mode=provision_mode,
+                    user_timezone=user_timezone,
+                    feature_enabled=feature_enabled,
                 )
                 
                 # Проверяем, что key_id не None перед созданием клавиатуры
@@ -4959,13 +5007,17 @@ def get_user_router() -> Router:
                 if plan:
                     provision_mode = plan.get('key_provision_mode', 'key')
 
+                feature_enabled, user_timezone = _get_user_timezone_context(user_id)
+
                 final_text = get_purchase_success_text(
                     action="создан" if action == "new" else "продлен",
                     key_number=key_number,
                     expiry_date=new_expiry_date,
                     connection_string=connection_string,
                     subscription_link=subscription_link,
-                    provision_mode=provision_mode
+                    provision_mode=provision_mode,
+                    user_timezone=user_timezone,
+                    feature_enabled=feature_enabled,
                 )
                 
                 # Проверяем, что key_id не None перед созданием клавиатуры
@@ -6311,8 +6363,25 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
                     if promo_usage_id:
                         from shop_bot.data_manager.database import update_promo_usage_status
                         update_promo_usage_status(promo_usage_id, plan_id)
-                    
-                    await processing_message.edit_text(get_purchase_success_text(user_id, host_name, email, months))
+
+                    feature_enabled, user_timezone = _get_user_timezone_context(user_id)
+                    connection_string = result.get('connection_string')
+                    new_expiry_date = datetime.fromtimestamp(result['expiry_timestamp_ms'] / 1000)
+                    subscription_link = result.get('subscription_link')
+                    provision_mode = plan.get('key_provision_mode', 'key') if plan else 'key'
+
+                    final_text = get_purchase_success_text(
+                        action="создан",
+                        key_number=key_number,
+                        expiry_date=new_expiry_date,
+                        connection_string=connection_string,
+                        subscription_link=subscription_link,
+                        provision_mode=provision_mode,
+                        user_timezone=user_timezone,
+                        feature_enabled=feature_enabled,
+                    )
+
+                    await processing_message.edit_text(final_text)
             else:
                 await processing_message.edit_text("❌ Ошибка: не удалось создать ключ.")
         elif action == "extend":
@@ -6579,19 +6648,50 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
         if plan:
             provision_mode = plan.get('key_provision_mode', 'key')
         
+        feature_enabled, user_timezone = _get_user_timezone_context(user_id)
+
         final_text = get_purchase_success_text(
             action="создан" if action == "new" else "продлен",
             key_number=key_number,
             expiry_date=new_expiry_date,
             connection_string=connection_string,
             subscription_link=subscription_link,
-            provision_mode=provision_mode
+            provision_mode=provision_mode,
+            user_timezone=user_timezone,
+            feature_enabled=feature_enabled,
         )
         
         # Добавляем информацию о транзакции, если есть
         if tx_hash and payment_method == "TON Connect":
             transaction_url = get_ton_transaction_url(tx_hash)
             final_text += f"\n\n🔗 <a href='{transaction_url}'>Проверить транзакцию в TON Explorer</a>"
+        
+        # Если это автопродление, не отправляем сообщение "Ваш ключ готов"
+        # Уведомление о списании отправит send_balance_deduction_notice в perform_auto_renewals
+        if payment_method == 'Auto-Renewal':
+            # Обновляем квоту и уведомляем админа даже при автопродлении
+            try:
+                from shop_bot.modules.xui_api import get_key_details_from_host
+                from shop_bot.data_manager.database import update_key_quota
+                details_payload = {
+                    'host_name': host_name,
+                    'xui_client_uuid': result.get('client_uuid'),
+                    'key_email': result.get('email')
+                }
+                details = await get_key_details_from_host(details_payload)
+                if details:
+                    if key_id:
+                        update_key_quota(
+                            key_id,
+                            details.get('quota_total_gb'),
+                            details.get('traffic_down_bytes'),
+                            details.get('quota_remaining_bytes')
+                        )
+            except Exception:
+                pass
+            
+            await notify_admin_of_purchase(bot, metadata)
+            return
         
         await bot.send_message(
             chat_id=user_id,

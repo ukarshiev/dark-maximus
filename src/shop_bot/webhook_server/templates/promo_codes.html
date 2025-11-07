@@ -2221,9 +2221,8 @@ function copyPromoSummary() {
 
 function formatLocalDateTime(val) {
     try {
-        // val в формате YYYY-MM-DDTHH:mm — преобразуем в локальную строку
-        const dt = new Date(val);
-        return dt.toLocaleString('ru-RU');
+        const formatted = formatPanelDateTime(val);
+        return formatted !== 'N/A' ? formatted : val;
     } catch (e) {
         return val;
     }
@@ -2603,8 +2602,8 @@ function refreshPromoCodes() {
 // Форматирование даты
 function formatDate(dateString) {
 	if (!dateString) return '-';
-	const date = new Date(dateString);
-	return date.toLocaleString('ru-RU');
+	const formatted = formatPanelDateTime(dateString);
+	return formatted !== 'N/A' ? formatted : dateString;
 }
 
 // Показ уведомлений

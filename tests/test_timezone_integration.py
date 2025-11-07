@@ -278,6 +278,7 @@ class TestTimezoneDisplay(TestTimezoneIntegration):
         
         self.assertIn("01.01.2025", moscow_display)
         self.assertIn("15:00", moscow_display, "12:00 UTC = 15:00 MSK")
+        self.assertIn("UTC", moscow_display)
         print(f"[+] Moscow: {moscow_display}")
         
         # 4. Проверяем отображение для Yekaterinburg (UTC+5)
@@ -291,6 +292,7 @@ class TestTimezoneDisplay(TestTimezoneIntegration):
         # На Windows может быть fallback на Moscow
         # На Unix должно быть 17:00
         self.assertNotIn("12:00", yekaterinburg_display, "Время должно быть конвертировано")
+        self.assertIn("UTC", yekaterinburg_display)
         print(f"[+] Yekaterinburg: {yekaterinburg_display}")
         
         # 5. Проверяем отображение для UTC
@@ -304,6 +306,7 @@ class TestTimezoneDisplay(TestTimezoneIntegration):
         # На Windows с fallback будет Moscow (15:00), на Unix - UTC (12:00)
         # Проверяем, что хотя бы дата правильная
         self.assertIn("2025", utc_display, "Дата должна быть правильной")
+        self.assertIn("UTC", utc_display)
         print(f"[+] UTC: {utc_display}")
     
     def test_feature_flag_disabled_uses_moscow(self):
@@ -323,6 +326,7 @@ class TestTimezoneDisplay(TestTimezoneIntegration):
         
         # Должно использоваться Moscow, а не Tokyo
         self.assertIn("15:00", result, "При выключенном flag должно быть Moscow время")
+        self.assertIn("UTC+3", result)
         print(f"[+] Используется Moscow: {result}")
 
 
@@ -428,6 +432,7 @@ class TestBackwardCompatibility(TestTimezoneIntegration):
         )
         
         self.assertIsNotNone(formatted, "Форматирование должно работать")
+        self.assertIn("UTC", formatted)
         print(f"[+] Старый ключ работает: {formatted}")
 
 
@@ -467,6 +472,7 @@ class TestEdgeCases(TestTimezoneIntegration):
         
         # Должен использоваться fallback на Moscow (15:00)
         self.assertIn("15:00", result, "Должен быть fallback на Moscow")
+        self.assertIn("UTC+3", result)
         print(f"[+] Fallback на Moscow: {result}")
 
 

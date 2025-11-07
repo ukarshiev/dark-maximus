@@ -315,6 +315,15 @@
 					</div>
 					<small class="text-muted">Если не указан, будет использоваться localhost:3002</small>
 				</div>
+				<div class="form-group">
+					<label for="admin_timezone">Часовой пояс панели:</label>
+					<select id="admin_timezone" name="admin_timezone" title="Часовой пояс для отображения времени в панели управления">
+						{% for tz_name, tz_label, _ in timezone_options %}
+							<option value="{{ tz_name }}" {% if (settings.admin_timezone or 'Europe/Moscow') == tz_name %}selected{% endif %}>{{ tz_label }}</option>
+						{% endfor %}
+					</select>
+					<small class="text-muted">Определяет часовой пояс для отображения дат и времени в панели управления и связанных уведомлениях.</small>
+				</div>
 			</section>
 			
 			<section class="settings-section">
@@ -2991,22 +3000,20 @@ async function loadBackupStatus() {
         document.getElementById('backup-status').className = 
             data.enabled ? 'status-text' : 'error-text';
         
-        // Обновляем время последнего бекапа (приоритет last_backup_msk)
-        if (data.last_backup_msk || data.last_backup) {
-            const lastIso = data.last_backup_msk || data.last_backup;
-            const lastBackupDate = new Date(lastIso);
-            document.getElementById('last-backup-time').textContent = 
-                lastBackupDate.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' });
+        // Обновляем время последнего бекапа (приоритет last_backup_panel)
+        if (data.last_backup_panel || data.last_backup_msk || data.last_backup) {
+            const lastIso = data.last_backup_panel || data.last_backup_msk || data.last_backup;
+            const formattedLastBackup = formatPanelDateTime(lastIso);
+            document.getElementById('last-backup-time').textContent = formattedLastBackup !== 'N/A' ? formattedLastBackup : (lastIso || 'Никогда');
         } else {
             document.getElementById('last-backup-time').textContent = 'Никогда';
         }
 
-        // Обновляем время следующего бекапа (приоритет next_backup_msk)
-        if (data.next_backup_msk || data.next_backup) {
-            const nextIso = data.next_backup_msk || data.next_backup;
-            const nextBackupDate = new Date(nextIso);
-            document.getElementById('next-backup-time').textContent = 
-                nextBackupDate.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' });
+        // Обновляем время следующего бекапа (приоритет next_backup_panel)
+        if (data.next_backup_panel || data.next_backup_msk || data.next_backup) {
+            const nextIso = data.next_backup_panel || data.next_backup_msk || data.next_backup;
+            const formattedNextBackup = formatPanelDateTime(nextIso);
+            document.getElementById('next-backup-time').textContent = formattedNextBackup !== 'N/A' ? formattedNextBackup : (nextIso || '—');
         } else {
             document.getElementById('next-backup-time').textContent = '—';
         }
@@ -3236,7 +3243,10 @@ function showBackupListModal(data) {
                                         <tr>
                                             <td>${backup.display_name || backup.name}</td>
                                             <td>${formatBytes(backup.size)}</td>
-                                            <td>${new Date(backup.created_at_msk || backup.created_at).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}</td>
+                                            <td>${(() => {
+                                                const formatted = formatPanelDate(backup.created_at_msk || backup.created_at, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+                                                return formatted !== 'N/A' ? formatted : ((backup.created_at_msk || backup.created_at) || 'N/A')
+                                            })()}</td>
                                         </tr>
                                     `).join('') : '<tr><td colspan="3">Бекапы не найдены</td></tr>'}
                                 </tbody>
@@ -3363,7 +3373,10 @@ function displayGroups(groups) {
             <td>
                 ${group.is_default ? '<span class="badge badge-success">Да</span>' : '<span class="badge badge-secondary">Нет</span>'}
             </td>
-            <td>${new Date(group.created_date).toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow' })}</td>
+            <td>${(() => {
+                const formatted = formatPanelDateTime(group.created_date, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+                return formatted !== 'N/A' ? formatted : (group.created_date || 'N/A')
+            })()}</td>
             <td class="actions-cell">
                 <div class="kebab-wrapper">
                     <button class="kebab-btn" onclick="toggleKebabMenu('kebab-group-${group.group_id}')" title="Действия с группой">

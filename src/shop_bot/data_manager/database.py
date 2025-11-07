@@ -10,7 +10,7 @@
 
 import sqlite3
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 import logging
 
@@ -21,6 +21,25 @@ import json
 import bcrypt
 
 import time
+from typing import Optional
+def _parse_db_datetime(value) -> Optional[datetime]:
+    """Парсит datetime из БД, возвращая aware UTC значение."""
+    if value in (None, ''):
+        return None
+
+    if isinstance(value, datetime):
+        dt_value = value
+    else:
+        try:
+            dt_value = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        except (ValueError, TypeError):
+            logger.warning("Не удалось распарсить дату из БД: %s", value)
+            return None
+
+    if dt_value.tzinfo is None:
+        dt_value = dt_value.replace(tzinfo=timezone.utc)
+
+    return dt_value
 
 
 
@@ -1798,7 +1817,7 @@ def run_migration():
 
         # Миграция настроек бекапов
         logging.info("Migrating backup settings...")
-        migrate_backup_settings()
+        migrate_backup_settings(conn)
 
         logging.info("--- The database is successfully completed! ---")
 
@@ -2306,54 +2325,57 @@ def get_all_backup_settings() -> dict:
         return {}
 
 
-def migrate_backup_settings():
-    """Миграция настроек бекапов из bot_settings в backup_settings"""
+def migrate_backup_settings(conn: sqlite3.Connection):
+    """Миграция настроек бекапов из bot_settings в backup_settings
+    
+    Args:
+        conn: Существующее соединение с базой данных из run_migration()
+    """
     try:
-        with sqlite3.connect(DB_FILE) as conn:
-            cursor = conn.cursor()
+        cursor = conn.cursor()
+        
+        # PRAGMA busy_timeout уже установлен в run_migration()
+        
+        # Список настроек бекапов для миграции
+        backup_keys = [
+            'backup_enabled', 'backup_interval_hours', 'backup_retention_days',
+            'backup_compression', 'backup_verify'
+        ]
+        
+        # Получаем существующие настройки из bot_settings
+        for key in backup_keys:
+            cursor.execute("SELECT value FROM bot_settings WHERE key = ?", (key,))
+            result = cursor.fetchone()
             
-            # Устанавливаем PRAGMA busy_timeout для предотвращения блокировок
-            cursor.execute("PRAGMA busy_timeout=30000")
-            
-            # Список настроек бекапов для миграции
-            backup_keys = [
-                'backup_enabled', 'backup_interval_hours', 'backup_retention_days',
-                'backup_compression', 'backup_verify'
-            ]
-            
-            # Получаем существующие настройки из bot_settings
-            for key in backup_keys:
-                cursor.execute("SELECT value FROM bot_settings WHERE key = ?", (key,))
-                result = cursor.fetchone()
-                
-                if result:
-                    # Переносим в backup_settings
-                    cursor.execute("""
-                        INSERT OR IGNORE INTO backup_settings (key, value, created_at, updated_at) 
-                        VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    """, (key, result[0]))
-                    logging.info(f"Migrated backup setting '{key}' from bot_settings to backup_settings")
-            
-            # Устанавливаем значения по умолчанию для отсутствующих настроек
-            default_backup_settings = {
-                'backup_enabled': 'true',
-                'backup_interval_hours': '24',
-                'backup_retention_days': '30',
-                'backup_compression': 'true',
-                'backup_verify': 'true'
-            }
-            
-            for key, default_value in default_backup_settings.items():
+            if result:
+                # Переносим в backup_settings
                 cursor.execute("""
                     INSERT OR IGNORE INTO backup_settings (key, value, created_at, updated_at) 
                     VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """, (key, default_value))
-            
-            conn.commit()
-            logging.info("Backup settings migration completed successfully")
-            
+                """, (key, result[0]))
+                logging.info(f"Migrated backup setting '{key}' from bot_settings to backup_settings")
+        
+        # Устанавливаем значения по умолчанию для отсутствующих настроек
+        default_backup_settings = {
+            'backup_enabled': 'true',
+            'backup_interval_hours': '24',
+            'backup_retention_days': '30',
+            'backup_compression': 'true',
+            'backup_verify': 'true'
+        }
+        
+        for key, default_value in default_backup_settings.items():
+            cursor.execute("""
+                INSERT OR IGNORE INTO backup_settings (key, value, created_at, updated_at) 
+                VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """, (key, default_value))
+        
+        # conn.commit() будет выполнен в run_migration() для атомарности всех миграций
+        logging.info("Backup settings migration completed successfully")
+        
     except sqlite3.Error as e:
         logging.error(f"Failed to migrate backup settings: {e}")
+        raise  # Пробрасываем исключение для отката транзакции в run_migration()
 
 
 
@@ -4975,21 +4997,9 @@ def get_paginated_transactions(page: int = 1, per_page: int = 15) -> tuple[list[
 
                 
 
-                # Преобразуем created_date в datetime объект
-
+                # Преобразуем created_date в datetime объект (UTC aware)
                 if transaction_dict.get('created_date'):
-
-                    try:
-
-                        from datetime import datetime
-
-                        if isinstance(transaction_dict['created_date'], str):
-
-                            transaction_dict['created_date'] = datetime.fromisoformat(transaction_dict['created_date'].replace('Z', '+00:00'))
-
-                    except (ValueError, TypeError):
-
-                        transaction_dict['created_date'] = None
+                    transaction_dict['created_date'] = _parse_db_datetime(transaction_dict['created_date'])
 
                 
 
@@ -5129,32 +5139,6 @@ def reset_trial_used(telegram_id: int):
 
         logging.error(f"Failed to reset trial used for user {telegram_id}: {e}")
 
-
-
-def set_user_timezone(telegram_id: int, timezone: str):
-    """Устанавливает часовой пояс для пользователя"""
-    try:
-        with sqlite3.connect(DB_FILE) as conn:
-            cursor = conn.cursor()
-            cursor.execute("UPDATE users SET timezone = ? WHERE telegram_id = ?", (timezone, telegram_id))
-            conn.commit()
-            logging.info(f"Timezone set to '{timezone}' for user {telegram_id}.")
-    except sqlite3.Error as e:
-        logging.error(f"Failed to set timezone for user {telegram_id}: {e}")
-
-
-def get_user_timezone(telegram_id: int) -> str | None:
-    """Получает часовой пояс пользователя"""
-    try:
-        with sqlite3.connect(DB_FILE) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT timezone FROM users WHERE telegram_id = ?", (telegram_id,))
-            result = cursor.fetchone()
-            return result['timezone'] if result and result['timezone'] else None
-    except sqlite3.Error as e:
-        logging.error(f"Failed to get timezone for user {telegram_id}: {e}")
-        return None
 
 
 def admin_reset_trial_completely(telegram_id: int):
@@ -5876,7 +5860,10 @@ def get_recent_transactions(limit: int = 15) -> list[dict]:
 
             cursor.execute(query, (limit,))
 
-            transactions = [dict(row) for row in cursor.fetchall()]
+            for row in cursor.fetchall():
+                tx = dict(row)
+                tx['created_date'] = _parse_db_datetime(tx.get('created_date'))
+                transactions.append(tx)
 
     except sqlite3.Error as e:
 
@@ -5998,18 +5985,7 @@ def get_paginated_notifications(page: int = 1, per_page: int = 15) -> tuple[list
                     item['username'] = item['joined_username']
 
                 # Normalize created_date
-
-                try:
-
-                    if isinstance(item.get('created_date'), str):
-
-                        from datetime import datetime
-
-                        item['created_date'] = datetime.fromisoformat(item['created_date'].replace('Z', '+00:00'))
-
-                except Exception:
-
-                    pass
+                item['created_date'] = _parse_db_datetime(item.get('created_date'))
 
                 notifications.append(item)
 
@@ -6082,18 +6058,7 @@ def get_notification_by_id(notification_id: int) -> dict | None:
                 item['username'] = item['joined_username']
 
             # Normalize created_date
-
-            try:
-
-                if isinstance(item.get('created_date'), str):
-
-                    from datetime import datetime
-
-                    item['created_date'] = datetime.fromisoformat(item['created_date'].replace('Z', '+00:00'))
-
-            except Exception:
-
-                pass
+            item['created_date'] = _parse_db_datetime(item.get('created_date'))
 
             return item
 
@@ -6321,6 +6286,9 @@ def get_all_users() -> list[dict]:
 
                     user_dict['user_keys'] = []
 
+                if user_dict.get('registration_date'):
+                    user_dict['registration_date'] = _parse_db_datetime(user_dict['registration_date'])
+
                 users.append(user_dict)
 
             return users
@@ -6491,41 +6459,14 @@ def get_paginated_keys(page: int = 1, per_page: int = 15) -> tuple[list[dict], i
 
                 
 
-                # Преобразуем created_date в datetime объект
-
+                # Преобразуем даты в datetime объекты
                 if key_dict.get('created_date'):
-
-                    try:
-
-                        from datetime import datetime
-
-                        if isinstance(key_dict['created_date'], str):
-
-                            key_dict['created_date'] = datetime.fromisoformat(key_dict['created_date'].replace('Z', '+00:00'))
-
-                    except (ValueError, TypeError):
-
-                        key_dict['created_date'] = None
-
-
-
-                # Преобразуем expiry_date в datetime объект (если строка)
+                    key_dict['created_date'] = _parse_db_datetime(key_dict['created_date'])
 
                 if key_dict.get('expiry_date'):
-
-                    try:
-
-                        from datetime import datetime
-
-                        if isinstance(key_dict['expiry_date'], str):
-
-                            key_dict['expiry_date'] = datetime.fromisoformat(key_dict['expiry_date'].replace('Z', '+00:00'))
-
-                    except (ValueError, TypeError):
-
-                        # оставляем строку как есть, чтобы не падал шаблон
-
-                        pass
+                    parsed_expiry = _parse_db_datetime(key_dict['expiry_date'])
+                    if parsed_expiry is not None:
+                        key_dict['expiry_date'] = parsed_expiry
 
                 
 
@@ -6750,17 +6691,10 @@ def fix_key_fields(key_id: int) -> bool:
             expiry_date_str = key_dict.get('expiry_date')
             if expiry_date_str:
                 try:
-                    from datetime import timezone as _tz
-                    if isinstance(expiry_date_str, str):
-                        expiry_date = datetime.fromisoformat(expiry_date_str)
-                    else:
-                        expiry_date = expiry_date_str
-                    
-                    # Убираем timezone info для совместимости
-                    if expiry_date.tzinfo is not None:
-                        expiry_date = expiry_date.replace(tzinfo=None)
-                    
-                    now = datetime.now()
+                    expiry_date = _parse_db_datetime(expiry_date_str)
+                    if expiry_date is None:
+                        raise ValueError("expiry_date parsing returned None")
+                    now = datetime.now(timezone.utc)
                     remaining_seconds = max(0, int((expiry_date - now).total_seconds()))
                 except Exception as e:
                     logging.error(f"Error calculating remaining_seconds for key {key_id}: {e}")
@@ -7056,10 +6990,9 @@ def can_user_use_promo_code(user_id: int, promo_code: str, bot: str) -> dict:
                 
                 # Проверяем срок действия промокода (valid_until)
                 if promo_dict.get('valid_until'):
-                    from datetime import datetime
                     try:
-                        valid_until = datetime.fromisoformat(promo_dict['valid_until'])
-                        if datetime.now() > valid_until:
+                        valid_until = _parse_db_datetime(promo_dict['valid_until'])
+                        if valid_until and datetime.now(timezone.utc) > valid_until:
                             cursor.execute("ROLLBACK")
                             return {'can_use': False, 'message': 'Срок действия промокода истек'}
                     except (ValueError, TypeError):
@@ -7073,7 +7006,9 @@ def can_user_use_promo_code(user_id: int, promo_code: str, bot: str) -> dict:
                         burn_unit = promo_dict['burn_after_unit']
                         
                         # Получаем дату создания промокода
-                        created_at = datetime.fromisoformat(promo_dict['created_at'])
+                        created_at = _parse_db_datetime(promo_dict['created_at'])
+                        if created_at is None:
+                            raise ValueError('invalid created_at')
                         
                         # Вычисляем дату сгорания
                         if burn_unit == 'min':
@@ -7085,7 +7020,7 @@ def can_user_use_promo_code(user_id: int, promo_code: str, bot: str) -> dict:
                         else:
                             burn_until = None
                         
-                        if burn_until and datetime.now() > burn_until:
+                        if burn_until and datetime.now(timezone.utc) > burn_until:
                             cursor.execute("ROLLBACK")
                             return {'can_use': False, 'message': 'Время использования промокода истекло'}
                     except (ValueError, TypeError):
@@ -7161,7 +7096,7 @@ def update_keys_status_by_expiry():
             
             for key_id, expiry_date_str, is_trial, current_status in keys:
                 try:
-                    expiry_date = datetime.fromisoformat(expiry_date_str)
+                    expiry_date = _parse_db_datetime(expiry_date_str)
                     # Убираем timezone info для корректного сравнения
                     if expiry_date.tzinfo is not None:
                         expiry_date = expiry_date.replace(tzinfo=None)
@@ -7391,8 +7326,12 @@ def get_all_user_groups() -> list[dict]:
                 ORDER BY ug.group_id
             ''')
             
-            groups = cursor.fetchall()
-            return [dict(row) for row in groups]
+            groups = []
+            for row in cursor.fetchall():
+                group = dict(row)
+                group['created_date'] = _parse_db_datetime(group.get('created_date'))
+                groups.append(group)
+            return groups
     except sqlite3.Error as e:
         logging.error(f"Failed to get all user groups: {e}")
         return []
@@ -7407,7 +7346,11 @@ def get_user_group(group_id: int) -> dict | None:
             
             cursor.execute("SELECT * FROM user_groups WHERE group_id = ?", (group_id,))
             result = cursor.fetchone()
-            return dict(result) if result else None
+            if not result:
+                return None
+            group = dict(result)
+            group['created_date'] = _parse_db_datetime(group.get('created_date'))
+            return group
     except sqlite3.Error as e:
         logging.error(f"Failed to get user group {group_id}: {e}")
         return None

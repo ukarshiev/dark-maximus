@@ -3,6 +3,11 @@
 Конфигурационные настройки для Telegram-бота
 """
 
+from datetime import datetime, timezone
+
+from shop_bot.utils.datetime_utils import ensure_utc_datetime, format_datetime_for_user
+
+
 CHOOSE_PLAN_MESSAGE = "Выберите подходящий тариф:"
 CHOOSE_PAYMENT_METHOD_MESSAGE = "Выберите удобный способ оплаты:"
 
@@ -75,7 +80,18 @@ def get_status_icon_and_text(status: str) -> tuple[str, str]:
     icon, text = status_mapping.get(status, ('❓', 'Неизвестный статус'))
     return icon, text
 
-def get_key_info_text(key_number, expiry_date, created_date, connection_string, status: str | None = None, subscription_link: str = None, provision_mode: str = 'key'):
+def get_key_info_text(
+    key_number,
+    expiry_date,
+    created_date,
+    connection_string,
+    status: str | None = None,
+    subscription_link: str = None,
+    provision_mode: str = 'key',
+    *,
+    user_timezone: str | None = None,
+    feature_enabled: bool = False,
+):
     """
     Формирует текст информации о ключе
     
@@ -88,26 +104,21 @@ def get_key_info_text(key_number, expiry_date, created_date, connection_string, 
         subscription_link: ссылка на подписку (опционально)
         provision_mode: режим предоставления ('key', 'subscription', 'both')
     """
-    from datetime import datetime, timezone, timedelta
-    # Конвертируем время из UTC в UTC+3 (Moscow) для отображения пользователю
-    moscow_tz = timezone(timedelta(hours=3))
-    
-    # Убедимся, что даты в UTC
-    if expiry_date.tzinfo is None:
-        expiry_date = expiry_date.replace(tzinfo=timezone.utc)
-    if created_date.tzinfo is None:
-        created_date = created_date.replace(tzinfo=timezone.utc)
-    
-    # Конвертируем в московское время для отображения
-    expiry_moscow = expiry_date.astimezone(moscow_tz)
-    created_moscow = created_date.astimezone(moscow_tz)
-    
-    expiry_formatted = expiry_moscow.strftime('%d.%m.%Y в %H:%M')
-    created_formatted = created_moscow.strftime('%d.%m.%Y в %H:%M')
+    expiry_dt = expiry_date if isinstance(expiry_date, datetime) else datetime.fromisoformat(str(expiry_date))
+    created_dt = created_date if isinstance(created_date, datetime) else datetime.fromisoformat(str(created_date))
+
+    expiry_dt_aware = expiry_dt if expiry_dt.tzinfo else expiry_dt.replace(tzinfo=timezone.utc)
+    created_dt_aware = created_dt if created_dt.tzinfo else created_dt.replace(tzinfo=timezone.utc)
+
+    expiry_utc = ensure_utc_datetime(expiry_dt_aware)
+    created_utc = ensure_utc_datetime(created_dt_aware)
+
+    expiry_formatted = format_datetime_for_user(expiry_utc, user_timezone=user_timezone, feature_enabled=feature_enabled)
+    created_formatted = format_datetime_for_user(created_utc, user_timezone=user_timezone, feature_enabled=feature_enabled)
     
     # Определяем иконку и текст статуса на основе реального времени истечения
     current_time = datetime.now(timezone.utc)
-    is_expired = expiry_date <= current_time
+    is_expired = expiry_dt_aware <= current_time
     
     if is_expired:
         status_icon, status_text = "❌", "Истёк"
@@ -171,7 +182,17 @@ def get_key_info_text(key_number, expiry_date, created_date, connection_string, 
     
     return base_text + content_text
 
-def get_purchase_success_text(action: str, key_number: int, expiry_date, connection_string: str = None, subscription_link: str = None, provision_mode: str = 'key'):
+def get_purchase_success_text(
+    action: str,
+    key_number: int,
+    expiry_date,
+    connection_string: str = None,
+    subscription_link: str = None,
+    provision_mode: str = 'key',
+    *,
+    user_timezone: str | None = None,
+    feature_enabled: bool = False,
+):
     """
     Формирует сообщение об успешной покупке/обновлении ключа
     
@@ -183,15 +204,10 @@ def get_purchase_success_text(action: str, key_number: int, expiry_date, connect
         subscription_link: ссылка на подписку (опционально)
         provision_mode: режим предоставления ('key', 'subscription', 'both')
     """
-    from datetime import timezone, timedelta
     action_text = "обновлен" if action == "extend" else "готов"
-    
-    # Конвертируем время из UTC в UTC+3 (Moscow) для отображения пользователю
-    moscow_tz = timezone(timedelta(hours=3))
-    if expiry_date.tzinfo is None:
-        expiry_date = expiry_date.replace(tzinfo=timezone.utc)
-    expiry_moscow = expiry_date.astimezone(moscow_tz)
-    expiry_formatted = expiry_moscow.strftime('%d.%m.%Y в %H:%M')
+    expiry_dt = expiry_date if isinstance(expiry_date, datetime) else datetime.fromisoformat(str(expiry_date))
+    expiry_utc = ensure_utc_datetime(expiry_dt if expiry_dt.tzinfo else expiry_dt.replace(tzinfo=timezone.utc))
+    expiry_formatted = format_datetime_for_user(expiry_utc, user_timezone=user_timezone, feature_enabled=feature_enabled)
 
     base_text = (
         f"🎉 <b>Ваш ключ #{key_number} {action_text}!</b>\n\n"

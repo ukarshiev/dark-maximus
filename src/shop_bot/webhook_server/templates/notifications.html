@@ -69,7 +69,12 @@
                         </td>
                         <td>
                             {% if n.created_date %}
-                                {{ n.created_date.strftime('%Y-%m-%d %H:%M:%S') }}
+							{% set notif_date_line = n.created_date | panel_datetime('%Y-%m-%d %H:%M:%S') %}
+							{% if notif_date_line != 'N/A' %}
+								{{ notif_date_line }}
+							{% else %}
+								{{ n.created_date }}
+							{% endif %}
                             {% else %}
                                 N/A
                             {% endif %}

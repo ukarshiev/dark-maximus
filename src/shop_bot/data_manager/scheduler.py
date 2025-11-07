@@ -19,6 +19,7 @@ from shop_bot.bot_controller import BotController
 from shop_bot.data_manager import database
 from shop_bot.modules import xui_api
 from shop_bot.bot import keyboards
+from shop_bot.utils.datetime_utils import ensure_utc_datetime, format_datetime_for_user
 
 CHECK_INTERVAL_SECONDS = 3600
 NOTIFY_BEFORE_HOURS = {24, 1}
@@ -28,6 +29,14 @@ logger = logging.getLogger(__name__)
 
 # Путь к лог-файлу удалённых orphan клиентов
 ORPHAN_DELETION_LOG = database.PROJECT_ROOT / "logs" / "orphan_deletions.log"
+
+
+def _format_datetime_for_user(user_id: int, dt_utc: datetime) -> str:
+    """Возвращает строку даты/времени с учётом timezone пользователя"""
+    feature_enabled = database.is_timezone_feature_enabled()
+    user_timezone = database.get_user_timezone(user_id) if feature_enabled else None
+    dt_prepared = ensure_utc_datetime(dt_utc if dt_utc.tzinfo else dt_utc.replace(tzinfo=timezone.utc))
+    return format_datetime_for_user(dt_prepared, user_timezone=user_timezone, feature_enabled=feature_enabled)
 
 def log_orphan_deletion(host_name: str, client_email: str, client_id: str, expiry_time: int):
     """Записывает информацию об удалённом orphan клиенте в лог-файл."""
@@ -92,7 +101,6 @@ def format_time_left(hours: int) -> str:
 
 async def send_subscription_notification(bot: Bot, user_id: int, key_id: int, time_left_hours: int, expiry_date: datetime):
     try:
-        from datetime import timezone, timedelta
         # Дополнительная проверка: не отправляем уведомления, если время истекло
         # Используем UTC для сравнения, т.к. expiry_date хранится в UTC
         current_time_utc = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -109,10 +117,7 @@ async def send_subscription_notification(bot: Bot, user_id: int, key_id: int, ti
             return
         
         time_text = format_time_left(time_left_hours)
-        # Конвертируем время из UTC в UTC+3 (Moscow) для отображения пользователю
-        moscow_tz = timezone(timedelta(hours=3))
-        expiry_moscow = expiry_date.replace(tzinfo=timezone.utc).astimezone(moscow_tz)
-        expiry_str = expiry_moscow.strftime('%d.%m.%Y в %H:%M')
+        expiry_str = _format_datetime_for_user(user_id, expiry_date)
 
         # Получаем номер ключа для пользователя и имя сервера
         try:
@@ -283,8 +288,6 @@ def cleanup_duplicate_notifications():
 async def send_plan_unavailable_notice(bot: Bot, user_id: int, key_id: int, time_left_hours: int, expiry_date: datetime):
     """Уведомление о недоступности тарифа для автопродления."""
     try:
-        from datetime import timezone, timedelta
-        
         # ДОПОЛНИТЕЛЬНАЯ ЗАЩИТА ОТ СПАМА: проверяем, не было ли уже отправлено уведомление
         if _marker_logged(user_id, key_id, time_left_hours, 'subscription_plan_unavailable'):
             logger.debug(f"Plan unavailable notice already sent for user {user_id}, key {key_id}, marker {time_left_hours}h. Skipping.")
@@ -297,10 +300,7 @@ async def send_plan_unavailable_notice(bot: Bot, user_id: int, key_id: int, time
             return
         
         time_text = format_time_left(time_left_hours)
-        # Конвертируем время из UTC в UTC+3 (Moscow) для отображения пользователю
-        moscow_tz = timezone(timedelta(hours=3))
-        expiry_moscow = expiry_date.replace(tzinfo=timezone.utc).astimezone(moscow_tz)
-        expiry_str = expiry_moscow.strftime('%d.%m.%Y в %H:%M')
+        expiry_str = _format_datetime_for_user(user_id, expiry_date)
 
         # Получаем номер ключа и имя сервера
         try:
@@ -377,10 +377,7 @@ async def send_autorenew_balance_notice(bot: Bot, user_id: int, key_id: int, tim
             return
         
         time_text = format_time_left(time_left_hours)
-        # Конвертируем время из UTC в UTC+3 (Moscow) для отображения пользователю
-        moscow_tz = timezone(timedelta(hours=3))
-        expiry_moscow = expiry_date.replace(tzinfo=timezone.utc).astimezone(moscow_tz)
-        expiry_str = expiry_moscow.strftime('%d.%m.%Y в %H:%M')
+        expiry_str = _format_datetime_for_user(user_id, expiry_date)
 
         # Получаем номер ключа и имя сервера
         try:
@@ -451,23 +448,31 @@ async def send_autorenew_balance_notice(bot: Bot, user_id: int, key_id: int, tim
 async def send_balance_deduction_notice(bot: Bot, user_id: int, key_id: int, amount: float, plan_name: str, host_name: str):
     """Отправляет уведомление о списании баланса при автопродлении."""
     try:
-        from shop_bot.bot import keyboards
         from shop_bot.data_manager.database import get_user_keys
         
         # Получаем номер ключа для пользователя
         user_keys = get_user_keys(user_id) or []
         key_number = next((i + 1 for i, k in enumerate(user_keys) if k.get('key_id') == key_id), 0)
         
+        key_label = f"#{key_number}" if key_number > 0 else f"ID {key_id}"
+
         message = (
-            f"💳 Произошло списание {amount:.2f} RUB по тарифу {plan_name} "
-            f"на сервере {host_name}.\n\n"
+            f"💳 Произошло списание {amount:.2f} RUB\n\n"
+            f"✅ Тип операции: автопродление с баланса\n\n"
+            f"🔑 Ключ {key_label}. {host_name} - {plan_name}\n\n"
             f"Спасибо, что остаётесь с нами! ❤️"
         )
+        
+        # Создаем клавиатуру с кнопками "Перейти к ключу" и "Назад в меню"
+        builder = InlineKeyboardBuilder()
+        builder.button(text="🔑 Перейти к ключу", callback_data=f"show_key_{key_id}")
+        builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
+        builder.adjust(1)  # По одной кнопке в ряд
         
         await bot.send_message(
             chat_id=user_id,
             text=message,
-            reply_markup=keyboards.create_back_to_menu_keyboard()
+            reply_markup=builder.as_markup()
         )
         logger.info(f"Sent balance deduction notice to user {user_id} for key {key_id}")
     except Exception as e:
@@ -476,7 +481,6 @@ async def send_balance_deduction_notice(bot: Bot, user_id: int, key_id: int, amo
 async def send_autorenew_disabled_notice(bot: Bot, user_id: int, key_id: int, time_left_hours: int, expiry_date: datetime, balance_val: float, price_to_renew: float):
     """Отправляет уведомление о том, что автопродление отключено, но баланс достаточен."""
     try:
-        from datetime import timezone, timedelta
         from shop_bot.bot import keyboards
         from shop_bot.data_manager.database import get_user_keys, get_key_by_id
         
@@ -487,10 +491,7 @@ async def send_autorenew_disabled_notice(bot: Bot, user_id: int, key_id: int, ti
             return
         
         time_text = format_time_left(time_left_hours)
-        # Конвертируем время из UTC в UTC+3 (Moscow) для отображения пользователю
-        moscow_tz = timezone(timedelta(hours=3))
-        expiry_moscow = expiry_date.replace(tzinfo=timezone.utc).astimezone(moscow_tz)
-        expiry_str = expiry_moscow.strftime('%d.%m.%Y в %H:%M')
+        expiry_str = _format_datetime_for_user(user_id, expiry_date)
 
         # Получаем номер ключа и имя сервера
         try:

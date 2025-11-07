@@ -98,6 +98,7 @@ class TestFormatDatetimeMoscow(unittest.TestCase):
         # 12:00 UTC = 15:00 MSK
         self.assertIn("01.01.2025", result)
         self.assertIn("15:00", result)
+        self.assertIn("UTC+3", result)
     
     def test_aware_utc_format(self):
         """Тест: aware UTC datetime -> строка в московском времени"""
@@ -106,6 +107,7 @@ class TestFormatDatetimeMoscow(unittest.TestCase):
         
         self.assertIn("01.01.2025", result)
         self.assertIn("15:00", result)
+        self.assertIn("UTC+3", result)
 
 
 class TestFormatDatetimeForUser(unittest.TestCase):
@@ -119,6 +121,7 @@ class TestFormatDatetimeForUser(unittest.TestCase):
         # Должно работать как format_datetime_moscow
         self.assertIn("01.01.2025", result)
         self.assertIn("15:00", result)
+        self.assertIn("UTC+3", result)
     
     def test_feature_enabled_default_timezone(self):
         """Тест: feature flag включен, timezone по умолчанию (Moscow)"""
@@ -127,6 +130,7 @@ class TestFormatDatetimeForUser(unittest.TestCase):
         
         self.assertIn("01.01.2025", result)
         self.assertIn("15:00", result)
+        self.assertIn("UTC+3", result)
     
     def test_feature_enabled_custom_timezone(self):
         """Тест: feature flag включен, custom timezone"""
@@ -138,6 +142,7 @@ class TestFormatDatetimeForUser(unittest.TestCase):
         # На Windows без tzdata будет fallback на Moscow (15:00), на Unix - 17:00
         # Проверяем, что время изменилось (не 12:00)
         self.assertNotIn("12:00", result)  # Должно быть конвертировано
+        self.assertIn("UTC", result)
 
 
 class TestGetCurrentUtcNaive(unittest.TestCase):

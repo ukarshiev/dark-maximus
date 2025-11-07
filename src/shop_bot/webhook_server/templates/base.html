@@ -1228,6 +1228,11 @@
 		}
 		</script>
 
+		<script>
+			window.panelTimeZone = {{ (panel_timezone or 'Europe/Moscow') | tojson }};
+			window.panelTimeZoneOffset = {{ (panel_timezone_offset or 'UTC+3') | tojson }};
+		</script>
+
 		<script src="{{ url_for('static', filename='js/script.js') }}"></script>
 		{% block scripts %}{% endblock %}
 	</body>

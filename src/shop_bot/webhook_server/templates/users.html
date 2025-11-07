@@ -106,19 +106,9 @@
 							<span>{{ user.user_id or 'N/A' }}</span>
 						</div>
 					</td>
-				<td data-field="registration_date" data-original="{{ user.registration_date }}" title="Дата регистрации пользователя">
+                <td data-field="registration_date" data-original="{{ user.registration_date | panel_iso }}" title="Дата регистрации пользователя">
 					<div class="cell-inline">
-						<span>
-							{% if user.registration_date %}
-								{% if user.registration_date is string %}
-									{{ user.registration_date.split('.')[0] if '.' in user.registration_date else user.registration_date }}
-								{% else %}
-									{{ user.registration_date.strftime('%d.%m.%Y %H:%M') }}
-								{% endif %}
-							{% else %}
-								N/A
-							{% endif %}
-						</span>
+                        <span>{{ user.registration_date | panel_datetime('%d.%m.%Y %H:%M') }}</span>
 					</div>
 				</td>
 					<td data-field="telegram_id" data-original="{{ user.telegram_id }}">
