@@ -1,3 +1,9 @@
+3.19.12 – 07.11.2025 21:15
+- [HOTFIX] (UI) settings.html, script.js — Исправлена инвертированная логика переключателя режима Yookassa
+  - Теперь переключатель ON = боевой режим (test_mode=false)
+  - Переключатель OFF = тестовый режим (test_mode=true)
+  - Исправлена логика checked/unchecked в HTML и JavaScript
+
 3.19.11 – 07.11.2025 21:02
 - [PATCH] (Платежи) handlers.py, database.py, settings.html, script.js — Исправлена критическая проблема с обработкой Yookassa платежей
   - Устранена рассинхронизация настройки yookassa_test_mode между веб-панелью и БД, которая приводила к неработающему webhook
