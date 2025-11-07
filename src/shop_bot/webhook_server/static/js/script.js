@@ -2750,7 +2750,7 @@ function toggleYooKassaMode() {
         testModeFields.style.opacity = '0.5';
         testModeFields.style.border = '2px solid #6c757d';
         if (labelText) {
-            labelText.textContent = 'Режим: Боевой включен';
+            labelText.textContent = 'Режим: Боевой ON';
         }
     } else {
         // Подсвечиваем тестовый режим как активный (unchecked = тестовый)
@@ -2759,7 +2759,7 @@ function toggleYooKassaMode() {
         testModeFields.style.opacity = '1';
         testModeFields.style.border = '2px solid #28a745';
         if (labelText) {
-            labelText.textContent = 'Режим: Боевой отключен, включен тестовый';
+            labelText.textContent = 'Режим: Боевой OFF, Тестовый ON';
         }
     }
 }
