@@ -6451,7 +6451,9 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
         host_name = metadata.get('host_name')
         plan_id = _to_int(metadata.get('plan_id'))
         customer_email = metadata.get('customer_email')
-        payment_method = metadata.get('payment_method')
+        payment_method_raw = metadata.get('payment_method')
+        payment_method = (str(payment_method_raw).strip() if payment_method_raw is not None else "")
+        payment_method_normalized = payment_method.lower()
 
         chat_id_to_delete = metadata.get('chat_id')
         message_id_to_delete = metadata.get('message_id')
