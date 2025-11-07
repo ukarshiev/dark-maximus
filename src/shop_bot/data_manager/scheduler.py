@@ -544,6 +544,36 @@ async def send_autorenew_disabled_notice(bot: Bot, user_id: int, key_id: int, ti
         builder.button(text="🔄 Продлить ключ", callback_data=f"extend_key_{key_id}")
         builder.adjust(1)
 
+        # Сначала логируем уведомление, чтобы избежать повторной отправки
+        try:
+            from shop_bot.data_manager.database import log_notification, get_user
+            user = get_user(user_id)
+            notification_id = log_notification(
+                user_id=user_id,
+                username=(user or {}).get('username'),
+                notif_type='subscription_autorenew_disabled',
+                title=f'Автопродление отключено (через {time_text})',
+                message=message,
+                status='sent',
+                meta={
+                    'key_id': key_id,
+                    'expiry_at': expiry_str,
+                    'time_left_hours': time_left_hours,
+                    'key_number': key_number,
+                    'host_name': host_name,
+                    'balance': balance_str,
+                    'price': price_str
+                },
+                key_id=key_id,
+                marker_hours=time_left_hours
+            )
+            if notification_id == 0:
+                logger.warning(f"Failed to log autorenew disabled notice for user {user_id}: log_notification returned 0")
+                return
+        except Exception as le:
+            logger.warning(f"Failed to log autorenew disabled notice for user {user_id}: {le}")
+            return
+
         await bot.send_message(
             chat_id=user_id,
             text=message,
@@ -884,9 +914,17 @@ async def sync_keys_with_panels():
             if clients_on_server:
                 count_orphans = len(clients_on_server)
                 orphan_summary.append((host_name, count_orphans))
-                
+
                 # Логируем информацию о orphan clients
-                logger.warning(f"Scheduler: Found {count_orphans} orphan client(s) on host '{host_name}'")
+                orphan_ids = [str(getattr(client, "id", "unknown")) for client in clients_on_server.values()]
+                max_display_ids = 5
+                shown_ids = ", ".join(orphan_ids[:max_display_ids])
+                if len(orphan_ids) > max_display_ids:
+                    shown_ids += ", ..."
+                logger.warning(
+                    f"Scheduler: Found {count_orphans} orphan client(s) on host '{host_name}'"
+                    + (f" (ID(s): {shown_ids})" if shown_ids else "")
+                )
                 
                 # Логируем первые 5 orphan clients для диагностики
                 sample_orphans = list(clients_on_server.items())[:5]
