@@ -24,6 +24,15 @@ def main():
     logger = app_logger.logger
     
     logger.warning("🚀 Dark Maximus: Запуск приложения...")
+    
+    # Выполняем миграцию БД до инициализации, пока никто не работает с БД
+    try:
+        logger.info("Running database migration before initialization...")
+        database.run_migration()
+        logger.info("✅ Database migration completed successfully.")
+    except Exception as e:
+        # Логируем ошибку, но не прерываем запуск - миграция может быть уже выполнена
+        logger.warning(f"Database migration error (may be already applied): {e}")
 
     database.initialize_db()
     logger.info("Database initialization check complete.")
