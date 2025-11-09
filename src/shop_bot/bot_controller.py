@@ -20,6 +20,7 @@ from shop_bot.bot.support_handlers import get_support_router
 logger = logging.getLogger(__name__)
 
 DEFAULT_YOOKASSA_API_URL = "https://api.yookassa.ru/v3"
+DEFAULT_YOOKASSA_TEST_API_URL = "https://api.test.yookassa.ru/v3"
 
 
 def _setting_to_bool(value: str | None, default: bool = True) -> bool:
@@ -118,24 +119,39 @@ class BotController:
             # Проверяем режим YooKassa (тестовый или боевой)
             yookassa_test_mode = database.get_setting("yookassa_test_mode") == "true"
             
-            # Для YooKassa API нужны реальные ключи в обоих режимах
-            # Тестовый режим = реальные ключи + тестовые данные
-            # Боевой режим = реальные ключи + продакшн данные
+            # КРИТИЧНО: НЕ смешиваем тестовые и боевые credentials
+            # Каждый режим использует ТОЛЬКО свои ключи и API URL
             
             if yookassa_test_mode:
-                yookassa_shop_id = _safe_strip(database.get_setting("yookassa_test_shop_id")) or _safe_strip(database.get_setting("yookassa_shop_id"))
-                yookassa_secret_key = _safe_strip(database.get_setting("yookassa_test_secret_key")) or _safe_strip(database.get_setting("yookassa_secret_key"))
-                api_url = _safe_strip(database.get_setting("yookassa_test_api_url")) or _safe_strip(database.get_setting("yookassa_api_url")) or DEFAULT_YOOKASSA_API_URL
+                # Тестовый режим: используем ТОЛЬКО test credentials
+                yookassa_shop_id = _safe_strip(database.get_setting("yookassa_test_shop_id"))
+                yookassa_secret_key = _safe_strip(database.get_setting("yookassa_test_secret_key"))
+                api_url = _safe_strip(database.get_setting("yookassa_test_api_url")) or DEFAULT_YOOKASSA_TEST_API_URL
                 verify_ssl = _setting_to_bool(database.get_setting("yookassa_test_verify_ssl"), True)
                 mode_text = "тестовый"
+                
+                # Проверяем наличие тестовых ключей
+                if not yookassa_shop_id or not yookassa_secret_key:
+                    logger.error(
+                        "[YOOKASSA_CONFIG] Тестовый режим включен, но тестовые credentials отсутствуют! "
+                        "YooKassa будет отключена. Заполните yookassa_test_shop_id и yookassa_test_secret_key."
+                    )
             else:
+                # Боевой режим: используем ТОЛЬКО production credentials
                 yookassa_shop_id = _safe_strip(database.get_setting("yookassa_shop_id"))
                 yookassa_secret_key = _safe_strip(database.get_setting("yookassa_secret_key"))
                 api_url = _safe_strip(database.get_setting("yookassa_api_url")) or DEFAULT_YOOKASSA_API_URL
                 verify_ssl = _setting_to_bool(database.get_setting("yookassa_verify_ssl"), True)
                 mode_text = "боевой"
+                
+                # Проверяем наличие боевых ключей
+                if not yookassa_shop_id or not yookassa_secret_key:
+                    logger.error(
+                        "[YOOKASSA_CONFIG] Боевой режим включен, но production credentials отсутствуют! "
+                        "YooKassa будет отключена. Заполните yookassa_shop_id и yookassa_secret_key."
+                    )
 
-            # Проверяем, что есть хотя бы один набор ключей
+            # Проверяем, что есть ключи для выбранного режима
             yookassa_enabled = bool(yookassa_shop_id and yookassa_secret_key)
 
             cryptobot_token = database.get_setting("cryptobot_token")

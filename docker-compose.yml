@@ -16,6 +16,8 @@ services:
       # Маппинг корневых файлов проекта
       - ./pyproject.toml:/app/project/pyproject.toml
       - ./CHANGELOG.md:/app/project/CHANGELOG.md
+      # Docker socket для управления контейнерами из панели
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
     healthcheck:

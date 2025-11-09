@@ -75,8 +75,6 @@ htmlcov/
 Thumbs.db
 
 # Docker
-Dockerfile*
-docker-compose*.yml
 .dockerignore
 
 # CI/CD

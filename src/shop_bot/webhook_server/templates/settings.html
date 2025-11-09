@@ -1,41 +1,28 @@
 {% extends "base.html" %} 
 {% block title %}Настройки Бота и Хостов{% endblock %}
 {% block header_title %}Настройки{% endblock %}
+{% block body_class %}settings-page{% endblock %}
+{% block container_class %}layout-grid{% endblock %}
+{% block header_buttons %}
+<div class="docker-management-buttons">
+	<button class="btn-docker" data-action="restart-all" title="Перезапустить все сервисы" aria-label="Перезапустить все сервисы">
+		<i class="fas fa-sync-alt"></i>
+		<span>Рестарт всего</span>
+	</button>
+	<button class="btn-docker" data-action="restart-bot" title="Перезапустить бота" aria-label="Перезапустить бота">
+		<i class="fas fa-robot"></i>
+		<span>Рестарт бота</span>
+	</button>
+	<button class="btn-docker btn-docker-rebuild" data-action="rebuild" title="Ребилд без кеша" aria-label="Ребилд без кеша">
+		<i class="fas fa-hammer"></i>
+		<span>Ребилд</span>
+	</button>
+</div>
+{% endblock %}
 {% block content %}
 
-
-<!-- Навигация по подменю -->
-    <div class="tab-navigation">
-    	<button class="nav-button active" onclick="showTab('servers', this)" title="Настройки серверов">
-			<i class="fas fa-server"></i>
-			Серверы
-		</button>
-    	<button class="nav-button" onclick="showTab('panel', this)" title="Настройки панели">
-			<i class="fas fa-cog"></i>
-			Панель
-		</button>
-    	<button class="nav-button" onclick="showTab('bot', this)" title="Настройки бота">
-			<i class="fas fa-robot"></i>
-			Бот
-		</button>
-    	<button class="nav-button" onclick="showTab('payments', this)" title="Платежные системы">
-			<i class="fas fa-credit-card"></i>
-			Платежные системы
-		</button>
-    	<button class="nav-button" onclick="showTab('database', this)" title="Управление базой данных">
-			<i class="fas fa-database"></i>
-			База данных
-		</button>
-    	<button class="nav-button" onclick="showTab('backup', this)" title="Настройки резервного копирования">
-			<i class="fas fa-save"></i>
-			Бекапы
-		</button>
-    	<button class="nav-button" onclick="showTab('directories', this)" title="Справочники">
-			<i class="fas fa-book"></i>
-			Справочники
-		</button>
-    </div>
-
+<div class="settings-layout">
+	<section class="settings-content">
 <div class="settings-container">
 	
 	<!-- Вкладка "Серверы" -->
@@ -819,11 +806,65 @@
 									</button>
 								</div>
 							</div>
+					</div>
+
+					<!-- Настройка CryptoBot -->
+					<div class="payment-system-card">
+						<h3>Настройка CryptoBot</h3>
+						<div class="form-group password-wrapper">
+							<label for="cryptobot_token">CryptoBot Token:</label>
+							<input
+								type="password"
+								id="cryptobot_token"
+								name="cryptobot_token"
+								autocomplete="new-password"
+								value="{{ settings.cryptobot_token or '' }}"
+							/>
+							<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+								<i class="fas fa-eye"></i>
+							</button>
 						</div>
 					</div>
 
-					<!-- Колонка 2 -->
-					<div class="payment-column">
+					<!-- Настройка Heleket -->
+					<div class="payment-system-card">
+						<h3>Настройка Heleket</h3>
+						<div class="form-group">
+							<label for="heleket_merchant_id">Heleket Merchant ID:</label>
+							<input
+								type="text"
+								id="heleket_merchant_id"
+								name="heleket_merchant_id"
+								value="{{ settings.heleket_merchant_id or '' }}"
+							/>
+						</div>
+						<div class="form-group password-wrapper">
+							<label for="heleket_api_key">Heleket API Key:</label>
+							<input
+								type="password"
+								id="heleket_api_key"
+								name="heleket_api_key"
+								autocomplete="new-password"
+								value="{{ settings.heleket_api_key or '' }}"
+							/>
+							<button type="button" class="toggle-password" title="Показать/скрыть пароль">
+								<i class="fas fa-eye"></i>
+							</button>
+						</div>
+						<div class="form-group">
+							<label for="domain">Ваш домен (например, my-shop.com):</label>
+							<input
+								type="text"
+								id="domain"
+								name="domain"
+								value="{{ settings.domain or '' }}"
+							/>
+						</div>
+					</div>
+				</div>
+
+				<!-- Колонка 2 -->
+				<div class="payment-column">
 						<!-- Настройка YooKassa -->
 						<div class="payment-system-card">
 							<h3>Настройка YooKassa</h3>
@@ -837,26 +878,53 @@
 								<label for="sbp_enabled">Включить оплату через СБП</label>
 							</div>
 							
-							<!-- Переключатель режима YooKassa -->
-							<div class="form-group form-group-toggle">
-								<div class="toggle-container">
-									<label for="yookassa_test_mode" class="toggle-label-text">
-										<span id="mode-label-text">
-											{% if settings.yookassa_test_mode == 'true' %}
-												Режим: Боевой OFF, Тестовый ON
-											{% else %}
-												Режим: Боевой ON, Тестовый OFF
-											{% endif %}
-										</span>
-									</label>
-									<label class="modern-toggle">
-										<input type="checkbox" id="yookassa_test_mode" name="yookassa_test_mode"
-										value="true" {% if settings.yookassa_test_mode == 'true' %}checked{% endif
-										%} onchange="toggleYooKassaMode()">
-										<span class="toggle-slider"></span>
-									</label>
-								</div>
+						<!-- Переключатель режима YooKassa -->
+						<div class="form-group form-group-checkbox">
+							<label for="yookassa_test_mode" style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+								<input type="checkbox" id="yookassa_test_mode" name="yookassa_test_mode" value="true" {% if settings.yookassa_test_mode == 'true' %}checked{% endif %}>
+								<span>Тестовый режим YooKassa</span>
+							</label>
+							
+							<!-- Индикатор режима в БД -->
+							<small style="display: block; margin-top: 5px; color: #999;">
+								Режим в БД: 
+								{% if settings.yookassa_test_mode == 'true' %}
+									<strong style="color: #f39c12;">🟡 Тестовый</strong>
+								{% else %}
+									<strong style="color: #27ae60;">🟢 Боевой</strong>
+								{% endif %}
+							</small>
+							
+							<!-- НОВОЕ: Индикатор активного режима бота -->
+							<small style="display: block; margin-top: 5px;">
+								Активный режим бота: 
+								{% if yookassa_active_mode == 'test' %}
+									<strong style="color: #f39c12;">🟡 Тестовый</strong>
+								{% elif yookassa_active_mode == 'production' %}
+									<strong style="color: #27ae60;">🟢 Боевой</strong>
+								{% else %}
+									<strong style="color: #e74c3c;">🔴 Неизвестно (бот не запущен)</strong>
+								{% endif %}
+							</small>
+							
+							<!-- НОВОЕ: Предупреждение если режимы не совпадают -->
+							{% set db_test_mode = (settings.yookassa_test_mode == 'true') %}
+							{% set modes_match = (db_test_mode and yookassa_active_mode == 'test') or (not db_test_mode and yookassa_active_mode == 'production') %}
+							
+							{% if not modes_match and yookassa_active_mode != 'unknown' %}
+							<div class="alert alert-warning" style="margin-top: 10px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; font-size: 13px;">
+								<i class="fas fa-exclamation-triangle" style="color: #ff9800;"></i>
+								<strong>Требуется перезапуск бота!</strong><br>
+								Режим в БД не соответствует активному режиму бота. Перезапустите бота для применения изменений.
 							</div>
+							{% endif %}
+							
+							<!-- Информационное сообщение -->
+							<div class="alert alert-info" style="margin-top: 10px; padding: 10px; background-color: #d1ecf1; border: 1px solid #bee5eb; border-radius: 4px; font-size: 12px; color: #0c5460;">
+								<i class="fas fa-info-circle"></i>
+								<strong>Важно:</strong> После изменения режима YooKassa необходимо перезапустить бот для применения настроек. Используйте кнопку "Рестарт бота" в меню управления.
+							</div>
+						</div>
 							
 							<div class="form-group">
 								<label for="receipt_email">Почта для чеков:</label>
@@ -873,6 +941,7 @@
 							<div class="settings-divider"></div>
 							
 							<!-- Боевые настройки -->
+							<div id="yookassa_production_mode">
 							<h4 style="color: #e74c3c; margin: 20px 0 15px 0; font-size: 16px;">🔴 Боевые настройки</h4>
 							
 							<div class="form-group">
@@ -917,11 +986,13 @@
 									<i class="fas fa-eye"></i>
 								</button>
 							</div>
+							</div>
 							
 							<!-- Разделитель -->
 							<div class="settings-divider"></div>
 							
 							<!-- Тестовые настройки -->
+							<div>
 							<h4 style="color: #f39c12; margin: 20px 0 15px 0; font-size: 16px;">🧪 Тестовые настройки</h4>
 							
 							<div class="form-group">
@@ -967,65 +1038,8 @@
 								</button>
 							</div>
 						</div>
-					</div>
-
-					<!-- Колонка 3 -->
-					<div class="payment-column">
-						<!-- Настройка CryptoBot -->
-						<div class="payment-system-card">
-							<h3>Настройка CryptoBot</h3>
-							<div class="form-group password-wrapper">
-								<label for="cryptobot_token">CryptoBot Token:</label>
-								<input
-									type="password"
-									id="cryptobot_token"
-									name="cryptobot_token"
-									autocomplete="new-password"
-									value="{{ settings.cryptobot_token or '' }}"
-								/>
-								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
-									<i class="fas fa-eye"></i>
-								</button>
-							</div>
-						</div>
-
-						<!-- Настройка Heleket -->
-						<div class="payment-system-card">
-							<h3>Настройка Heleket</h3>
-							<div class="form-group">
-								<label for="heleket_merchant_id">Heleket Merchant ID:</label>
-								<input
-									type="text"
-									id="heleket_merchant_id"
-									name="heleket_merchant_id"
-									value="{{ settings.heleket_merchant_id or '' }}"
-								/>
-							</div>
-							<div class="form-group password-wrapper">
-								<label for="heleket_api_key">Heleket API Key:</label>
-								<input
-									type="password"
-									id="heleket_api_key"
-									name="heleket_api_key"
-									autocomplete="new-password"
-									value="{{ settings.heleket_api_key or '' }}"
-								/>
-								<button type="button" class="toggle-password" title="Показать/скрыть пароль">
-									<i class="fas fa-eye"></i>
-								</button>
-							</div>
-							<div class="form-group">
-								<label for="domain">Ваш домен (например, my-shop.com):</label>
-								<input
-									type="text"
-									id="domain"
-									name="domain"
-									value="{{ settings.domain or '' }}"
-								/>
-							</div>
-						</div>
-					</div>
 				</div>
+			</div>
 			</section>
 
 			
@@ -1254,6 +1268,9 @@
 
 </div>
 
+	</section>
+</div>
+
 <style>
 
 /* Стили для вкладок */
@@ -1285,6 +1302,14 @@
     width: clamp(600px, 90vw, 1500px);
     min-width: 600px;
     max-width: 1500px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Расширенная ширина для вкладки Платежные системы */
+#payments-tab .settings-section {
+    width: clamp(600px, 95vw, 1600px);
+    max-width: 1600px;
     margin-left: auto;
     margin-right: auto;
 }
@@ -1741,6 +1766,56 @@
     }
 }
 
+/* Стили для платежных систем - 3 колонки по 600px */
+.payment-systems-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 600px);
+    gap: 20px;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.payment-column {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.payment-system-card {
+    background: #2c3136;
+    border: 1px solid #4a5058;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.payment-system-card h3 {
+    color: #ffffff;
+    margin-top: 0;
+    margin-bottom: 16px;
+    font-size: 18px;
+    font-weight: 600;
+    border-bottom: 1px solid #4a5058;
+    padding-bottom: 10px;
+}
+
+/* Адаптивность для планшетов - 2 колонки */
+@media (max-width: 1920px) {
+    .payment-systems-grid {
+        grid-template-columns: repeat(2, 600px);
+    }
+}
+
+/* Адаптивность для мобильных - 1 колонка */
+@media (max-width: 1280px) {
+    .payment-systems-grid {
+        grid-template-columns: 1fr;
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+}
+
 
 </style>
 
@@ -1787,6 +1862,16 @@
             targetButton.classList.add('active');
         }
     }
+    
+    // Синхронизация активного состояния подраздела в боковом меню
+    const submenuLinks = document.querySelectorAll('.nav-submenu .nav-link');
+    submenuLinks.forEach(link => {
+        if (link.getAttribute('data-tab') === tabName) {
+            link.classList.add('active');
+        } else {
+            link.classList.remove('active');
+        }
+    });
     
     // Сохраняем активную вкладку в URL
     const url = new URL(window.location);
@@ -2599,22 +2684,6 @@ function closeTonManifestEditor() {
     if (modal) {
         modal.remove();
     }
-}
-
-// Функция переключения режима YooKassa
-function toggleYooKassaMode() {
-    const testModeCheckbox = document.getElementById('yookassa_test_mode');
-    const modeLabelText = document.getElementById('mode-label-text');
-    
-    if (testModeCheckbox.checked) {
-        // Тестовый режим включен
-        modeLabelText.textContent = 'Режим: Тестовый';
-    } else {
-        // Боевой режим включен
-        modeLabelText.textContent = 'Режим: Боевой';
-    }
-    
-    console.log('Режим YooKassa изменен:', testModeCheckbox.checked ? 'Тестовый' : 'Боевой');
 }
 
 // Функция для тестирования бота логов

@@ -2736,34 +2736,6 @@ async function submitTrialReset() {
     }
 }
 
-// Функция переключения режима YooKassa
-function toggleYooKassaMode() {
-    const testModeCheckbox = document.getElementById('yookassa_test_mode');
-    const productionMode = document.getElementById('yookassa_production_mode');
-    const testModeFields = document.getElementById('yookassa_test_mode_fields');
-    const labelText = document.getElementById('mode-label-text');
-    
-    if (testModeCheckbox.checked) {
-        // Checkbox включен = тестовый режим активен
-        productionMode.style.opacity = '0.5';
-        productionMode.style.border = '2px solid #6c757d';
-        testModeFields.style.opacity = '1';
-        testModeFields.style.border = '2px solid #28a745';
-        if (labelText) {
-            labelText.textContent = 'Режим: Боевой OFF, Тестовый ON';
-        }
-    } else {
-        // Checkbox выключен = боевой режим активен
-        productionMode.style.opacity = '1';
-        productionMode.style.border = '2px solid #dc3545';
-        testModeFields.style.opacity = '0.5';
-        testModeFields.style.border = '2px solid #6c757d';
-        if (labelText) {
-            labelText.textContent = 'Режим: Боевой ON, Тестовый OFF';
-        }
-    }
-}
-
 // ============================================
 // Функции для работы с Key Drawer
 // ============================================
@@ -2922,3 +2894,176 @@ function copyKeyField(elementId) {
 		});
 	}
 }
+
+// ============================================
+// Docker Management Functions
+// ============================================
+
+const DOCKER_ACTIONS = {
+	'restart-all': {
+		title: 'Перезапуск всех сервисов',
+		message: 'Это перезапустит все сервисы (bot, docs, codex-docs). Продолжить?',
+		duration: 35,
+		endpoint: '/api/docker/restart-all'
+	},
+	'restart-bot': {
+		title: 'Перезапуск бота',
+		message: 'Это перезапустит только бот. Продолжить?',
+		duration: 20,
+		endpoint: '/api/docker/restart-bot'
+	},
+	'rebuild': {
+		title: 'Ребилд без кеша',
+		message: 'Это полностью пересоберёт образ без кеша (займёт 3-5 минут). Продолжить?',
+		duration: 200,
+		endpoint: '/api/docker/rebuild'
+	}
+};
+
+let currentDockerAction = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+	document.querySelectorAll('.btn-docker').forEach(btn => {
+		btn.addEventListener('click', function() {
+			const action = this.dataset.action;
+			currentDockerAction = DOCKER_ACTIONS[action];
+			showDockerConfirmModal(currentDockerAction);
+		});
+	});
+});
+
+function showDockerConfirmModal(action) {
+	document.getElementById('dockerActionTitle').textContent = action.title;
+	document.getElementById('dockerActionMessage').textContent = action.message;
+	document.getElementById('dockerActionModal').style.display = 'flex';
+}
+
+function closeDockerModal() {
+	document.getElementById('dockerActionModal').style.display = 'none';
+	currentDockerAction = null;
+}
+
+async function confirmDockerAction() {
+	if (!currentDockerAction) return;
+	
+	document.getElementById('dockerActionModal').style.display = 'none';
+	showDockerProgress(currentDockerAction);
+	
+	try {
+		const response = await fetch(currentDockerAction.endpoint, {
+			method: 'POST',
+			headers: {'Content-Type': 'application/json'},
+			credentials: 'same-origin'
+		});
+		
+		const data = await response.json();
+		
+		if (data.success) {
+			document.getElementById('dockerProgressMessage').textContent = 'Готово!';
+			startCountdown(data.reload_after || currentDockerAction.duration);
+		} else {
+			showDockerError(data.message);
+		}
+	} catch (error) {
+		showDockerError('Ошибка выполнения команды: ' + error.message);
+	}
+}
+
+function showDockerProgress(action) {
+	document.getElementById('dockerProgressTitle').textContent = action.title;
+	document.getElementById('dockerProgressMessage').textContent = 'Выполняется...';
+	document.getElementById('dockerProgressModal').style.display = 'flex';
+}
+
+function startCountdown(seconds) {
+	let remaining = seconds;
+	const countdownEl = document.getElementById('dockerCountdown');
+	
+	const interval = setInterval(() => {
+		countdownEl.textContent = `Страница обновится через ${remaining} сек...`;
+		remaining--;
+		
+		if (remaining < 0) {
+			clearInterval(interval);
+			window.location.reload();
+		}
+	}, 1000);
+}
+
+function showDockerError(message) {
+	document.getElementById('dockerProgressTitle').textContent = 'Ошибка';
+	document.getElementById('dockerProgressMessage').textContent = message;
+	document.getElementById('dockerCountdown').textContent = '';
+	setTimeout(() => {
+		document.getElementById('dockerProgressModal').style.display = 'none';
+	}, 5000);
+}
+
+// Управление раскрывающимся меню настроек
+document.addEventListener('DOMContentLoaded', function() {
+	const settingsCollapsible = document.querySelector('.nav-link-collapsible');
+	const settingsSubmenu = document.querySelector('.nav-submenu');
+	
+	if (settingsCollapsible && settingsSubmenu) {
+		// Если мы на странице настроек, раскрываем подменю
+		const isSettingsPage = window.location.pathname.includes('/settings');
+		
+		if (isSettingsPage) {
+			settingsCollapsible.classList.add('expanded');
+			settingsSubmenu.classList.add('expanded');
+			
+			// Устанавливаем активный подраздел на основе хеша URL
+			const hash = window.location.hash.substring(1); // убираем #
+			if (hash) {
+				const submenuLinks = settingsSubmenu.querySelectorAll('.nav-link');
+				submenuLinks.forEach(link => {
+					if (link.getAttribute('data-tab') === hash) {
+						link.classList.add('active');
+					}
+				});
+			} else {
+				// Если хеша нет, активируем первый подраздел (servers)
+				const firstLink = settingsSubmenu.querySelector('.nav-link[data-tab="servers"]');
+				if (firstLink) {
+					firstLink.classList.add('active');
+				}
+			}
+		}
+		
+		// Обработчик клика на кнопку раскрытия
+		settingsCollapsible.addEventListener('click', function(e) {
+			e.preventDefault();
+			const isExpanded = this.classList.toggle('expanded');
+			settingsSubmenu.classList.toggle('expanded');
+			
+			// Если раскрываем и мы не на странице настроек, переходим на неё
+			if (isExpanded && !isSettingsPage) {
+				window.location.href = '/settings';
+			}
+		});
+		
+		// Обработчики кликов на подразделы
+		const submenuLinks = settingsSubmenu.querySelectorAll('.nav-link');
+		submenuLinks.forEach(link => {
+			link.addEventListener('click', function(e) {
+				e.preventDefault();
+				const tabId = this.getAttribute('data-tab');
+				
+				// Убираем активный класс со всех ссылок
+				submenuLinks.forEach(l => l.classList.remove('active'));
+				// Добавляем активный класс к текущей ссылке
+				this.classList.add('active');
+				
+				// Если уже на странице настроек, переключаем вкладку
+				if (isSettingsPage && typeof showTab === 'function') {
+					showTab(tabId, null);
+					// Обновляем URL с хешем
+					history.pushState(null, null, '#' + tabId);
+				} else {
+					// Переходим на страницу настроек с нужной вкладкой
+					window.location.href = '/settings#' + tabId;
+				}
+			});
+		});
+	}
+});

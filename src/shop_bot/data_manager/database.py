@@ -2137,12 +2137,24 @@ def update_setting(key: str, value: str):
         with sqlite3.connect(DB_FILE) as conn:
 
             cursor = conn.cursor()
+            
+            # Логируем что именно сохраняем
+            logging.info(f"[DATABASE] update_setting called: key='{key}', value='{value}' (type: {type(value).__name__})")
 
             cursor.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)", (key, value))
 
             conn.commit()
-
-            logging.info(f"Setting '{key}' updated.")
+            
+            # КРИТИЧЕСКИ ВАЖНО: Принудительная синхронизация WAL для немедленного отображения изменений
+            # Это гарантирует, что изменения видны сразу после сохранения без задержек WAL
+            cursor.execute("PRAGMA wal_checkpoint(FULL)")
+            conn.commit()
+            
+            # Проверяем что действительно сохранилось
+            cursor.execute("SELECT value FROM bot_settings WHERE key = ?", (key,))
+            result = cursor.fetchone()
+            saved_value = result[0] if result else None
+            logging.info(f"[DATABASE] Setting '{key}' updated. Saved value in DB: '{saved_value}'")
 
     except sqlite3.Error as e:
 
@@ -4481,11 +4493,14 @@ def create_pending_transaction(payment_id: str, user_id: int, amount_rub: float,
 
             local_now = datetime.now(local_tz)
 
+            # Извлекаем payment_method из metadata если есть
+            payment_method = metadata.get('payment_method', None)
+
             cursor.execute(
 
-                "INSERT INTO transactions (payment_id, user_id, status, amount_rub, metadata, created_date) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO transactions (payment_id, user_id, status, amount_rub, payment_method, metadata, created_date) VALUES (?, ?, ?, ?, ?, ?, ?)",
 
-                (payment_id, user_id, 'pending', amount_rub, json.dumps(metadata), local_now)
+                (payment_id, user_id, 'pending', amount_rub, payment_method, json.dumps(metadata), local_now)
 
             )
 

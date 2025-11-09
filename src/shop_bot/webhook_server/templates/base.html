@@ -44,10 +44,10 @@
 				</button>
 				<div class="header-title">{% block header_title %}Панель управления{% endblock %}</div>
 			</div>
-			<div class="header-panel-right">
-				{% block header_buttons %}{% endblock %}
-			</div>
-		</header>
+		<div class="header-panel-right">
+			{% block header_buttons %}{% endblock %}
+		</div>
+	</header>
 		
         <div class="container {% block container_class %}{% endblock %}">
 			<!-- Боковое меню -->
@@ -110,22 +110,58 @@
 						<span class="nav-icon">📙</span>
 						<span class="nav-text">Инструкции</span>
 					</a>
-					<a
-						href="{{ url_for('wiki_editor_page') }}"
-						class="nav-link {% if request.endpoint in ['wiki_editor_page', 'wiki_editor_edit'] %}active{% endif %}"
-						title="Wiki редактор"
-					>
-						<span class="nav-icon">📚</span>
-						<span class="nav-text">Wiki редактор</span>
-					</a>
-					<a
-						href="{{ url_for('settings_page') }}"
-						class="nav-link {% if request.endpoint == 'settings_page' %}active{% endif %}"
+				<a
+					href="{{ url_for('wiki_editor_page') }}"
+					class="nav-link {% if request.endpoint in ['wiki_editor_page', 'wiki_editor_edit'] %}active{% endif %}"
+					title="Wiki редактор"
+				>
+					<span class="nav-icon">📚</span>
+					<span class="nav-text">Wiki редактор</span>
+				</a>
+				
+				<!-- Настройки с вложенным меню -->
+				<div class="nav-item-group">
+					<button
+						class="nav-link-collapsible {% if request.endpoint == 'settings_page' %}active expanded{% endif %}"
 						title="Настройки"
 					>
-						<span class="nav-icon">⚙️</span>
-						<span class="nav-text">Настройки</span>
-					</a>
+						<div class="nav-link-collapsible-content">
+							<span class="nav-icon">⚙️</span>
+							<span class="nav-text">Настройки</span>
+						</div>
+						<i class="fas fa-chevron-right nav-chevron"></i>
+					</button>
+					<div class="nav-submenu {% if request.endpoint == 'settings_page' %}expanded{% endif %}">
+						<a href="{{ url_for('settings_page') }}#servers" class="nav-link" data-tab="servers" title="Настройки серверов">
+							<span class="nav-icon"><i class="fas fa-server"></i></span>
+							<span class="nav-text">Серверы</span>
+						</a>
+						<a href="{{ url_for('settings_page') }}#panel" class="nav-link" data-tab="panel" title="Настройки панели">
+							<span class="nav-icon"><i class="fas fa-cog"></i></span>
+							<span class="nav-text">Панель</span>
+						</a>
+						<a href="{{ url_for('settings_page') }}#bot" class="nav-link" data-tab="bot" title="Настройки бота">
+							<span class="nav-icon"><i class="fas fa-robot"></i></span>
+							<span class="nav-text">Бот</span>
+						</a>
+						<a href="{{ url_for('settings_page') }}#payments" class="nav-link" data-tab="payments" title="Платежные системы">
+							<span class="nav-icon"><i class="fas fa-credit-card"></i></span>
+							<span class="nav-text">Платежные системы</span>
+						</a>
+						<a href="{{ url_for('settings_page') }}#database" class="nav-link" data-tab="database" title="Управление базой данных">
+							<span class="nav-icon"><i class="fas fa-database"></i></span>
+							<span class="nav-text">База данных</span>
+						</a>
+						<a href="{{ url_for('settings_page') }}#backup" class="nav-link" data-tab="backup" title="Настройки резервного копирования">
+							<span class="nav-icon"><i class="fas fa-save"></i></span>
+							<span class="nav-text">Бекапы</span>
+						</a>
+						<a href="{{ url_for('settings_page') }}#directories" class="nav-link" data-tab="directories" title="Справочники">
+							<span class="nav-icon"><i class="fas fa-book"></i></span>
+							<span class="nav-text">Справочники</span>
+						</a>
+					</div>
+				</div>
 				</nav>
 
 				<!-- Свернутое меню с иконками -->
@@ -181,20 +217,22 @@
 						>
 							<span class="nav-icon">📙</span>
 						</a>
-						<a
-							href="{{ url_for('wiki_editor_page') }}"
-							class="nav-link {% if request.endpoint in ['wiki_editor_page', 'wiki_editor_edit'] %}active{% endif %}"
-							title="Wiki редактор"
-						>
-							<span class="nav-icon">📚</span>
-						</a>
-						<a
-							href="{{ url_for('settings_page') }}"
-							class="nav-link {% if request.endpoint == 'settings_page' %}active{% endif %}"
-							title="Настройки"
-						>
-							<span class="nav-icon">⚙️</span>
-						</a>
+					<a
+						href="{{ url_for('wiki_editor_page') }}"
+						class="nav-link {% if request.endpoint in ['wiki_editor_page', 'wiki_editor_edit'] %}active{% endif %}"
+						title="Wiki редактор"
+					>
+						<span class="nav-icon">📚</span>
+					</a>
+					
+					<!-- Настройки (в свернутом режиме показываем только иконку без подменю) -->
+					<a
+						href="{{ url_for('settings_page') }}"
+						class="nav-link {% if request.endpoint == 'settings_page' %}active{% endif %}"
+						title="Настройки"
+					>
+						<span class="nav-icon">⚙️</span>
+					</a>
 					</div>
 					
 					<!-- Кнопки управления (внизу) -->
@@ -1227,6 +1265,28 @@
 			document.getElementById('shareLink').value = '';
 		}
 		</script>
+
+		<!-- Docker Action Confirmation Modal -->
+		<div id="dockerActionModal" class="modal" style="display: none;">
+			<div class="modal-content">
+				<h3 id="dockerActionTitle">Подтверждение</h3>
+				<p id="dockerActionMessage"></p>
+				<div class="modal-actions">
+					<button class="btn-cancel" onclick="closeDockerModal()">Отмена</button>
+					<button class="btn-confirm" onclick="confirmDockerAction()">Подтвердить</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- Docker Progress Modal -->
+		<div id="dockerProgressModal" class="modal" style="display: none;">
+			<div class="modal-content">
+				<div class="spinner"></div>
+				<h3 id="dockerProgressTitle">Выполняется...</h3>
+				<p id="dockerProgressMessage"></p>
+				<p id="dockerCountdown"></p>
+			</div>
+		</div>
 
 		<script>
 			window.panelTimeZone = {{ (panel_timezone or 'Europe/Moscow') | tojson }};

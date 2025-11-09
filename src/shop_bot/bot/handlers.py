@@ -76,6 +76,55 @@ def _get_user_timezone_context(user_id: int) -> Tuple[bool, str | None]:
     return feature_enabled, user_timezone
 
 
+def _safe_strip(value: str | None) -> str | None:
+    """Безопасное удаление пробелов"""
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def _reconfigure_yookassa():
+    """Переинициализирует Configuration с актуальными настройками из БД"""
+    from yookassa import Configuration
+    
+    yookassa_test_mode = get_setting("yookassa_test_mode") == "true"
+    
+    # КРИТИЧНО: НЕ смешиваем тестовые и боевые credentials
+    # Каждый режим использует ТОЛЬКО свои ключи и API URL
+    if yookassa_test_mode:
+        # Тестовый режим: используем ТОЛЬКО test credentials
+        shop_id = _safe_strip(get_setting("yookassa_test_shop_id"))
+        secret_key = _safe_strip(get_setting("yookassa_test_secret_key"))
+        api_url = _safe_strip(get_setting("yookassa_test_api_url")) or "https://api.test.yookassa.ru/v3"
+        verify_ssl = get_setting("yookassa_test_verify_ssl") != "false"
+        mode_text = "ТЕСТОВЫЙ"
+    else:
+        # Боевой режим: используем ТОЛЬКО production credentials
+        shop_id = _safe_strip(get_setting("yookassa_shop_id"))
+        secret_key = _safe_strip(get_setting("yookassa_secret_key"))
+        api_url = _safe_strip(get_setting("yookassa_api_url")) or "https://api.yookassa.ru/v3"
+        verify_ssl = get_setting("yookassa_verify_ssl") != "false"
+        mode_text = "БОЕВОЙ"
+    
+    if shop_id and secret_key:
+        # КРИТИЧНО: Явно логируем режим и параметры
+        logger.info(
+            f"[YOOKASSA_RECONFIGURE] mode={mode_text}, "
+            f"shop_id={shop_id[:8]}..., api_url={api_url}, verify_ssl={verify_ssl}"
+        )
+        Configuration.configure(
+            account_id=shop_id,
+            secret_key=secret_key,
+            api_url=api_url,
+            verify=verify_ssl
+        )
+        return True
+    else:
+        logger.warning(f"[YOOKASSA_RECONFIGURE] Missing credentials for {mode_text} mode! shop_id={bool(shop_id)}, secret_key={bool(secret_key)}")
+        return False
+
+
 # Добавляем обработчик ошибок для admin_router
 @admin_router.error()
 @measure_performance("admin_router_error")
@@ -4043,6 +4092,17 @@ def get_user_router() -> Router:
             # Определяем тестовый режим для YooKassa
             yookassa_test_mode = get_setting("yookassa_test_mode") == "true"
 
+            # КРИТИЧЕСКИ ВАЖНО: Переинициализируем Configuration перед созданием платежа
+            _reconfigure_yookassa()
+            
+            # Логируем активный режим после переинициализации
+            from yookassa import Configuration
+            logger.info(
+                f"[YOOKASSA_PAYMENT_TOPUP] user_id={user_id}, amount={amount_rub} RUB, "
+                f"test_mode={yookassa_test_mode}, "
+                f"active_shop_id={Configuration.account_id[:8] if Configuration.account_id else 'None'}..."
+            )
+
             payment_payload = {
                 "amount": {"value": price_str_for_api, "currency": "RUB"},
                 "confirmation": {"type": "redirect", "return_url": f"https://t.me/{TELEGRAM_BOT_USERNAME}"},
@@ -4641,12 +4701,18 @@ def get_user_router() -> Router:
 
             # Определяем тестовый режим для YooKassa
             yookassa_test_mode = get_setting("yookassa_test_mode") == "true"
-            current_shop_id = get_setting("yookassa_shop_id")
             
-            # Валидация согласованности настроек
-            logger.info(f"Creating Yookassa payment: test_mode={yookassa_test_mode}, shop_id={current_shop_id}")
-            if yookassa_test_mode and current_shop_id:
-                logger.warning(f"⚠️ ATTENTION: test_mode=true with shop_id={current_shop_id}. Ensure settings are synchronized!")
+            # КРИТИЧЕСКИ ВАЖНО: Переинициализируем Configuration перед созданием платежа
+            _reconfigure_yookassa()
+            
+            # Логируем активный режим после переинициализации
+            from yookassa import Configuration
+            logger.info(
+                f"[YOOKASSA_PAYMENT_PURCHASE] user_id={user_id}, plan_id={plan_id}, amount={price_rub} RUB, "
+                f"test_mode={yookassa_test_mode}, "
+                f"active_shop_id={Configuration.account_id[:8] if Configuration.account_id else 'None'}..., "
+                f"api_url={getattr(Configuration, 'api_url', 'default')}"
+            )
 
             receipt = None
             if customer_email and is_valid_email(customer_email):

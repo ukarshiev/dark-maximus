@@ -8,6 +8,7 @@ import sqlite3
 import requests
 import time
 import re
+import subprocess
 from hmac import compare_digest
 from datetime import datetime
 from datetime import timedelta
@@ -688,6 +689,23 @@ def create_webhook_app(bot_controller_instance):
         terms_content = request.url_root.rstrip('/') + '/terms'
         privacy_content = request.url_root.rstrip('/') + '/privacy'
         
+        # НОВОЕ: Определяем активный режим YooKassa
+        yookassa_active_mode = 'unknown'
+        try:
+            from yookassa import Configuration
+            active_shop_id = getattr(Configuration, 'account_id', None)
+            db_shop_id = current_settings.get('yookassa_shop_id', '')
+            db_test_shop_id = current_settings.get('yookassa_test_shop_id', '')
+            
+            if active_shop_id:
+                # Сравниваем первые 8 символов для определения режима
+                if db_test_shop_id and active_shop_id.startswith(db_test_shop_id[:8]):
+                    yookassa_active_mode = 'test'
+                elif db_shop_id and active_shop_id.startswith(db_shop_id[:8]):
+                    yookassa_active_mode = 'production'
+        except Exception as e:
+            logger.debug(f"Could not determine YooKassa active mode: {e}")
+        
         common_data = get_common_template_data()
         # Получаем группы пользователей для multiselect в тарифах - точно как в промокодах
         try:
@@ -706,6 +724,7 @@ def create_webhook_app(bot_controller_instance):
             privacy_content=privacy_content,
             user_groups=user_groups,
             timezone_options=TIMEZONES,
+            yookassa_active_mode=yookassa_active_mode,  # НОВОЕ
             **common_data,
         )
 
@@ -779,15 +798,71 @@ def create_webhook_app(bot_controller_instance):
             'ton_wallet_address', 'tonapi_key', 'stars_conversion_rate'
         ]
         
-        # Обрабатываем все чекбоксы стандартно: checked = 'true', unchecked = 'false'
-        payment_checkboxes = ['sbp_enabled', 'stars_enabled', 'yookassa_verify_ssl', 'yookassa_test_verify_ssl', 'yookassa_test_mode']
-        for checkbox_key in payment_checkboxes:
-            value = 'true' if checkbox_key in request.form else 'false'
+        # Обрабатываем чекбоксы
+        # Для чекбоксов с hidden input (sbp_enabled, stars_enabled, yookassa_verify_ssl, yookassa_test_verify_ssl):
+        #   используем getlist() и проверяем наличие 'true' в списке значений
+        # Для yookassa_test_mode (без hidden input): простая проверка наличия в форме
+        payment_checkboxes_with_hidden = ['sbp_enabled', 'stars_enabled', 'yookassa_verify_ssl', 'yookassa_test_verify_ssl']
+        for checkbox_key in payment_checkboxes_with_hidden:
+            values = request.form.getlist(checkbox_key)
+            value = 'true' if 'true' in values else 'false'
+            logging.info(f"[PAYMENT_SETTINGS] Saving {checkbox_key}: value='{value}', all_form_values={values}")
             update_setting(checkbox_key, value)
+        
+        # Обработка yookassa_test_mode - простой checkbox без hidden input
+        # Если checkbox checked, он присутствует в форме со значением 'true'
+        # Если checkbox unchecked, его нет в форме вообще
+        yookassa_test_mode_value = 'true' if request.form.get('yookassa_test_mode') == 'true' else 'false'
+        logging.info(f"[PAYMENT_SETTINGS] Saving yookassa_test_mode: value='{yookassa_test_mode_value}', in_form={request.form.get('yookassa_test_mode')}")
+        update_setting('yookassa_test_mode', yookassa_test_mode_value)
+        # Проверяем что значение действительно сохранилось (используем database.get_setting чтобы избежать конфликта с локальным импортом ниже)
+        saved_value = database.get_setting('yookassa_test_mode')
+        logging.info(f"[PAYMENT_SETTINGS] After save yookassa_test_mode: saved_value='{saved_value}'")
         
         # Обрабатываем остальные настройки
         for key in payment_keys:
             update_setting(key, request.form.get(key, ''))
+        
+        # КРИТИЧЕСКИ ВАЖНО: Принудительная синхронизация WAL после всех обновлений
+        # Это гарантирует, что все изменения видны в БД немедленно
+        try:
+            import sqlite3
+            with sqlite3.connect(DB_FILE) as conn:
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA wal_checkpoint(FULL)")
+                conn.commit()
+                logger.info("WAL checkpoint выполнен после сохранения настроек платежей")
+        except Exception as e:
+            logger.error(f"Ошибка при выполнении WAL checkpoint: {e}", exc_info=True)
+        
+        # КРИТИЧЕСКИ ВАЖНО: Переинициализируем Configuration после сохранения настроек YooKassa
+        try:
+            from yookassa import Configuration
+            from shop_bot.data_manager.database import get_setting
+            
+            yookassa_test_mode = get_setting("yookassa_test_mode") == "true"
+            
+            if yookassa_test_mode:
+                shop_id = (get_setting("yookassa_test_shop_id") or "").strip() or (get_setting("yookassa_shop_id") or "").strip()
+                secret_key = (get_setting("yookassa_test_secret_key") or "").strip() or (get_setting("yookassa_secret_key") or "").strip()
+                api_url = (get_setting("yookassa_test_api_url") or "").strip() or (get_setting("yookassa_api_url") or "").strip() or "https://api.test.yookassa.ru/v3"
+                verify_ssl = get_setting("yookassa_test_verify_ssl") != "false"
+            else:
+                shop_id = (get_setting("yookassa_shop_id") or "").strip()
+                secret_key = (get_setting("yookassa_secret_key") or "").strip()
+                api_url = (get_setting("yookassa_api_url") or "").strip() or "https://api.yookassa.ru/v3"
+                verify_ssl = get_setting("yookassa_verify_ssl") != "false"
+            
+            if shop_id and secret_key:
+                Configuration.configure(
+                    account_id=shop_id,
+                    secret_key=secret_key,
+                    api_url=api_url,
+                    verify=verify_ssl
+                )
+                logger.info(f"YooKassa Configuration updated after settings save: test_mode={yookassa_test_mode}, shop_id={shop_id}, api_url={api_url}")
+        except Exception as e:
+            logger.error(f"Failed to reconfigure YooKassa after settings save: {e}", exc_info=True)
         
         flash('Настройки платежных систем успешно сохранены!', 'success')
         return redirect(url_for('settings_page', tab='payments'))
@@ -2367,37 +2442,135 @@ def create_webhook_app(bot_controller_instance):
     def yookassa_webhook_handler():
         try:
             event_json = request.json
-            if event_json.get("event") == "payment.succeeded":
-                payment_object = event_json.get("object", {})
-                metadata = payment_object.get("metadata", {})
-                
-                # Извлекаем дополнительные данные YooKassa
-                yookassa_payment_id = payment_object.get("id")
-                authorization_details = payment_object.get("authorization_details", {})
-                rrn = authorization_details.get("rrn")
-                auth_code = authorization_details.get("auth_code")
-                
-                # Получаем способ оплаты
-                payment_method = payment_object.get("payment_method", {})
-                payment_type = payment_method.get("type", "unknown")
-                
-                # Обновляем метаданные с дополнительной информацией
-                metadata.update({
-                    "yookassa_payment_id": yookassa_payment_id,
-                    "rrn": rrn,
-                    "authorization_code": auth_code,
-                    "payment_type": payment_type
-                })
-                
-                bot = _bot_controller.get_bot_instance()
-                payment_processor = handlers.process_successful_yookassa_payment
+            event_type = event_json.get("event")
+            payment_object = event_json.get("object", {})
+            payment_id = payment_object.get("id")
+            
+            # НОВОЕ: Извлекаем поле test для проверки режима
+            is_test_payment = payment_object.get("test", False)
+            
+            logger.info(
+                f"[YOOKASSA_WEBHOOK] event={event_type}, payment_id={payment_id}, "
+                f"test={is_test_payment}, paid={payment_object.get('paid')}"
+            )
+            
+            # НОВОЕ: Проверяем соответствие режимов
+            db_test_mode = get_setting("yookassa_test_mode") == "true"
+            if is_test_payment != db_test_mode:
+                logger.warning(
+                    f"[YOOKASSA_WEBHOOK] ⚠️ MODE MISMATCH! webhook test={is_test_payment}, "
+                    f"db test_mode={db_test_mode}, payment_id={payment_id}. "
+                    f"Проверьте настройки YooKassa в админ-панели!"
+                )
+            
+            # НОВОЕ: Защита от дублирования обработки webhook
+            from shop_bot.data_manager.database import get_transaction_by_payment_id
+            existing_transaction = get_transaction_by_payment_id(payment_id)
+            
+            if existing_transaction and existing_transaction.get('status') == 'paid':
+                logger.info(
+                    f"[YOOKASSA_WEBHOOK] Payment {payment_id} already processed (status=paid), "
+                    f"skipping duplicate webhook"
+                )
+                return 'OK', 200
+            
+            # Обрабатываем разные типы событий
+            if event_type == "payment.succeeded":
+                # Проверяем, что платеж действительно оплачен
+                if payment_object.get("paid") is True:
+                    metadata = payment_object.get("metadata", {})
+                    
+                    # Извлекаем дополнительные данные YooKassa
+                    yookassa_payment_id = payment_object.get("id")
+                    authorization_details = payment_object.get("authorization_details", {})
+                    rrn = authorization_details.get("rrn")
+                    auth_code = authorization_details.get("auth_code")
+                    
+                    # Получаем способ оплаты
+                    payment_method = payment_object.get("payment_method", {})
+                    payment_type = payment_method.get("type", "unknown")
+                    
+                    # Обновляем метаданные с дополнительной информацией
+                    metadata.update({
+                        "yookassa_payment_id": yookassa_payment_id,
+                        "rrn": rrn,
+                        "authorization_code": auth_code,
+                        "payment_type": payment_type
+                    })
+                    
+                    bot = _bot_controller.get_bot_instance()
+                    payment_processor = handlers.process_successful_yookassa_payment
 
-                if metadata and bot is not None and payment_processor is not None:
-                    loop = current_app.config.get('EVENT_LOOP')
-                    if loop and loop.is_running():
-                        asyncio.run_coroutine_threadsafe(payment_processor(bot, metadata), loop)
-                    else:
-                        logger.error("YooKassa webhook: Event loop is not available!")
+                    if metadata and bot is not None and payment_processor is not None:
+                        loop = current_app.config.get('EVENT_LOOP')
+                        if loop and loop.is_running():
+                            asyncio.run_coroutine_threadsafe(payment_processor(bot, metadata), loop)
+                        else:
+                            logger.error("YooKassa webhook: Event loop is not available!")
+                else:
+                    logger.warning(f"YooKassa webhook: payment.succeeded but paid=false, payment_id={payment_object.get('id')}")
+            
+            elif event_type == "payment.waiting_for_capture":
+                # Платеж ожидает подтверждения (capture)
+                # Если paid=true, обрабатываем как успешный платеж
+                if payment_object.get("paid") is True:
+                    logger.info(f"YooKassa webhook: payment.waiting_for_capture with paid=true, processing as succeeded, payment_id={payment_object.get('id')}")
+                    
+                    metadata = payment_object.get("metadata", {})
+                    
+                    # Извлекаем дополнительные данные YooKassa
+                    yookassa_payment_id = payment_object.get("id")
+                    authorization_details = payment_object.get("authorization_details", {})
+                    rrn = authorization_details.get("rrn")
+                    auth_code = authorization_details.get("auth_code")
+                    
+                    # Получаем способ оплаты
+                    payment_method = payment_object.get("payment_method", {})
+                    payment_type = payment_method.get("type", "unknown")
+                    
+                    # Обновляем метаданные
+                    metadata.update({
+                        "yookassa_payment_id": yookassa_payment_id,
+                        "rrn": rrn,
+                        "authorization_code": auth_code,
+                        "payment_type": payment_type
+                    })
+                    
+                    bot = _bot_controller.get_bot_instance()
+                    payment_processor = handlers.process_successful_yookassa_payment
+
+                    if metadata and bot is not None and payment_processor is not None:
+                        loop = current_app.config.get('EVENT_LOOP')
+                        if loop and loop.is_running():
+                            asyncio.run_coroutine_threadsafe(payment_processor(bot, metadata), loop)
+                        else:
+                            logger.error("YooKassa webhook: Event loop is not available!")
+                else:
+                    logger.info(f"YooKassa webhook: payment.waiting_for_capture with paid=false, payment_id={payment_object.get('id')}")
+            
+            elif event_type == "payment.canceled":
+                # Платеж отменен
+                payment_id = payment_object.get("id")
+                metadata = payment_object.get("metadata", {})
+                user_id = metadata.get("user_id")
+                
+                logger.info(f"YooKassa webhook: payment.canceled, payment_id={payment_id}, user_id={user_id}")
+                
+                # Обновляем транзакцию в БД на статус 'canceled'
+                try:
+                    from shop_bot.data_manager.database import update_yookassa_transaction
+                    if payment_id:
+                        update_yookassa_transaction(
+                            payment_id, 'canceled', 0.0,
+                            payment_id, None, None, None,
+                            metadata
+                        )
+                except Exception as e:
+                    logger.error(f"Failed to update canceled transaction: {e}", exc_info=True)
+            
+            else:
+                logger.info(f"YooKassa webhook: unhandled event type={event_type}, payment_id={payment_object.get('id')}")
+            
             return 'OK', 200
         except Exception as e:
             logger.error(f"Error in yookassa webhook handler: {e}", exc_info=True)
@@ -5152,6 +5325,157 @@ def create_webhook_app(bot_controller_instance):
         except Exception as e:
             logger.error(f"Error generating deeplink: {e}", exc_info=True)
             return jsonify({'success': False, 'error': str(e)}), 500
+
+    # ==================== API ENDPOINTS ДЛЯ DOCKER MANAGEMENT ====================
+    
+    def _find_docker_command():
+        """Находит путь к docker executable"""
+        import shutil
+        import platform
+        
+        # Пробуем найти docker в PATH
+        docker_cmd = shutil.which('docker')
+        if docker_cmd:
+            return docker_cmd
+        
+        # Если не найден, пробуем стандартные пути для Windows
+        if platform.system() == 'Windows':
+            possible_paths = [
+                r'C:\Program Files\Docker\Docker\resources\bin\docker.exe',
+                r'C:\Program Files\Docker\Docker\resources\docker.exe',
+                r'C:\ProgramData\DockerDesktop\version-bin\docker.exe',
+            ]
+            for path in possible_paths:
+                if os.path.exists(path):
+                    return path
+        
+        # Если всё ещё не найден, возвращаем просто 'docker' и надеемся на лучшее
+        return 'docker'
+
+    def _get_compose_args():
+        """Возвращает базовые аргументы для docker compose"""
+        compose_file = os.getenv('DOCKER_COMPOSE_FILE')
+        if not compose_file:
+            default_path = PROJECT_ROOT / 'docker-compose.yml'
+            if default_path.exists():
+                compose_file = str(default_path)
+        
+        if compose_file and os.path.exists(compose_file):
+            return ['compose', '-f', compose_file]
+        
+        logger.warning("[DOCKER_API] docker-compose.yml not found (compose_file=%s)", compose_file)
+        return ['compose']
+    
+    @flask_app.route('/api/docker/restart-all', methods=['POST'])
+    @login_required
+    def docker_restart_all():
+        """Перезапускает все сервисы через docker compose restart"""
+        try:
+            docker_cmd = _find_docker_command()
+            compose_args = _get_compose_args()
+            logger.info(f"[DOCKER_API] restart-all initiated by {session.get('username')}, docker={docker_cmd}, compose_args={compose_args}")
+            result = subprocess.run(
+                [docker_cmd, *compose_args, 'restart'],
+                cwd=str(PROJECT_ROOT),
+                capture_output=True,
+                text=True,
+                timeout=90
+            )
+            logger.info(f"[DOCKER_API] restart-all completed: returncode={result.returncode}")
+            return jsonify({
+                'success': result.returncode == 0,
+                'message': 'Restart initiated' if result.returncode == 0 else result.stderr,
+                'reload_after': 35
+            })
+        except Exception as e:
+            logger.error(f"[DOCKER_API] restart-all failed: {e}")
+            return jsonify({'success': False, 'message': str(e)}), 500
+
+    @flask_app.route('/api/docker/restart-bot', methods=['POST'])
+    @login_required
+    def docker_restart_bot():
+        """Перезапускает только бот"""
+        try:
+            docker_cmd = _find_docker_command()
+            compose_args = _get_compose_args()
+            logger.info(f"[DOCKER_API] restart-bot initiated by {session.get('username')}, docker={docker_cmd}, compose_args={compose_args}")
+            result = subprocess.run(
+                [docker_cmd, *compose_args, 'restart', 'bot'],
+                cwd=str(PROJECT_ROOT),
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            logger.info(f"[DOCKER_API] restart-bot completed: returncode={result.returncode}")
+            return jsonify({
+                'success': result.returncode == 0,
+                'message': 'Bot restart initiated' if result.returncode == 0 else result.stderr,
+                'reload_after': 20
+            })
+        except Exception as e:
+            logger.error(f"[DOCKER_API] restart-bot failed: {e}")
+            return jsonify({'success': False, 'message': str(e)}), 500
+
+    @flask_app.route('/api/docker/rebuild', methods=['POST'])
+    @login_required
+    def docker_rebuild():
+        """Пересобирает и перезапускает с очисткой кеша"""
+        try:
+            docker_cmd = _find_docker_command()
+            compose_args = _get_compose_args()
+            logger.info(f"[DOCKER_API] rebuild initiated by {session.get('username')}, docker={docker_cmd}, compose_args={compose_args}")
+
+            # Останавливаем только bot, чтобы не воевать с контейнерами docs/codex
+            stop_result = subprocess.run(
+                [docker_cmd, *compose_args, 'stop', 'bot'],
+                cwd=str(PROJECT_ROOT),
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            if stop_result.returncode != 0:
+                logger.warning(f"[DOCKER_API] stop bot warning: {stop_result.stderr}")
+
+            remove_result = subprocess.run(
+                [docker_cmd, *compose_args, 'rm', '-f', 'bot'],
+                cwd=str(PROJECT_ROOT),
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            if remove_result.returncode not in (0, 1):  # 1 = контейнера нет
+                logger.error(f"[DOCKER_API] remove bot failed: {remove_result.stderr}")
+                return jsonify({'success': False, 'message': f'Remove failed: {remove_result.stderr}'}), 500
+
+            # Сборка без кеша
+            build_result = subprocess.run(
+                [docker_cmd, *compose_args, 'build', '--no-cache', 'bot'],
+                cwd=str(PROJECT_ROOT),
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+            if build_result.returncode != 0:
+                logger.error(f"[DOCKER_API] build failed: {build_result.stderr}")
+                return jsonify({'success': False, 'message': f'Build failed: {build_result.stderr}'}), 500
+            
+            # Перезапуск с force-recreate
+            up_result = subprocess.run(
+                [docker_cmd, *compose_args, 'up', '-d', '--force-recreate', 'bot'],
+                cwd=str(PROJECT_ROOT),
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            logger.info(f"[DOCKER_API] rebuild completed: returncode={up_result.returncode}")
+            return jsonify({
+                'success': up_result.returncode == 0,
+                'message': 'Rebuild completed' if up_result.returncode == 0 else up_result.stderr,
+                'reload_after': 200
+            })
+        except Exception as e:
+            logger.error(f"[DOCKER_API] rebuild failed: {e}")
+            return jsonify({'success': False, 'message': str(e)}), 500
 
     # Запускаем мониторинг сразу
     start_ton_monitoring_task()

@@ -14,8 +14,10 @@ ENV PYTHONIOENCODING=utf-8
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 
-# Устанавливаем netcat для healthcheck
-RUN apt-get update && apt-get install -y netcat-openbsd && rm -rf /var/lib/apt/lists/*
+# Устанавливаем зависимости: netcat для healthcheck, docker CLI и docker compose
+RUN apt-get update \
+    && apt-get install -y netcat-openbsd docker-cli docker-compose \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN python3 -m venv .venv
 ENV PATH="/app/.venv/bin:$PATH"

@@ -1,18 +1,18 @@
 {
   "run": {
-    "command": "nx test bot --verbose",
-    "startTime": "2025-11-07T11:29:00.357Z",
-    "endTime": "2025-11-07T11:29:16.051Z",
+    "command": "nx serve bot",
+    "startTime": "2025-11-08T04:47:13.590Z",
+    "endTime": "2025-11-08T04:47:14.524Z",
     "inner": false
   },
   "tasks": [
     {
-      "taskId": "bot:test",
-      "target": "test",
+      "taskId": "bot:serve",
+      "target": "serve",
       "projectName": "bot",
-      "hash": "1960972667263912162",
-      "startTime": "2025-11-07T11:29:00.364Z",
-      "endTime": "2025-11-07T11:29:16.051Z",
+      "hash": "9340880224563235035",
+      "startTime": "2025-11-08T04:47:13.598Z",
+      "endTime": "2025-11-08T04:47:14.523Z",
       "params": "",
       "cacheStatus": "cache-miss",
       "status": 0
