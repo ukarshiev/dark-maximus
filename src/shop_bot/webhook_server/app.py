@@ -600,6 +600,106 @@ def create_webhook_app(bot_controller_instance):
                 'message': 'Ошибка при загрузке данных транзакции'
             }), 500
 
+    @flask_app.route('/transactions/retry/<payment_id>', methods=['POST'])
+    @login_required
+    def retry_payment_processing(payment_id):
+        """Повторная обработка зависшего платежа YooKassa"""
+        try:
+            logger.info(f"[ADMIN_RETRY] Manual retry requested for payment_id={payment_id}")
+            
+            # Получаем транзакцию из БД
+            from shop_bot.data_manager.database import get_transaction_by_payment_id
+            transaction = get_transaction_by_payment_id(payment_id)
+            
+            if not transaction:
+                logger.warning(f"[ADMIN_RETRY] Transaction not found for payment_id={payment_id}")
+                return jsonify({
+                    'success': False,
+                    'message': f'Транзакция с payment_id={payment_id} не найдена'
+                }), 404
+            
+            # Проверяем статус
+            if transaction.get('status') == 'paid':
+                logger.info(f"[ADMIN_RETRY] Transaction already paid, payment_id={payment_id}")
+                return jsonify({
+                    'success': False,
+                    'message': 'Транзакция уже обработана (статус: paid)'
+                }), 400
+            
+            # Парсим metadata
+            metadata = transaction.get('metadata', {})
+            if isinstance(metadata, str):
+                try:
+                    metadata = json.loads(metadata)
+                except:
+                    metadata = {}
+            
+            # Проверяем, что это YooKassa платеж
+            payment_method = transaction.get('payment_method') or metadata.get('payment_method')
+            if payment_method != 'YooKassa':
+                return jsonify({
+                    'success': False,
+                    'message': f'Повторная обработка доступна только для YooKassa платежей (текущий метод: {payment_method})'
+                }), 400
+            
+            # Добавляем дополнительные данные
+            metadata['yookassa_payment_id'] = payment_id
+            metadata['payment_type'] = 'admin_manual_retry'
+            
+            # Получаем бот instance
+            bot = _bot_controller.get_bot_instance()
+            if not bot:
+                logger.error(f"[ADMIN_RETRY] Bot instance not available")
+                return jsonify({
+                    'success': False,
+                    'message': 'Бот недоступен. Проверьте статус бота.'
+                }), 500
+            
+            # Получаем event loop
+            loop = current_app.config.get('EVENT_LOOP')
+            if not loop or not loop.is_running():
+                logger.error(f"[ADMIN_RETRY] Event loop not available")
+                return jsonify({
+                    'success': False,
+                    'message': 'Event loop недоступен. Перезапустите бота.'
+                }), 500
+            
+            # Запускаем обработку
+            logger.info(f"[ADMIN_RETRY] Starting payment processing for payment_id={payment_id}")
+            payment_processor = handlers.process_successful_yookassa_payment
+            future = asyncio.run_coroutine_threadsafe(payment_processor(bot, metadata), loop)
+            
+            try:
+                # Ждем результат с таймаутом
+                future.result(timeout=10)
+                logger.info(f"[ADMIN_RETRY] Successfully processed payment_id={payment_id}")
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Платеж успешно обработан. Ключ выдан пользователю.'
+                })
+                
+            except TimeoutError:
+                logger.error(f"[ADMIN_RETRY] Processing timeout for payment_id={payment_id}")
+                return jsonify({
+                    'success': False,
+                    'message': 'Превышено время ожидания обработки. Проверьте логи бота.'
+                }), 500
+                
+            except Exception as processing_error:
+                logger.error(f"[ADMIN_RETRY] Processing failed for payment_id={payment_id}: {processing_error}", exc_info=True)
+                return jsonify({
+                    'success': False,
+                    'message': f'Ошибка при обработке: {str(processing_error)}'
+                }), 500
+                
+        except Exception as e:
+            logger.error(f"[ADMIN_RETRY] Error in retry handler: {e}", exc_info=True)
+            return jsonify({
+                'success': False,
+                'message': f'Ошибка: {str(e)}'
+            }), 500
+
     @flask_app.route('/notifications')
     @login_required
     def notifications_page():
@@ -2446,39 +2546,60 @@ def create_webhook_app(bot_controller_instance):
             payment_object = event_json.get("object", {})
             payment_id = payment_object.get("id")
             
-            # НОВОЕ: Извлекаем поле test для проверки режима
+            # Извлекаем поле test для проверки режима
             is_test_payment = payment_object.get("test", False)
             
             logger.info(
-                f"[YOOKASSA_WEBHOOK] event={event_type}, payment_id={payment_id}, "
-                f"test={is_test_payment}, paid={payment_object.get('paid')}"
+                f"[YOOKASSA_WEBHOOK] Received webhook: event={event_type}, payment_id={payment_id}, "
+                f"test={is_test_payment}, paid={payment_object.get('paid')}, "
+                f"status={payment_object.get('status')}"
             )
             
-            # НОВОЕ: Проверяем соответствие режимов
+            # Проверяем соответствие режимов
             db_test_mode = get_setting("yookassa_test_mode") == "true"
             if is_test_payment != db_test_mode:
                 logger.warning(
-                    f"[YOOKASSA_WEBHOOK] ⚠️ MODE MISMATCH! webhook test={is_test_payment}, "
+                    f"[YOOKASSA_WEBHOOK] MODE MISMATCH! webhook test={is_test_payment}, "
                     f"db test_mode={db_test_mode}, payment_id={payment_id}. "
                     f"Проверьте настройки YooKassa в админ-панели!"
                 )
             
-            # НОВОЕ: Защита от дублирования обработки webhook
+            # Проверяем транзакцию в БД
             from shop_bot.data_manager.database import get_transaction_by_payment_id
             existing_transaction = get_transaction_by_payment_id(payment_id)
             
-            if existing_transaction and existing_transaction.get('status') == 'paid':
+            if existing_transaction:
                 logger.info(
-                    f"[YOOKASSA_WEBHOOK] Payment {payment_id} already processed (status=paid), "
-                    f"skipping duplicate webhook"
+                    f"[YOOKASSA_WEBHOOK] Transaction found in DB: id={existing_transaction.get('transaction_id')}, "
+                    f"status={existing_transaction.get('status')}, user_id={existing_transaction.get('user_id')}"
                 )
-                return 'OK', 200
+                
+                if existing_transaction.get('status') == 'paid':
+                    logger.info(
+                        f"[YOOKASSA_WEBHOOK] Payment {payment_id} already processed (status=paid), "
+                        f"skipping duplicate webhook"
+                    )
+                    return 'OK', 200
+            else:
+                logger.warning(
+                    f"[YOOKASSA_WEBHOOK] Transaction NOT FOUND in DB for payment_id={payment_id}! "
+                    f"This indicates that create_pending_transaction() failed or was not called. "
+                    f"Attempting to process anyway using metadata from webhook..."
+                )
             
             # Обрабатываем разные типы событий
             if event_type == "payment.succeeded":
                 # Проверяем, что платеж действительно оплачен
                 if payment_object.get("paid") is True:
                     metadata = payment_object.get("metadata", {})
+                    
+                    logger.info(
+                        f"[YOOKASSA_WEBHOOK] Processing payment.succeeded: "
+                        f"user_id={metadata.get('user_id')}, "
+                        f"action={metadata.get('action')}, "
+                        f"plan_id={metadata.get('plan_id')}, "
+                        f"amount={payment_object.get('amount', {}).get('value')}"
+                    )
                     
                     # Извлекаем дополнительные данные YooKassa
                     yookassa_payment_id = payment_object.get("id")
@@ -2504,17 +2625,38 @@ def create_webhook_app(bot_controller_instance):
                     if metadata and bot is not None and payment_processor is not None:
                         loop = current_app.config.get('EVENT_LOOP')
                         if loop and loop.is_running():
-                            asyncio.run_coroutine_threadsafe(payment_processor(bot, metadata), loop)
+                            logger.info(f"[YOOKASSA_WEBHOOK] Submitting payment processing to event loop for payment_id={payment_id}")
+                            future = asyncio.run_coroutine_threadsafe(payment_processor(bot, metadata), loop)
+                            
+                            # Ждем завершения с таймаутом для логирования результата
+                            try:
+                                future.result(timeout=5)
+                                logger.info(f"[YOOKASSA_WEBHOOK] Payment processing completed successfully for payment_id={payment_id}")
+                            except Exception as future_error:
+                                logger.error(
+                                    f"[YOOKASSA_WEBHOOK] Payment processing failed for payment_id={payment_id}: {future_error}",
+                                    exc_info=True
+                                )
                         else:
-                            logger.error("YooKassa webhook: Event loop is not available!")
+                            logger.error(
+                                f"[YOOKASSA_WEBHOOK] CRITICAL: Event loop is not available for payment_id={payment_id}! "
+                                f"Payment will NOT be processed. Check bot initialization and webhook app setup."
+                            )
+                            # Fallback: сохраняем данные для ручной обработки
+                            logger.error(f"[YOOKASSA_WEBHOOK] FALLBACK DATA: payment_id={payment_id}, metadata={metadata}")
+                    else:
+                        logger.error(
+                            f"[YOOKASSA_WEBHOOK] Missing required components: "
+                            f"metadata={metadata is not None}, bot={bot is not None}, processor={payment_processor is not None}"
+                        )
                 else:
-                    logger.warning(f"YooKassa webhook: payment.succeeded but paid=false, payment_id={payment_object.get('id')}")
+                    logger.warning(f"[YOOKASSA_WEBHOOK] payment.succeeded but paid=false, payment_id={payment_object.get('id')}")
             
             elif event_type == "payment.waiting_for_capture":
                 # Платеж ожидает подтверждения (capture)
                 # Если paid=true, обрабатываем как успешный платеж
                 if payment_object.get("paid") is True:
-                    logger.info(f"YooKassa webhook: payment.waiting_for_capture with paid=true, processing as succeeded, payment_id={payment_object.get('id')}")
+                    logger.info(f"[YOOKASSA_WEBHOOK] payment.waiting_for_capture with paid=true, processing as succeeded, payment_id={payment_object.get('id')}")
                     
                     metadata = payment_object.get("metadata", {})
                     
@@ -2542,11 +2684,24 @@ def create_webhook_app(bot_controller_instance):
                     if metadata and bot is not None and payment_processor is not None:
                         loop = current_app.config.get('EVENT_LOOP')
                         if loop and loop.is_running():
-                            asyncio.run_coroutine_threadsafe(payment_processor(bot, metadata), loop)
+                            logger.info(f"[YOOKASSA_WEBHOOK] Submitting capture payment to event loop for payment_id={payment_id}")
+                            future = asyncio.run_coroutine_threadsafe(payment_processor(bot, metadata), loop)
+                            
+                            try:
+                                future.result(timeout=5)
+                                logger.info(f"[YOOKASSA_WEBHOOK] Capture payment processing completed for payment_id={payment_id}")
+                            except Exception as future_error:
+                                logger.error(
+                                    f"[YOOKASSA_WEBHOOK] Capture payment processing failed for payment_id={payment_id}: {future_error}",
+                                    exc_info=True
+                                )
                         else:
-                            logger.error("YooKassa webhook: Event loop is not available!")
+                            logger.error(
+                                f"[YOOKASSA_WEBHOOK] CRITICAL: Event loop not available for capture payment_id={payment_id}!"
+                            )
+                            logger.error(f"[YOOKASSA_WEBHOOK] FALLBACK DATA: payment_id={payment_id}, metadata={metadata}")
                 else:
-                    logger.info(f"YooKassa webhook: payment.waiting_for_capture with paid=false, payment_id={payment_object.get('id')}")
+                    logger.info(f"[YOOKASSA_WEBHOOK] payment.waiting_for_capture with paid=false, payment_id={payment_object.get('id')}")
             
             elif event_type == "payment.canceled":
                 # Платеж отменен
@@ -2592,21 +2747,43 @@ def create_webhook_app(bot_controller_instance):
                     return 'OK', 200
 
                 parts = payload_string.split(':')
-                if len(parts) < 9:
-                    logger.error(f"cryptobot Webhook: Invalid payload format received: {payload_string}")
+                
+                # Поддержка старого формата (9 частей) и нового (11 частей)
+                if len(parts) == 9:
+                    # Старый формат без days/hours
+                    logger.info("CryptoBot Webhook: Processing old payload format (without days/hours)")
+                    metadata = {
+                        "user_id": parts[0],
+                        "months": parts[1],
+                        "days": 0,
+                        "hours": 0,
+                        "price": parts[2],
+                        "action": parts[3],
+                        "key_id": parts[4],
+                        "host_name": parts[5],
+                        "plan_id": parts[6],
+                        "customer_email": parts[7] if parts[7] != 'None' else None,
+                        "payment_method": parts[8]
+                    }
+                elif len(parts) == 11:
+                    # Новый формат с days/hours
+                    logger.info("CryptoBot Webhook: Processing new payload format (with days/hours)")
+                    metadata = {
+                        "user_id": parts[0],
+                        "months": parts[1],
+                        "days": parts[2],
+                        "hours": parts[3],
+                        "price": parts[4],
+                        "action": parts[5],
+                        "key_id": parts[6],
+                        "host_name": parts[7],
+                        "plan_id": parts[8],
+                        "customer_email": parts[9] if parts[9] != 'None' else None,
+                        "payment_method": parts[10]
+                    }
+                else:
+                    logger.error(f"cryptobot Webhook: Invalid payload format received (expected 9 or 11 parts, got {len(parts)}): {payload_string}")
                     return 'Error', 400
-
-                metadata = {
-                    "user_id": parts[0],
-                    "months": parts[1],
-                    "price": parts[2],
-                    "action": parts[3],
-                    "key_id": parts[4],
-                    "host_name": parts[5],
-                    "plan_id": parts[6],
-                    "customer_email": parts[7] if parts[7] != 'None' else None,
-                    "payment_method": parts[8]
-                }
                 
                 bot = _bot_controller.get_bot_instance()
                 loop = current_app.config.get('EVENT_LOOP')

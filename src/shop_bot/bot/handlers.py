@@ -4821,6 +4821,8 @@ def get_user_router() -> Router:
                 discount_amount = (base_price * discount_percentage / 100).quantize(Decimal("0.01"))
                 price_rub = base_price - discount_amount
         months = plan['months']
+        days = int(plan.get('days') or 0)
+        hours = int(plan.get('hours') or 0)
         
         try:
             exchange_rate = await get_usdt_rub_rate()
@@ -4839,7 +4841,7 @@ def get_user_router() -> Router:
 
             crypto = CryptoPay(cryptobot_token)
             
-            payload_data = f"{user_id}:{months}:{float(price_rub)}:{action}:{key_id}:{host_name}:{plan_id}:{customer_email}:CryptoBot"
+            payload_data = f"{user_id}:{months}:{days}:{hours}:{float(price_rub)}:{action}:{key_id}:{host_name}:{plan_id}:{customer_email}:CryptoBot"
 
             invoice = await crypto.create_invoice(
                 currency_type="fiat",
@@ -4896,6 +4898,8 @@ def get_user_router() -> Router:
                 discount_amount = (base_price * discount_percentage / 100).quantize(Decimal("0.01"))
                 price_rub_decimal = base_price - discount_amount
         months = plan['months']
+        days = int(plan.get('days') or 0)
+        hours = int(plan.get('hours') or 0)
         
         final_price_float = float(price_rub_decimal)
 
@@ -4903,6 +4907,8 @@ def get_user_router() -> Router:
             user_id=callback.from_user.id,
             price=final_price_float,
             months=plan['months'],
+            days=days,
+            hours=hours,
             host_name=data.get('host_name'),
             state_data=data
         )
@@ -5421,14 +5427,17 @@ def get_user_router() -> Router:
             key_id = data.get('key_id')
             host_name = data.get('host_name')
             plan_id = data.get('plan_id')
-            months = int(data.get('months') or 0) or int((get_plan_by_id(plan_id) or {}).get('months') or 0)
+            plan = get_plan_by_id(plan_id)
+            months = int(data.get('months') or 0) or int((plan or {}).get('months') or 0)
+            days = int((plan or {}).get('days') or 0)
+            hours = int((plan or {}).get('hours') or 0)
             # Цена к списанию: учитываем возможную скидку, если была рассчитана
             # Используем явную проверку на None, чтобы корректно обрабатывать случай когда final_price = 0
             final_price_from_state = data.get('final_price')
             if final_price_from_state is not None:
                 price = float(final_price_from_state)
             else:
-                price = float((get_plan_by_id(plan_id) or {}).get('price') or 0)
+                price = float((plan or {}).get('price') or 0)
 
             from shop_bot.data_manager.database import get_user_balance, add_to_user_balance
             current_balance = get_user_balance(user_id)
@@ -5446,6 +5455,8 @@ def get_user_router() -> Router:
             metadata = {
                 "user_id": user_id,
                 "months": months,
+                "days": days,
+                "hours": hours,
                 "price": price,
                 "action": action,
                 "key_id": key_id,
@@ -6162,7 +6173,7 @@ async def notify_admin_of_purchase(bot: Bot, metadata: dict):
     except Exception as e:
         logger.error(f"Failed to send admin notification for purchase: {e}", exc_info=True)
 
-async def _create_heleket_payment_request(user_id: int, price: float, months: int, host_name: str, state_data: dict) -> str | None:
+async def _create_heleket_payment_request(user_id: int, price: float, months: int, days: int, hours: int, host_name: str, state_data: dict) -> str | None:
     merchant_id = get_setting("heleket_merchant_id")
     api_key = get_setting("heleket_api_key")
     bot_username = get_setting("telegram_bot_username")
@@ -6177,7 +6188,7 @@ async def _create_heleket_payment_request(user_id: int, price: float, months: in
     order_id = str(uuid.uuid4())
     
     metadata = {
-        "user_id": user_id, "months": months, "price": float(price),
+        "user_id": user_id, "months": months, "days": days, "hours": hours, "price": float(price),
         "action": state_data.get('action'), "key_id": state_data.get('key_id'),
         "host_name": host_name, "plan_id": state_data.get('plan_id'),
         "customer_email": state_data.get('customer_email'), "payment_method": "Heleket",

@@ -257,6 +257,26 @@ extra_hours = hours if hours > 0 else (int(plan.get('hours') or 0) if plan else 
 days_to_add = months * 30 + extra_days + (extra_hours / 24)
 ```
 
+## Дополнительные исправления (09.11.2025 16:15)
+
+После первого исправления были обнаружены еще 3 метода оплаты без поддержки days/hours:
+
+### CryptoBot
+- ✅ `handlers.py:4823-4825` - добавлены days/hours при создании платежа
+- ✅ `handlers.py:4844` - payload теперь содержит days/hours
+- ✅ `app.py:2749-2786` - webhook поддерживает старый (9 частей) и новый (11 частей) форматы
+- ✅ Обратная совместимость: старые платежи обрабатываются с days=0, hours=0
+
+### Heleket
+- ✅ `handlers.py:4900-4902` - добавлены days/hours при создании платежа
+- ✅ `handlers.py:6171` - обновлена сигнатура `_create_heleket_payment_request`
+- ✅ `handlers.py:6186` - metadata содержит days/hours
+- ✅ Обратная совместимость: JSON metadata автоматически поддерживает fallback
+
+### Balance (покупка из баланса)
+- ✅ `handlers.py:5430-5433` - извлечение days/hours из плана
+- ✅ `handlers.py:5458-5459` - metadata содержит days/hours
+
 ## История изменений
 
 | Дата       | Изменение                                    |
@@ -265,5 +285,6 @@ days_to_add = months * 30 + extra_days + (extra_hours / 24)
 | 09.11.2025 | Добавлен fallback механизм для event loop    |
 | 09.11.2025 | Добавлена кнопка "Повторить обработку"      |
 | 09.11.2025 | Созданы скрипты для диагностики и исправления |
-| 09.11.2025 15:54 | Исправлена передача days/hours для всех методов оплаты |
+| 09.11.2025 15:54 | Исправлена передача days/hours для YooKassa, Stars, TON |
+| 09.11.2025 16:15 | Исправлена передача days/hours для CryptoBot, Heleket, Balance |
 

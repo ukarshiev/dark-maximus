@@ -1,3 +1,14 @@
+3.23.1 – 09.11.2025 16:02
+- [BUGFIX] (Payment Processing) handlers.py, app.py — Исправлена передача days/hours для CryptoBot, Heleket и Balance
+  - ✅ CryptoBot: Добавлены days/hours в payload, webhook поддерживает старый и новый форматы
+  - ✅ Heleket: Обновлена сигнатура _create_heleket_payment_request с days/hours
+  - ✅ Balance: Добавлено извлечение days/hours из плана при покупке из баланса
+  - ✅ Обратная совместимость: старые платежи обрабатываются с fallback на plan или 0
+- [IMPROVEMENT] (CryptoBot Webhook) app.py — Добавлена поддержка старого формата payload (9 частей) и нового (11 частей)
+  - ✅ Старые платежи: используют days=0, hours=0 по умолчанию
+  - ✅ Новые платежи: используют days/hours из payload
+- [DOCS] (Troubleshooting) yookassa-stuck-payments.md — Обновлена документация по CryptoBot, Heleket и Balance
+
 3.23.0 – 09.11.2025 15:54
 - [FEATURE] (Payment Processing) handlers.py — Добавлена поддержка дней и часов в metadata для всех методов оплаты
   - ✅ YooKassa: Теперь передает days/hours в payment_payload и transaction metadata
