@@ -52,6 +52,12 @@ block content %}
 										<i class="fas fa-eye"></i>
 										<span>Открыть</span>
 									</button>
+									{% if tx.status == 'pending' and tx.payment_method == 'YooKassa' and tx.payment_id %}
+									<button type="button" class="kebab-item" onclick="closeKebabMenu('kebab-tx-{{ tx.id }}'); retryPaymentProcessing('{{ tx.payment_id }}')" title="Повторить обработку зависшего платежа">
+										<i class="fas fa-redo-alt"></i>
+										<span>Повторить обработку</span>
+									</button>
+									{% endif %}
 									<button type="button" class="kebab-item" onclick="closeKebabMenu('kebab-tx-{{ tx.id }}'); openTopupBalanceModal({{ tx.user_id }}, '{{ tx.username or 'N/A' }}')" title="Пополнить баланс пользователя">
 										<i class="fas fa-plus-circle"></i>
 										<span>Пополнить баланс</span>
@@ -359,6 +365,71 @@ function copyPaymentLink(link) {
     }).catch(err => {
         console.error('Ошибка копирования: ', err);
         alert('Не удалось скопировать ссылку');
+    });
+}
+
+// Функция для повторной обработки платежа
+function retryPaymentProcessing(paymentId) {
+    if (!confirm('Повторить обработку платежа ' + paymentId + '?\n\nЭто попытается выдать ключ пользователю повторно.')) {
+        return;
+    }
+    
+    // Показываем индикатор загрузки
+    const notification = document.createElement('div');
+    notification.id = 'retry-notification';
+    notification.textContent = 'Обработка платежа...';
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #007bff;
+        color: white;
+        padding: 15px 25px;
+        border-radius: 5px;
+        z-index: 10000;
+        font-size: 14px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    `;
+    document.body.appendChild(notification);
+    
+    // Отправляем запрос на повторную обработку
+    fetch('/transactions/retry/' + paymentId, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        const notif = document.getElementById('retry-notification');
+        if (data.success) {
+            notif.style.background = '#28a745';
+            notif.textContent = data.message;
+            // Перезагружаем страницу через 2 секунды
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            notif.style.background = '#dc3545';
+            notif.textContent = 'Ошибка: ' + data.message;
+            // Удаляем уведомление через 5 секунд
+            setTimeout(() => {
+                if (document.body.contains(notif)) {
+                    document.body.removeChild(notif);
+                }
+            }, 5000);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        const notif = document.getElementById('retry-notification');
+        notif.style.background = '#dc3545';
+        notif.textContent = 'Ошибка соединения';
+        setTimeout(() => {
+            if (document.body.contains(notif)) {
+                document.body.removeChild(notif);
+            }
+        }, 3000);
     });
 }
 </script>
