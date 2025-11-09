@@ -4527,6 +4527,8 @@ def get_user_router() -> Router:
             return
 
         months = plan['months']
+        days = int(plan.get('days') or 0)
+        hours = int(plan.get('hours') or 0)
         user_id = callback.from_user.id
 
         # Проверяем, если цена 0 рублей - обрабатываем бесплатно
@@ -4732,7 +4734,7 @@ def get_user_router() -> Router:
                 "description": "Подписка на сервис",
                 "test": yookassa_test_mode,  # Критически важно для определения режима YooKassa
                 "metadata": {
-                    "user_id": user_id, "months": months, "price": price_float_for_metadata, 
+                    "user_id": user_id, "months": months, "days": days, "hours": hours, "price": price_float_for_metadata, 
                     "action": action, "key_id": key_id, "host_name": host_name,
                     "plan_id": plan_id, "customer_email": customer_email,
                     "payment_method": "YooKassa", "promo_code": data.get('promo_code')
@@ -4747,6 +4749,8 @@ def get_user_router() -> Router:
             payment_metadata = {
                 "user_id": user_id,
                 "months": months,
+                "days": days,
+                "hours": hours,
                 "price": price_float_for_metadata,
                 "action": action,
                 "key_id": key_id,
@@ -5113,7 +5117,7 @@ def get_user_router() -> Router:
         
         payment_id = str(uuid.uuid4())
         metadata = {
-            "user_id": user_id, "months": plan['months'], "price": float(price_rub),
+            "user_id": user_id, "months": plan['months'], "days": int(plan.get('days') or 0), "hours": int(plan.get('hours') or 0), "price": float(price_rub),
             "action": data.get('action'), "key_id": data.get('key_id'),
             "host_name": data.get('host_name'), "plan_id": data.get('plan_id'),
             "plan_name": plan['plan_name'],  # Добавляем название плана
@@ -5203,6 +5207,8 @@ def get_user_router() -> Router:
                 return
 
             months = int(data.get('months') or 0) or int((plan or {}).get('months') or 0)
+            days = int(plan.get('days') or 0)
+            hours = int(plan.get('hours') or 0)
             # Используем явную проверку на None, чтобы корректно обрабатывать случай когда final_price = 0
             final_price_from_state = data.get('final_price')
             if final_price_from_state is not None:
@@ -5216,6 +5222,8 @@ def get_user_router() -> Router:
                 metadata = {
                     "user_id": user_id,
                     "months": months,
+                    "days": days,
+                    "hours": hours,
                     "price": 0.0,
                     "action": action,
                     "key_id": key_id,
@@ -5248,6 +5256,8 @@ def get_user_router() -> Router:
                 stars_metadata={
                     "user_id": user_id,
                     "months": months,
+                    "days": days,
+                    "hours": hours,
                     "action": action,
                     "key_id": key_id,
                     "host_name": host_name,
@@ -6299,6 +6309,8 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
         user_id = _to_int(metadata.get('user_id'))
         operation = metadata.get('operation')
         months = _to_int(metadata.get('months'))
+        days = _to_int(metadata.get('days', 0))
+        hours = _to_int(metadata.get('hours', 0))
         price = _to_float(metadata.get('price'))
         action = metadata.get('action')
         key_id = _to_int(metadata.get('key_id'))
@@ -6370,14 +6382,22 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
         
         # Учитываем дополнительные дни и трафик
         plan = get_plan_by_id(plan_id)
-        extra_days = int(plan.get('days') or 0) if plan else 0
-        extra_hours = int(plan.get('hours') or 0) if plan else 0
+        
+        # Используем days/hours из metadata (если есть), иначе из плана (fallback для старых платежей)
+        extra_days = days if days > 0 else (int(plan.get('days') or 0) if plan else 0)
+        extra_hours = hours if hours > 0 else (int(plan.get('hours') or 0) if plan else 0)
+        
         if extra_hours < 0:
             extra_hours = 0
         if extra_hours > 24:
             extra_hours = 24
         traffic_gb = float(plan.get('traffic_gb') or 0) if plan else 0.0
         days_to_add = months * 30 + extra_days + (extra_hours / 24)
+        
+        logger.info(
+            f"[PAYMENT_PROCESSING] Calculating days_to_add: months={months}, days={extra_days}, "
+            f"hours={extra_hours}, total_days={days_to_add:.2f}"
+        )
         if not host_name:
             await processing_message.edit_text("❌ Ошибка: не указан сервер.")
             return
@@ -6515,6 +6535,8 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
         user_id = _to_int(metadata.get('user_id'))
         operation = metadata.get('operation')
         months = _to_int(metadata.get('months'))
+        days = _to_int(metadata.get('days', 0))
+        hours = _to_int(metadata.get('hours', 0))
         price = _to_float(metadata.get('price'))
         action = metadata.get('action')
         key_id = _to_int(metadata.get('key_id'))
@@ -6576,14 +6598,22 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
         
         # Учитываем дополнительные дни и трафик
         plan = get_plan_by_id(plan_id)
-        extra_days = int(plan.get('days') or 0) if plan else 0
-        extra_hours = int(plan.get('hours') or 0) if plan else 0
+        
+        # Используем days/hours из metadata (если есть), иначе из плана (fallback для старых платежей)
+        extra_days = days if days > 0 else (int(plan.get('days') or 0) if plan else 0)
+        extra_hours = hours if hours > 0 else (int(plan.get('hours') or 0) if plan else 0)
+        
         if extra_hours < 0:
             extra_hours = 0
         if extra_hours > 24:
             extra_hours = 24
         traffic_gb = float(plan.get('traffic_gb') or 0) if plan else 0.0
         days_to_add = months * 30 + extra_days + (extra_hours / 24)
+        
+        logger.info(
+            f"[PAYMENT_PROCESSING] Calculating days_to_add: months={months}, days={extra_days}, "
+            f"hours={extra_hours}, total_days={days_to_add:.2f}"
+        )
         if not host_name:
             await processing_message.edit_text("❌ Ошибка: не указан сервер.")
             return

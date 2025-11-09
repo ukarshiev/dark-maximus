@@ -1,3 +1,19 @@
+3.23.0 – 09.11.2025 15:54
+- [FEATURE] (Payment Processing) handlers.py — Добавлена поддержка дней и часов в metadata для всех методов оплаты
+  - ✅ YooKassa: Теперь передает days/hours в payment_payload и transaction metadata
+  - ✅ Stars: Добавлена передача days/hours в metadata и stars_metadata
+  - ✅ TON Connect: Добавлена передача days/hours в metadata
+  - ✅ Обработка платежей: Парсинг days/hours из metadata с fallback на текущий план
+  - ✅ ИСПРАВЛЕНО: Планы с months=0 (только дни/часы) теперь создают ключи с правильным сроком
+- [BUGFIX] (Payment Processing) handlers.py — Исправлена обработка планов содержащих только дни или часы
+  - ✅ План 58 (M:0 D:1 H:0): 1 день → раньше создавался на 0 дней
+  - ✅ План 60 (M:0 D:3 H:1): 3.04 дня → раньше создавался на 0 дней  
+  - ✅ План 61 (M:0 D:2 H:1): 2.04 дня → раньше создавался на 0 дней
+  - ✅ План 62 (M:0 D:0 H:1): 1 час → раньше создавался на 0 дней
+- [IMPROVEMENT] (Payment Processing) handlers.py — Улучшено логирование вычисления срока действия ключей
+  - ✅ Добавлен лог с подробностями: months, days, hours и итоговым total_days
+- [DOCS] (Troubleshooting) yookassa-stuck-payments.md — Обновлена документация по проблеме months=0
+
 3.22.6 – 08.11.2025 16:42
 - [BUGFIX] (.dockerignore) — Возвращены файлы `Dockerfile*` в контекст сборки контейнера
   - ✅ ИСПРАВЛЕНО: Кнопка «Ребилд без кеша» теперь видит все Dockerfile и выполняет `docker compose build` без ошибки «no such file or directory»
