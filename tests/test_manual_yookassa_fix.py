@@ -24,31 +24,52 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # ID платежа для обработки (можно переопределить через переменную окружения)
-PAYMENT_ID = os.getenv("PAYMENT_ID", "30a03e8b-000f-5001-9000-1a3cbd78f7de")
+PAYMENT_ID = os.getenv("PAYMENT_ID", "30a29228-000f-5000-b000-1091368acfc8")
 
 def get_payment_from_yookassa(payment_id: str) -> dict:
     """Получает данные платежа из Yookassa API"""
     logger.info(f"Получение данных платежа {payment_id} из Yookassa API...")
     
-    shop_id = get_setting("yookassa_shop_id")
-    secret_key = get_setting("yookassa_secret_key")
+    from yookassa import Configuration, Payment
     
-    if not shop_id or not secret_key:
-        raise ValueError("Yookassa credentials not configured!")
+    # Переинициализируем конфигурацию
+    yookassa_test_mode = get_setting("yookassa_test_mode") == "true"
     
-    response = requests.get(
-        f"https://api.yookassa.ru/v3/payments/{payment_id}",
-        auth=(shop_id, secret_key),
-        headers={'Content-Type': 'application/json'}
-    )
+    if yookassa_test_mode:
+        shop_id = (get_setting("yookassa_test_shop_id") or "").strip() or (get_setting("yookassa_shop_id") or "").strip()
+        secret_key = (get_setting("yookassa_test_secret_key") or "").strip() or (get_setting("yookassa_secret_key") or "").strip()
+        api_url = (get_setting("yookassa_test_api_url") or "").strip() or (get_setting("yookassa_api_url") or "").strip() or "https://api.test.yookassa.ru/v3"
+    else:
+        shop_id = (get_setting("yookassa_shop_id") or "").strip()
+        secret_key = (get_setting("yookassa_secret_key") or "").strip()
+        api_url = (get_setting("yookassa_api_url") or "").strip() or "https://api.yookassa.ru/v3"
     
-    if response.status_code != 200:
-        raise Exception(f"Failed to get payment: {response.status_code} - {response.text}")
+    Configuration.account_id = shop_id
+    Configuration.secret_key = secret_key
+    Configuration.api_url = api_url
     
-    payment_data = response.json()
-    logger.info(f"Платеж получен. Статус: {payment_data.get('status')}")
+    logger.info(f"YooKassa config: test_mode={yookassa_test_mode}, api_url={api_url}")
     
-    return payment_data
+    try:
+        payment = Payment.find_one(payment_id)
+        payment_data = {
+            "id": payment.id,
+            "status": payment.status,
+            "paid": payment.paid,
+            "test": payment.test if hasattr(payment, 'test') else False,
+            "amount": {
+                "value": payment.amount.value,
+                "currency": payment.amount.currency
+            },
+            "metadata": payment.metadata if hasattr(payment, 'metadata') else {},
+            "authorization_details": payment.authorization_details.__dict__ if hasattr(payment, 'authorization_details') and payment.authorization_details else {},
+            "payment_method": payment.payment_method.__dict__ if hasattr(payment, 'payment_method') and payment.payment_method else {}
+        }
+        logger.info(f"Платеж получен. Статус: {payment_data.get('status')}, paid: {payment_data.get('paid')}, test: {payment_data.get('test')}")
+        return payment_data
+    except Exception as e:
+        logger.error(f"Ошибка при получении платежа через SDK: {e}", exc_info=True)
+        raise
 
 def prepare_metadata(payment_data: dict) -> dict:
     """Подготавливает metadata для обработчика"""
@@ -109,8 +130,19 @@ def main():
         payment_data = get_payment_from_yookassa(PAYMENT_ID)
         
         # Проверяем статус
-        if payment_data.get('status') != 'succeeded':
-            logger.warning(f"⚠️  Платеж не в статусе 'succeeded': {payment_data.get('status')}")
+        logger.info(f"Статус платежа: {payment_data.get('status')}, оплачен: {payment_data.get('paid')}")
+        
+        if payment_data.get('status') == 'pending' and not payment_data.get('paid'):
+            logger.warning("⚠️  Платеж в статусе 'pending' и не оплачен (paid=False)")
+            logger.warning("Это означает, что пользователь еще не оплатил платеж.")
+            logger.warning("Webhook придет только после оплаты.")
+            return
+        
+        if payment_data.get('status') != 'succeeded' and payment_data.get('status') != 'waiting_for_capture':
+            logger.warning(f"⚠️  Платеж не в статусе 'succeeded' или 'waiting_for_capture': {payment_data.get('status')}")
+            if payment_data.get('status') == 'canceled':
+                logger.error("❌ Платеж отменен")
+                return
             user_input = input("Продолжить обработку? (y/n): ")
             if user_input.lower() != 'y':
                 logger.info("Обработка отменена пользователем")
