@@ -1,6 +1,6 @@
 ﻿# Настройка YooKassa
 
-*Последнее обновление: 31.01.2025*
+*Последнее обновление: 10.11.2025*
 
 ## Обзор
 YooKassa — это платежная система для приема платежей банковскими картами и через СБП (Система быстрых платежей) в России.
@@ -195,6 +195,18 @@ python test_yookassa_live.py
 - API: `https://api.yookassa.ru/v3`
 - Подключение: Успешно
 - SSL: Включен для безопасности
+
+## Обработка ошибок SDK
+
+- Для перехвата исключений SDK используйте официальный модуль `yookassa.domain.exceptions`. Импорт выглядит так:
+
+  ```python
+  from yookassa.domain.exceptions import ApiError
+  ```
+
+- Такой импорт совпадает со структурой пакета, описанной в официальной документации YooKassa, и предотвращает ошибку `ModuleNotFoundError` после обновлений SDK.[^yookassa-sdks]
+
+[^yookassa-sdks]: [Использование серверных SDK YooKassa](https://yookassa.ru/developers/using-api/using-sdks)
 
 ## Webhook настройка
 

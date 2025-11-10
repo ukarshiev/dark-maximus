@@ -19,8 +19,8 @@ from typing import Optional, Tuple
 from flask import Flask, request, render_template, redirect, url_for, flash, session, current_app, jsonify, g
 # CSRF отключен
 from pathlib import Path
-from yookassa import Payment
-from yookassa.exceptions import ApiError
+from yookassa import Payment, Configuration
+from yookassa.domain.exceptions import ApiError
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -794,7 +794,6 @@ def create_webhook_app(bot_controller_instance):
         # НОВОЕ: Определяем активный режим YooKassa
         yookassa_active_mode = 'unknown'
         try:
-            from yookassa import Configuration
             active_shop_id = getattr(Configuration, 'account_id', None)
             db_shop_id = current_settings.get('yookassa_shop_id', '')
             db_test_shop_id = current_settings.get('yookassa_test_shop_id', '')
@@ -939,7 +938,6 @@ def create_webhook_app(bot_controller_instance):
         
         # КРИТИЧЕСКИ ВАЖНО: Переинициализируем Configuration после сохранения настроек YooKassa
         try:
-            from yookassa import Configuration
             from shop_bot.data_manager.database import get_setting
             
             yookassa_test_mode = get_setting("yookassa_test_mode") == "true"
