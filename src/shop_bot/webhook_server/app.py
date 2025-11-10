@@ -60,7 +60,7 @@ from shop_bot.data_manager.database import (
 )
 from shop_bot.data_manager.scheduler import send_subscription_notification
 from shop_bot.ton_monitor import start_ton_monitoring
-from shop_bot.utils.performance_monitor import get_performance_monitor, get_performance_report, measure_performance
+from shop_bot.utils.performance_monitor import get_performance_monitor, get_performance_report, measure_performance, measure_performance_sync
 from shop_bot.utils.datetime_utils import (
     ensure_isoformat_for_timezone,
     format_datetime_for_timezone,
@@ -117,6 +117,7 @@ def _ensure_host_metadata(metadata: dict | None, payment_id: str | None = None) 
     operation = str(metadata.get("operation") or metadata.get("action") or "").lower()
     host_name = metadata.get("host_name")
     host_code = metadata.get("host_code")
+    plan_id = metadata.get("plan_id")
 
     if not host_name and not host_code:
         # Для пополнений и других операций без привязки к хосту разрешаем отсутствие данных
@@ -124,20 +125,76 @@ def _ensure_host_metadata(metadata: dict | None, payment_id: str | None = None) 
             return True, None
 
     host_record = None
-    if host_name:
-        host_record = get_host(host_name)
+    search_attempts = []
+    
+    # ИСПРАВЛЕНИЕ: Изменен приоритет - сначала ищем по host_code (более надежно)
+    if host_code:
+        # Очищаем host_code от эмодзи перед поиском
+        import re
+        cleaned_host_code = re.sub(r'[\U0001F300-\U0001F9FF\U00002600-\U000027BF\U0001F600-\U0001F64F\U0001F680-\U0001F6FF]', '', str(host_code))
+        cleaned_host_code = re.sub(r'[^\w\s-]', '', cleaned_host_code).replace(' ', '').lower()
+        
+        try:
+            host_record = get_host_by_code(cleaned_host_code)
+            if host_record:
+                search_attempts.append(f"host_code={cleaned_host_code} (found)")
+                metadata["host_name"] = host_record.get("host_name")
+                metadata["host_code"] = host_record.get("host_code")  # Обновляем на правильный код
+                logger.info(
+                    f"[YOOKASSA_WEBHOOK] Host found by host_code: {cleaned_host_code} -> {host_record.get('host_name')}"
+                )
+        except Exception as e:
+            search_attempts.append(f"host_code={cleaned_host_code} (error: {e})")
+            logger.warning(f"[YOOKASSA_WEBHOOK] Error searching by host_code {cleaned_host_code}: {e}")
 
-    if not host_record and host_code:
-        host_record = get_host_by_code(str(host_code))
-        if host_record:
-            metadata["host_name"] = host_record.get("host_name")
+    # Если не нашли по host_code, ищем по host_name
+    if not host_record and host_name:
+        try:
+            host_record = get_host(host_name)
+            if host_record:
+                search_attempts.append(f"host_name={host_name} (found)")
+                # Убеждаемся, что host_code есть в metadata
+                if not metadata.get("host_code") and host_record.get("host_code"):
+                    metadata["host_code"] = host_record.get("host_code")
+                logger.info(
+                    f"[YOOKASSA_WEBHOOK] Host found by host_name: {host_name} -> code={host_record.get('host_code')}"
+                )
+        except Exception as e:
+            search_attempts.append(f"host_name={host_name} (error: {e})")
+            logger.warning(f"[YOOKASSA_WEBHOOK] Error searching by host_name {host_name}: {e}")
+
+    # FALLBACK: Если хост не найден, пытаемся найти через план
+    if not host_record and plan_id:
+        try:
+            from shop_bot.data_manager.database import get_plan_by_id
+            plan = get_plan_by_id(plan_id)
+            if plan and plan.get('host_name'):
+                plan_host_name = plan.get('host_name')
+                host_record = get_host(plan_host_name)
+                if host_record:
+                    search_attempts.append(f"plan_id={plan_id}->host_name={plan_host_name} (found)")
+                    metadata["host_name"] = host_record.get("host_name")
+                    if host_record.get("host_code"):
+                        metadata["host_code"] = host_record.get("host_code")
+                    logger.info(
+                        f"[YOOKASSA_WEBHOOK] Host found via plan fallback: plan_id={plan_id} -> "
+                        f"host_name={plan_host_name}, host_code={host_record.get('host_code')}"
+                    )
+                else:
+                    search_attempts.append(f"plan_id={plan_id}->host_name={plan_host_name} (not found)")
+        except Exception as e:
+            search_attempts.append(f"plan_id={plan_id} (error: {e})")
+            logger.warning(f"[YOOKASSA_WEBHOOK] Error in plan fallback for plan_id {plan_id}: {e}")
 
     if not host_record:
         logger.error(
-            "[YOOKASSA_WEBHOOK] Host resolution failed: host_name=%s, host_code=%s, payment_id=%s",
+            "[YOOKASSA_WEBHOOK] Host resolution failed: host_name=%s, host_code=%s, plan_id=%s, payment_id=%s. "
+            "Search attempts: %s",
             host_name,
             host_code,
+            plan_id,
             payment_id,
+            ", ".join(search_attempts) if search_attempts else "none"
         )
         if payment_id:
             try:
@@ -2580,9 +2637,19 @@ def create_webhook_app(bot_controller_instance):
         flash("Тариф обновлен.", 'success')
         return redirect(url_for('settings_page', tab='servers'))
 
-    @flask_app.route('/yookassa-webhook', methods=['POST'])
-    @measure_performance("yookassa_webhook")
+    @flask_app.route('/yookassa-webhook', methods=['GET', 'POST'])
+    @measure_performance_sync("yookassa_webhook")
     def yookassa_webhook_handler():
+        # GET запрос для health check
+        if request.method == 'GET':
+            return jsonify({
+                'status': 'ok',
+                'endpoint': 'yookassa-webhook',
+                'methods': ['GET', 'POST'],
+                'message': 'YooKassa webhook endpoint is available'
+            }), 200
+        
+        # POST запрос для обработки webhook от YooKassa
         try:
             event_json = request.json
             event_type = event_json.get("event")
@@ -2634,24 +2701,47 @@ def create_webhook_app(bot_controller_instance):
             if event_type == "payment.succeeded":
                 # Проверяем, что платеж действительно оплачен
                 if payment_object.get("paid") is True:
+                    # ИСПРАВЛЕНИЕ: Используем metadata из транзакции в БД как основу
+                    # Это гарантирует наличие host_code, который был передан при создании платежа
+                    metadata = {}
+                    metadata_source = "webhook"
+                    
+                    if existing_transaction and existing_transaction.get('metadata'):
+                        # Используем metadata из БД как основу
+                        db_metadata = existing_transaction.get('metadata', {})
+                        if isinstance(db_metadata, dict):
+                            metadata = db_metadata.copy()
+                            metadata_source = "database"
+                            logger.info(
+                                f"[YOOKASSA_WEBHOOK] Using metadata from DB transaction for payment_id={payment_id}"
+                            )
+                    
+                    # Дополняем/перезаписываем данными из webhook payload
                     raw_metadata = payment_object.get("metadata")
                     if isinstance(raw_metadata, dict):
-                        metadata = raw_metadata.copy()
-                    else:
+                        # Обновляем metadata данными из webhook (могут быть более свежие значения)
+                        metadata.update(raw_metadata)
+                        if metadata_source == "database":
+                            metadata_source = "database+webhook"
+                        else:
+                            metadata_source = "webhook"
+                    elif raw_metadata:
                         logger.warning(
                             f"[YOOKASSA_WEBHOOK] Received metadata in unexpected format "
                             f"(type={type(raw_metadata).__name__}) for payment_id={payment_id}. "
-                            f"Fallback to empty dict."
+                            f"Using metadata from {'DB' if existing_transaction else 'empty dict'}."
                         )
                         if raw_metadata:
                             logger.warning(f"[YOOKASSA_WEBHOOK] RAW_METADATA_FALLBACK: {raw_metadata}")
-                        metadata = {}
                     
                     logger.info(
                         f"[YOOKASSA_WEBHOOK] Processing payment.succeeded: "
+                        f"metadata_source={metadata_source}, "
                         f"user_id={metadata.get('user_id')}, "
                         f"action={metadata.get('action')}, "
                         f"plan_id={metadata.get('plan_id')}, "
+                        f"host_code={metadata.get('host_code')}, "
+                        f"host_name={metadata.get('host_name')}, "
                         f"amount={payment_object.get('amount', {}).get('value')}"
                     )
                     
@@ -2665,12 +2755,13 @@ def create_webhook_app(bot_controller_instance):
                     payment_method = payment_object.get("payment_method", {})
                     payment_type = payment_method.get("type", "unknown")
                     
-                    # Обновляем метаданные с дополнительной информацией
+                    # Обновляем метаданные с дополнительной информацией от YooKassa
                     metadata.update({
                         "yookassa_payment_id": yookassa_payment_id,
                         "rrn": rrn,
                         "authorization_code": auth_code,
-                        "payment_type": payment_type
+                        "payment_type": payment_type,
+                        "payment_id": payment_id  # Добавляем payment_id для обновления транзакции
                     })
 
                     host_ok, _ = _ensure_host_metadata(metadata, payment_id)
@@ -2770,7 +2861,29 @@ def create_webhook_app(bot_controller_instance):
                     return 'OK', 200
 
                 payment_data_for_processing = capture_payload or payment_object
-                metadata = payment_data_for_processing.get("metadata") or payment_object.get("metadata") or {}
+                
+                # ИСПРАВЛЕНИЕ: Используем metadata из транзакции в БД как основу
+                metadata = {}
+                metadata_source = "webhook"
+                
+                if existing_transaction and existing_transaction.get('metadata'):
+                    # Используем metadata из БД как основу
+                    db_metadata = existing_transaction.get('metadata', {})
+                    if isinstance(db_metadata, dict):
+                        metadata = db_metadata.copy()
+                        metadata_source = "database"
+                        logger.info(
+                            f"[YOOKASSA_WEBHOOK] Using metadata from DB transaction for capture payment_id={yookassa_payment_id}"
+                        )
+                
+                # Дополняем данными из capture payload или webhook
+                webhook_metadata = payment_data_for_processing.get("metadata") or payment_object.get("metadata")
+                if isinstance(webhook_metadata, dict):
+                    metadata.update(webhook_metadata)
+                    if metadata_source == "database":
+                        metadata_source = "database+webhook"
+                    else:
+                        metadata_source = "webhook"
 
                 authorization_details = payment_data_for_processing.get("authorization_details", {})
                 rrn = authorization_details.get("rrn")
@@ -2779,11 +2892,19 @@ def create_webhook_app(bot_controller_instance):
                 payment_method = payment_data_for_processing.get("payment_method", {})
                 payment_type = payment_method.get("type", "unknown")
 
+                logger.info(
+                    f"[YOOKASSA_WEBHOOK] Processing captured payment: "
+                    f"metadata_source={metadata_source}, "
+                    f"host_code={metadata.get('host_code')}, "
+                    f"host_name={metadata.get('host_name')}"
+                )
+
                 metadata.update({
                     "yookassa_payment_id": yookassa_payment_id,
                     "rrn": rrn,
                     "authorization_code": auth_code,
-                    "payment_type": payment_type
+                    "payment_type": payment_type,
+                    "payment_id": yookassa_payment_id  # Добавляем payment_id для обновления транзакции
                 })
 
                 host_ok, _ = _ensure_host_metadata(metadata, payment_id)

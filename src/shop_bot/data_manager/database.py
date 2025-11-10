@@ -5357,9 +5357,15 @@ def add_new_key(user_id: int, host_name: str, xui_client_uuid: str, key_email: s
 
     try:
 
-        with sqlite3.connect(DB_FILE) as conn:
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
 
             cursor = conn.cursor()
+            
+            # Устанавливаем PRAGMA для предотвращения блокировок
+            try:
+                cursor.execute("PRAGMA busy_timeout=30000")
+            except sqlite3.Error as e:
+                logging.debug(f"Failed to set PRAGMA busy_timeout in add_new_key: {e}")
 
             from datetime import timezone, timedelta
             # Импортируем новые утилиты для работы с timezone

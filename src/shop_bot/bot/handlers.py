@@ -94,7 +94,13 @@ def _resolve_host_code(host_name: str | None) -> str:
             return str(host_record['host_code'])
     except Exception:
         pass
-    return str(host_name).replace(' ', '').lower()
+    # ИСПРАВЛЕНИЕ: Удаляем эмодзи и специальные символы из fallback
+    import re
+    # Удаляем все эмодзи (Unicode ranges для эмодзи) и оставляем только буквы, цифры, пробелы, дефисы
+    cleaned = re.sub(r'[\U0001F300-\U0001F9FF\U00002600-\U000027BF\U0001F600-\U0001F64F\U0001F680-\U0001F6FF]', '', str(host_name))
+    # Удаляем все остальные не-буквенно-цифровые символы кроме пробелов и дефисов
+    cleaned = re.sub(r'[^\w\s-]', '', cleaned)
+    return cleaned.replace(' ', '').lower()
 
 
 def _should_use_yookassa_stub() -> bool:
@@ -6487,6 +6493,9 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
     except (ValueError, TypeError) as e:
         logger.error(f"FATAL: Could not parse YooKassa metadata. Error: {e}. Metadata: {metadata}")
         return
+
+    # Импортируем функции для работы с планами и хостами
+    from shop_bot.data_manager.database import get_plan_by_id, get_host
 
     # Если host_code нет в metadata, получаем из хоста по host_name из плана
     if not host_code and plan_id:

@@ -393,6 +393,44 @@ def measure_performance(operation_name: str):
         return wrapper
     return decorator
 
+# Синхронная версия декоратора для Flask endpoints
+def measure_performance_sync(operation_name: str):
+    """Синхронная версия декоратора для Flask endpoints"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            start_time = time.time()
+            success = True
+            error = None
+            try:
+                result = func(*args, **kwargs)
+                return result
+            except Exception as e:
+                success = False
+                error = str(e)
+                raise
+            finally:
+                duration = time.time() - start_time
+                # Записываем метрику асинхронно через event loop если доступен
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        monitor = get_performance_monitor()
+                        asyncio.run_coroutine_threadsafe(
+                            monitor.record_metric(
+                                operation=operation_name,
+                                duration=duration,
+                                user_id=None,
+                                success=success,
+                                error=error
+                            ),
+                            loop
+                        )
+                except Exception:
+                    pass  # Игнорируем ошибки мониторинга
+        return wrapper
+    return decorator
+
 # Функция для периодической очистки старых метрик
 async def start_metrics_cleanup():
     """Запуск периодической очистки метрик.
