@@ -1,4 +1,4 @@
-> Обновлено: 24.09.2025
+> Обновлено: 10.11.2025
 
 # API: Повторная отправка уведомления
 
@@ -44,7 +44,7 @@
 
 ## Пример CURL
 ```bash
-curl -X POST "http://localhost:1488/resend-notification/123" \
+curl -X POST "http://localhost:50000/resend-notification/123" \
   -b "session=<admin-session-cookie>"
 ```
 

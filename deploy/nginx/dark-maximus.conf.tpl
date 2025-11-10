@@ -1,6 +1,6 @@
 # Upstream серверы для Docker контейнеров (localhost)
 upstream bot_backend {
-    server 127.0.0.1:1488;
+    server 127.0.0.1:50000;
     keepalive 32;
 }
 

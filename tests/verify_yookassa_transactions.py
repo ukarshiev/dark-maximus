@@ -81,7 +81,7 @@ def verify_yookassa_transactions():
         print("="*60)
         print(f"\n[OK] Найдено {len(yookassa_txs)} транзакций YooKassa!")
         print(f"\nЭти транзакции должны быть видны в веб-интерфейсе:")
-        print(f"  http://localhost:1488/transactions")
+        print(f"  http://localhost:50000/transactions")
         print(f"\nПроверьте:")
         print(f"  1. Транзакции отображаются в списке")
         print(f"  2. Payment Method = 'YooKassa'")

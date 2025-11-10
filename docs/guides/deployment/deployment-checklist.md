@@ -1,6 +1,6 @@
 # ✅ Чеклист развертывания Dark Maximus
 
-> Обновлено: 17.01.2025  
+> Обновлено: 10.11.2025  
 > Версия: 2.71.0
 
 ## 📋 Содержание
@@ -52,7 +52,7 @@ help.dark-maximus.com        → IP_СЕРВЕРА
   - `22` (SSH)
   - `80` (HTTP для Let's Encrypt)
   - `443` (HTTPS)
-  - `1488` (основной бот)
+  - `50000` (основной бот)
 - [ ] **НЕ нужно** открывать порты 3001 и 3002 (они доступны только через localhost)
 
 ### 4. Подготовка сервера
@@ -68,7 +68,7 @@ sudo apt install -y curl wget git unzip software-properties-common
 sudo ufw allow ssh
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
-sudo ufw allow 1488/tcp
+sudo ufw allow 50000/tcp
 sudo ufw --force enable
 ```
 
@@ -101,7 +101,7 @@ docker compose ps
 
 # Ожидаемый результат:
 # NAME                      STATUS         PORTS
-# dark-maximus-bot          Up X seconds   0.0.0.0:1488->1488/tcp
+# dark-maximus-bot          Up X seconds   0.0.0.0:50000->50000/tcp
 # dark-maximus-docs         Up X seconds   0.0.0.0:3001->8080/tcp
 # dark-maximus-codex-docs   Up X seconds   0.0.0.0:3002->3000/tcp
 ```

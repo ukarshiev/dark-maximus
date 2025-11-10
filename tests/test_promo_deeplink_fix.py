@@ -68,7 +68,7 @@ def test_promo_code_exists():
     
     if not promo:
         print("\n[ERROR] ОШИБКА: Промокод FINALPROM не найден в базе данных!")
-        print("Создайте промокод FINALPROM через веб-интерфейс на http://localhost:1488/promo-codes")
+        print("Создайте промокод FINALPROM через веб-интерфейс на http://localhost:50000/promo-codes")
         return False
     
     print(f"\nПромокод найден:")
@@ -107,7 +107,7 @@ def test_group_exists():
             
             if not group:
                 print("\n[ERROR] ОШИБКА: Группа 'family' не найдена в базе данных!")
-                print("Создайте группу 'family' через веб-интерфейс на http://localhost:1488/users")
+                print("Создайте группу 'family' через веб-интерфейс на http://localhost:50000/users")
                 return False
             
             print(f"\nГруппа найдена:")

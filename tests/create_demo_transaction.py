@@ -123,7 +123,7 @@ def create_demo_transaction():
     print(f"  Payment ID: {payment_id}")
     print(f"  Status: paid")
     print(f"\nПроверьте транзакцию в веб-интерфейсе:")
-    print(f"  http://localhost:1488/transactions")
+    print(f"  http://localhost:50000/transactions")
     print(f"\nТранзакция должна быть видна в списке с:")
     print(f"  - Payment Method: YooKassa")
     print(f"  - Status: paid")

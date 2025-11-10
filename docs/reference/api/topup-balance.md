@@ -1,4 +1,4 @@
-> Обновлено: 24.09.2025
+> Обновлено: 10.11.2025
 
 # API: Пополнение баланса вручную
 
@@ -44,7 +44,7 @@
 
 ### CURL
 ```bash
-curl -X POST "http://localhost:1488/api/topup-balance" \
+curl -X POST "http://localhost:50000/api/topup-balance" \
   -H "Content-Type: application/json" \
   -b "session=<admin-session-cookie>" \
   -d '{"user_id":123456789, "amount":300}'

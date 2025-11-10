@@ -118,7 +118,7 @@ if ! grep -q "upstream bot_backend" /etc/nginx/sites-available/dark-maximus 2>/d
     cat > /etc/nginx/sites-available/dark-maximus << 'EOF'
 # Upstream серверы для Docker контейнеров (localhost)
 upstream bot_backend {
-    server 127.0.0.1:1488;
+    server 127.0.0.1:50000;
     keepalive 32;
 }
 
@@ -260,14 +260,14 @@ fi
 
 # Проверяем, что контейнеры запущены
 echo -e "${YELLOW}Проверка запущенных контейнеров...${NC}"
-if ! nc -z 127.0.0.1 1488 2>/dev/null; then
+if ! nc -z 127.0.0.1 50000 2>/dev/null; then
     echo -e "${YELLOW}⚠️  Контейнеры не запущены. Запускаем...${NC}"
     cd "$PROJECT_DIR"
     ${DC[@]} up -d
     
     # Ждем запуска контейнеров
     echo -e "${YELLOW}Ожидание запуска контейнеров...${NC}"
-    timeout 120 bash -c 'until nc -z 127.0.0.1 1488; do sleep 2; done' || {
+    timeout 120 bash -c 'until nc -z 127.0.0.1 50000; do sleep 2; done' || {
         echo -e "${RED}❌ Bot сервис не запустился в течение 2 минут${NC}"
         ${DC[@]} logs bot
         exit 1

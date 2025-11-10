@@ -1,6 +1,7 @@
 # Анализ deeplink ссылки с промокодом TESTSKIDKI50
 
 **Дата анализа:** 01.11.2025 03:13  
+**Дата обновления:** 10.11.2025  
 **Ссылка:** `https://t.me/darkmaxi_vpn_bot?start=eyJnIjoiZnJpZW5kcyIsInAiOiJURVNUU0tJREtJNTAifQ`
 
 ## Параметры ссылки
@@ -109,7 +110,7 @@
 
 Если вы хотите протестировать 50% скидку, создайте новый промокод через веб-интерфейс:
 
-**URL:** `http://localhost:1488/promo-codes`
+**URL:** `http://localhost:50000/promo-codes`
 
 **Параметры для создания:**
 - **Код промокода:** `TEST50`

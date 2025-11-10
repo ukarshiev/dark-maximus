@@ -1,6 +1,6 @@
 # 🔧 Продвинутая настройка Dark Maximus
 
-> Обновлено: 17.01.2025  
+> Обновлено: 10.11.2025  
 > Версия: 2.71.0
 
 ## 📋 Содержание
@@ -31,8 +31,8 @@ Dark Maximus состоит из трех основных Docker контейн
            │                    │                    │
            ▼                    ▼                    ▼
 ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│ localhost:3001  │  │ localhost:3002  │  │ localhost:1488  │
-│   docs:80       │  │ codex-docs:3000 │  │    bot:1488     │
+│ localhost:3001  │  │ localhost:3002  │  │ localhost:50000 │
+│   docs:80       │  │ codex-docs:3000 │  │    bot:50000    │
 │   (nginx)       │  │   (Express)     │  │   (Python)      │
 └─────────────────┘  └─────────────────┘  └─────────────────┘
 ```
@@ -212,7 +212,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/panel.your-domain.com/privkey.pem;
     
     location / {
-        proxy_pass http://127.0.0.1:1488;
+        proxy_pass http://127.0.0.1:50000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -402,7 +402,7 @@ fi
 services:
   bot:
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:1488/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:50000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -552,9 +552,9 @@ services:
 # nginx.conf
 upstream bot_backend {
     least_conn;
-    server bot_1:1488;
-    server bot_2:1488;
-    server bot_3:1488;
+    server bot_1:50000;
+    server bot_2:50000;
+    server bot_3:50000;
 }
 
 server {
@@ -581,7 +581,7 @@ sudo nano /etc/fail2ban/jail.d/dark-maximus.conf
 ```ini
 [dark-maximus]
 enabled = true
-port = 1488,443
+port = 50000,443
 filter = dark-maximus
 logpath = /opt/dark-maximus/logs/application.log
 maxretry = 5
@@ -600,7 +600,7 @@ sudo ufw default allow outgoing
 sudo ufw allow ssh
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
-sudo ufw allow 1488/tcp
+sudo ufw allow 50000/tcp
 
 # Включение UFW
 sudo ufw --force enable

@@ -131,7 +131,7 @@ def create_yookassa_transaction():
                 print(f"  Status: paid")
                 print(f"  Payment Method: YooKassa")
                 print(f"\nПроверьте транзакцию в веб-интерфейсе:")
-                print(f"  http://localhost:1488/transactions")
+                print(f"  http://localhost:50000/transactions")
                 print(f"\nТранзакция должна быть видна в списке!")
                 
                 return transaction_id
@@ -153,7 +153,7 @@ if __name__ == "__main__":
         print("\n" + "="*60)
         print("УСПЕШНО ЗАВЕРШЕНО")
         print("="*60)
-        print("\nТеперь откройте http://localhost:1488/transactions")
+        print("\nТеперь откройте http://localhost:50000/transactions")
         print("и проверьте, что транзакция YooKassa видна в списке!")
     else:
         print("\n[ERROR] Не удалось создать транзакцию")

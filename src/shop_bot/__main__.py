@@ -134,12 +134,12 @@ def main():
             loop.add_signal_handler(sig, lambda sig=sig: asyncio.create_task(shutdown(sig, loop)))
         
         flask_thread = threading.Thread(
-            target=lambda: flask_app.run(host='0.0.0.0', port=1488, use_reloader=False, debug=False),
+            target=lambda: flask_app.run(host='0.0.0.0', port=50000, use_reloader=False, debug=False),
             daemon=True
         )
         flask_thread.start()
         
-        logger.info("Flask server started in a background thread on http://0.0.0.0:1488")
+        logger.info("Flask server started in a background thread on http://0.0.0.0:50000")
         
         # Автозапуск ботов при старте приложения (без захода на панель)
         try:

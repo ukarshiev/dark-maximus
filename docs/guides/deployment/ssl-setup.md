@@ -1,6 +1,6 @@
 # 🔒 Настройка SSL для Dark Maximus
 
-> Обновлено: 17.01.2025  
+> Обновлено: 10.11.2025  
 > Версия: 2.71.0
 
 ## 📋 Содержание
@@ -153,7 +153,7 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
 
     location / {
-        proxy_pass http://127.0.0.1:1488;
+        proxy_pass http://127.0.0.1:50000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

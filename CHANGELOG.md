@@ -1,3 +1,8 @@
+4.0.0 – 10.11.2025 13:28
+- [Major] (Infrastructure) docker-compose.yml, install.sh, nginx конфиги — Основной сервис перенесён на порт 50000 вместо заблокированного WSL порт 1488; обновлены пробросы, health-check и upstream для Docker и Nginx.
+- [Docs] (Repository) docs/** — Руководства, справочники и схемы обновлены на новый адрес `http://localhost:50000`, добавлены свежие даты редакции.
+- [Tests] (Helper Scripts) tests/*.py, tests/test_real_install.sh — Скрипты вывода и проверки используют новый порт 50000.
+
 3.23.5 – 10.11.2025 11:19
 - [Patch] (Webhook) app.py — Добавлены проверки формата `metadata` и fallback-логирование для YooKassa, предотвращающее падения при неожиданных payload
 - [Docs] (Development Guide) webhook-regression-checks.md — Описан чек-лист `compileall` + `nx serve bot` после правок вебхуков

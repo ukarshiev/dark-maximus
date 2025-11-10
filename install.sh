@@ -513,7 +513,7 @@ services:
     container_name: dark-maximus-bot
     restart: unless-stopped
     ports:
-      - '127.0.0.1:1488:1488'
+      - '127.0.0.1:50000:50000'
     volumes:
       - ./users.db:/app/project/users.db
       - ./logs:/app/project/logs
@@ -521,7 +521,7 @@ services:
     environment:
       - FLASK_SECRET_KEY=\${FLASK_SECRET_KEY}
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 1488 || exit 1"]
+      test: ["CMD-SHELL", "nc -z localhost 50000 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -646,7 +646,7 @@ if [ "$NGINX_HAS_SSL" = "false" ]; then
     cat > /etc/nginx/sites-available/dark-maximus << EOF
 # Upstream серверы для Docker контейнеров (localhost)
 upstream bot_backend {
-    server 127.0.0.1:1488;
+    server 127.0.0.1:50000;
     keepalive 32;
 }
 
@@ -898,7 +898,7 @@ ufw allow 80/tcp comment "HTTP"
 ufw allow 443/tcp comment "HTTPS"
 
 # НЕ открываем отладочные порты наружу!
-echo -e "${YELLOW}⚠️  Отладочные порты 1488/3001/3002 НЕ открыты наружу (безопасность)${NC}"
+echo -e "${YELLOW}⚠️  Отладочные порты 50000/3001/3002 НЕ открыты наружу (безопасность)${NC}"
 
 # Включаем UFW
 ufw --force enable
@@ -979,7 +979,7 @@ echo -e "${YELLOW}Ожидание запуска контейнеров...${NC}
 
 # Ожидаем готовности bot сервиса
 echo -e "${YELLOW}Проверка готовности bot сервиса...${NC}"
-timeout 120 bash -c 'until nc -z 127.0.0.1 1488; do sleep 2; done' || {
+timeout 120 bash -c 'until nc -z 127.0.0.1 50000; do sleep 2; done' || {
     echo -e "${RED}❌ Bot сервис не запустился в течение 2 минут${NC}"
     ${DC[@]} logs bot
     exit 1
@@ -1088,7 +1088,7 @@ sleep 5
 echo -e "${YELLOW}Проверка доступности сервисов...${NC}"
 
 # Проверяем bot сервис
-if nc -z 127.0.0.1 1488; then
+if nc -z 127.0.0.1 50000; then
     echo -e "${GREEN}✅ Bot сервис доступен${NC}"
 else
     echo -e "${RED}❌ Bot сервис недоступен${NC}"
@@ -1139,7 +1139,7 @@ echo -e "\n3. Админская документация (Codex.docs):"
 echo -e "   - ${GREEN}http://${HELP_DOMAIN}${NC}"
 
 echo -e "\n4. Прямые порты (только localhost):"
-echo -e "   - Бот: ${GREEN}http://localhost:1488${NC}"
+echo -e "   - Бот: ${GREEN}http://localhost:50000${NC}"
 echo -e "   - Документация: ${GREEN}http://localhost:3001${NC}"
 echo -e "   - Админ-документация: ${GREEN}http://localhost:3002${NC}"
 

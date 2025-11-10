@@ -1,4 +1,4 @@
-> Обновлено: 09.10.2025
+> Обновлено: 10.11.2025
 
 # API: Получение детальной информации о транзакции
 
@@ -68,7 +68,7 @@
 
 ### CURL
 ```bash
-curl -X GET "http://localhost:1488/api/transaction/123" \
+curl -X GET "http://localhost:50000/api/transaction/123" \
   -H "Content-Type: application/json" \
   -b "session=<admin-session-cookie>"
 ```

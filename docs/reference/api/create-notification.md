@@ -1,4 +1,4 @@
-> Обновлено: 24.09.2025
+> Обновлено: 10.11.2025
 
 # API: Ручная отправка уведомления о скором окончании подписки
 
@@ -51,7 +51,7 @@
 
 ## Пример CURL
 ```bash
-curl -X POST "http://localhost:1488/create-notification" \
+curl -X POST "http://localhost:50000/create-notification" \
   -H "Content-Type: application/json" \
   -b "session=<admin-session-cookie>" \
   -d '{"user_id":123456789, "marker_hours":24}'

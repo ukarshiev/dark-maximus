@@ -1,4 +1,4 @@
-﻿> Обновлено: 24.09.2025
+﻿> Обновлено: 10.11.2025
 
 # API: Поиск пользователей
 
@@ -41,7 +41,7 @@
 
 ### CURL
 ```bash
-curl "http://localhost:1488/api/search-users?q=karsh" \
+curl "http://localhost:50000/api/search-users?q=karsh" \
   -H "Accept: application/json" \
   -b "session=<admin-session-cookie>"
 ```

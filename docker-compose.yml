@@ -4,7 +4,7 @@ services:
     container_name: dark-maximus-bot
     restart: unless-stopped
     ports:
-      - '127.0.0.1:1488:1488'
+      - '127.0.0.1:50000:50000'
     volumes:
       - ./users.db:/app/project/users.db
       - ./logs:/app/project/logs
@@ -21,7 +21,7 @@ services:
     environment:
       - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 1488 || exit 1"]
+      test: ["CMD-SHELL", "nc -z localhost 50000 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

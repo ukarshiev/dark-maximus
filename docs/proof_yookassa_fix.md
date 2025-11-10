@@ -1,6 +1,7 @@
 # Доказательства работы исправлений YooKassa
 
 *Дата создания: 08.11.2025*
+*Дата обновления: 10.11.2025*
 
 ## Резюме
 
@@ -214,7 +215,7 @@ INFO:shop_bot.webhook_server.app:YooKassa webhook: payment.waiting_for_capture w
 ## Как проверить в реальной работе
 
 1. **Переключите режим в админке:**
-   - Откройте `http://localhost:1488/settings?tab=payments`
+   - Откройте `http://localhost:50000/settings?tab=payments`
    - Переключите режим YooKassa
    - Сохраните настройки
    - Проверьте логи: должно быть сообщение `YooKassa Configuration updated after settings save`

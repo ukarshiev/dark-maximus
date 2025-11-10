@@ -254,7 +254,7 @@ def main():
         print(f"  Payment ID: {payment_id}")
         print(f"  Status: {tx.get('status')}")
         print(f"\nПроверьте транзакцию в веб-интерфейсе:")
-        print(f"  http://localhost:1488/transactions")
+        print(f"  http://localhost:50000/transactions")
         print(f"\nДля оплаты перейдите по ссылке:")
         print(f"  {result['payment'].confirmation.confirmation_url}")
         print(f"\nПосле оплаты запустите:")

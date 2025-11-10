@@ -134,7 +134,7 @@ def simulate_webhook(payment_id: str):
         print(f"  Payment ID: {payment_id}")
         print(f"  Status: paid")
         print(f"\nПроверьте транзакцию в веб-интерфейсе:")
-        print(f"  http://localhost:1488/transactions")
+        print(f"  http://localhost:50000/transactions")
         
         return True
         
