@@ -70,3 +70,7 @@ if __name__ == "__main__":
         for col in schema:
             print(f"  {col[1]} ({col[2]})")
 
+
+
+
+

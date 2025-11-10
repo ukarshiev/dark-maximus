@@ -23,20 +23,83 @@ function toggleKebabMenu(menuId) {
 	allMenus.forEach(menu => {
 		if (menu.id !== menuId) {
 			menu.classList.remove('active')
+			menu.classList.remove('open-up')
+			// Сбрасываем стили позиционирования
+			menu.style.top = ''
+			menu.style.left = ''
 		}
 	})
 	
 	// Переключаем текущее меню
 	const menu = document.getElementById(menuId)
 	if (menu) {
+		const isActive = menu.classList.contains('active')
 		menu.classList.toggle('active')
+		
+		// Если меню открывается, проверяем, нужно ли открывать его вверх
+		if (!isActive && menu.classList.contains('active')) {
+			adjustKebabMenuPosition(menu)
+		} else if (isActive) {
+			// Если меню закрывается, сбрасываем стили
+			menu.style.top = ''
+			menu.style.left = ''
+		}
 	}
+}
+
+// Функция для автоматического позиционирования кебаб-меню
+function adjustKebabMenuPosition(menu) {
+	const wrapper = menu.closest('.kebab-wrapper')
+	if (!wrapper) return
+	
+	const button = wrapper.querySelector('.kebab-btn')
+	if (!button) return
+	
+	menu.classList.remove('open-up')
+	
+	// Используем двойной requestAnimationFrame для корректного измерения после отрисовки
+	requestAnimationFrame(() => {
+		requestAnimationFrame(() => {
+			const buttonRect = button.getBoundingClientRect()
+			const menuRect = menu.getBoundingClientRect()
+			const viewportHeight = window.innerHeight
+			const viewportWidth = window.innerWidth
+			
+			let top = buttonRect.bottom + 5
+			let left = buttonRect.left + 10
+			
+			if (left + menuRect.width > viewportWidth) {
+				left = viewportWidth - menuRect.width - 10
+			}
+			
+			if (left < 10) {
+				left = 10
+			}
+			
+			if (top + menuRect.height > viewportHeight) {
+				top = buttonRect.top - menuRect.height - 5
+				menu.classList.add('open-up')
+				
+				if (top < 10) {
+					top = buttonRect.bottom + 5
+					menu.classList.remove('open-up')
+				}
+			}
+			
+			menu.style.setProperty('top', top + 'px', 'important')
+			menu.style.setProperty('left', left + 'px', 'important')
+		})
+	})
 }
 
 function closeKebabMenu(menuId) {
 	const menu = document.getElementById(menuId)
 	if (menu) {
 		menu.classList.remove('active')
+		menu.classList.remove('open-up')
+		// Сбрасываем стили позиционирования
+		menu.style.top = ''
+		menu.style.left = ''
 	}
 }
 
@@ -757,10 +820,14 @@ document.addEventListener('DOMContentLoaded', function () {
 	
 	// Закрываем все кебаб-меню при клике вне их
 	document.addEventListener('click', function(event) {
-		if (!event.target.closest('.kebab-wrapper')) {
+		if (!event.target.closest('.kebab-wrapper') && !event.target.closest('.kebab-menu')) {
 			const allMenus = document.querySelectorAll('.kebab-menu')
 			allMenus.forEach(menu => {
 				menu.classList.remove('active')
+				menu.classList.remove('open-up')
+				// Сбрасываем стили позиционирования
+				menu.style.top = ''
+				menu.style.left = ''
 			})
 		}
 	})

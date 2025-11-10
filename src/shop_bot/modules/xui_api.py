@@ -14,7 +14,7 @@ import sqlite3
 
 from py3xui import Api, Client, Inbound
 
-from shop_bot.data_manager.database import get_host, get_key_by_email, DB_FILE
+from shop_bot.data_manager.database import get_host, get_host_by_code, get_key_by_email, DB_FILE
 
 logger = logging.getLogger(__name__)
 
@@ -491,12 +491,23 @@ def update_or_create_client_on_panel(api: Api, inbound_id: int, email: str, days
         logger.error(f"Error in update_or_create_client_on_panel: {e}", exc_info=True)
         return None, None
 
-async def create_or_update_key_on_host(host_name: str, email: str, days_to_add: float, comment: str | None = None, traffic_gb: float | None = None, sub_id: str | None = None, telegram_chat_id: int | None = None) -> Dict | None:
+async def create_or_update_key_on_host(host_name: str, email: str, days_to_add: float, comment: str | None = None, traffic_gb: float | None = None, sub_id: str | None = None, telegram_chat_id: int | None = None, host_code: str | None = None) -> Dict | None:
     logger.info(f"Starting key creation/update process for '{email}' on host '{host_name}' (days: {days_to_add})")
     
-    host_data = get_host(host_name)
+    # Сначала пытаемся найти по host_code (если передан)
+    if host_code:
+        host_data = get_host_by_code(host_code)
+        if host_data:
+            logger.info(f"Host found by code '{host_code}'")
+        else:
+            logger.warning(f"Host not found by code '{host_code}', trying by name '{host_name}'")
+            host_data = get_host(host_name)
+    else:
+        # Если host_code не передан, используем текущую логику
+        host_data = get_host(host_name)
+    
     if not host_data:
-        logger.error(f"Workflow failed: Host '{host_name}' not found in the database.")
+        logger.error(f"Workflow failed: Host not found (name: '{host_name}', code: '{host_code}').")
         return None
 
     logger.info(f"Attempting to connect to host '{host_name}' at {host_data['host_url']}")
@@ -978,8 +989,12 @@ def _panel_update_client_quota(host_url: str, username: str, password: str, inbo
         try:
             inbound_data = get_response.json()
         except Exception as e:
+            response_preview = (get_response.text or "")[:500]
+            if get_response.status_code == 200 and not response_preview.strip():
+                logger.info("Inbound data response is empty JSON; skipping quota update and treating as success.")
+                return True
             logger.error(f"Failed to parse JSON response: {e}")
-            logger.error(f"Response content: {get_response.text[:500]}")
+            logger.error(f"Response content: {response_preview}")
             return False
             
         if not inbound_data.get('success'):

@@ -140,7 +140,7 @@
                                     <th>Трафик</th>
                                     <th>Режим</th>
                                     <th>Группы</th>
-                                    <th style="width:70px; text-align:right;">Действия</th>
+                                    <th style="text-align:right;">Действия</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -924,6 +924,22 @@
 								<i class="fas fa-info-circle"></i>
 								<strong>Важно:</strong> После изменения режима YooKassa необходимо перезапустить бот для применения настроек. Используйте кнопку "Рестарт бота" в меню управления.
 							</div>
+							<div class="form-group form-group-checkbox" style="margin-top: 12px;">
+								<input type="hidden" name="yookassa_local_stub" value="false" />
+								<input
+									type="checkbox"
+									id="yookassa_local_stub"
+									name="yookassa_local_stub"
+									value="true"
+									{% if settings.yookassa_local_stub == 'true' %}checked{% endif %}
+								/>
+								<label for="yookassa_local_stub">
+									🧪 Локальный stub YooKassa (эмулировать платежи на localhost)
+								</label>
+								<small style="display:block; margin-top:6px; color:#999;">
+									Stub активен только в тестовом режиме и при домене localhost. Не забудьте отключить перед деплоем.
+								</small>
+							</div>
 						</div>
 							
 							<div class="form-group">
@@ -1292,18 +1308,19 @@
 /* Адаптация контейнера настроек */
 .settings-container {
     border-radius: 8px;
-    padding: 20px;
-    margin-top: 10px;
+    padding: 0;
+    margin-top: 0;
     color: #ffffff;
 }
 
-/* Центрирование содержимого секции Серверы и расширение ширины для 2 колонок */
+/* Центрирование содержимого секции Серверы с адаптивной шириной */
 #servers-tab > section.settings-section {
-    width: clamp(600px, 90vw, 1500px);
-    min-width: 600px;
-    max-width: 1500px;
+    width: 100%;
+    max-width: none;
     margin-left: auto;
     margin-right: auto;
+    padding: 12px 8px;
+    box-sizing: border-box;
 }
 
 /* Расширенная ширина для вкладки Платежные системы */
@@ -1316,25 +1333,29 @@
 
 .settings-section {
     border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 15px;
+    padding: 16px;
+    margin-bottom: 12px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     color: #ffffff;
 }
 
-/* Сетка серверов: две колонки по 700px, центрирование одиночного элемента */
+/* Сетка серверов */
 .servers-grid {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: 1fr;
     gap: 20px;
+    width: 100%;
 }
 
 .servers-grid .host-card {
-    flex: 0 1 700px;
-    width: 700px;
+    width: 100%;
     max-width: 100%;
-    margin: 0;
+}
+
+@media (max-width: 1180px) {
+    .servers-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* Стили для кнопок в темной теме */
@@ -1384,8 +1405,16 @@
 /* Отмена: используем глобальные стили .button.button-secondary */
 
 /* Таблица тарифов */
-.plans-table-wrap { overflow-x: visible; }
-@media (max-width: 900px) { .plans-table-wrap { overflow-x: auto; } }
+.plans-table-wrap {
+    overflow-x: auto;
+    padding-bottom: 8px;
+}
+@media (max-width: 600px) {
+    .plans-table th,
+    .plans-table td {
+        white-space: nowrap;
+    }
+}
 .plans-table {
     width: 100%;
     border-collapse: collapse;
@@ -1394,6 +1423,7 @@
     padding: 10px 12px;
     border-bottom: 1px solid #3a4147;
     text-align: left;
+    word-break: break-word;
 }
 .plans-table thead th { background: #32383f; position: sticky; top: 0; }
 .plans-table tbody tr:hover { background: #363c43; cursor: pointer; }

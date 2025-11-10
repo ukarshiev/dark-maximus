@@ -39,8 +39,8 @@ from shop_bot.bot import keyboards
 from shop_bot.modules import xui_api
 from shop_bot.data_manager.database import (
     get_user, add_new_key, get_user_keys, update_user_stats,
-    register_user_if_not_exists, get_next_key_number, get_key_by_id,
-    update_key_info, set_trial_used, set_terms_agreed, set_documents_agreed, get_setting, get_all_hosts,
+    register_user_if_not_exists, get_next_key_number, get_key_by_id, get_key_by_email,
+    update_key_info, set_trial_used, set_terms_agreed, set_documents_agreed, get_setting, get_all_hosts, get_host,
     get_plans_for_host, get_plan_by_id, log_transaction, get_referral_count,
     add_to_referral_balance, create_pending_transaction, create_pending_ton_transaction, create_pending_stars_transaction, get_all_users,
     set_referral_balance, set_referral_balance_all, update_transaction_on_payment, update_yookassa_transaction,
@@ -82,6 +82,28 @@ def _safe_strip(value: str | None) -> str | None:
         return None
     stripped = value.strip()
     return stripped or None
+
+
+def _resolve_host_code(host_name: str | None) -> str:
+    """Возвращает стабильный host_code без эмодзи"""
+    if not host_name:
+        return ""
+    try:
+        host_record = get_host(host_name)
+        if host_record and host_record.get('host_code'):
+            return str(host_record['host_code'])
+    except Exception:
+        pass
+    return str(host_name).replace(' ', '').lower()
+
+
+def _should_use_yookassa_stub() -> bool:
+    """Проверяет, нужно ли использовать локальный stub для YooKassa."""
+    if get_setting("yookassa_local_stub") != "true":
+        return False
+    if get_setting("yookassa_test_mode") != "true":
+        return False
+    return True
 
 
 def _reconfigure_yookassa():
@@ -3091,17 +3113,20 @@ def get_user_router() -> Router:
             try:
                 from shop_bot.data_manager.database import get_host
                 host_rec = get_host(host_name)
-                host_code = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec else host_name.replace(' ', '').lower()
+                host_code_for_email = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec else host_name.replace(' ', '').lower()
+                host_code_for_search = host_rec.get('host_code') if host_rec else None
             except Exception:
-                host_code = host_name.replace(' ', '').lower()
+                host_code_for_email = host_name.replace(' ', '').lower()
+                host_code_for_search = None
             
             key_number = get_next_key_number(user_id)
             result = await xui_api.create_or_update_key_on_host(
                 host_name=host_name,
-                email=f"user{user_id}-key{key_number}-trial@{host_code}.bot",
+                email=f"user{user_id}-key{key_number}-trial@{host_code_for_email}.bot",
                 days_to_add=trial_duration_float,
                 comment=f"{user_id}",
-                telegram_chat_id=user_id
+                telegram_chat_id=user_id,
+                host_code=host_code_for_search
             )
             if not result:
                 await callback.message.edit_text("❌ Не удалось создать пробный ключ. Ошибка на сервере.")
@@ -3164,7 +3189,7 @@ def get_user_router() -> Router:
             
             # Проверяем, что new_key_id не None перед созданием клавиатуры
             if new_key_id is not None:
-                await callback.message.edit_text(text=final_text, reply_markup=keyboards.create_key_info_keyboard(new_key_id))
+                await callback.message.edit_text(text=final_text, reply_markup=keyboards.create_key_info_keyboard(new_key_id, subscription_link))
             else:
                 await callback.message.edit_text(text=final_text)
 
@@ -3191,17 +3216,20 @@ def get_user_router() -> Router:
             try:
                 from shop_bot.data_manager.database import get_host
                 host_rec = get_host(host_name)
-                host_code = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec else host_name.replace(' ', '').lower()
+                host_code_for_email = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec else host_name.replace(' ', '').lower()
+                host_code_for_search = host_rec.get('host_code') if host_rec else None
             except Exception:
-                host_code = host_name.replace(' ', '').lower()
+                host_code_for_email = host_name.replace(' ', '').lower()
+                host_code_for_search = None
             
             key_number = get_next_key_number(user_id)
             result = await xui_api.create_or_update_key_on_host(
                 host_name=host_name,
-                email=f"user{user_id}-key{key_number}-trial@{host_code}.bot",
+                email=f"user{user_id}-key{key_number}-trial@{host_code_for_email}.bot",
                 days_to_add=trial_duration_float,
                 comment=f"{user_id}",
-                telegram_chat_id=user_id
+                telegram_chat_id=user_id,
+                host_code=host_code_for_search
             )
             if not result:
                 await message.edit_text("❌ Не удалось создать пробный ключ. Ошибка на сервере.")
@@ -3265,7 +3293,7 @@ def get_user_router() -> Router:
             
             # Проверяем, что new_key_id не None перед созданием клавиатуры
             if new_key_id is not None:
-                await message.answer(text=final_text, reply_markup=keyboards.create_key_info_keyboard(new_key_id))
+                await message.answer(text=final_text, reply_markup=keyboards.create_key_info_keyboard(new_key_id, subscription_link))
             else:
                 await message.answer(text=final_text)
 
@@ -3328,7 +3356,7 @@ def get_user_router() -> Router:
             
             await callback.message.edit_text(
                 text=final_text,
-                reply_markup=keyboards.create_key_info_keyboard(key_id_to_show)
+                reply_markup=keyboards.create_key_info_keyboard(key_id_to_show, subscription_link)
             )
         except Exception as e:
             logger.error(f"Error showing key {key_id_to_show}: {e}")
@@ -3699,7 +3727,7 @@ def get_user_router() -> Router:
                 logger.info(f"DEBUG plan_selection: Calculated final_price={final_price} from promo_data")
         
         await state.update_data(
-            action=action, key_id=key_id, plan_id=plan_id, host_name=host_name,
+            action=action, key_id=key_id, plan_id=plan_id, host_name=host_name, host_code=_resolve_host_code(host_name),
             # Сохраняем промокод и финальную цену, если они были применены ранее
             promo_code=current_data.get('promo_code'),
             final_price=final_price,
@@ -3720,6 +3748,9 @@ def get_user_router() -> Router:
         data = await state.get_data()
         action = data.get('action')
         host_name = data.get('host_name')
+        host_code = data.get('host_code')
+        if not host_code:
+            host_code = _resolve_host_code(host_name)
         key_id = data.get('key_id', 0)
         user_id = callback.from_user.id
 
@@ -4113,9 +4144,35 @@ def get_user_router() -> Router:
                     "user_id": user_id,
                     "price": price_float_for_metadata,
                     "operation": "topup",
-                    "payment_method": "YooKassa"
+                    "payment_method": "YooKassa",
+                    "host_code": data.get('host_code')
                 }
             }
+
+            if _should_use_yookassa_stub():
+                stub_payment_id = f"stub-{uuid.uuid4()}"
+                stub_metadata = {
+                    "user_id": user_id,
+                    "price": price_float_for_metadata,
+                    "operation": "topup",
+                    "payment_method": "YooKassa",
+                    "host_code": data.get('host_code'),
+                    "payment_id": stub_payment_id,
+                    "yookassa_stub": True
+                }
+                create_pending_transaction(stub_payment_id, user_id, float(amount_rub), stub_metadata)
+                await state.clear()
+                await callback.message.edit_text(
+                    "🧪 Тестовый режим YooKassa: пополнение выполнено локально.\n\n"
+                    "Обработка зачисления...",
+                    reply_markup=keyboards.create_back_to_menu_keyboard()
+                )
+                try:
+                    await process_successful_payment(callback.message.bot, stub_metadata)
+                except Exception as stub_error:
+                    logger.error(f"Failed to process YooKassa stub topup: {stub_error}", exc_info=True)
+                    await callback.message.answer("❌ Ошибка при обработке тестового пополнения YooKassa.")
+                return
 
             payment = Payment.create(payment_payload, uuid.uuid4())
             
@@ -4124,7 +4181,8 @@ def get_user_router() -> Router:
                 "user_id": user_id,
                 "price": price_float_for_metadata,
                 "operation": "topup",
-                "payment_method": "YooKassa"
+                "payment_method": "YooKassa",
+                "host_code": data.get('host_code')
             }
             create_pending_transaction(payment.id, user_id, float(amount_rub), payment_metadata)
             
@@ -4178,6 +4236,7 @@ def get_user_router() -> Router:
         
         # Базовое сообщение с информацией о тарифе
         host_name = data.get('host_name', 'Неизвестный хост')
+        host_code = _resolve_host_code(host_name)
         promo_code = data.get('promo_code')
         
         if discount_applied and state_final_price is not None:
@@ -4516,6 +4575,26 @@ def get_user_router() -> Router:
         host_name = data.get('host_name')
         action = data.get('action')
         key_id = data.get('key_id')
+        host_code = data.get('host_code')
+        if not host_code:
+            resolved_host_code = _resolve_host_code(host_name)
+            if not resolved_host_code:
+                logger.warning(
+                    "[YOOKASSA_PAYMENT_PURCHASE] Не удалось определить host_code для пользователя %s "
+                    "и host_name '%s'. Использую безопасное значение по умолчанию.",
+                    callback.from_user.id,
+                    host_name
+                )
+                resolved_host_code = ""
+            host_code = resolved_host_code
+            try:
+                await state.update_data(host_code=host_code)
+            except Exception as update_error:
+                logger.error(
+                    "[YOOKASSA_PAYMENT_PURCHASE] Не удалось сохранить host_code в состоянии FSM: %s",
+                    update_error,
+                    exc_info=True
+                )
         
         if not customer_email:
             customer_email = get_setting("receipt_email")
@@ -4543,15 +4622,18 @@ def get_user_router() -> Router:
             # Создаем ключ бесплатно
             try:
                 email = ""
+                host_code_for_search = None
                 if action == "new":
                     key_number = get_next_key_number(user_id)
                     try:
                         from shop_bot.data_manager.database import get_host
                         host_rec = get_host(host_name)
-                        host_code = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec else host_name.replace(' ', '').lower()
+                        host_code_for_email = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec else host_name.replace(' ', '').lower()
+                        host_code_for_search = host_rec.get('host_code') if host_rec else None
                     except Exception:
-                        host_code = host_name.replace(' ', '').lower()
-                    email = f"user{user_id}-key{key_number}@{host_code}.bot"
+                        host_code_for_email = host_name.replace(' ', '').lower()
+                        host_code_for_search = None
+                    email = f"user{user_id}-key{key_number}@{host_code_for_email}.bot"
                     comment = f"{user_id}"
                 elif action == "extend":
                     key_data = get_key_by_id(key_id)
@@ -4561,6 +4643,16 @@ def get_user_router() -> Router:
                         return
                     email = key_data['key_email']
                     comment = f"{user_id}"
+                    # Получаем host_code из ключа
+                    try:
+                        from shop_bot.data_manager.database import get_host
+                        key_host_name = key_data.get('host_name')
+                        if key_host_name:
+                            host_rec = get_host(key_host_name)
+                            if host_rec:
+                                host_code_for_search = host_rec.get('host_code')
+                    except Exception as e:
+                        logger.warning(f"Failed to get host_code from key {key_id}: {e}")
                 
                 # Учитываем месяцы, дни и ЧАСЫ тарифа
                 extra_days = int(plan.get('days') or 0) if plan else 0
@@ -4586,7 +4678,8 @@ def get_user_router() -> Router:
                     days_to_add=days_to_add,
                     comment=comment,
                     sub_id=subscription,
-                    telegram_chat_id=telegram_chat_id
+                    telegram_chat_id=telegram_chat_id,
+                    host_code=host_code_for_search
                 )
 
                 if not result:
@@ -4683,7 +4776,7 @@ def get_user_router() -> Router:
                 if key_id is not None:
                     await callback.message.edit_text(
                         text=final_text,
-                        reply_markup=keyboards.create_key_info_keyboard(key_id)
+                        reply_markup=keyboards.create_key_info_keyboard(key_id, subscription_link)
                     )
                 else:
                     await callback.message.edit_text(text=final_text)
@@ -4737,15 +4830,13 @@ def get_user_router() -> Router:
                     "user_id": user_id, "months": months, "days": days, "hours": hours, "price": price_float_for_metadata, 
                     "action": action, "key_id": key_id, "host_name": host_name,
                     "plan_id": plan_id, "customer_email": customer_email,
+                    "host_code": host_code,
                     "payment_method": "YooKassa", "promo_code": data.get('promo_code')
                 }
             }
             if receipt:
                 payment_payload['receipt'] = receipt
 
-            payment = Payment.create(payment_payload, uuid.uuid4())
-            
-            # Создаем транзакцию в базе данных
             payment_metadata = {
                 "user_id": user_id,
                 "months": months,
@@ -4755,12 +4846,38 @@ def get_user_router() -> Router:
                 "action": action,
                 "key_id": key_id,
                 "host_name": host_name,
+                "host_code": host_code,
                 "plan_id": plan_id,
                 "customer_email": customer_email,
                 "payment_method": "YooKassa",
                 "promo_code": data.get('promo_code'),
                 "promo_usage_id": data.get('promo_usage_id')
             }
+
+            if _should_use_yookassa_stub():
+                stub_payment_id = f"stub-{uuid.uuid4()}"
+                stub_metadata = dict(payment_metadata)
+                stub_metadata.update({
+                    "payment_id": stub_payment_id,
+                    "yookassa_stub": True
+                })
+                create_pending_transaction(stub_payment_id, user_id, float(price_rub), stub_metadata)
+                await state.clear()
+                await callback.message.edit_text(
+                    "🧪 Тестовый режим YooKassa: платеж эмулирован локально.\n\n"
+                    "Выдаю доступ...",
+                    reply_markup=keyboards.create_back_to_menu_keyboard()
+                )
+                try:
+                    await process_successful_payment(callback.message.bot, stub_metadata)
+                except Exception as stub_error:
+                    logger.error(f"Failed to process YooKassa stub purchase: {stub_error}", exc_info=True)
+                    await callback.message.answer("❌ Ошибка при обработке тестового платежа YooKassa.")
+                return
+
+            payment = Payment.create(payment_payload, uuid.uuid4())
+            
+            # Создаем транзакцию в базе данных
             create_pending_transaction(payment.id, user_id, float(price_rub), payment_metadata)
             
             await state.clear()
@@ -4971,16 +5088,19 @@ def get_user_router() -> Router:
             # Создаем ключ бесплатно
             try:
                 email = ""
+                host_code_for_search = None
                 if action == "new":
                     key_number = get_next_key_number(user_id)
                     # Строим email на основе стабильного host_code (если есть)
                     try:
                         from shop_bot.data_manager.database import get_host
                         host_rec = get_host(host_name)
-                        host_code = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec else host_name.replace(' ', '').lower()
+                        host_code_for_email = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec else host_name.replace(' ', '').lower()
+                        host_code_for_search = host_rec.get('host_code') if host_rec else None
                     except Exception:
-                        host_code = host_name.replace(' ', '').lower()
-                    email = f"user{user_id}-key{key_number}@{host_code}.bot"
+                        host_code_for_email = host_name.replace(' ', '').lower()
+                        host_code_for_search = None
+                    email = f"user{user_id}-key{key_number}@{host_code_for_email}.bot"
                     comment = f"{user_id}"
                 elif action == "extend":
                     key_data = get_key_by_id(key_id)
@@ -4990,6 +5110,16 @@ def get_user_router() -> Router:
                         return
                     email = key_data['key_email']
                     comment = f"{user_id}"
+                    # Получаем host_code из ключа
+                    try:
+                        from shop_bot.data_manager.database import get_host
+                        key_host_name = key_data.get('host_name')
+                        if key_host_name:
+                            host_rec = get_host(key_host_name)
+                            if host_rec:
+                                host_code_for_search = host_rec.get('host_code')
+                    except Exception as e:
+                        logger.warning(f"Failed to get host_code from key {key_id}: {e}")
                 
                 months = plan['months']
                 plan_id = plan['plan_id']
@@ -5016,7 +5146,8 @@ def get_user_router() -> Router:
                     days_to_add=days_to_add,
                     comment=comment,
                     sub_id=subscription,
-                    telegram_chat_id=telegram_chat_id
+                    telegram_chat_id=telegram_chat_id,
+                    host_code=host_code_for_search
                 )
 
                 if not result:
@@ -5086,6 +5217,17 @@ def get_user_router() -> Router:
                 subscription_link = result.get('subscription_link')
                 if plan:
                     provision_mode = plan.get('key_provision_mode', 'key')
+                
+                # Если нужна подписка, но subscription_link отсутствует в результате - получаем дополнительно
+                if provision_mode in ['subscription', 'both'] and not subscription_link:
+                    try:
+                        subscription_link = await xui_api.get_client_subscription_link(host_name, email)
+                        if not subscription_link:
+                            logger.warning(f"Failed to get subscription link for {email}, using key-only mode")
+                            provision_mode = 'key'
+                    except Exception as e:
+                        logger.error(f"Error getting subscription link: {e}")
+                        provision_mode = 'key'
 
                 feature_enabled, user_timezone = _get_user_timezone_context(user_id)
 
@@ -5104,7 +5246,7 @@ def get_user_router() -> Router:
                 if key_id is not None:
                     await callback.message.edit_text(
                         text=final_text,
-                        reply_markup=keyboards.create_key_info_keyboard(key_id)
+                        reply_markup=keyboards.create_key_info_keyboard(key_id, subscription_link)
                     )
                 else:
                     await callback.message.edit_text(text=final_text)
@@ -6326,6 +6468,7 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
         action = metadata.get('action')
         key_id = _to_int(metadata.get('key_id'))
         host_name = metadata.get('host_name')
+        host_code = metadata.get('host_code')  # Получаем из metadata
         plan_id = _to_int(metadata.get('plan_id'))
         customer_email = metadata.get('customer_email')
         payment_method_raw = metadata.get('payment_method')
@@ -6344,6 +6487,20 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
     except (ValueError, TypeError) as e:
         logger.error(f"FATAL: Could not parse YooKassa metadata. Error: {e}. Metadata: {metadata}")
         return
+
+    # Если host_code нет в metadata, получаем из хоста по host_name из плана
+    if not host_code and plan_id:
+        try:
+            from shop_bot.data_manager.database import get_plan_by_id, get_host
+            plan = get_plan_by_id(plan_id)
+            if plan and plan.get('host_name'):
+                host_from_plan = get_host(plan['host_name'])
+                if host_from_plan:
+                    host_code = host_from_plan.get('host_code')
+                    host_name = plan['host_name']  # Используем правильное имя из плана
+                    logger.info(f"Using host_code '{host_code}' and host_name '{host_name}' from plan {plan_id}")
+        except Exception as e:
+            logger.warning(f"Failed to get host_code from plan {plan_id}: {e}")
 
     # Пополнение баланса: отдельная ветка
     if operation == 'topup':
@@ -6375,21 +6532,38 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
     try:
         email = ""
         comment = f"{user_id}"
+        # Сохраняем host_code для поиска хоста (если еще не получен из metadata/плана)
+        host_code_for_search = host_code
         if action == "new":
             key_number = get_next_key_number(user_id)
             try:
                 from shop_bot.data_manager.database import get_host
                 host_rec = get_host(host_name) if host_name else None
-                host_code = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec and host_name else (host_name or "").replace(' ', '').lower()
+                # Для email используем нормализованный код
+                host_code_for_email = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec and host_name else (host_name or "").replace(' ', '').lower()
+                # Если host_code_for_search еще не установлен, используем из хоста
+                if not host_code_for_search and host_rec:
+                    host_code_for_search = host_rec.get('host_code')
             except Exception:
-                host_code = (host_name or "").replace(' ', '').lower()
-            email = f"user{user_id}-key{key_number}@{host_code}.bot"
+                host_code_for_email = (host_name or "").replace(' ', '').lower()
+            email = f"user{user_id}-key{key_number}@{host_code_for_email}.bot"
         elif action == "extend":
             key_data = get_key_by_id(key_id)
             if not key_data or key_data['user_id'] != user_id:
                 await processing_message.edit_text("❌ Ошибка: ключ для продления не найден.")
                 return
             email = key_data['key_email']
+            # Если host_code_for_search еще не установлен, получаем из ключа
+            if not host_code_for_search:
+                try:
+                    from shop_bot.data_manager.database import get_host
+                    key_host_name = key_data.get('host_name')
+                    if key_host_name:
+                        host_rec = get_host(key_host_name)
+                        if host_rec:
+                            host_code_for_search = host_rec.get('host_code')
+                except Exception as e:
+                    logger.warning(f"Failed to get host_code from key {key_id}: {e}")
         
         # Учитываем дополнительные дни и трафик
         plan = get_plan_by_id(plan_id)
@@ -6430,7 +6604,8 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
                 comment=comment,
                 traffic_gb=traffic_gb,
                 sub_id=subscription,
-                telegram_chat_id=telegram_chat_id
+                telegram_chat_id=telegram_chat_id,
+                host_code=host_code_for_search
             )
             if result:
                 
@@ -6448,6 +6623,13 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
                     telegram_chat_id=telegram_chat_id,
                     comment=f"Ключ для пользователя {fullname or username or user_id}"
                 )
+                if not key_id:
+                    try:
+                        key_data_fallback = get_key_by_email(result['email'])
+                        if key_data_fallback:
+                            key_id = key_data_fallback.get('key_id')
+                    except Exception:
+                        key_id = None
                 if key_id:
                     # Обновляем статистику пользователя
                     update_user_stats(user_id, price, months)
@@ -6484,13 +6666,34 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
                         feature_enabled=feature_enabled,
                     )
 
-                    await processing_message.edit_text(final_text)
+                    try:
+                        await processing_message.delete()
+                    except TelegramBadRequest as e:
+                        logger.warning(f"Could not delete processing message for user {user_id}: {e}")
+                    await bot.send_message(
+                        chat_id=user_id,
+                        text=final_text,
+                        reply_markup=keyboards.create_key_info_keyboard(key_id, subscription_link) if key_id else keyboards.create_back_to_menu_keyboard(),
+                        parse_mode="HTML"
+                    )
             else:
                 await processing_message.edit_text("❌ Ошибка: не удалось создать ключ.")
         elif action == "extend":
-            # Продлеваем существующий ключ
-            result = update_key_info(key_id, days_to_add, traffic_gb)
+            # Продлеваем существующий ключ через XUI API
+            result = await xui_api.create_or_update_key_on_host(
+                host_name=host_name,
+                email=email,
+                days_to_add=days_to_add,
+                comment=f"{user_id}",
+                traffic_gb=traffic_gb if traffic_gb > 0 else None,
+                sub_id=None,  # при продлении None, панель сохранит существующий subscription
+                telegram_chat_id=user_id,
+                host_code=host_code_for_search
+            )
             if result:
+                # Обновляем ключ в базе данных
+                update_key_info(key_id, result['client_uuid'], result['expiry_timestamp_ms'], result.get('subscription_link'))
+                
                 # Обновляем статистику пользователя
                 update_user_stats(user_id, price, months)
                 
@@ -6509,7 +6712,42 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
                     from shop_bot.data_manager.database import update_promo_usage_status
                     update_promo_usage_status(promo_usage_id, plan_id)
                 
-                await processing_message.edit_text(f"✅ Ключ успешно продлен на {months} месяцев!")
+                # Получаем номер ключа для пользователя
+                all_user_keys = get_user_keys(user_id)
+                key_number = next((i + 1 for i, key in enumerate(all_user_keys) if key['key_id'] == key_id), len(all_user_keys))
+                
+                # Получаем provision_mode из тарифа
+                provision_mode = 'key'  # по умолчанию
+                subscription_link = result.get('subscription_link')
+                if plan:
+                    provision_mode = plan.get('key_provision_mode', 'key')
+                
+                feature_enabled, user_timezone = _get_user_timezone_context(user_id)
+                connection_string = result.get('connection_string')
+                new_expiry_date = datetime.fromtimestamp(result['expiry_timestamp_ms'] / 1000)
+                
+                final_text = get_purchase_success_text(
+                    action="продлен",
+                    key_number=key_number,
+                    expiry_date=new_expiry_date,
+                    connection_string=connection_string,
+                    subscription_link=subscription_link,
+                    provision_mode=provision_mode,
+                    user_timezone=user_timezone,
+                    feature_enabled=feature_enabled,
+                )
+                
+                try:
+                    await processing_message.delete()
+                except TelegramBadRequest as e:
+                    logger.warning(f"Could not delete processing message after renewal for user {user_id}: {e}")
+                
+                await bot.send_message(
+                    chat_id=user_id,
+                    text=final_text,
+                    reply_markup=keyboards.create_key_info_keyboard(key_id, subscription_link) if key_id else keyboards.create_back_to_menu_keyboard(),
+                    parse_mode="HTML"
+                )
             else:
                 await processing_message.edit_text("❌ Ошибка: не удалось продлить ключ.")
     except Exception as e:
@@ -6552,6 +6790,7 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
         action = metadata.get('action')
         key_id = _to_int(metadata.get('key_id'))
         host_name = metadata.get('host_name')
+        host_code = metadata.get('host_code')  # Получаем из metadata
         plan_id = _to_int(metadata.get('plan_id'))
         customer_email = metadata.get('customer_email')
         payment_method_raw = metadata.get('payment_method')
@@ -6564,6 +6803,20 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
     except (ValueError, TypeError) as e:
         logger.error(f"FATAL: Could not parse metadata. Error: {e}. Metadata: {metadata}")
         return
+
+    # Если host_code нет в metadata, получаем из хоста по host_name из плана
+    if not host_code and plan_id:
+        try:
+            from shop_bot.data_manager.database import get_plan_by_id, get_host
+            plan = get_plan_by_id(plan_id)
+            if plan and plan.get('host_name'):
+                host_from_plan = get_host(plan['host_name'])
+                if host_from_plan:
+                    host_code = host_from_plan.get('host_code')
+                    host_name = plan['host_name']  # Используем правильное имя из плана
+                    logger.info(f"Using host_code '{host_code}' and host_name '{host_name}' from plan {plan_id}")
+        except Exception as e:
+            logger.warning(f"Failed to get host_code from plan {plan_id}: {e}")
 
     # Пополнение баланса: отдельная ветка
     if operation == 'topup':
@@ -6591,21 +6844,38 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
     try:
         email = ""
         comment = f"{user_id}"
+        # Сохраняем host_code для поиска хоста (если еще не получен из metadata/плана)
+        host_code_for_search = host_code
         if action == "new":
             key_number = get_next_key_number(user_id)
             try:
                 from shop_bot.data_manager.database import get_host
                 host_rec = get_host(host_name) if host_name else None
-                host_code = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec and host_name else (host_name or "").replace(' ', '').lower()
+                # Для email используем нормализованный код
+                host_code_for_email = (host_rec.get('host_code') or host_name).replace(' ', '').lower() if host_rec and host_name else (host_name or "").replace(' ', '').lower()
+                # Если host_code_for_search еще не установлен, используем из хоста
+                if not host_code_for_search and host_rec:
+                    host_code_for_search = host_rec.get('host_code')
             except Exception:
-                host_code = (host_name or "").replace(' ', '').lower()
-            email = f"user{user_id}-key{key_number}@{host_code}.bot"
+                host_code_for_email = (host_name or "").replace(' ', '').lower()
+            email = f"user{user_id}-key{key_number}@{host_code_for_email}.bot"
         elif action == "extend":
             key_data = get_key_by_id(key_id)
             if not key_data or key_data['user_id'] != user_id:
                 await processing_message.edit_text("❌ Ошибка: ключ для продления не найден.")
                 return
             email = key_data['key_email']
+            # Если host_code_for_search еще не установлен, получаем из ключа
+            if not host_code_for_search:
+                try:
+                    from shop_bot.data_manager.database import get_host
+                    key_host_name = key_data.get('host_name')
+                    if key_host_name:
+                        host_rec = get_host(key_host_name)
+                        if host_rec:
+                            host_code_for_search = host_rec.get('host_code')
+                except Exception as e:
+                    logger.warning(f"Failed to get host_code from key {key_id}: {e}")
         
         # Учитываем дополнительные дни и трафик
         plan = get_plan_by_id(plan_id)
@@ -6646,7 +6916,8 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
             comment=comment,
             traffic_gb=traffic_gb if traffic_gb > 0 else None,
             sub_id=subscription,
-            telegram_chat_id=telegram_chat_id
+            telegram_chat_id=telegram_chat_id,
+            host_code=host_code_for_search
         )
 
         if not result:
@@ -6675,8 +6946,15 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
                 telegram_chat_id=telegram_chat_id,
                 comment=f"Ключ для пользователя {fullname or username or user_id}"
             )
+            if not key_id:
+                try:
+                    key_data_fallback = get_key_by_email(result['email'])
+                    if key_data_fallback:
+                        key_id = key_data_fallback.get('key_id')
+                except Exception:
+                    key_id = None
         elif action == "extend":
-            update_key_info(key_id, result['client_uuid'], result['expiry_timestamp_ms'])
+            update_key_info(key_id, result['client_uuid'], result['expiry_timestamp_ms'], result.get('subscription_link'))
         
         price = float(metadata.get('price') or 0) 
 
@@ -6811,7 +7089,7 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
         await bot.send_message(
             chat_id=user_id,
             text=final_text,
-            reply_markup=keyboards.create_key_info_keyboard(key_id) if key_id else None,
+            reply_markup=keyboards.create_key_info_keyboard(key_id, subscription_link) if key_id else None,
             parse_mode="HTML"
         )
 

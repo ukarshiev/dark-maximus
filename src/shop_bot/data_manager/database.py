@@ -22,6 +22,8 @@ import bcrypt
 
 import time
 from typing import Optional
+import unicodedata
+import re
 def _parse_db_datetime(value) -> Optional[datetime]:
     """Парсит datetime из БД, возвращая aware UTC значение."""
     if value in (None, ''):
@@ -46,47 +48,33 @@ def _parse_db_datetime(value) -> Optional[datetime]:
 logger = logging.getLogger(__name__)
 
 
+_HOST_TRANSLIT_MAP = {
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'e',
+    'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
+    'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
+    'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch',
+    'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya'
+}
+
+
 def _generate_group_code(group_name: str) -> str:
     """
     Генерирует код группы из названия группы.
     Транслитерация кириллицы в латиницу, приведение к lowercase,
     замена пробелов и спецсимволов на подчеркивания.
     """
-    # Словарь транслитерации кириллицы в латиницу
-    translit_dict = {
-        'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'e',
-        'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
-        'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
-        'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch',
-        'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
-        'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ё': 'E',
-        'сс': 'SS', 'З': 'Z', 'И': 'I', 'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M',
-        'Н': 'N', 'О': 'O', 'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T', 'У': 'U',
-        'Ф': 'F', 'Х': 'H', 'Ц': 'TS', 'Ч': 'CH', 'Ш': 'SH', 'Щ': 'SCH',
-        'Ъ': '', 'Ы': 'Y', 'Ь': '', 'Э': 'E', 'Ю': 'YU', 'Я': 'YA'
-    }
-    
-    # Приводим к lowercase и транслитерируем
     result = group_name.lower()
-    
-    # Заменяем кириллические символы на латинские
-    for cyrillic, latin in translit_dict.items():
+
+    for cyrillic, latin in _HOST_TRANSLIT_MAP.items():
         result = result.replace(cyrillic, latin)
-    
-    # Заменяем пробелы и спецсимволы на подчеркивания
-    import re
+
     result = re.sub(r'[^a-z0-9_-]', '_', result)
-    
-    # Убираем множественные подчеркивания
     result = re.sub(r'_+', '_', result)
-    
-    # Убираем подчеркивания в начале и конце
     result = result.strip('_')
-    
-    # Если результат пустой, используем 'group'
+
     if not result:
         result = 'group'
-    
+
     return result
 
 
@@ -109,6 +97,26 @@ else:
     PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
     DB_FILE = PROJECT_ROOT / "users.db"
 
+
+
+# Универсальная нормализация идентификатора хоста.
+# Применяется для поиска совпадений по имени и коду.
+def _normalize_host_identifier(value: str | None) -> str:
+    if value is None:
+        return ""
+
+    candidate = value.strip().lower()
+    if not candidate:
+        return ""
+
+    for cyrillic, latin in _HOST_TRANSLIT_MAP.items():
+        candidate = candidate.replace(cyrillic, latin)
+
+    candidate = unicodedata.normalize("NFKD", candidate)
+    candidate = "".join(ch for ch in candidate if unicodedata.category(ch)[0] != "M")
+    candidate = re.sub(r'[^a-z0-9]+', '', candidate)
+
+    return candidate
 
 
 # Локальная самодиагностика/восстановление БД при мягких повреждениях индексов
@@ -153,9 +161,14 @@ def initialize_db():
 
     try:
 
-        with sqlite3.connect(DB_FILE) as conn:
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
 
             cursor = conn.cursor()
+
+            try:
+                cursor.execute("PRAGMA busy_timeout=30000")
+            except sqlite3.Error as e:
+                logging.debug(f"Failed to set PRAGMA busy_timeout in initialize_db: {e}")
 
             cursor.execute('''
 
@@ -2006,7 +2019,61 @@ def get_host(host_name: str) -> dict | None:
 
             cursor = conn.cursor()
 
-            cursor.execute("SELECT * FROM xui_hosts WHERE host_name = ?", (host_name,))
+            sanitized_name = host_name.strip() if isinstance(host_name, str) else ""
+
+            if not sanitized_name:
+                return None
+
+            cursor.execute("SELECT * FROM xui_hosts WHERE host_name = ?", (sanitized_name,))
+
+            result = cursor.fetchone()
+
+            if result:
+                return dict(result)
+
+            normalized_target = _normalize_host_identifier(sanitized_name)
+            if not normalized_target:
+                return None
+
+            cursor.execute("SELECT * FROM xui_hosts")
+            for row in cursor.fetchall():
+                row_dict = dict(row)
+                normalized_host_name = _normalize_host_identifier(row_dict.get("host_name"))
+                normalized_host_code = _normalize_host_identifier(row_dict.get("host_code"))
+
+                if normalized_target and (
+                    normalized_target == normalized_host_name or
+                    (normalized_host_code and normalized_target == normalized_host_code)
+                ):
+                    logging.warning(
+                        "Fallback match for host '%s' resolved to '%s' (code: %s).",
+                        host_name,
+                        row_dict.get("host_name"),
+                        row_dict.get("host_code")
+                    )
+                    return row_dict
+
+            return None
+
+    except sqlite3.Error as e:
+
+        logging.error(f"Error getting host '{host_name}': {e}")
+
+        return None
+
+
+
+def get_host_by_code(host_code: str) -> dict | None:
+
+    try:
+
+        with sqlite3.connect(DB_FILE) as conn:
+
+            conn.row_factory = sqlite3.Row
+
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT * FROM xui_hosts WHERE host_code = ?", (host_code,))
 
             result = cursor.fetchone()
 
@@ -2014,7 +2081,7 @@ def get_host(host_name: str) -> dict | None:
 
     except sqlite3.Error as e:
 
-        logging.error(f"Error getting host '{host_name}': {e}")
+        logging.error(f"Error getting host by code '{host_code}': {e}")
 
         return None
 

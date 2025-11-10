@@ -356,97 +356,41 @@ def get_performance_monitor() -> PerformanceMonitor:
 
 # Декоратор для измерения производительности
 def measure_performance(operation_name: str):
-    """Декоратор для измерения производительности функции (поддерживает sync и async)"""
+    """Декоратор для измерения производительности функции"""
     def decorator(func):
-        # Проверяем, является ли функция асинхронной
-        if asyncio.iscoroutinefunction(func):
-            # Async функция
-            @wraps(func)
-            async def async_wrapper(*args, **kwargs):
-                start_time = time.time()
-                success = True
-                error = None
-                
-                try:
-                    result = await func(*args, **kwargs)
-                    return result
-                except Exception as e:
-                    success = False
-                    error = str(e)
-                    raise
-                finally:
-                    duration = time.time() - start_time
-                    user_id = None
-                    
-                    # Пытаемся извлечь user_id из аргументов
-                    for arg in args:
-                        if hasattr(arg, 'from_user') and hasattr(arg.from_user, 'id'):
-                            user_id = arg.from_user.id
-                            break
-                    
-                    monitor = get_performance_monitor()
-                    await monitor.record_metric(
-                        operation=operation_name,
-                        duration=duration,
-                        user_id=user_id,
-                        success=success,
-                        error=error
-                    )
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            start_time = time.time()
+            success = True
+            error = None
             
-            return async_wrapper
-        else:
-            # Sync функция (для Flask и других синхронных обработчиков)
-            @wraps(func)
-            def sync_wrapper(*args, **kwargs):
-                start_time = time.time()
-                success = True
-                error = None
+            try:
+                result = await func(*args, **kwargs)
+                return result
+            except Exception as e:
+                success = False
+                error = str(e)
+                raise
+            finally:
+                duration = time.time() - start_time
+                user_id = None
                 
-                try:
-                    result = func(*args, **kwargs)
-                    return result
-                except Exception as e:
-                    success = False
-                    error = str(e)
-                    raise
-                finally:
-                    duration = time.time() - start_time
-                    user_id = None
-                    
-                    # Пытаемся извлечь user_id из аргументов
-                    for arg in args:
-                        if hasattr(arg, 'from_user') and hasattr(arg.from_user, 'id'):
-                            user_id = arg.from_user.id
-                            break
-                    
-                    # Для синхронных функций записываем метрику синхронно (без await)
-                    # Это безопасно, так как PerformanceMonitor использует lock только для async
-                    monitor = get_performance_monitor()
-                    # Запускаем запись метрики в фоновом режиме, если есть event loop
-                    try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            asyncio.create_task(monitor.record_metric(
-                                operation=operation_name,
-                                duration=duration,
-                                user_id=user_id,
-                                success=success,
-                                error=error
-                            ))
-                        else:
-                            # Если loop не запущен, запускаем синхронно
-                            asyncio.run(monitor.record_metric(
-                                operation=operation_name,
-                                duration=duration,
-                                user_id=user_id,
-                                success=success,
-                                error=error
-                            ))
-                    except RuntimeError:
-                        # Если нет event loop, пропускаем метрику (не критично)
-                        logger.debug(f"No event loop available to record metric for {operation_name}")
-            
-            return sync_wrapper
+                # Пытаемся извлечь user_id из аргументов
+                for arg in args:
+                    if hasattr(arg, 'from_user') and hasattr(arg.from_user, 'id'):
+                        user_id = arg.from_user.id
+                        break
+                
+                monitor = get_performance_monitor()
+                await monitor.record_metric(
+                    operation=operation_name,
+                    duration=duration,
+                    user_id=user_id,
+                    success=success,
+                    error=error
+                )
+        
+        return wrapper
     return decorator
 
 # Функция для периодической очистки старых метрик

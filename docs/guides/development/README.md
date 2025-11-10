@@ -10,6 +10,7 @@
 - [Быстрая настройка PowerShell UTF-8](powershell-utf8-quickstart.md) — Краткая инструкция
 - [Рефакторинг веб-сетки](web-grid-refactor.md) — Документация по обновлению UI компонентов
 - [Чек-лист регрессии вебхуков](webhook-regression-checks.md) — Быстрые проверки `compileall` + `nx serve bot`
+- [Локальный stub YooKassa](yookassa-local.md) — Пошаговое включение псевдо-платежей на localhost
 
 ## Настройка окружения
 

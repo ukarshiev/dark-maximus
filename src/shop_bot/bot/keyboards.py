@@ -4,15 +4,51 @@
 """
 
 import logging
-
 from datetime import datetime
+from urllib.parse import urlparse
 
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from shop_bot.data_manager.database import get_setting
 
 logger = logging.getLogger(__name__)
+
+
+def _is_https_url(url: str | None) -> bool:
+    """Проверяет, что ссылка использует HTTPS и содержит хост."""
+    if not url:
+        return False
+    try:
+        parsed = urlparse(url)
+        return parsed.scheme.lower() == "https" and bool(parsed.netloc)
+    except Exception:
+        return False
+
+
+def _is_http_like_url(url: str | None) -> bool:
+    """Проверяет, что ссылка использует HTTP(S) и имеет хост (для fallback без WebApp)."""
+    if not url:
+        return False
+    try:
+        parsed = urlparse(url)
+        return parsed.scheme.lower() in {"http", "https"} and bool(parsed.netloc)
+    except Exception:
+        return False
+
+
+def _convert_to_https(url: str | None) -> str | None:
+    """Преобразует HTTP ссылку в HTTPS для использования в WebApp."""
+    if not url:
+        return None
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme.lower() == "http" and parsed.netloc:
+            # Заменяем http:// на https://
+            return url.replace("http://", "https://", 1)
+        return url
+    except Exception:
+        return url
 
 def get_main_reply_keyboard(is_admin: bool = False) -> ReplyKeyboardMarkup:
     """Возвращает актуальную Reply-клавиатуру без пункта "Главное меню".
@@ -370,15 +406,65 @@ def create_keys_management_keyboard(keys: list, trial_used: int = 1) -> InlineKe
     builder.adjust(1)
     return builder.as_markup()
 
-def create_key_info_keyboard(key_id: int) -> InlineKeyboardMarkup:
+def create_key_info_keyboard(key_id: int, subscription_link: str | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="⚙️ Настройка VPN", web_app={"url": "https://help.dark-maximus.com/setup"})
+    
+    # Первая строка: Настройка и Подписка (если есть)
+    builder.button(
+        text="Шаг 1: ⚙️ Настройка",
+        web_app=WebAppInfo(url="https://help.dark-maximus.com/setup")
+    )
+
+    # Если subscription_link не передан, пытаемся получить из БД
+    if not subscription_link:
+        try:
+            from shop_bot.data_manager.database import get_key_by_id
+            key_data = get_key_by_id(key_id)
+            if key_data:
+                subscription_link = key_data.get('subscription_link')
+        except Exception as e:
+            logger.warning(f"Failed to get subscription_link from DB for key {key_id}: {e}")
+
+    subscription_button_added = False
+    if subscription_link:
+        # Пытаемся использовать WebApp для всех ссылок (даже HTTP, преобразуя в HTTPS)
+        if _is_https_url(subscription_link):
+            # Уже HTTPS - используем как есть
+            builder.button(
+                text="Шаг 2: 🔑 Подписка",
+                web_app=WebAppInfo(url=subscription_link)
+            )
+            subscription_button_added = True
+        elif _is_http_like_url(subscription_link):
+            # HTTP ссылка - преобразуем в HTTPS и пробуем использовать WebApp
+            https_link = _convert_to_https(subscription_link)
+            logger.info(
+                "Subscription link %s преобразована в HTTPS для WebApp: %s",
+                subscription_link,
+                https_link
+            )
+            builder.button(
+                text="Шаг 2: 🔑 Подписка",
+                web_app=WebAppInfo(url=https_link)
+            )
+            subscription_button_added = True
+        else:
+            logger.warning(
+                "Subscription link %s имеет неподдерживаемый формат; кнопка WebApp не будет добавлена.",
+                subscription_link
+            )
+
+    # Вторая строка: Продлить этот ключ
     builder.button(text="🔄 Продлить этот ключ", callback_data=f"extend_key_{key_id}")
-    # builder.button(text="📑 Скопировать ключ", callback_data=f"copy_key_{key_id}")    
-    # builder.button(text="📱 Сканировать QR ключа", callback_data=f"show_qr_{key_id}")
-    builder.button(text="🌐 Инструкции❓", callback_data=f"howto_vless_{key_id}")
+
+    # Третья строка: Назад к списку ключей
     builder.button(text="⬅️ Назад к списку ключей", callback_data="manage_keys")
-    builder.adjust(1, 1, 1, 1)
+    
+    # Настройка расположения: первая строка - 2 кнопки (если есть подписка) или 1 кнопка, остальные по 1
+    if subscription_button_added:
+        builder.adjust(2, 1, 1)  # Первая строка: 2 кнопки, остальные по 1
+    else:
+        builder.adjust(1, 1, 1)  # Все строки по 1 кнопке
     return builder.as_markup()
 
 def create_qr_keyboard(key_id: int) -> InlineKeyboardMarkup:

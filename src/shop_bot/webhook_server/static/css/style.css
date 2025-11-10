@@ -131,13 +131,12 @@ h4 {
 
 /* Явное центрирование секции вкладки «Серверы» */
 #servers-tab > section.settings-section {
-	/* Жёстко центрируем и задаём диапазон ширины */
-	width: clamp(600px, 800px, 1000px);
-	min-width: 600px;
-	max-width: 1000px;
+	width: 100%;
+	max-width: none;
 	margin-left: auto;
 	margin-right: auto;
-	padding-inline: 16px;
+	padding: 12px 8px;
+	box-sizing: border-box;
 }
 
 /* Flex-box для вкладки "Бот" - 2 ряда по 2 колонки */
@@ -751,7 +750,7 @@ body.login-page {
 .settings-container {
 	display: flex;
 	flex-direction: column;
-	gap: 24px;
+	gap: 16px;
 	width: 100%;
 }
 
@@ -763,60 +762,51 @@ body.login-page {
 .settings-content {
 	display: flex;
 	flex-direction: column;
-	gap: 32px;
+	gap: 20px;
 	width: 100%;
-	margin: 0 auto;
-	padding: 10px;
+	margin: 0;
+	padding: 0 12px 24px;
 	box-sizing: border-box;
-}
-
-@media (max-width: 1279px) {
-	.settings-content {
-		max-width: 1080px;
-		padding: 28px 32px 40px;
-	}
 }
 
 @media (max-width: 1023px) {
 	.settings-content {
-		max-width: 900px;
-		padding: 24px 24px 36px;
-		gap: 28px;
+		padding: 0 16px 24px;
+		gap: 18px;
 	}
 	.settings-section {
-		padding: 22px 24px;
-		border-radius: 14px;
+		padding: 18px;
+		border-radius: 12px;
 	}
 }
 
 @media (max-width: 768px) {
 	.settings-content {
-		max-width: 100%;
-		padding: 15px;
-		gap: 24px;
+		padding: 0 12px 20px;
+		gap: 16px;
 	}
 	.settings-container {
-		gap: 24px;
+		gap: 18px;
 	}
 	.settings-section {
-		padding: 10px;
-		border-radius: 14px;
+		padding: 14px;
+		border-radius: 12px;
 		box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22);
 	}
 	.settings-section h2 {
 		font-size: 18px;
-		margin-bottom: 16px;
+		margin-bottom: 12px;
 	}
 }
 
 @media (max-width: 480px) {
 	.settings-content {
-		padding: 16px 12px 24px;
-		gap: 20px;
+		padding: 0 10px 18px;
+		gap: 14px;
 	}
 	.settings-section {
-		padding: 18px 16px;
-		border-radius: 12px;
+		padding: 12px;
+		border-radius: 10px;
 	}
 	.settings-section h2 {
 		font-size: 17px;
@@ -846,7 +836,7 @@ body.login-page {
 	border: 1px solid var(--border-color);
 	border-radius: 8px;
 	padding: 20px;
-	margin-bottom: 20px;
+	margin: 0;
 }
 
 .host-header {
@@ -1258,6 +1248,8 @@ body.login-page {
     text-align: center;
     padding-left: 6px;
     padding-right: 6px;
+    overflow: visible;
+    position: relative;
 }
 
 .users-table .actions-cell {
@@ -1266,6 +1258,8 @@ body.login-page {
     text-align: center;
     padding-left: 6px;
     padding-right: 6px;
+    overflow: visible;
+    position: relative;
 }
 
 .transactions-table .actions-cell {
@@ -1274,6 +1268,8 @@ body.login-page {
     text-align: center;
     padding-left: 6px;
     padding-right: 6px;
+    overflow: visible;
+    position: relative;
 }
 
 .actions-cell form {
@@ -3456,13 +3452,39 @@ body.settings-page:not(.admin-panel) { padding: 0 !important; }
 	/* Глобально: модалка как колонка, чтобы скролл был только по содержимому */
 	display: flex;
 	flex-direction: column;
-	background: var(--bg-elevated);
+	background: #151f31;
 	border-radius: 12px;
 	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 	max-width: 500px;
 	width: 90%;
 	max-height: 90vh;
 	overflow-y: auto;
+}
+
+/* Темные поля ввода только для модалок хостов и тарифов */
+.modal-content form[action^="/add-host"] input,
+.modal-content form[action^="/add-host"] select,
+.modal-content form[action^="/edit-host"] input,
+.modal-content form[action^="/edit-host"] select,
+.modal-content form[action^="/add-plan"] input,
+.modal-content form[action^="/add-plan"] select,
+.modal-content form[action^="/edit-plan"] input,
+.modal-content form[action^="/edit-plan"] select {
+	background: #212a3c;
+	border: 1px solid #2b364c;
+	color: #f0f4ff;
+}
+
+.modal-content form[action^="/add-host"] input:focus,
+.modal-content form[action^="/add-host"] select:focus,
+.modal-content form[action^="/edit-host"] input:focus,
+.modal-content form[action^="/edit-host"] select:focus,
+.modal-content form[action^="/add-plan"] input:focus,
+.modal-content form[action^="/add-plan"] select:focus,
+.modal-content form[action^="/edit-plan"] input:focus,
+.modal-content form[action^="/edit-plan"] select:focus {
+	border-color: #008771;
+	box-shadow: 0 0 0 2px rgba(0, 135, 113, 0.25);
 }
 
 .modal-content--medium {
@@ -4438,7 +4460,7 @@ body.settings-page:not(.admin-panel) { padding: 0 !important; }
     border: 1px solid var(--border-color);
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    z-index: 1000;
+    z-index: 999999 !important;
     min-width: 200px;
     overflow: hidden;
     display: none; /* Скрыто по умолчанию */
@@ -4448,18 +4470,52 @@ body.settings-page:not(.admin-panel) { padding: 0 !important; }
 /* Активное состояние кебаб-меню */
 .kebab-menu.active {
     display: block;
+    position: fixed !important;
+    z-index: 999999 !important;
+    isolation: isolate; /* Создаём новый stacking context для меню */
 }
 
 /* Кебаб-меню в колонке действий - позиционируем слева для всех таблиц */
 .actions-cell .kebab-menu {
     left: 10px;
     transform: none;
+    z-index: 999999 !important;
+}
+
+/* Wrapper не должен создавать stacking context */
+.actions-cell .kebab-wrapper {
+    position: relative;
+}
+
+/* Кебаб-меню открывается вверх, если не хватает места внизу */
+.actions-cell .kebab-menu.open-up {
+    top: auto;
+    bottom: 100%;
+    margin-top: 0;
+    margin-bottom: 5px;
+}
+
+/* На странице серверов меню всегда раскрывается внутрь карточки */
+.servers-grid .kebab-wrapper .kebab-menu {
+    left: auto;
+    right: 0;
+    transform: none;
+    z-index: 999999 !important;
+}
+
+.servers-grid .kebab-wrapper {
+    position: relative;
 }
 
 /* Кебаб-меню в модальном окне - позиционируем слева от кнопки */
 .modal-header .kebab-menu {
     left: 10px;
     transform: none;
+    z-index: 999999 !important;
+}
+
+.modal-header .kebab-wrapper {
+    position: relative;
 }
 
 /* Кебаб-меню в drawer footer - позиционируем вверх от кнопки */
@@ -4470,6 +4526,11 @@ body.settings-page:not(.admin-panel) { padding: 0 !important; }
     transform: none;
     margin-top: 0;
     margin-bottom: 5px;
+    z-index: 999999 !important;
+}
+
+.drawer-footer .kebab-wrapper {
+    position: relative;
 }
 
 /* Кнопка кебаб-меню теперь обычная кнопка */
@@ -4478,6 +4539,7 @@ body.settings-page:not(.admin-panel) { padding: 0 !important; }
 .kebab-item {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
     width: 100%;
     padding: 12px 16px;
@@ -4488,9 +4550,12 @@ body.settings-page:not(.admin-panel) { padding: 0 !important; }
     cursor: pointer;
     transition: background-color 0.2s ease;
     font-size: 14px;
-    white-space: nowrap;
+    white-space: normal;
+    word-break: break-word;
     min-height: 44px;
     box-sizing: border-box;
+    position: static;
+    z-index: auto;
 }
 
 .kebab-item:hover {

@@ -49,14 +49,14 @@ from shop_bot.data_manager.database import (
     get_total_keys_count, get_total_earned_sum, get_total_notifications_count, get_daily_stats_for_charts,
     get_recent_transactions, get_paginated_transactions, get_all_users, get_user_keys,
     ban_user, unban_user, delete_user_keys, get_setting, get_global_domain, find_and_complete_ton_transaction, find_ton_transaction_by_amount,
-    get_paginated_keys, get_plan_by_id, update_plan, get_host, update_host, revoke_user_consent,
+    get_paginated_keys, get_plan_by_id, update_plan, get_host, get_host_by_code, update_host, revoke_user_consent,
     search_users as db_search_users, add_to_user_balance, log_transaction, get_user, get_notification_by_id,
     verify_admin_credentials, hash_password, get_all_promo_codes, create_promo_code, update_promo_code,
     delete_promo_code, get_promo_code, get_promo_code_usage_history, get_all_promo_code_usage_history, get_all_plans, can_user_use_promo_code,
     get_user_promo_codes, validate_promo_code, remove_user_promo_code_usage, can_delete_promo_code,
     get_all_user_groups, get_user_group, create_user_group, update_user_group, delete_user_group,
     get_user_group_by_name, get_default_user_group, update_user_group_assignment, get_user_group_info,
-    get_users_in_group, get_groups_statistics
+    get_users_in_group, get_groups_statistics, update_transaction_status
 )
 from shop_bot.data_manager.scheduler import send_subscription_notification
 from shop_bot.ton_monitor import start_ton_monitoring
@@ -78,7 +78,7 @@ ALL_SETTINGS_KEYS = [
     "telegram_bot_username", "admin_telegram_id", "yookassa_shop_id",
     "yookassa_secret_key", "yookassa_test_mode", "yookassa_test_shop_id", 
     "yookassa_test_secret_key", "yookassa_api_url", "yookassa_test_api_url", "yookassa_verify_ssl", "yookassa_test_verify_ssl", "sbp_enabled", "receipt_email", "cryptobot_token",
-    "stars_enabled", "stars_conversion_rate",
+    "stars_enabled", "stars_conversion_rate", "yookassa_local_stub",
     "heleket_merchant_id", "heleket_api_key", "domain", "global_domain", "docs_domain", "codex_docs_domain", "referral_percentage",
     "referral_discount", "ton_wallet_address", "tonapi_key", "force_subscription", "trial_enabled", "trial_duration_days", "enable_referrals", "minimum_withdrawal",
     "support_group_id", "support_bot_token", "ton_monitoring_enabled", "hidden_mode", "support_enabled",
@@ -109,6 +109,49 @@ def resolve_panel_timezone(raw_timezone: Optional[str] = None) -> Tuple[str, str
     g.panel_timezone_offset = tz_offset
     g._panel_timezone_cache = (tz_name, tz_offset)
     return tz_name, tz_offset
+
+
+def _ensure_host_metadata(metadata: dict | None, payment_id: str | None = None) -> tuple[bool, dict | None]:
+    """Гарантирует, что в metadata присутствует корректный host_name; иначе помечает транзакцию как failed."""
+    metadata = metadata or {}
+    operation = str(metadata.get("operation") or metadata.get("action") or "").lower()
+    host_name = metadata.get("host_name")
+    host_code = metadata.get("host_code")
+
+    if not host_name and not host_code:
+        # Для пополнений и других операций без привязки к хосту разрешаем отсутствие данных
+        if operation in {"topup", "withdraw"}:
+            return True, None
+
+    host_record = None
+    if host_name:
+        host_record = get_host(host_name)
+
+    if not host_record and host_code:
+        host_record = get_host_by_code(str(host_code))
+        if host_record:
+            metadata["host_name"] = host_record.get("host_name")
+
+    if not host_record:
+        logger.error(
+            "[YOOKASSA_WEBHOOK] Host resolution failed: host_name=%s, host_code=%s, payment_id=%s",
+            host_name,
+            host_code,
+            payment_id,
+        )
+        if payment_id:
+            try:
+                update_transaction_status(payment_id, "failed")
+            except Exception as update_error:
+                logger.error(
+                    "[YOOKASSA_WEBHOOK] Failed to mark transaction %s as failed: %s",
+                    payment_id,
+                    update_error,
+                    exc_info=True,
+                )
+        return False, None
+
+    return True, host_record
 
 
 def to_panel_iso(value):
@@ -903,7 +946,7 @@ def create_webhook_app(bot_controller_instance):
         # Для чекбоксов с hidden input (sbp_enabled, stars_enabled, yookassa_verify_ssl, yookassa_test_verify_ssl):
         #   используем getlist() и проверяем наличие 'true' в списке значений
         # Для yookassa_test_mode (без hidden input): простая проверка наличия в форме
-        payment_checkboxes_with_hidden = ['sbp_enabled', 'stars_enabled', 'yookassa_verify_ssl', 'yookassa_test_verify_ssl']
+        payment_checkboxes_with_hidden = ['sbp_enabled', 'stars_enabled', 'yookassa_verify_ssl', 'yookassa_test_verify_ssl', 'yookassa_local_stub']
         for checkbox_key in payment_checkboxes_with_hidden:
             values = request.form.getlist(checkbox_key)
             value = 'true' if 'true' in values else 'false'
@@ -2629,6 +2672,11 @@ def create_webhook_app(bot_controller_instance):
                         "authorization_code": auth_code,
                         "payment_type": payment_type
                     })
+
+                    host_ok, _ = _ensure_host_metadata(metadata, payment_id)
+                    if not host_ok:
+                        logger.error(f"[YOOKASSA_WEBHOOK] Aborting processing for payment_id={payment_id} due to missing host binding.")
+                        return 'OK', 200
                     
                     bot = _bot_controller.get_bot_instance()
                     payment_processor = handlers.process_successful_yookassa_payment
@@ -2737,6 +2785,11 @@ def create_webhook_app(bot_controller_instance):
                     "authorization_code": auth_code,
                     "payment_type": payment_type
                 })
+
+                host_ok, _ = _ensure_host_metadata(metadata, payment_id)
+                if not host_ok:
+                    logger.error(f"[YOOKASSA_WEBHOOK] Aborting capture processing for payment_id={payment_id} due to missing host binding.")
+                    return 'OK', 200
 
                 bot = _bot_controller.get_bot_instance()
                 payment_processor = handlers.process_successful_yookassa_payment
