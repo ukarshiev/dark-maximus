@@ -1,3 +1,18 @@
+3.23.3 – 10.11.2025 10:49
+- [BUGFIX] (YooKassa Webhook) app.py — Добавлен безопасный capture платежей со статусом waiting_for_capture
+  - ✅ Вызов Payment.capture выполняется только при paid=true и обрабатывает ответы SDK
+  - ✅ Подписка не выдается, пока статус не перешёл в succeeded; промежуточные статусы логируются
+  - ✅ Обработаны ошибки ApiError и неожиданные исключения, чтобы не завершать обработку аварийно
+- [OPS] (Prod Verification) root@31.56.27.129 — Проверены журналы платежей на продовом сервере
+  - ✅ Просмотрены файлы logs/application.log для контроля webhook-последовательности
+  - ⚠️ Требуется провести тестовый платеж в тестовом магазине, чтобы подтвердить корректность пост-деплоя
+
+3.23.2 – 10.11.2025 10:28
+- [BUGFIX] (Payment Processing) handlers.py — Возвращены inline-клавиатуры после успешной оплаты YooKassa
+  - ✅ Для новых ключей удаляем промежуточное сообщение и отправляем новое с `create_key_info_keyboard`
+  - ✅ При продлении ключей отправляется сообщение с актуальной клавиатурой вместо простого edit_text
+- [QA] (Testing) pytest — Попытка запуска `tests/test_manual_yookassa_fix*.py` и `tests/test_check_yookassa_payment.py` прервана средой Cursor
+
 3.23.1 – 09.11.2025 16:02
 - [BUGFIX] (Payment Processing) handlers.py, app.py — Исправлена передача days/hours для CryptoBot, Heleket и Balance
   - ✅ CryptoBot: Добавлены days/hours в payload, webhook поддерживает старый и новый форматы
