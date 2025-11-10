@@ -1,3 +1,12 @@
+3.23.5 – 10.11.2025 11:19
+- [Patch] (Webhook) app.py — Добавлены проверки формата `metadata` и fallback-логирование для YooKassa, предотвращающее падения при неожиданных payload
+- [Docs] (Development Guide) webhook-regression-checks.md — Описан чек-лист `compileall` + `nx serve bot` после правок вебхуков
+- [Docs] (Admin Guide) event-loop-alert.md — Создано руководство по настройке алертов «Event loop is not available»
+
+3.23.4 – 10.11.2025 11:09
+- [Patch] (Webhook) app.py — Исправлены отступы в обработчиках YooKassa и CryptoBot, устраняющие SyntaxError при запуске бота
+- [OPS] (Verification) python -m compileall, npx nx serve bot — Проверена компиляция и запуск сервиса без синтаксических ошибок
+
 3.23.3 – 10.11.2025 10:49
 - [BUGFIX] (YooKassa Webhook) app.py — Добавлен безопасный capture платежей со статусом waiting_for_capture
   - ✅ Вызов Payment.capture выполняется только при paid=true и обрабатывает ответы SDK

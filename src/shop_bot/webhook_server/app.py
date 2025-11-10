@@ -2593,7 +2593,18 @@ def create_webhook_app(bot_controller_instance):
             if event_type == "payment.succeeded":
                 # Проверяем, что платеж действительно оплачен
                 if payment_object.get("paid") is True:
-                    metadata = payment_object.get("metadata", {})
+                    raw_metadata = payment_object.get("metadata")
+                    if isinstance(raw_metadata, dict):
+                        metadata = raw_metadata.copy()
+                    else:
+                        logger.warning(
+                            f"[YOOKASSA_WEBHOOK] Received metadata in unexpected format "
+                            f"(type={type(raw_metadata).__name__}) for payment_id={payment_id}. "
+                            f"Fallback to empty dict."
+                        )
+                        if raw_metadata:
+                            logger.warning(f"[YOOKASSA_WEBHOOK] RAW_METADATA_FALLBACK: {raw_metadata}")
+                        metadata = {}
                     
                     logger.info(
                         f"[YOOKASSA_WEBHOOK] Processing payment.succeeded: "
@@ -2646,7 +2657,7 @@ def create_webhook_app(bot_controller_instance):
                             )
                             # Fallback: сохраняем данные для ручной обработки
                             logger.error(f"[YOOKASSA_WEBHOOK] FALLBACK DATA: payment_id={payment_id}, metadata={metadata}")
-                else:
+                    else:
                         logger.error(
                             f"[YOOKASSA_WEBHOOK] Missing required components: "
                             f"metadata={metadata is not None}, bot={bot is not None}, processor={payment_processor is not None}"
@@ -2806,19 +2817,19 @@ def create_webhook_app(bot_controller_instance):
                 if len(parts) == 9:
                     # Старый формат без days/hours
                     logger.info("CryptoBot Webhook: Processing old payload format (without days/hours)")
-                metadata = {
-                    "user_id": parts[0],
-                    "months": parts[1],
+                    metadata = {
+                        "user_id": parts[0],
+                        "months": parts[1],
                         "days": 0,
                         "hours": 0,
-                    "price": parts[2],
-                    "action": parts[3],
-                    "key_id": parts[4],
-                    "host_name": parts[5],
-                    "plan_id": parts[6],
-                    "customer_email": parts[7] if parts[7] != 'None' else None,
-                    "payment_method": parts[8]
-                }
+                        "price": parts[2],
+                        "action": parts[3],
+                        "key_id": parts[4],
+                        "host_name": parts[5],
+                        "plan_id": parts[6],
+                        "customer_email": parts[7] if parts[7] != 'None' else None,
+                        "payment_method": parts[8]
+                    }
                 elif len(parts) == 11:
                     # Новый формат с days/hours
                     logger.info("CryptoBot Webhook: Processing new payload format (with days/hours)")
