@@ -3125,13 +3125,21 @@ def get_user_router() -> Router:
                 host_code_for_email = host_name.replace(' ', '').lower()
                 host_code_for_search = None
             
+            # Получаем данные пользователя для формирования subscription (до создания ключа)
+            user_data = get_user(user_id)
+            username = user_data.get('username', '') if user_data else ''
+            fullname = user_data.get('fullname', '') if user_data else ''
+            subscription = f"{user_id}-{username}".lower().replace('@', '')
+            telegram_chat_id = user_id
+            
             key_number = get_next_key_number(user_id)
             result = await xui_api.create_or_update_key_on_host(
                 host_name=host_name,
                 email=f"user{user_id}-key{key_number}-trial@{host_code_for_email}.bot",
                 days_to_add=trial_duration_float,
                 comment=f"{user_id}",
-                telegram_chat_id=user_id,
+                sub_id=subscription,
+                telegram_chat_id=telegram_chat_id,
                 host_code=host_code_for_search
             )
             if not result:
@@ -3144,13 +3152,6 @@ def get_user_router() -> Router:
             set_trial_days_given(user_id, int(trial_duration_float))
             # Увеличиваем счетчик повторных использований
             increment_trial_reuses(user_id)
-            
-            # Получаем данные пользователя для формирования subscription
-            user_data = get_user(user_id)
-            username = user_data.get('username', '') if user_data else ''
-            fullname = user_data.get('fullname', '') if user_data else ''
-            subscription = f"{user_id}-{username}".lower().replace('@', '')
-            telegram_chat_id = user_id
             
             new_key_id = add_new_key(
                 user_id=user_id,
@@ -3178,6 +3179,31 @@ def get_user_router() -> Router:
                     update_key_remaining_seconds(new_key_id, remaining, datetime.fromtimestamp(result['expiry_timestamp_ms']/1000))
                 except Exception:
                     pass
+                
+                # Создаем транзакцию для пробного ключа
+                try:
+                    log_metadata = json.dumps({
+                        "plan_name": "Пробный период",
+                        "host_name": host_name,
+                        "key_id": new_key_id,
+                        "is_trial": True,
+                        "trial_duration_days": trial_duration_float
+                    })
+                    
+                    log_transaction(
+                        username=username or 'N/A',
+                        transaction_id=None,
+                        payment_id=str(uuid.uuid4()),
+                        user_id=user_id,
+                        status='paid',
+                        amount_rub=0.0,
+                        amount_currency=None,
+                        currency_name=None,
+                        payment_method='Trial',
+                        metadata=log_metadata
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to create transaction for trial key {new_key_id}: {e}", exc_info=True)
             
             new_expiry_date = datetime.fromtimestamp(result['expiry_timestamp_ms'] / 1000)
             subscription_link = result.get('subscription_link')
@@ -3188,9 +3214,10 @@ def get_user_router() -> Router:
                 new_expiry_date,
                 result['connection_string'],
                 subscription_link,
-                'key',
+                'subscription',
                 user_timezone=user_timezone,
                 feature_enabled=feature_enabled,
+                is_trial=True,
             )
             
             # Проверяем, что new_key_id не None перед созданием клавиатуры
@@ -3228,13 +3255,21 @@ def get_user_router() -> Router:
                 host_code_for_email = host_name.replace(' ', '').lower()
                 host_code_for_search = None
             
+            # Получаем данные пользователя для формирования subscription (до создания ключа)
+            user_data = get_user(user_id)
+            username = user_data.get('username', '') if user_data else ''
+            fullname = user_data.get('fullname', '') if user_data else ''
+            subscription = f"{user_id}-{username}".lower().replace('@', '')
+            telegram_chat_id = user_id
+            
             key_number = get_next_key_number(user_id)
             result = await xui_api.create_or_update_key_on_host(
                 host_name=host_name,
                 email=f"user{user_id}-key{key_number}-trial@{host_code_for_email}.bot",
                 days_to_add=trial_duration_float,
                 comment=f"{user_id}",
-                telegram_chat_id=user_id,
+                sub_id=subscription,
+                telegram_chat_id=telegram_chat_id,
                 host_code=host_code_for_search
             )
             if not result:
@@ -3247,13 +3282,6 @@ def get_user_router() -> Router:
             set_trial_days_given(user_id, int(trial_duration_float))
             # Увеличиваем счетчик повторных использований
             increment_trial_reuses(user_id)
-            
-            # Получаем данные пользователя для формирования subscription
-            user_data = get_user(user_id)
-            username = user_data.get('username', '') if user_data else ''
-            fullname = user_data.get('fullname', '') if user_data else ''
-            subscription = f"{user_id}-{username}".lower().replace('@', '')
-            telegram_chat_id = user_id
             
             new_key_id = add_new_key(
                 user_id=user_id,
@@ -3281,6 +3309,31 @@ def get_user_router() -> Router:
                     update_key_remaining_seconds(new_key_id, remaining, datetime.fromtimestamp(result['expiry_timestamp_ms']/1000))
                 except Exception:
                     pass
+                
+                # Создаем транзакцию для пробного ключа
+                try:
+                    log_metadata = json.dumps({
+                        "plan_name": "Пробный период",
+                        "host_name": host_name,
+                        "key_id": new_key_id,
+                        "is_trial": True,
+                        "trial_duration_days": trial_duration_float
+                    })
+                    
+                    log_transaction(
+                        username=username or 'N/A',
+                        transaction_id=None,
+                        payment_id=str(uuid.uuid4()),
+                        user_id=user_id,
+                        status='paid',
+                        amount_rub=0.0,
+                        amount_currency=None,
+                        currency_name=None,
+                        payment_method='Trial',
+                        metadata=log_metadata
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to create transaction for trial key {new_key_id}: {e}", exc_info=True)
             
             await message.delete()
             new_expiry_date = datetime.fromtimestamp(result['expiry_timestamp_ms'] / 1000)
@@ -3292,9 +3345,10 @@ def get_user_router() -> Router:
                 new_expiry_date,
                 result['connection_string'],
                 subscription_link,
-                'key',
+                'subscription',
                 user_timezone=user_timezone,
                 feature_enabled=feature_enabled,
+                is_trial=True,
             )
             
             # Проверяем, что new_key_id не None перед созданием клавиатуры
@@ -3347,6 +3401,7 @@ def get_user_router() -> Router:
                     provision_mode = plan.get('key_provision_mode', 'key')
             
             feature_enabled, user_timezone = _get_user_timezone_context(user_id)
+            is_trial = key_data.get('is_trial') == 1
 
             final_text = get_key_info_text(
                 key_number,
@@ -3358,6 +3413,7 @@ def get_user_router() -> Router:
                 provision_mode,
                 user_timezone=user_timezone,
                 feature_enabled=feature_enabled,
+                is_trial=is_trial,
             )
             
             await callback.message.edit_text(
@@ -4854,6 +4910,7 @@ def get_user_router() -> Router:
                 "host_name": host_name,
                 "host_code": host_code,
                 "plan_id": plan_id,
+                "plan_name": plan.get('plan_name', ''),  # Добавляем plan_name в metadata
                 "customer_email": customer_email,
                 "payment_method": "YooKassa",
                 "promo_code": data.get('promo_code'),
@@ -4867,7 +4924,17 @@ def get_user_router() -> Router:
                     "payment_id": stub_payment_id,
                     "yookassa_stub": True
                 })
-                create_pending_transaction(stub_payment_id, user_id, float(price_rub), stub_metadata)
+                # Для stub режима создаем фиктивный payment_payload для api_request
+                stub_payment_payload = dict(payment_payload)
+                stub_payment_payload['id'] = stub_payment_id
+                create_pending_transaction(
+                    stub_payment_id, 
+                    user_id, 
+                    float(price_rub), 
+                    stub_metadata,
+                    payment_link=None,  # Stub не имеет реальной ссылки
+                    api_request=json.dumps(stub_payment_payload, ensure_ascii=False)
+                )
                 await state.clear()
                 await callback.message.edit_text(
                     "🧪 Тестовый режим YooKassa: платеж эмулирован локально.\n\n"
@@ -4883,8 +4950,15 @@ def get_user_router() -> Router:
 
             payment = Payment.create(payment_payload, uuid.uuid4())
             
-            # Создаем транзакцию в базе данных
-            create_pending_transaction(payment.id, user_id, float(price_rub), payment_metadata)
+            # Создаем транзакцию в базе данных с сохранением payment_link и api_request
+            create_pending_transaction(
+                payment.id, 
+                user_id, 
+                float(price_rub), 
+                payment_metadata,
+                payment_link=payment.confirmation.confirmation_url if payment.confirmation else None,
+                api_request=json.dumps(payment_payload, ensure_ascii=False)
+            )
             
             await state.clear()
             
@@ -6663,6 +6737,22 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
                     new_expiry_date = datetime.fromtimestamp(result['expiry_timestamp_ms'] / 1000)
                     subscription_link = result.get('subscription_link')
                     provision_mode = plan.get('key_provision_mode', 'key') if plan else 'key'
+                    
+                    # Сохраняем connection_string в metadata транзакции
+                    if connection_string and payment_id:
+                        try:
+                            # Обновляем metadata с connection_string
+                            updated_metadata = dict(metadata)
+                            updated_metadata['connection_string'] = connection_string
+                            
+                            update_yookassa_transaction(
+                                payment_id, 'paid', price,
+                                yookassa_payment_id, rrn, authorization_code, payment_type,
+                                updated_metadata
+                            )
+                            logger.info(f"[PAYMENT_PROCESSING] Saved connection_string to transaction metadata for payment_id={payment_id}")
+                        except Exception as metadata_update_error:
+                            logger.warning(f"[PAYMENT_PROCESSING] Failed to save connection_string to metadata: {metadata_update_error}")
 
                     final_text = get_purchase_success_text(
                         action="создан",
@@ -6706,21 +6796,6 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
                 # Обновляем статистику пользователя
                 update_user_stats(user_id, price, months)
                 
-                # Обновляем транзакцию с данными YooKassa
-                payment_id = metadata.get('payment_id')
-                if payment_id:
-                    update_yookassa_transaction(
-                        payment_id, 'paid', price,
-                        yookassa_payment_id, rrn, authorization_code, payment_type,
-                        metadata
-                    )
-                
-                # Обновляем статус промокода на 'used' если он был применен
-                promo_usage_id = metadata.get('promo_usage_id')
-                if promo_usage_id:
-                    from shop_bot.data_manager.database import update_promo_usage_status
-                    update_promo_usage_status(promo_usage_id, plan_id)
-                
                 # Получаем номер ключа для пользователя
                 all_user_keys = get_user_keys(user_id)
                 key_number = next((i + 1 for i, key in enumerate(all_user_keys) if key['key_id'] == key_id), len(all_user_keys))
@@ -6734,6 +6809,36 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
                 feature_enabled, user_timezone = _get_user_timezone_context(user_id)
                 connection_string = result.get('connection_string')
                 new_expiry_date = datetime.fromtimestamp(result['expiry_timestamp_ms'] / 1000)
+                
+                # Сохраняем connection_string в metadata транзакции
+                payment_id = metadata.get('payment_id')
+                if connection_string and payment_id:
+                    try:
+                        # Обновляем metadata с connection_string
+                        updated_metadata = dict(metadata)
+                        updated_metadata['connection_string'] = connection_string
+                        
+                        update_yookassa_transaction(
+                            payment_id, 'paid', price,
+                            yookassa_payment_id, rrn, authorization_code, payment_type,
+                            updated_metadata
+                        )
+                        logger.info(f"[PAYMENT_PROCESSING] Saved connection_string to transaction metadata for renewal payment_id={payment_id}")
+                    except Exception as metadata_update_error:
+                        logger.warning(f"[PAYMENT_PROCESSING] Failed to save connection_string to metadata for renewal: {metadata_update_error}")
+                elif payment_id:
+                    # Обновляем транзакцию без connection_string (если ключ не был создан/обновлен)
+                    update_yookassa_transaction(
+                        payment_id, 'paid', price,
+                        yookassa_payment_id, rrn, authorization_code, payment_type,
+                        metadata
+                    )
+                
+                # Обновляем статус промокода на 'used' если он был применен
+                promo_usage_id = metadata.get('promo_usage_id')
+                if promo_usage_id:
+                    from shop_bot.data_manager.database import update_promo_usage_status
+                    update_promo_usage_status(promo_usage_id, plan_id)
                 
                 final_text = get_purchase_success_text(
                     action="продлен",

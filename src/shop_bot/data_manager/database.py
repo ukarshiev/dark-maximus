@@ -1329,6 +1329,30 @@ def run_migration():
                 logging.info(" -> The column 'payment_type' already exists in transactions table.")
 
             
+            # Проверяем и добавляем api_request если нужно
+            if 'api_request' not in trans_columns:
+
+                cursor.execute("ALTER TABLE transactions ADD COLUMN api_request TEXT")
+
+                logging.info(" -> The column 'api_request' is successfully added to transactions table.")
+
+            else:
+
+                logging.info(" -> The column 'api_request' already exists in transactions table.")
+
+            
+            # Проверяем и добавляем api_response если нужно
+            if 'api_response' not in trans_columns:
+
+                cursor.execute("ALTER TABLE transactions ADD COLUMN api_response TEXT")
+
+                logging.info(" -> The column 'api_response' is successfully added to transactions table.")
+
+            else:
+
+                logging.info(" -> The column 'api_response' already exists in transactions table.")
+
+            
 
             if 'payment_id' in trans_columns and 'status' in trans_columns and 'username' in trans_columns:
 
@@ -1340,9 +1364,13 @@ def run_migration():
 
                 logging.warning(f"The old structure of the TRANSACTIONS table was discovered. I rename in '{backup_name}' ...")
 
-                # Используем параметризованный запрос для безопасности
-
-                cursor.execute("ALTER TABLE transactions RENAME TO ?", (backup_name,))
+                # Валидация имени таблицы для безопасности (только буквы, цифры, подчеркивания)
+                if not re.match(r'^[a-zA-Z0-9_]+$', backup_name):
+                    raise ValueError(f"Invalid table name: {backup_name}. Only alphanumeric characters and underscores are allowed.")
+                
+                # SQLite не поддерживает параметризацию для имен таблиц в DDL операциях
+                # Используем форматирование строки с валидированным именем
+                cursor.execute(f"ALTER TABLE transactions RENAME TO {backup_name}")
 
                 
 
@@ -1361,6 +1389,66 @@ def run_migration():
             logging.info("The new table 'Transactions' has been successfully created.")
 
 
+
+        # Миграция таблицы webhooks для гибридного хранения webhook'ов
+        logging.info("The migration of the table 'webhooks' ...")
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='webhooks'")
+        webhooks_table_exists = cursor.fetchone()
+        
+        if not webhooks_table_exists:
+            # Создаем таблицу webhooks для гибридного хранения
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS webhooks (
+                    webhook_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    webhook_type TEXT NOT NULL,
+                    event_type TEXT,
+                    payment_id TEXT,
+                    transaction_id INTEGER,
+                    request_payload TEXT,
+                    response_payload TEXT,
+                    status TEXT DEFAULT 'received',
+                    created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (transaction_id) REFERENCES transactions(transaction_id)
+                )
+            ''')
+            
+            # Создаем индексы для быстрого поиска
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_webhooks_payment_id ON webhooks(payment_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_webhooks_transaction_id ON webhooks(transaction_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_webhooks_created_date ON webhooks(created_date)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_webhooks_webhook_type ON webhooks(webhook_type)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_webhooks_status ON webhooks(status)")
+            
+            logging.info(" -> The table 'webhooks' has been successfully created with indexes.")
+        else:
+            logging.info(" -> The table 'webhooks' already exists.")
+            
+            # Проверяем наличие индексов и создаем если их нет
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_webhooks_payment_id'")
+            if not cursor.fetchone():
+                cursor.execute("CREATE INDEX idx_webhooks_payment_id ON webhooks(payment_id)")
+                logging.info(" -> Index 'idx_webhooks_payment_id' created.")
+            
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_webhooks_transaction_id'")
+            if not cursor.fetchone():
+                cursor.execute("CREATE INDEX idx_webhooks_transaction_id ON webhooks(transaction_id)")
+                logging.info(" -> Index 'idx_webhooks_transaction_id' created.")
+            
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_webhooks_created_date'")
+            if not cursor.fetchone():
+                cursor.execute("CREATE INDEX idx_webhooks_created_date ON webhooks(created_date)")
+                logging.info(" -> Index 'idx_webhooks_created_date' created.")
+            
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_webhooks_webhook_type'")
+            if not cursor.fetchone():
+                cursor.execute("CREATE INDEX idx_webhooks_webhook_type ON webhooks(webhook_type)")
+                logging.info(" -> Index 'idx_webhooks_webhook_type' created.")
+            
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_webhooks_status'")
+            if not cursor.fetchone():
+                cursor.execute("CREATE INDEX idx_webhooks_status ON webhooks(status)")
+                logging.info(" -> Index 'idx_webhooks_status' created.")
 
         logging.info("The migration of the table 'plans' ...")
 
@@ -1879,6 +1967,10 @@ def create_new_transactions_table(cursor: sqlite3.Cursor):
                     authorization_code TEXT,
 
                     payment_type TEXT,
+
+                    api_request TEXT,
+
+                    api_response TEXT,
 
                     created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 
@@ -4544,13 +4636,22 @@ def get_total_earned_sum() -> float:
 
 
 
-def create_pending_transaction(payment_id: str, user_id: int, amount_rub: float, metadata: dict) -> int:
+def create_pending_transaction(payment_id: str, user_id: int, amount_rub: float, metadata: dict, payment_link: str | None = None, api_request: str | None = None) -> int:
 
+    """Создает pending транзакцию с поддержкой payment_link и api_request"""
+    
     try:
 
-        with sqlite3.connect(DB_FILE) as conn:
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
 
             cursor = conn.cursor()
+            
+            # Устанавливаем PRAGMA для предотвращения блокировок
+            try:
+                cursor.execute("PRAGMA busy_timeout=30000")
+                cursor.execute("PRAGMA journal_mode=WAL")
+            except sqlite3.Error as e:
+                logging.debug(f"Failed to set PRAGMA in create_pending_transaction: {e}")
 
             # Используем локальное время (UTC+3)
 
@@ -4565,9 +4666,9 @@ def create_pending_transaction(payment_id: str, user_id: int, amount_rub: float,
 
             cursor.execute(
 
-                "INSERT INTO transactions (payment_id, user_id, status, amount_rub, payment_method, metadata, created_date) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO transactions (payment_id, user_id, status, amount_rub, payment_method, metadata, payment_link, api_request, created_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
 
-                (payment_id, user_id, 'pending', amount_rub, payment_method, json.dumps(metadata), local_now)
+                (payment_id, user_id, 'pending', amount_rub, payment_method, json.dumps(metadata), payment_link, api_request, local_now)
 
             )
 
@@ -4779,35 +4880,53 @@ def update_transaction_on_payment(payment_id: str, status: str, amount_rub: floa
 def update_yookassa_transaction(payment_id: str, status: str, amount_rub: float, 
                               yookassa_payment_id: str | None = None, rrn: str | None = None, 
                               authorization_code: str | None = None, payment_type: str | None = None,
-                              metadata: dict | None = None) -> bool:
+                              metadata: dict | None = None, api_response: str | None = None) -> bool:
 
-    """Обновляет транзакцию YooKassa с дополнительными данными"""
+    """Обновляет транзакцию YooKassa с дополнительными данными, включая api_response"""
 
     try:
 
-        with sqlite3.connect(DB_FILE) as conn:
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
 
             cursor = conn.cursor()
-
             
+            # Устанавливаем PRAGMA для предотвращения блокировок
+            try:
+                cursor.execute("PRAGMA busy_timeout=30000")
+                cursor.execute("PRAGMA journal_mode=WAL")
+            except sqlite3.Error as e:
+                logging.debug(f"Failed to set PRAGMA in update_yookassa_transaction: {e}")
 
             # Обновляем основную информацию и дополнительные поля YooKassa
+            # Если api_response передан, обновляем его
+            if api_response is not None:
+                cursor.execute("""
 
-            cursor.execute("""
+                    UPDATE transactions 
 
-                UPDATE transactions 
+                    SET status = ?, amount_rub = ?, yookassa_payment_id = ?, rrn = ?, 
 
-                SET status = ?, amount_rub = ?, yookassa_payment_id = ?, rrn = ?, 
+                        authorization_code = ?, payment_type = ?, metadata = ?, api_response = ?
 
-                    authorization_code = ?, payment_type = ?, metadata = ?
+                    WHERE payment_id = ?
 
-                WHERE payment_id = ?
+                """, (status, amount_rub, yookassa_payment_id, rrn, authorization_code, 
 
-            """, (status, amount_rub, yookassa_payment_id, rrn, authorization_code, 
+                      payment_type, json.dumps(metadata) if metadata else None, api_response, payment_id))
+            else:
+                cursor.execute("""
 
-                  payment_type, json.dumps(metadata) if metadata else None, payment_id))
+                    UPDATE transactions 
 
-            
+                    SET status = ?, amount_rub = ?, yookassa_payment_id = ?, rrn = ?, 
+
+                        authorization_code = ?, payment_type = ?, metadata = ?
+
+                    WHERE payment_id = ?
+
+                """, (status, amount_rub, yookassa_payment_id, rrn, authorization_code, 
+
+                      payment_type, json.dumps(metadata) if metadata else None, payment_id))
 
             conn.commit()
 
@@ -4819,6 +4938,116 @@ def update_yookassa_transaction(payment_id: str, status: str, amount_rub: float,
 
         return False
 
+
+
+def save_webhook_to_db(webhook_type: str, event_type: str, payment_id: str | None = None, 
+                       transaction_id: int | None = None, request_payload: dict | None = None,
+                       response_payload: dict | None = None, status: str = 'received') -> int:
+    """Сохраняет webhook в таблицу webhooks для гибридного хранения
+    
+    Args:
+        webhook_type: Тип webhook (yookassa, heleket, ton)
+        event_type: Тип события (payment.succeeded, payment.waiting_for_capture и т.д.)
+        payment_id: ID платежа
+        transaction_id: ID транзакции в БД (опционально)
+        request_payload: JSON payload запроса (будет сериализован)
+        response_payload: JSON payload ответа (будет сериализован)
+        status: Статус обработки (received, processed, error)
+    
+    Returns:
+        ID созданной записи webhook или 0 при ошибке
+    """
+    try:
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
+            cursor = conn.cursor()
+            
+            # Устанавливаем PRAGMA для предотвращения блокировок
+            try:
+                cursor.execute("PRAGMA busy_timeout=30000")
+                cursor.execute("PRAGMA journal_mode=WAL")
+            except sqlite3.Error as e:
+                logging.debug(f"Failed to set PRAGMA in save_webhook_to_db: {e}")
+            
+            # Используем локальное время (UTC+3)
+            from datetime import timezone, timedelta
+            local_tz = timezone(timedelta(hours=3))  # UTC+3 для России
+            local_now = datetime.now(local_tz)
+            
+            # Сериализуем payload если это dict
+            request_payload_str = None
+            if request_payload is not None:
+                if isinstance(request_payload, dict):
+                    request_payload_str = json.dumps(request_payload, ensure_ascii=False)
+                elif isinstance(request_payload, str):
+                    request_payload_str = request_payload
+                else:
+                    request_payload_str = str(request_payload)
+            
+            response_payload_str = None
+            if response_payload is not None:
+                if isinstance(response_payload, dict):
+                    response_payload_str = json.dumps(response_payload, ensure_ascii=False)
+                elif isinstance(response_payload, str):
+                    response_payload_str = response_payload
+                else:
+                    response_payload_str = str(response_payload)
+            
+            cursor.execute("""
+                INSERT INTO webhooks 
+                (webhook_type, event_type, payment_id, transaction_id, request_payload, response_payload, status, created_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (webhook_type, event_type, payment_id, transaction_id, request_payload_str, 
+                  response_payload_str, status, local_now))
+            
+            conn.commit()
+            return cursor.lastrowid
+            
+    except sqlite3.Error as e:
+        logging.error(f"Failed to save webhook to DB: {e}", exc_info=True)
+        return 0
+
+
+def cleanup_old_webhooks(days_to_keep: int = 90) -> int:
+    """Удаляет старые записи webhook'ов из БД
+    
+    Args:
+        days_to_keep: Количество дней для хранения (по умолчанию 90)
+    
+    Returns:
+        Количество удаленных записей
+    """
+    try:
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
+            cursor = conn.cursor()
+            
+            # Устанавливаем PRAGMA для предотвращения блокировок
+            try:
+                cursor.execute("PRAGMA busy_timeout=30000")
+                cursor.execute("PRAGMA journal_mode=WAL")
+            except sqlite3.Error as e:
+                logging.debug(f"Failed to set PRAGMA in cleanup_old_webhooks: {e}")
+            
+            # Используем локальное время (UTC+3)
+            from datetime import timezone, timedelta
+            local_tz = timezone(timedelta(hours=3))  # UTC+3 для России
+            cutoff_date = datetime.now(local_tz) - timedelta(days=days_to_keep)
+            
+            cursor.execute("""
+                DELETE FROM webhooks 
+                WHERE created_date < ?
+            """, (cutoff_date,))
+            
+            deleted_count = cursor.rowcount
+            conn.commit()
+            
+            if deleted_count > 0:
+                logging.info(f"Cleaned up {deleted_count} old webhook records (older than {days_to_keep} days)")
+            
+            return deleted_count
+            
+    except sqlite3.Error as e:
+        logging.error(f"Failed to cleanup old webhooks: {e}", exc_info=True)
+        return 0
 
 
 def get_transaction_by_payment_id(payment_id: str) -> dict | None:

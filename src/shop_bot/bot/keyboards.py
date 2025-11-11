@@ -394,7 +394,8 @@ def create_keys_management_keyboard(keys: list, trial_used: int = 1) -> InlineKe
                     status_icon = "✅"
             
             host_name = key.get('host_name', 'Неизвестный хост')
-            button_text = f"{status_icon} Ключ #{i+1} ({host_name}) (до {expiry_date.strftime('%d.%m.%Y')})"
+            trial_suffix = " (Пробный)" if key.get('is_trial') == 1 else ""
+            button_text = f"{status_icon} Ключ #{i+1}{trial_suffix} ({host_name}) (до {expiry_date.strftime('%d.%m.%Y')})"
             builder.button(text=button_text, callback_data=f"show_key_{key['key_id']}")
     
     # Добавляем пробный период только если он не использован

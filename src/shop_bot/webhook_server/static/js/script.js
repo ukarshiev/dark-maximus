@@ -1385,7 +1385,7 @@ function loadTransactionDetails(transactionId) {
 		'txDetailUserId', 'txDetailUsername', 'txDetailAmountRub', 'txDetailAmountCurrency',
 		'txDetailCurrencyName', 'txDetailPaymentMethod', 'txDetailHash', 'txDetailPaymentLink',
 		'txDetailOperationType', 'txDetailHost', 'txDetailPlan', 'txDetailConnectionString',
-		'txDetailMetadata'
+		'txDetailMetadata', 'txDetailApiRequest', 'txDetailApiResponse'
 	];
 	
 	detailElements.forEach(id => {
@@ -1485,6 +1485,7 @@ function populateTransactionDrawer(tx) {
 	
 	// Пользователь
 	setValue('txDetailUserId', tx.user_id);
+	// Используем username из API (уже получен через JOIN)
 	setValue('txDetailUsername', tx.username ? `@${tx.username}` : '—');
 	
 	// Платеж
@@ -1510,6 +1511,35 @@ function populateTransactionDrawer(tx) {
 	// Ссылка на оплату
 	setValue('txDetailPaymentLink', tx.payment_link);
 	
+	// API Запрос и Ответ
+	const apiRequestEl = document.getElementById('txDetailApiRequest');
+	if (apiRequestEl) {
+		if (tx.api_request) {
+			try {
+				const apiRequestObj = typeof tx.api_request === 'string' ? JSON.parse(tx.api_request) : tx.api_request;
+				apiRequestEl.textContent = formatJSON(JSON.stringify(apiRequestObj, null, 2));
+			} catch (e) {
+				apiRequestEl.textContent = typeof tx.api_request === 'string' ? tx.api_request : JSON.stringify(tx.api_request);
+			}
+		} else {
+			apiRequestEl.textContent = '—';
+		}
+	}
+	
+	const apiResponseEl = document.getElementById('txDetailApiResponse');
+	if (apiResponseEl) {
+		if (tx.api_response) {
+			try {
+				const apiResponseObj = typeof tx.api_response === 'string' ? JSON.parse(tx.api_response) : tx.api_response;
+				apiResponseEl.textContent = formatJSON(JSON.stringify(apiResponseObj, null, 2));
+			} catch (e) {
+				apiResponseEl.textContent = typeof tx.api_response === 'string' ? tx.api_response : JSON.stringify(tx.api_response);
+			}
+		} else {
+			apiResponseEl.textContent = '—';
+		}
+	}
+	
 	// Детали заказа
 	// Тип операции
 	let operationType = '—';
@@ -1522,8 +1552,8 @@ function populateTransactionDrawer(tx) {
 	}
 	setValue('txDetailOperationType', operationType);
 	
-	// Хост и план
-	setValue('txDetailHost', metadata?.host_name || '—');
+	// Хост и план - используем данные из API (fallback на metadata)
+	setValue('txDetailHost', tx.host_name || metadata?.host_name || '—');
 	
 	let planText = '—';
 	if (metadata && (metadata.operation === 'topup' || metadata.type === 'balance_topup')) {
@@ -1531,12 +1561,13 @@ function populateTransactionDrawer(tx) {
 	} else if (metadata?.is_trial === 1) {
 		planText = 'Триал';
 	} else {
-		planText = metadata?.plan_name || '—';
+		// Используем plan_name из API (уже получен через JOIN), fallback на metadata
+		planText = tx.plan_name || metadata?.plan_name || '—';
 	}
 	setValue('txDetailPlan', planText);
 	
-	// Ключ подключения
-	setValue('txDetailConnectionString', metadata?.connection_string || '—');
+	// Ключ подключения - используем данные из API (fallback на metadata)
+	setValue('txDetailConnectionString', tx.connection_string || metadata?.connection_string || '—');
 	
 	// Метаданные (JSON)
 	const metadataEl = document.getElementById('txDetailMetadata');
@@ -1556,13 +1587,90 @@ function showErrorInDrawer(message) {
 		'txDetailUserId', 'txDetailUsername', 'txDetailAmountRub', 'txDetailAmountCurrency',
 		'txDetailCurrencyName', 'txDetailPaymentMethod', 'txDetailHash', 'txDetailPaymentLink',
 		'txDetailOperationType', 'txDetailHost', 'txDetailPlan', 'txDetailConnectionString',
-		'txDetailMetadata'
+		'txDetailMetadata', 'txDetailApiRequest', 'txDetailApiResponse'
 	];
 	
 	detailElements.forEach(id => {
 		const el = document.getElementById(id);
 		if (el) el.textContent = message;
 	});
+}
+
+// Функция для форматирования JSON с подсветкой синтаксиса
+function formatJSON(jsonString) {
+	if (!jsonString || jsonString === '—') {
+		return '—';
+	}
+	
+	try {
+		// Парсим и форматируем JSON
+		const parsed = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
+		return JSON.stringify(parsed, null, 2);
+	} catch (e) {
+		// Если не JSON, возвращаем как есть
+		return jsonString;
+	}
+}
+
+// Функция для копирования JSON в буфер обмена
+function copyJSON(elementId) {
+	const element = document.getElementById(elementId);
+	if (!element) {
+		console.error(`Element with id "${elementId}" not found`);
+		return;
+	}
+	
+	const textToCopy = element.textContent.trim();
+	if (!textToCopy || textToCopy === '—') {
+		alert('Нет данных для копирования');
+		return;
+	}
+	
+	// Находим кнопку через родительский контейнер элемента
+	// Структура: .user-detail-item > button + pre#elementId
+	const container = element.closest('.user-detail-item');
+	const button = container ? container.querySelector('button[onclick*="copyJSON"]') : null;
+	
+	// Функция для обновления состояния кнопки
+	const updateButtonState = () => {
+		if (button) {
+			const originalHTML = button.innerHTML;
+			button.innerHTML = '<i class="fas fa-check"></i> Скопировано';
+			button.style.color = '#008771';
+			setTimeout(() => {
+				button.innerHTML = originalHTML;
+				button.style.color = '';
+			}, 2000);
+		}
+	};
+	
+	// Используем современный Clipboard API
+	if (navigator.clipboard && navigator.clipboard.writeText) {
+		navigator.clipboard.writeText(textToCopy)
+			.then(() => {
+				updateButtonState();
+			})
+			.catch(err => {
+				console.error('Failed to copy text:', err);
+				alert('Ошибка при копировании');
+			});
+	} else {
+		// Fallback для старых браузеров
+		const textArea = document.createElement('textarea');
+		textArea.value = textToCopy;
+		textArea.style.position = 'fixed';
+		textArea.style.opacity = '0';
+		document.body.appendChild(textArea);
+		textArea.select();
+		try {
+			document.execCommand('copy');
+			updateButtonState();
+		} catch (err) {
+			console.error('Fallback copy failed:', err);
+			alert('Ошибка при копировании');
+		}
+		document.body.removeChild(textArea);
+	}
 }
 
 // ============================================
@@ -2883,6 +2991,11 @@ function fillKeyDrawerData(key) {
 	
 	// Новые поля
 	document.getElementById('keyDetailSubscription').textContent = key.subscription || '—';
+	// Subscription Link - обрабатываем случай когда subscription_link равен null или пустой строке
+	const subscriptionLinkEl = document.getElementById('keyDetailSubscriptionLink');
+	if (subscriptionLinkEl) {
+		subscriptionLinkEl.textContent = (key.subscription_link && key.subscription_link.trim() !== '') ? key.subscription_link : '—';
+	}
 	document.getElementById('keyDetailTelegramChatId').textContent = key.telegram_chat_id || '—';
 	document.getElementById('keyDetailComment').textContent = key.comment || '—';
 	

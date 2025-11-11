@@ -647,29 +647,53 @@ def create_webhook_app(bot_controller_instance):
     # @csrf.exempt
     @login_required
     def get_transaction_details(transaction_id):
-        """API endpoint для получения детальной информации о транзакции"""
+        """API endpoint для получения детальной информации о транзакции с улучшенными данными"""
         try:
-            with sqlite3.connect(DB_FILE) as conn:
+            with sqlite3.connect(DB_FILE, timeout=30) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 
+                # Улучшенный запрос с LEFT JOIN для получения username, plan_name и connection_string
                 cursor.execute("""
                     SELECT 
-                        transaction_id,
-                        payment_id,
-                        user_id,
-                        username,
-                        status,
-                        amount_rub,
-                        amount_currency,
-                        currency_name,
-                        payment_method,
-                        metadata,
-                        transaction_hash,
-                        payment_link,
-                        created_date
-                    FROM transactions
-                    WHERE transaction_id = ?
+                        t.transaction_id,
+                        t.payment_id,
+                        t.user_id,
+                        COALESCE(t.username, u.username) as username,
+                        t.status,
+                        t.amount_rub,
+                        t.amount_currency,
+                        t.currency_name,
+                        t.payment_method,
+                        t.metadata,
+                        t.transaction_hash,
+                        t.payment_link,
+                        t.api_request,
+                        t.api_response,
+                        t.created_date,
+                        -- Получаем plan_name из metadata или из таблицы plans (fallback)
+                        COALESCE(
+                            json_extract(t.metadata, '$.plan_name'),
+                            p.plan_name
+                        ) as plan_name,
+                        -- Получаем connection_string из metadata или из таблицы vpn_keys (fallback)
+                        COALESCE(
+                            json_extract(t.metadata, '$.connection_string'),
+                            vk.connection_string
+                        ) as connection_string,
+                        -- Получаем host_name из metadata
+                        json_extract(t.metadata, '$.host_name') as host_name
+                    FROM transactions t
+                    LEFT JOIN users u ON t.user_id = u.telegram_id
+                    LEFT JOIN plans p ON json_extract(t.metadata, '$.plan_id') = p.plan_id
+                    LEFT JOIN vpn_keys vk ON (
+                        t.user_id = vk.user_id 
+                        AND json_extract(t.metadata, '$.host_name') = vk.host_name
+                        AND vk.created_date <= t.created_date
+                    )
+                    WHERE t.transaction_id = ?
+                    ORDER BY vk.created_date DESC
+                    LIMIT 1
                 """, (transaction_id,))
                 
                 row = cursor.fetchone()
@@ -690,16 +714,134 @@ def create_webhook_app(bot_controller_instance):
                     except (json.JSONDecodeError, TypeError):
                         transaction['metadata'] = {}
                 
+                # Парсим api_request и api_response если это строки
+                if transaction.get('api_request'):
+                    try:
+                        transaction['api_request'] = json.loads(transaction['api_request'])
+                    except (json.JSONDecodeError, TypeError):
+                        pass  # Оставляем как строку если не JSON
+                
+                if transaction.get('api_response'):
+                    try:
+                        transaction['api_response'] = json.loads(transaction['api_response'])
+                    except (json.JSONDecodeError, TypeError):
+                        pass  # Оставляем как строку если не JSON
+                
+                # Очищаем None значения для JSON сериализации
+                for key in ['username', 'plan_name', 'connection_string', 'host_name']:
+                    if transaction.get(key) is None:
+                        transaction[key] = None
+                
                 return jsonify({
                     'status': 'success',
                     'transaction': transaction
                 })
                 
         except Exception as e:
-            logging.error(f"Error fetching transaction {transaction_id}: {e}")
+            logging.error(f"Error fetching transaction {transaction_id}: {e}", exc_info=True)
             return jsonify({
                 'status': 'error',
                 'message': 'Ошибка при загрузке данных транзакции'
+            }), 500
+
+    @flask_app.route('/api/webhooks', methods=['GET'])
+    @login_required
+    def get_webhooks():
+        """API endpoint для получения webhook'ов с фильтрацией и пагинацией"""
+        try:
+            payment_id = request.args.get('payment_id')
+            transaction_id = request.args.get('transaction_id', type=int)
+            limit = request.args.get('limit', default=100, type=int)
+            offset = request.args.get('offset', default=0, type=int)
+            
+            # Ограничиваем максимальный лимит
+            if limit > 500:
+                limit = 500
+            
+            with sqlite3.connect(DB_FILE, timeout=30) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                # Строим запрос в зависимости от параметров
+                query = """
+                    SELECT 
+                        webhook_id,
+                        webhook_type,
+                        event_type,
+                        payment_id,
+                        transaction_id,
+                        request_payload,
+                        response_payload,
+                        status,
+                        created_date
+                    FROM webhooks
+                    WHERE 1=1
+                """
+                params = []
+                
+                if payment_id:
+                    query += " AND payment_id = ?"
+                    params.append(payment_id)
+                
+                if transaction_id:
+                    query += " AND transaction_id = ?"
+                    params.append(transaction_id)
+                
+                query += " ORDER BY created_date DESC LIMIT ? OFFSET ?"
+                params.extend([limit, offset])
+                
+                cursor.execute(query, params)
+                rows = cursor.fetchall()
+                
+                # Получаем общее количество записей для пагинации
+                count_query = "SELECT COUNT(*) as total FROM webhooks WHERE 1=1"
+                count_params = []
+                
+                if payment_id:
+                    count_query += " AND payment_id = ?"
+                    count_params.append(payment_id)
+                
+                if transaction_id:
+                    count_query += " AND transaction_id = ?"
+                    count_params.append(transaction_id)
+                
+                cursor.execute(count_query, count_params)
+                total_count = cursor.fetchone()['total']
+                
+                # Преобразуем Row в dict и парсим JSON payload
+                webhooks = []
+                for row in rows:
+                    webhook = dict(row)
+                    
+                    # Парсим request_payload если это JSON
+                    if webhook.get('request_payload'):
+                        try:
+                            webhook['request_payload'] = json.loads(webhook['request_payload'])
+                        except (json.JSONDecodeError, TypeError):
+                            pass  # Оставляем как строку если не JSON
+                    
+                    # Парсим response_payload если это JSON
+                    if webhook.get('response_payload'):
+                        try:
+                            webhook['response_payload'] = json.loads(webhook['response_payload'])
+                        except (json.JSONDecodeError, TypeError):
+                            pass  # Оставляем как строку если не JSON
+                    
+                    webhooks.append(webhook)
+                
+                return jsonify({
+                    'status': 'success',
+                    'webhooks': webhooks,
+                    'total': total_count,
+                    'limit': limit,
+                    'offset': offset
+                })
+                
+        except Exception as e:
+            logging.error(f"Error fetching webhooks: {e}", exc_info=True)
+            return jsonify({
+                'status': 'error',
+                'message': 'Ошибка при загрузке webhook\'ов'
             }), 500
 
     @flask_app.route('/transactions/retry/<payment_id>', methods=['POST'])
@@ -2665,6 +2807,36 @@ def create_webhook_app(bot_controller_instance):
                 f"status={payment_object.get('status')}"
             )
             
+            # Сохраняем webhook в БД асинхронно (в фоне, чтобы не блокировать обработку)
+            try:
+                from shop_bot.data_manager.database import save_webhook_to_db, get_transaction_by_payment_id
+                # Получаем transaction_id если транзакция существует
+                existing_transaction = get_transaction_by_payment_id(payment_id)
+                transaction_id = existing_transaction.get('transaction_id') if existing_transaction else None
+                
+                # Сохраняем webhook в фоне через threading для избежания блокировок БД
+                import threading
+                def save_webhook_background():
+                    try:
+                        webhook_id = save_webhook_to_db(
+                            webhook_type='yookassa',
+                            event_type=event_type,
+                            payment_id=payment_id,
+                            transaction_id=transaction_id,
+                            request_payload=event_json,
+                            status='received'
+                        )
+                        if webhook_id:
+                            logger.debug(f"[YOOKASSA_WEBHOOK] Webhook saved to DB with id={webhook_id}")
+                    except Exception as e:
+                        logger.error(f"[YOOKASSA_WEBHOOK] Failed to save webhook to DB: {e}", exc_info=True)
+                
+                # Запускаем сохранение в отдельном потоке
+                thread = threading.Thread(target=save_webhook_background, daemon=True)
+                thread.start()
+            except Exception as e:
+                logger.warning(f"[YOOKASSA_WEBHOOK] Failed to initiate webhook save: {e}", exc_info=True)
+            
             # Проверяем соответствие режимов
             db_test_mode = get_setting("yookassa_test_mode") == "true"
             if is_test_payment != db_test_mode:
@@ -2674,9 +2846,10 @@ def create_webhook_app(bot_controller_instance):
                     f"Проверьте настройки YooKassa в админ-панели!"
                 )
             
-            # Проверяем транзакцию в БД
-            from shop_bot.data_manager.database import get_transaction_by_payment_id
-            existing_transaction = get_transaction_by_payment_id(payment_id)
+            # Проверяем транзакцию в БД (если еще не получили выше)
+            if 'existing_transaction' not in locals():
+                from shop_bot.data_manager.database import get_transaction_by_payment_id
+                existing_transaction = get_transaction_by_payment_id(payment_id)
             
             if existing_transaction:
                 logger.info(
@@ -2776,17 +2949,86 @@ def create_webhook_app(bot_controller_instance):
                         loop = current_app.config.get('EVENT_LOOP')
                         if loop and loop.is_running():
                             logger.info(f"[YOOKASSA_WEBHOOK] Submitting payment processing to event loop for payment_id={payment_id}")
+                            
+                            # Сериализуем webhook payload для сохранения в api_response
+                            api_response_json = json.dumps(event_json, ensure_ascii=False)
+                            
+                            # Обновляем транзакцию с api_response перед обработкой платежа
+                            try:
+                                from shop_bot.data_manager.database import update_yookassa_transaction
+                                amount_value = payment_object.get('amount', {}).get('value')
+                                amount_rub = float(amount_value) if amount_value else 0.0
+                                
+                                update_yookassa_transaction(
+                                    payment_id, 'paid', amount_rub,
+                                    yookassa_payment_id, rrn, auth_code, payment_type,
+                                    metadata, api_response=api_response_json
+                                )
+                                logger.info(f"[YOOKASSA_WEBHOOK] Transaction updated with api_response for payment_id={payment_id}")
+                            except Exception as update_error:
+                                logger.error(
+                                    f"[YOOKASSA_WEBHOOK] Failed to update transaction with api_response: {update_error}",
+                                    exc_info=True
+                                )
+                            
                             future = asyncio.run_coroutine_threadsafe(payment_processor(bot, metadata), loop)
                             
                             # Ждем завершения с таймаутом для логирования результата
                             try:
                                 future.result(timeout=5)
                                 logger.info(f"[YOOKASSA_WEBHOOK] Payment processing completed successfully for payment_id={payment_id}")
+                                
+                                # Обновляем статус webhook в БД на 'processed'
+                                try:
+                                    from shop_bot.data_manager.database import save_webhook_to_db
+                                    if existing_transaction:
+                                        transaction_id = existing_transaction.get('transaction_id')
+                                        # Обновляем статус последнего webhook для этого payment_id
+                                        import sqlite3
+                                        from shop_bot.data_manager.database import DB_FILE
+                                        with sqlite3.connect(DB_FILE, timeout=30) as conn:
+                                            cursor = conn.cursor()
+                                            cursor.execute("""
+                                                UPDATE webhooks 
+                                                SET status = 'processed' 
+                                                WHERE webhook_id = (
+                                                    SELECT webhook_id 
+                                                    FROM webhooks 
+                                                    WHERE payment_id = ? AND webhook_type = 'yookassa' AND event_type = ?
+                                                    ORDER BY created_date DESC 
+                                                    LIMIT 1
+                                                )
+                                            """, (payment_id, event_type))
+                                            conn.commit()
+                                except Exception as webhook_update_error:
+                                    logger.warning(f"[YOOKASSA_WEBHOOK] Failed to update webhook status: {webhook_update_error}")
+                                    
                             except Exception as future_error:
                                 logger.error(
                                     f"[YOOKASSA_WEBHOOK] Payment processing failed for payment_id={payment_id}: {future_error}",
                                     exc_info=True
                                 )
+                                
+                                # Обновляем статус webhook в БД на 'error'
+                                try:
+                                    import sqlite3
+                                    from shop_bot.data_manager.database import DB_FILE
+                                    with sqlite3.connect(DB_FILE, timeout=30) as conn:
+                                        cursor = conn.cursor()
+                                        cursor.execute("""
+                                            UPDATE webhooks 
+                                            SET status = 'error' 
+                                            WHERE webhook_id = (
+                                                SELECT webhook_id 
+                                                FROM webhooks 
+                                                WHERE payment_id = ? AND webhook_type = 'yookassa' AND event_type = ?
+                                                ORDER BY created_date DESC 
+                                                LIMIT 1
+                                            )
+                                        """, (payment_id, event_type))
+                                        conn.commit()
+                                except Exception as webhook_update_error:
+                                    logger.warning(f"[YOOKASSA_WEBHOOK] Failed to update webhook error status: {webhook_update_error}")
                         else:
                             logger.error(
                                 f"[YOOKASSA_WEBHOOK] CRITICAL: Event loop is not available for payment_id={payment_id}! "
@@ -2919,16 +3161,81 @@ def create_webhook_app(bot_controller_instance):
                     loop = current_app.config.get('EVENT_LOOP')
                     if loop and loop.is_running():
                         logger.info(f"[YOOKASSA_WEBHOOK] Submitting captured payment to event loop for payment_id={payment_id}")
+                        
+                        # Сериализуем webhook payload для сохранения в api_response
+                        api_response_json = json.dumps(event_json, ensure_ascii=False)
+                        
+                        # Обновляем транзакцию с api_response перед обработкой платежа
+                        try:
+                            from shop_bot.data_manager.database import update_yookassa_transaction
+                            amount_value = payment_data_for_processing.get('amount', {}).get('value') or payment_object.get('amount', {}).get('value')
+                            amount_rub = float(amount_value) if amount_value else 0.0
+                            
+                            update_yookassa_transaction(
+                                payment_id, 'paid', amount_rub,
+                                yookassa_payment_id, rrn, auth_code, payment_type,
+                                metadata, api_response=api_response_json
+                            )
+                            logger.info(f"[YOOKASSA_WEBHOOK] Capture transaction updated with api_response for payment_id={payment_id}")
+                        except Exception as update_error:
+                            logger.error(
+                                f"[YOOKASSA_WEBHOOK] Failed to update capture transaction with api_response: {update_error}",
+                                exc_info=True
+                            )
+                        
                         future = asyncio.run_coroutine_threadsafe(payment_processor(bot, metadata), loop)
 
                         try:
                             future.result(timeout=5)
                             logger.info(f"[YOOKASSA_WEBHOOK] Capture payment processing completed for payment_id={payment_id}")
+                            
+                            # Обновляем статус webhook в БД на 'processed'
+                            try:
+                                import sqlite3
+                                from shop_bot.data_manager.database import DB_FILE
+                                with sqlite3.connect(DB_FILE, timeout=30) as conn:
+                                    cursor = conn.cursor()
+                                    cursor.execute("""
+                                        UPDATE webhooks 
+                                        SET status = 'processed' 
+                                        WHERE webhook_id = (
+                                            SELECT webhook_id 
+                                            FROM webhooks 
+                                            WHERE payment_id = ? AND webhook_type = 'yookassa' AND event_type = ?
+                                            ORDER BY created_date DESC 
+                                            LIMIT 1
+                                        )
+                                    """, (payment_id, event_type))
+                                    conn.commit()
+                            except Exception as webhook_update_error:
+                                logger.warning(f"[YOOKASSA_WEBHOOK] Failed to update webhook status: {webhook_update_error}")
+                                
                         except Exception as future_error:
                             logger.error(
                                 f"[YOOKASSA_WEBHOOK] Capture payment processing failed for payment_id={payment_id}: {future_error}",
                                 exc_info=True
                             )
+                            
+                            # Обновляем статус webhook в БД на 'error'
+                            try:
+                                import sqlite3
+                                from shop_bot.data_manager.database import DB_FILE
+                                with sqlite3.connect(DB_FILE, timeout=30) as conn:
+                                    cursor = conn.cursor()
+                                    cursor.execute("""
+                                        UPDATE webhooks 
+                                        SET status = 'error' 
+                                        WHERE webhook_id = (
+                                            SELECT webhook_id 
+                                            FROM webhooks 
+                                            WHERE payment_id = ? AND webhook_type = 'yookassa' AND event_type = ?
+                                            ORDER BY created_date DESC 
+                                            LIMIT 1
+                                        )
+                                    """, (payment_id, event_type))
+                                    conn.commit()
+                            except Exception as webhook_update_error:
+                                logger.warning(f"[YOOKASSA_WEBHOOK] Failed to update webhook error status: {webhook_update_error}")
                     else:
                         logger.error(
                             f"[YOOKASSA_WEBHOOK] CRITICAL: Event loop not available for capture payment_id={payment_id}!"
@@ -2952,10 +3259,13 @@ def create_webhook_app(bot_controller_instance):
                 try:
                     from shop_bot.data_manager.database import update_yookassa_transaction
                     if payment_id:
+                        # Сериализуем webhook payload для сохранения в api_response
+                        api_response_json = json.dumps(event_json, ensure_ascii=False)
+                        
                         update_yookassa_transaction(
                             payment_id, 'canceled', 0.0,
                             payment_id, None, None, None,
-                            metadata
+                            metadata, api_response=api_response_json
                         )
                 except Exception as e:
                     logger.error(f"Failed to update canceled transaction: {e}", exc_info=True)

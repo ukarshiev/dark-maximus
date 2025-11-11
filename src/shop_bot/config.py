@@ -91,6 +91,7 @@ def get_key_info_text(
     *,
     user_timezone: str | None = None,
     feature_enabled: bool = False,
+    is_trial: bool = False,
 ):
     """
     Формирует текст информации о ключе
@@ -103,6 +104,7 @@ def get_key_info_text(
         status: статус ключа
         subscription_link: ссылка на подписку (опционально)
         provision_mode: режим предоставления ('key', 'subscription', 'both')
+        is_trial: является ли ключ пробным
     """
     expiry_dt = expiry_date if isinstance(expiry_date, datetime) else datetime.fromisoformat(str(expiry_date))
     created_dt = created_date if isinstance(created_date, datetime) else datetime.fromisoformat(str(created_date))
@@ -130,8 +132,9 @@ def get_key_info_text(
     else:
         status_icon, status_text = "❓", "Статус неизвестен"
     
+    trial_suffix = " (Пробный)" if is_trial else ""
     base_text = (
-        f"<b>🔑 Информация о ключе #{key_number}</b>\n\n"
+        f"<b>🔑 Информация о ключе #{key_number}{trial_suffix}</b>\n\n"
         f"<b>➕ Приобретён:</b> {created_formatted}\n"
         f"<b>⏳ Действителен до:</b> {expiry_formatted}\n"
         f"<b>{status_icon} Статус:</b> {status_text}\n\n"
@@ -192,6 +195,7 @@ def get_purchase_success_text(
     *,
     user_timezone: str | None = None,
     feature_enabled: bool = False,
+    is_trial: bool = False,
 ):
     """
     Формирует сообщение об успешной покупке/обновлении ключа
@@ -203,6 +207,7 @@ def get_purchase_success_text(
         connection_string: VLESS ключ (опционально)
         subscription_link: ссылка на подписку (опционально)
         provision_mode: режим предоставления ('key', 'subscription', 'both')
+        is_trial: является ли ключ пробным
     """
     action_normalized = (str(action or "").strip().lower())
     if action_normalized in {"extend", "продлен", "продлён"}:
@@ -215,8 +220,9 @@ def get_purchase_success_text(
     expiry_utc = ensure_utc_datetime(expiry_dt if expiry_dt.tzinfo else expiry_dt.replace(tzinfo=timezone.utc))
     expiry_formatted = format_datetime_for_user(expiry_utc, user_timezone=user_timezone, feature_enabled=feature_enabled)
 
+    trial_suffix = " (Пробный)" if is_trial else ""
     base_text = (
-        f"🎉 <b>Ваш ключ #{key_number} {action_text}!</b>\n\n"
+        f"🎉 <b>Ваш ключ #{key_number}{trial_suffix} {action_text}!</b>\n\n"
         f"⏳ <b>Он будет действовать до:</b> {expiry_formatted}\n\n"
     )
 

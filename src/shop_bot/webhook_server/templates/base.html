@@ -843,6 +843,44 @@
 								</div>
 							</div>
 
+							<!-- Группа: API Запрос -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-paper-plane"></i>
+									<span>API Запрос</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" style="grid-column: 1 / -1;" title="JSON запроса к YooKassa">
+										<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+											<label>API Запрос (JSON):</label>
+											<button type="button" class="button button-xs button-secondary" onclick="copyJSON('txDetailApiRequest')" title="Копировать JSON">
+												<i class="fas fa-copy"></i> Копировать
+											</button>
+										</div>
+										<pre id="txDetailApiRequest" style="padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; max-height: 300px; background-color: var(--bg-secondary, #1a1a1a); border: 1px solid var(--border-color, #333);">—</pre>
+									</div>
+								</div>
+							</div>
+
+							<!-- Группа: API Ответ -->
+							<div class="user-data-group">
+								<div class="user-data-group-header">
+									<i class="fas fa-reply"></i>
+									<span>API Ответ</span>
+								</div>
+								<div class="user-details-grid">
+									<div class="user-detail-item" style="grid-column: 1 / -1;" title="JSON ответа от YooKassa">
+										<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+											<label>API Ответ (JSON):</label>
+											<button type="button" class="button button-xs button-secondary" onclick="copyJSON('txDetailApiResponse')" title="Копировать JSON">
+												<i class="fas fa-copy"></i> Копировать
+											</button>
+										</div>
+										<pre id="txDetailApiResponse" style="padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; max-height: 300px; background-color: var(--bg-secondary, #1a1a1a); border: 1px solid var(--border-color, #333);">—</pre>
+									</div>
+								</div>
+							</div>
+
 							<!-- Группа: Детали заказа -->
 							<div class="user-data-group">
 								<div class="user-data-group-header">

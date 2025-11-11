@@ -95,47 +95,144 @@ def get_sub_uri_from_panel(host_url: str, username: str, password: str) -> str |
         logger.error(f"Error getting subURI from {base}: {e}")
         return None
 
+def _normalize_host_url(host_url: str) -> str:
+    """
+    Нормализует URL хоста для корректной работы с библиотекой py3xui.
+    
+    Удаляет trailing slash и двойные слеши, сохраняя структуру URL.
+    Функция идемпотентна - не изменяет уже правильные URL.
+    
+    Args:
+        host_url: Исходный URL хоста
+        
+    Returns:
+        Нормализованный URL без trailing slash и двойных слешей
+        
+    Examples:
+        >>> _normalize_host_url("https://example.com:8443/configpanel/")
+        'https://example.com:8443/configpanel'
+        >>> _normalize_host_url("https://example.com:8443/configpanel")
+        'https://example.com:8443/configpanel'
+        >>> _normalize_host_url("https://example.com:8443//configpanel//")
+        'https://example.com:8443/configpanel'
+    """
+    if not host_url:
+        return host_url
+    
+    # Удаляем trailing slash
+    normalized = host_url.rstrip('/')
+    
+    # Удаляем двойные слеши в пути (но сохраняем :// после протокола)
+    # Разбиваем на части: протокол и остальное
+    if '://' in normalized:
+        protocol, rest = normalized.split('://', 1)
+        # Заменяем множественные слеши на одинарные в пути
+        # Используем цикл для обработки всех случаев множественных слешей
+        while '//' in rest:
+            rest = rest.replace('//', '/')
+        normalized = f"{protocol}://{rest}"
+    else:
+        # Если нет протокола, просто убираем двойные слеши
+        while '//' in normalized:
+            normalized = normalized.replace('//', '/')
+    
+    return normalized
+
 def login_to_host(host_url: str, username: str, password: str, inbound_id: int, max_retries: int = 3) -> tuple[Api | None, Inbound | None]:
-    """Подключение к хосту с механизмом повторных попыток"""
+    """
+    Подключение к хосту с механизмом повторных попыток и автоматической очисткой карантина.
+    
+    Args:
+        host_url: URL хоста (будет нормализован автоматически)
+        username: Имя пользователя для авторизации
+        password: Пароль для авторизации
+        inbound_id: ID inbound для поиска
+        max_retries: Максимальное количество попыток подключения
+        
+    Returns:
+        Кортеж (Api, Inbound) при успешном подключении, (None, None) при ошибке
+    """
     import time
     import time as _time
     from time import time as _now
 
+    # Нормализуем URL для корректной работы с библиотекой py3xui
+    normalized_url = _normalize_host_url(host_url)
+    if normalized_url != host_url:
+        logger.debug(f"Normalized host URL: '{host_url}' -> '{normalized_url}'")
+    
     # Проверяем карантин: если хост в карантине — пропускаем попытки
-    quarantine_until = _host_quarantine_until.get(host_url)
+    # Проверяем как по исходному, так и по нормализованному URL
+    quarantine_until = _host_quarantine_until.get(host_url) or _host_quarantine_until.get(normalized_url)
     if quarantine_until and _now() < quarantine_until:
         remaining = int(quarantine_until - _now())
-        logger.warning(f"Host '{host_url}' is quarantined for {remaining}s, skipping login.")
+        logger.warning(f"Host '{normalized_url}' is quarantined for {remaining}s, skipping login.")
         return None, None
 
     last_error: Exception | None = None
     for attempt in range(max_retries):
         try:
-            api = Api(host=host_url, username=username, password=password)
+            # Используем нормализованный URL и отключаем проверку TLS для самоподписанных сертификатов
+            api = Api(host=normalized_url, username=username, password=password, use_tls_verify=False)
+            logger.debug(f"Attempting to login to '{normalized_url}' (attempt {attempt + 1}/{max_retries})")
+            
             api.login()
+            
+            # Очищаем карантин при успешном подключении
+            try:
+                # Очищаем карантин как для исходного, так и для нормализованного URL
+                if host_url in _host_quarantine_until:
+                    _host_quarantine_until.pop(host_url, None)
+                    logger.info(f"Cleared quarantine for host '{host_url}' after successful login")
+                if normalized_url in _host_quarantine_until and normalized_url != host_url:
+                    _host_quarantine_until.pop(normalized_url, None)
+                    logger.info(f"Cleared quarantine for normalized URL '{normalized_url}' after successful login")
+            except Exception as quarantine_error:
+                # Ошибка очистки карантина не должна прерывать основной поток
+                logger.warning(f"Failed to clear quarantine for '{normalized_url}': {quarantine_error}")
+            
             inbounds: List[Inbound] = api.inbound.get_list()
             target_inbound = next((inbound for inbound in inbounds if inbound.id == inbound_id), None)
             
             if target_inbound is None:
-                logger.error(f"Inbound with ID '{inbound_id}' not found on host '{host_url}'")
+                logger.error(f"Inbound with ID '{inbound_id}' not found on host '{normalized_url}'")
                 return api, None
                 
-            logger.info(f"Successfully connected to host '{host_url}' (attempt {attempt + 1})")
+            logger.info(f"Successfully connected to host '{normalized_url}' (attempt {attempt + 1})")
             return api, target_inbound
             
-        except Exception as e:
+        except ValueError as e:
+            # ValueError выбрасывается библиотекой py3xui при ошибке авторизации
             last_error = e
-            logger.warning(f"Login attempt {attempt + 1}/{max_retries} failed for host '{host_url}': {e}")
+            error_msg = str(e)
+            # Не логируем пароль в сообщении об ошибке
+            logger.warning(f"Login attempt {attempt + 1}/{max_retries} failed for host '{normalized_url}': {error_msg}")
             
             if attempt < max_retries - 1:
                 wait_time = 2 ** attempt  # Экспоненциальная задержка: 1, 2, 4 секунды
                 logger.info(f"Retrying in {wait_time} seconds...")
                 time.sleep(wait_time)
             else:
-                logger.error(f"All {max_retries} login attempts failed for host '{host_url}': {e}", exc_info=True)
-                # Ставим хост в карантин
-                _host_quarantine_until[host_url] = _now() + _HOST_QUARANTINE_SECONDS
-                logger.warning(f"Host '{host_url}' moved to quarantine for {_HOST_QUARANTINE_SECONDS}s due to repeated failures.")
+                logger.error(f"All {max_retries} login attempts failed for host '{normalized_url}': {error_msg}", exc_info=True)
+                # Ставим хост в карантин по нормализованному URL
+                _host_quarantine_until[normalized_url] = _now() + _HOST_QUARANTINE_SECONDS
+                logger.warning(f"Host '{normalized_url}' moved to quarantine for {_HOST_QUARANTINE_SECONDS}s due to repeated failures.")
+                
+        except Exception as e:
+            # Обработка других исключений (сетевые ошибки, таймауты и т.д.)
+            last_error = e
+            error_msg = str(e)
+            logger.warning(f"Login attempt {attempt + 1}/{max_retries} failed for host '{normalized_url}': {error_msg}")
+            
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt  # Экспоненциальная задержка: 1, 2, 4 секунды
+                logger.info(f"Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+            else:
+                logger.error(f"All {max_retries} login attempts failed for host '{normalized_url}': {error_msg}", exc_info=True)
+                # Ставим хост в карантин по нормализованному URL
+                _host_quarantine_until[normalized_url] = _now() + _HOST_QUARANTINE_SECONDS
+                logger.warning(f"Host '{normalized_url}' moved to quarantine for {_HOST_QUARANTINE_SECONDS}s due to repeated failures.")
                 
     return None, None
 

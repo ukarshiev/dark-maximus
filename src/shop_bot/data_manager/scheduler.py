@@ -991,6 +991,10 @@ async def sync_keys_with_panels():
 async def periodic_subscription_check(bot_controller: BotController):
     logger.info("Scheduler has been started.")
     await asyncio.sleep(10)
+    
+    # Счетчик циклов для периодической очистки webhook'ов (раз в день)
+    webhook_cleanup_counter = 0
+    WEBHOOK_CLEANUP_INTERVAL = 288  # 288 циклов * 300 сек = 24 часа
 
     while True:
         try:
@@ -1002,6 +1006,18 @@ async def periodic_subscription_check(bot_controller: BotController):
             update_keys_status_by_expiry()
             
             await sync_keys_with_panels()
+            
+            # Периодическая очистка старых webhook'ов (раз в день)
+            webhook_cleanup_counter += 1
+            if webhook_cleanup_counter >= WEBHOOK_CLEANUP_INTERVAL:
+                try:
+                    from shop_bot.data_manager.database import cleanup_old_webhooks
+                    deleted_count = cleanup_old_webhooks(days_to_keep=90)
+                    if deleted_count > 0:
+                        logger.info(f"Scheduler: Cleaned up {deleted_count} old webhook records")
+                    webhook_cleanup_counter = 0
+                except Exception as cleanup_error:
+                    logger.error(f"Scheduler: Failed to cleanup old webhooks: {cleanup_error}", exc_info=True)
 
             if bot_controller.get_status().get("shop_bot_running"):
                 bot = bot_controller.get_bot_instance()
