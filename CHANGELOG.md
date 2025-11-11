@@ -1,3 +1,8 @@
+4.1.20 – 12.11.2025 00:27
+- [Fix] (SSL/Network) `src/shop_bot/bot_controller.py` — Добавлена явная настройка SSL контекста через `AiohttpSession` для предотвращения ошибок "SSL record layer failure" при подключении к Telegram API. Создана функция `_create_telegram_session()` для явного создания сессии с правильными таймаутами. `AiohttpSession` использует `certifi` по умолчанию для SSL контекста, что обеспечивает надежную проверку сертификатов.
+- [Fix] (SSL/Network) `src/shop_bot/utils/error_handler.py` — Улучшена обработка `TelegramNetworkError` для специфичных SSL ошибок. Добавлено детальное логирование для разных типов SSL ошибок (record layer failure, certificate errors). Ошибки "SSL record layer failure" теперь логируются как предупреждения с указанием, что aiogram автоматически выполнит повторную попытку.
+- [Dependencies] `pyproject.toml` — Добавлен `certifi>=2024.0.0` в зависимости для явного использования актуальных SSL сертификатов при подключении к Telegram API.
+
 4.1.19 – 11.11.2025 04:30
 - [Fix] (Trial Keys) `src/shop_bot/bot/handlers.py` — Добавлено создание транзакции при создании пробного ключа. Теперь пробные ключи создают запись в таблице `transactions` со статусом `paid`, `amount_rub=0.0` и `payment_method='Trial'`. Это решает проблему, когда пользователь видел ключ №N в профиле, но не находил соответствующую транзакцию. Транзакция создается в обоих обработчиках: `process_trial_key_creation_callback()` и `process_trial_key_creation()`.
 

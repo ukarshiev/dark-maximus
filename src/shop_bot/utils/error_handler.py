@@ -78,13 +78,37 @@ class ErrorHandler:
         }
     
     def _handle_network_error(self, error: TelegramNetworkError, context: str = "") -> Dict[str, Any]:
-        """Обработка сетевых ошибок"""
+        """Обработка сетевых ошибок, включая SSL ошибки"""
+        error_message = str(error)
         logger.error(f"Network error in {context}: {error}")
+        
+        # Определяем тип сетевой ошибки для более информативного логирования
+        is_ssl_error = False
+        user_message = 'Ошибка сети. Проверьте подключение.'
+        
+        # Проверяем на SSL ошибки
+        if "SSL" in error_message or "ssl" in error_message.lower():
+            is_ssl_error = True
+            if "record layer failure" in error_message:
+                user_message = 'Временная ошибка SSL соединения. Повторная попытка выполняется автоматически.'
+                logger.warning(
+                    f"SSL record layer failure detected in {context}. "
+                    "This is usually a temporary network issue. Aiogram will retry automatically."
+                )
+            elif "certificate" in error_message.lower():
+                user_message = 'Ошибка проверки SSL сертификата. Проверьте системное время.'
+                logger.error(f"SSL certificate error in {context}: {error_message}")
+            else:
+                user_message = 'Ошибка SSL соединения. Повторная попытка выполняется автоматически.'
+                logger.warning(f"SSL error in {context}: {error_message}")
+        
         return {
             'error': 'Network error',
-            'message': 'Ошибка сети. Проверьте подключение.',
+            'message': user_message,
             'code': 'NETWORK_ERROR',
-            'status_code': 503
+            'status_code': 503,
+            'is_ssl_error': is_ssl_error,
+            'original_error': error_message
         }
     
     def _handle_value_error(self, error: ValueError, context: str = "") -> Dict[str, Any]:

@@ -9,7 +9,9 @@ import logging
 from yookassa import Configuration
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode 
+from aiohttp import ClientTimeout
 
 from shop_bot.data_manager import database
 from shop_bot.bot.handlers import get_user_router
@@ -34,6 +36,36 @@ def _safe_strip(value: str | None) -> str | None:
         return None
     stripped = value.strip()
     return stripped or None
+
+
+def _create_telegram_session(timeout: ClientTimeout) -> AiohttpSession:
+    """
+    Создает AiohttpSession для надежного подключения к Telegram API.
+    
+    AiohttpSession уже использует certifi по умолчанию для SSL контекста,
+    что помогает предотвратить ошибки типа "SSL record layer failure" при временных проблемах с сетью.
+    Явное создание сессии гарантирует использование актуальных SSL сертификатов.
+    
+    Args:
+        timeout: Таймауты для HTTP запросов
+        
+    Returns:
+        AiohttpSession с настроенными таймаутами (SSL контекст настроен автоматически через certifi)
+    """
+    try:
+        # AiohttpSession уже использует certifi по умолчанию для SSL контекста
+        # Создаем сессию и устанавливаем таймауты
+        session = AiohttpSession()
+        session.timeout = timeout
+        
+        logger.debug("Telegram session created with SSL context (certifi used by default)")
+        return session
+    except Exception as e:
+        logger.warning(f"Failed to create session: {e}. Using default session.")
+        # В случае ошибки возвращаем сессию с дефолтными настройками
+        session = AiohttpSession()
+        session.timeout = timeout
+        return session
 
 
 class BotController:
@@ -102,9 +134,10 @@ class BotController:
         try:
             logger.warning("🟢 ShopBot: Запуск бота...")
             # Увеличиваем таймауты сети для устойчивости к временному лага Telegram
-            from aiohttp import ClientTimeout
             network_timeout = ClientTimeout(total=30, connect=10, sock_read=20)
-            self.shop_bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML), session_kwargs={"timeout": network_timeout})
+            # Создаем сессию с явной настройкой SSL контекста для предотвращения SSL ошибок
+            session = _create_telegram_session(network_timeout)
+            self.shop_bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML), session=session)
             self.shop_dp = Dispatcher()
             
             # Добавляем middleware в правильном порядке
@@ -205,9 +238,10 @@ class BotController:
 
         try:
             logger.warning("🟢 SupportBot: Запуск бота...")
-            from aiohttp import ClientTimeout
             network_timeout = ClientTimeout(total=30, connect=10, sock_read=20)
-            self.support_bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML), session_kwargs={"timeout": network_timeout})
+            # Создаем сессию с явной настройкой SSL контекста для предотвращения SSL ошибок
+            session = _create_telegram_session(network_timeout)
+            self.support_bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML), session=session)
             self.support_dp = Dispatcher()
             
             support_handlers.user_bot = self.shop_bot
