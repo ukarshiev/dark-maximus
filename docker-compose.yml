@@ -9,6 +9,9 @@ services:
       - ./users.db:/app/project/users.db
       - ./logs:/app/project/logs
       - ./backups:/app/project/backups
+      - ./instructions:/app/project/instructions
+      - ./video_instructions:/app/project/video_instructions
+      - ./sessions:/app/sessions
       # Volume-маппинги для исходного кода (позволяют изменения без пересборки)
       - ./src:/app/project/src
       - ./src/shop_bot/webhook_server/templates:/app/project/src/shop_bot/webhook_server/templates
