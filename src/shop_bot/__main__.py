@@ -8,6 +8,7 @@ import threading
 import asyncio
 import signal
 import os
+import time
 
 from shop_bot.webhook_server.app import create_webhook_app
 from shop_bot.data_manager.scheduler import periodic_subscription_check
@@ -25,21 +26,27 @@ def main():
     
     logger.warning("🚀 Dark Maximus: Запуск приложения...")
     
-    # Выполняем миграцию БД до инициализации, пока никто не работает с БД
+    # Инициализация БД (включает миграцию внутри)
     try:
-        logger.info("Running database migration before initialization...")
-        database.run_migration()
-        logger.info("✅ Database migration completed successfully.")
+        database.initialize_db()
+        logger.info("✅ Database initialization completed successfully.")
     except Exception as e:
-        # Логируем ошибку, но не прерываем запуск - миграция может быть уже выполнена
-        logger.warning(f"Database migration error (may be already applied): {e}")
-
-    database.initialize_db()
+        logger.error(f"❌ Database initialization failed: {e}", exc_info=True)
+        logger.error("Application cannot start without database. Exiting.")
+        import sys
+        sys.exit(1)
+    
     logger.info("Database initialization check complete.")
+    
+    # Небольшая задержка для гарантии завершения миграции перед созданием async соединений
+    time.sleep(1)
     
     # Инициализация асинхронной БД
     asyncio.run(initialize_async_db())
     logger.info("Async database initialized.")
+    
+    # Небольшая задержка для гарантии завершения async инициализации перед созданием бэкапа
+    time.sleep(0.5)
     
     # Инициализация Telegram Logger Handler
     try:

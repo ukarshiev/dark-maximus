@@ -86,21 +86,42 @@ class DatabaseBackupManager:
             # Убедимся, что директория существует
             uncompressed_backup_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Выполняем резервное копирование через API
-            with sqlite3.connect(DB_FILE) as src_conn:
+            # Выполняем резервное копирование через API с retry логикой при блокировке
+            max_retries = 3
+            retry_delays = [1.0, 2.0, 3.0]
+            backup_success = False
+            
+            for attempt in range(max_retries):
                 try:
-                    # На случай WAL — сделаем чекпойнт; игнорируем ошибку, если режим не WAL
-                    try:
-                        src_conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-                    except sqlite3.Error as e:
-                        logger.debug(f"Failed to set PRAGMA busy_timeout in backup: {e}")
+                    with sqlite3.connect(DB_FILE, timeout=30) as src_conn:
+                        try:
+                            # На случай WAL — сделаем чекпойнт; игнорируем ошибку, если режим не WAL
+                            try:
+                                src_conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                            except sqlite3.Error as e:
+                                logger.debug(f"Failed to checkpoint WAL in backup: {e}")
 
-                    src_conn.execute("PRAGMA busy_timeout=5000")
-                    with sqlite3.connect(uncompressed_backup_path) as dst_conn:
-                        dst_conn.execute("PRAGMA busy_timeout=5000")
-                        src_conn.backup(dst_conn)
-                finally:
-                    src_conn.commit()
+                            src_conn.execute("PRAGMA busy_timeout=5000")
+                            with sqlite3.connect(uncompressed_backup_path) as dst_conn:
+                                dst_conn.execute("PRAGMA busy_timeout=5000")
+                                src_conn.backup(dst_conn)
+                        finally:
+                            src_conn.commit()
+                    
+                    backup_success = True
+                    break
+                    
+                except sqlite3.OperationalError as db_error:
+                    if "database is locked" in str(db_error).lower() and attempt < max_retries - 1:
+                        wait_time = retry_delays[attempt]
+                        logger.warning(
+                            f"Database is locked during backup (attempt {attempt + 1}/{max_retries}). "
+                            f"Retrying in {wait_time}s..."
+                        )
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        raise
 
             # Глубокая проверка целостности бэкапа и авто-восстановление индексов при необходимости
             if self.verify_backups:
@@ -479,15 +500,32 @@ def initialize_backup_system():
         backup_manager.verify_backups = verify
         
         if backup_enabled:
-            # Создаем первый бэкап при запуске
-            backup_info = backup_manager.create_backup("initial_backup.db")
+            # Создаем первый бэкап при запуске (опционально, не прерываем инициализацию при ошибке)
+            try:
+                backup_info = backup_manager.create_backup("initial_backup.db")
+                
+                if backup_info['success']:
+                    logger.info("Initial database backup created successfully")
+                else:
+                    error_msg = backup_info.get('error', 'Unknown error')
+                    if "database is locked" in str(error_msg).lower():
+                        logger.warning(
+                            f"Initial backup skipped due to database lock: {error_msg}. "
+                            "Backup will be created automatically later."
+                        )
+                    else:
+                        logger.warning(f"Failed to create initial backup: {error_msg}")
+            except Exception as e:
+                error_msg = str(e)
+                if "database is locked" in error_msg.lower():
+                    logger.warning(
+                        f"Initial backup skipped due to database lock: {error_msg}. "
+                        "Backup will be created automatically later."
+                    )
+                else:
+                    logger.warning(f"Failed to create initial backup: {e}")
             
-            if backup_info['success']:
-                logger.info("Initial database backup created successfully")
-            else:
-                logger.error(f"Failed to create initial backup: {backup_info.get('error')}")
-            
-            # Запускаем автоматические бэкапы
+            # Запускаем автоматические бэкапы (даже если initial backup не удался)
             backup_manager.start_automatic_backups(interval_hours)
             logger.info(f"Backup system initialized with {interval_hours}h interval")
         else:

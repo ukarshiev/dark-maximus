@@ -24,6 +24,8 @@ import time
 from typing import Optional
 import unicodedata
 import re
+import os
+import fcntl
 def _parse_db_datetime(value) -> Optional[datetime]:
     """Парсит datetime из БД, возвращая aware UTC значение."""
     if value in (None, ''):
@@ -119,6 +121,26 @@ def _normalize_host_identifier(value: str | None) -> str:
     return candidate
 
 
+def _column_exists(cursor, table_name: str, column_name: str) -> bool:
+    """Безопасная проверка существования колонки в таблице.
+    
+    Args:
+        cursor: Курсор SQLite
+        table_name: Имя таблицы
+        column_name: Имя колонки
+        
+    Returns:
+        True если колонка существует, False в противном случае или при ошибке
+    """
+    try:
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        columns = [row[1] for row in cursor.fetchall()]
+        return column_name in columns
+    except Exception as e:
+        logger.warning(f"Failed to check column existence for {table_name}.{column_name}: {e}")
+        return False
+
+
 # Локальная самодиагностика/восстановление БД при мягких повреждениях индексов
 def _repair_database_indexes() -> bool:
     """Пытается восстановить индексы и провести обслуживание БД.
@@ -158,17 +180,157 @@ def _repair_database_indexes() -> bool:
 
 
 def initialize_db():
-
-    try:
-
-        with sqlite3.connect(DB_FILE, timeout=30) as conn:
-
-            cursor = conn.cursor()
-
+    """
+    Инициализация базы данных с защитой от параллельных запусков.
+    
+    Использует файловую блокировку через fcntl для предотвращения параллельной инициализации
+    и retry логику для обработки временных блокировок БД.
+    """
+    # Детальное логирование для диагностики
+    logger.info(f"[PID {os.getpid()}] Database initialization started. DB_FILE path: {DB_FILE}")
+    logger.info(f"[PID {os.getpid()}] DB_FILE.parent: {DB_FILE.parent}, exists: {DB_FILE.parent.exists()}")
+    logger.info(f"[PID {os.getpid()}] DB_FILE exists: {DB_FILE.exists()}")
+    
+    # Проверка и создание родительской директории если её нет
+    if not DB_FILE.parent.exists():
+        try:
+            logger.info(f"[PID {os.getpid()}] Creating database directory: {DB_FILE.parent}")
+            DB_FILE.parent.mkdir(parents=True, exist_ok=True)
+            logger.info(f"[PID {os.getpid()}] Database directory created successfully: {DB_FILE.parent}")
+        except Exception as dir_error:
+            logger.error(f"[PID {os.getpid()}] Failed to create database directory {DB_FILE.parent}: {dir_error}", exc_info=True)
+            raise
+    
+    # Проверка прав доступа к директории
+    if DB_FILE.parent.exists():
+        try:
+            import stat
+            dir_stat = os.stat(DB_FILE.parent)
+            logger.debug(f"[PID {os.getpid()}] Directory permissions: {oct(dir_stat.st_mode)}")
+            # Проверяем возможность записи
+            test_file = DB_FILE.parent / ".test_write"
             try:
-                cursor.execute("PRAGMA busy_timeout=30000")
-            except sqlite3.Error as e:
-                logging.debug(f"Failed to set PRAGMA busy_timeout in initialize_db: {e}")
+                test_file.touch()
+                test_file.unlink()
+                logger.debug(f"[PID {os.getpid()}] Directory is writable")
+            except Exception as write_test_error:
+                logger.error(f"[PID {os.getpid()}] Directory is NOT writable: {write_test_error}")
+                raise PermissionError(f"Cannot write to directory {DB_FILE.parent}: {write_test_error}")
+        except Exception as perm_error:
+            logger.warning(f"[PID {os.getpid()}] Could not check directory permissions: {perm_error}")
+    
+    # Проверка существования БД и что это файл, а не директория
+    if DB_FILE.exists():
+        if DB_FILE.is_dir():
+            logger.error(f"[PID {os.getpid()}] DB_FILE exists but is a DIRECTORY, not a file: {DB_FILE}")
+            raise ValueError(f"Database path {DB_FILE} is a directory, not a file. Please remove the directory and create a file instead.")
+        logger.info(f"[PID {os.getpid()}] Database file exists: {DB_FILE} (size: {DB_FILE.stat().st_size} bytes)")
+    else:
+        # Создаем пустой файл БД
+        try:
+            logger.info(f"[PID {os.getpid()}] Creating empty database file: {DB_FILE}")
+            DB_FILE.touch()
+            logger.info(f"[PID {os.getpid()}] Empty database file created successfully: {DB_FILE}")
+        except Exception as file_error:
+            logger.error(f"[PID {os.getpid()}] Failed to create database file {DB_FILE}: {file_error}", exc_info=True)
+            raise
+    
+    # Путь к файлу блокировки
+    lock_file_path = DB_FILE.parent / ".db_init.lock"
+    lock_file = None
+    lock_acquired = False
+    
+    # Retry логика с экспоненциальной задержкой
+    max_retries = 5
+    retry_delays = [0.5, 1.0, 2.0, 4.0, 8.0]
+    process_id = os.getpid()
+    
+    for attempt in range(max_retries):
+        try:
+            # Попытка получить файловую блокировку
+            try:
+                lock_file = open(lock_file_path, 'w')
+                # Неблокирующая попытка получить эксклюзивную блокировку
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                lock_acquired = True
+                logger.info(f"[PID {process_id}] Database initialization lock acquired (attempt {attempt + 1})")
+            except (IOError, OSError) as lock_error:
+                # Блокировка занята другим процессом
+                if attempt < max_retries - 1:
+                    wait_time = retry_delays[attempt]
+                    logger.warning(
+                        f"[PID {process_id}] Database initialization lock is held by another process. "
+                        f"Waiting {wait_time}s before retry {attempt + 2}/{max_retries}..."
+                    )
+                    time.sleep(wait_time)
+                    if lock_file:
+                        lock_file.close()
+                        lock_file = None
+                    continue
+                else:
+                    # Последняя попытка - используем fallback без блокировки
+                    logger.warning(
+                        f"[PID {process_id}] Could not acquire lock after {max_retries} attempts. "
+                        f"Proceeding with retry logic only (fallback mode)."
+                    )
+                    if lock_file:
+                        lock_file.close()
+                        lock_file = None
+            
+            # Подключение к БД с retry логикой
+            db_connected = False
+            for db_attempt in range(max_retries):
+                try:
+                    # Дополнительная проверка перед подключением
+                    if DB_FILE.exists() and DB_FILE.is_dir():
+                        raise ValueError(f"Database path {DB_FILE} is a directory, not a file")
+                    
+                    # Проверка прав доступа к файлу
+                    if DB_FILE.exists():
+                        try:
+                            test_access = os.access(DB_FILE, os.R_OK | os.W_OK)
+                            if not test_access:
+                                raise PermissionError(f"No read/write access to database file {DB_FILE}")
+                        except Exception as access_error:
+                            logger.warning(f"[PID {process_id}] Could not check file access: {access_error}")
+                    
+                    logger.debug(f"[PID {process_id}] Attempting to connect to database: {DB_FILE}")
+                    conn = sqlite3.connect(str(DB_FILE), timeout=30)
+                    cursor = conn.cursor()
+                    
+                    # Установка WAL режима и оптимизационных PRAGMA
+                    try:
+                        cursor.execute("PRAGMA busy_timeout=30000")
+                        cursor.execute("PRAGMA journal_mode=WAL")
+                        cursor.execute("PRAGMA synchronous=NORMAL")
+                        cursor.execute("PRAGMA cache_size=10000")
+                        cursor.execute("PRAGMA temp_store=MEMORY")
+                        logger.debug(f"[PID {process_id}] Database PRAGMA settings configured (WAL mode enabled)")
+                    except sqlite3.Error as pragma_error:
+                        logger.warning(f"[PID {process_id}] Failed to set some PRAGMA settings: {pragma_error}")
+                        # Продолжаем работу даже если PRAGMA не установились
+                    
+                    db_connected = True
+                    break
+                    
+                except sqlite3.OperationalError as db_error:
+                    if "database is locked" in str(db_error).lower() and db_attempt < max_retries - 1:
+                        wait_time = retry_delays[db_attempt]
+                        logger.warning(
+                            f"[PID {process_id}] Database is locked (attempt {db_attempt + 1}/{max_retries}). "
+                            f"Retrying in {wait_time}s..."
+                        )
+                        time.sleep(wait_time)
+                        if 'conn' in locals():
+                            try:
+                                conn.close()
+                            except:
+                                pass
+                    else:
+                        raise
+            
+            if not db_connected:
+                raise sqlite3.OperationalError("Failed to connect to database after all retries")
 
             cursor.execute('''
 
@@ -344,6 +506,10 @@ def initialize_db():
                     status TEXT,
 
                     meta TEXT,
+
+                    key_id INTEGER,
+
+                    marker_hours INTEGER,
 
                     created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 
@@ -651,7 +817,7 @@ def initialize_db():
 
             }
 
-            run_migration()
+            run_migration(conn)
 
             
 
@@ -672,17 +838,127 @@ def initialize_db():
             for key, value in default_settings.items():
                 if key in sensitive_keys:
                     # Пропускаем чувствительные ключи - они уже обработаны выше
-                    logging.debug(f"Skipping sensitive key '{key}' in default_settings loop")
+                    logger.debug(f"Skipping sensitive key '{key}' in default_settings loop")
                     continue
                 cursor.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", (key, value))
 
+            # Коммитим все изменения
             conn.commit()
-
-            logging.info("Database initialized successfully.")
-
-    except sqlite3.Error as e:
-
-        logging.error(f"Database error on initialization: {e}", exc_info=True)
+            
+            # Закрываем соединение перед освобождением блокировки
+            conn.close()
+            
+            logger.info(f"[PID {process_id}] Database initialized successfully.")
+            
+            # Освобождаем блокировку перед возвратом
+            if lock_file and lock_acquired:
+                try:
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                    lock_file.close()
+                    logger.debug(f"[PID {process_id}] Database initialization lock released")
+                except Exception as unlock_error:
+                    logger.warning(f"[PID {process_id}] Failed to release lock: {unlock_error}")
+            
+            return  # Успешная инициализация
+                    
+        except sqlite3.OperationalError as db_error:
+            if "database is locked" in str(db_error).lower():
+                if attempt < max_retries - 1:
+                    wait_time = retry_delays[attempt]
+                    logger.warning(
+                        f"[PID {process_id}] Database initialization failed due to lock "
+                        f"(attempt {attempt + 1}/{max_retries}). Retrying in {wait_time}s..."
+                    )
+                    time.sleep(wait_time)
+                    # Закрываем соединение если было открыто
+                    if 'conn' in locals():
+                        try:
+                            conn.close()
+                        except:
+                            pass
+                    # Освобождаем блокировку перед следующей попыткой
+                    if lock_file and lock_acquired:
+                        try:
+                            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                            lock_file.close()
+                            lock_file = None
+                            lock_acquired = False
+                        except:
+                            pass
+                    continue
+                else:
+                    # Все попытки исчерпаны
+                    logger.error(
+                        f"[PID {process_id}] Database initialization failed after {max_retries} attempts. "
+                        f"Database is locked and cannot be initialized."
+                    )
+                    if 'conn' in locals():
+                        try:
+                            conn.close()
+                        except:
+                            pass
+                    raise
+            else:
+                # Другая ошибка БД - пробрасываем дальше
+                if 'conn' in locals():
+                    try:
+                        conn.close()
+                    except:
+                        pass
+                raise
+        except Exception as e:
+            # Любая другая ошибка
+            logger.error(
+                f"[PID {process_id}] Unexpected error during database initialization (attempt {attempt + 1}): {e}",
+                exc_info=True
+            )
+            if 'conn' in locals():
+                try:
+                    conn.close()
+                except:
+                    pass
+            if attempt < max_retries - 1:
+                wait_time = retry_delays[attempt]
+                logger.warning(f"[PID {process_id}] Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+                # Освобождаем блокировку перед следующей попыткой
+                if lock_file and lock_acquired:
+                    try:
+                        fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                        lock_file.close()
+                        lock_file = None
+                        lock_acquired = False
+                    except:
+                        pass
+                continue
+            else:
+                raise
+        finally:
+            # Гарантированное освобождение блокировки при ошибке
+            if lock_file and lock_acquired:
+                try:
+                    if not lock_file.closed:
+                        fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                        lock_file.close()
+                        logger.debug(f"[PID {process_id}] Database initialization lock released (finally block)")
+                except Exception as unlock_error:
+                    logger.warning(f"[PID {process_id}] Failed to release lock in finally: {unlock_error}")
+            elif lock_file:
+                try:
+                    if not lock_file.closed:
+                        lock_file.close()
+                except:
+                    pass
+    
+    # Если мы дошли сюда, все попытки исчерпаны
+    logger.error(
+        f"[PID {process_id}] Database initialization failed after {max_retries} attempts. "
+        f"This may indicate concurrent initialization or database corruption."
+    )
+    raise sqlite3.OperationalError(
+        f"Database locked after {max_retries} attempts. "
+        f"This may indicate concurrent initialization."
+    )
 
 
 
@@ -703,6 +979,13 @@ def create_database_indexes(cursor):
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_referred_by ON users(referred_by)")
 
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_registration_date ON users(registration_date)")
+        
+        # Проверяем существование колонки group_id перед созданием индекса
+        cursor.execute("PRAGMA table_info(users)")
+        users_columns = [row[1] for row in cursor.fetchall()]
+        
+        if 'group_id' in users_columns:
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_group_id ON users(group_id)")
 
         
 
@@ -718,9 +1001,15 @@ def create_database_indexes(cursor):
 
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_vpn_keys_is_trial ON vpn_keys(is_trial)")
 
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_vpn_keys_status ON vpn_keys(status)")
-
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_vpn_keys_enabled ON vpn_keys(enabled)")
+        # Проверяем существование колонок перед созданием индексов
+        cursor.execute("PRAGMA table_info(vpn_keys)")
+        vpn_keys_columns = [row[1] for row in cursor.fetchall()]
+        
+        if 'status' in vpn_keys_columns:
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_vpn_keys_status ON vpn_keys(status)")
+        
+        if 'enabled' in vpn_keys_columns:
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_vpn_keys_enabled ON vpn_keys(enabled)")
 
         
 
@@ -748,7 +1037,12 @@ def create_database_indexes(cursor):
 
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_notifications_created_date ON notifications(created_date)")
 
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_notifications_key_id ON notifications(key_id)")
+        # Проверяем существование колонки key_id перед созданием индекса
+        cursor.execute("PRAGMA table_info(notifications)")
+        notifications_columns = [row[1] for row in cursor.fetchall()]
+        
+        if 'key_id' in notifications_columns:
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_notifications_key_id ON notifications(key_id)")
 
         
 
@@ -807,8 +1101,8 @@ def create_database_indexes(cursor):
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_groups_is_default ON user_groups(is_default)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_groups_group_code ON user_groups(group_code)")
 
-        # Индекс для таблицы users по group_id
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_group_id ON users(group_id)")
+        # Индекс для таблицы users по group_id (проверка существования колонки уже выполнена выше в create_database_indexes)
+        # Индекс создается в функции create_database_indexes() с проверкой существования колонки
 
         
 
@@ -820,7 +1114,7 @@ def create_database_indexes(cursor):
 
 
 
-def run_migration():
+def run_migration(conn: Optional[sqlite3.Connection] = None):
 
     if not DB_FILE.exists():
 
@@ -834,295 +1128,307 @@ def run_migration():
 
 
 
-    try:
-
-        with sqlite3.connect(DB_FILE) as conn:
-
-            cursor = conn.cursor()
-            
-            # Устанавливаем PRAGMA для предотвращения блокировок
+    # Если соединение передано, используем его, иначе создаем новое
+    should_close_conn = False
+    if conn is None:
+        conn = sqlite3.connect(DB_FILE)
+        should_close_conn = True
+        cursor = conn.cursor()
+        # Устанавливаем PRAGMA для предотвращения блокировок только для нового соединения
+        cursor.execute("PRAGMA busy_timeout=30000")
+        cursor.execute("PRAGMA journal_mode=WAL")
+    else:
+        cursor = conn.cursor()
+        # Проверяем, что PRAGMA уже установлены (они должны быть установлены в initialize_db)
+        # Если нет - устанавливаем их
+        try:
+            cursor.execute("PRAGMA busy_timeout")
+            timeout = cursor.fetchone()
+            if timeout is None or timeout[0] < 30000:
+                cursor.execute("PRAGMA busy_timeout=30000")
+        except:
             cursor.execute("PRAGMA busy_timeout=30000")
-            cursor.execute("PRAGMA journal_mode=WAL")
 
-            logging.info("The migration of the table 'users' ...")
+    try:
+        logging.info("The migration of the table 'users' ...")
 
-            cursor.execute("PRAGMA table_info(users)")
+        cursor.execute("PRAGMA table_info(users)")
 
-            columns = [row[1] for row in cursor.fetchall()]
+        columns = [row[1] for row in cursor.fetchall()]
 
-            if 'referred_by' not in columns:
+        if 'referred_by' not in columns:
 
-                cursor.execute("ALTER TABLE users ADD COLUMN referred_by INTEGER")
+            cursor.execute("ALTER TABLE users ADD COLUMN referred_by INTEGER")
 
-                logging.info(" -> The column 'referred_by' is successfully added.")
+            logging.info(" -> The column 'referred_by' is successfully added.")
 
-            else:
+        else:
 
-                logging.info(" -> The column 'referred_by' already exists.")
+            logging.info(" -> The column 'referred_by' already exists.")
 
-            if 'referral_balance' not in columns:
+        if 'referral_balance' not in columns:
 
-                cursor.execute("ALTER TABLE users ADD COLUMN referral_balance REAL DEFAULT 0")
+            cursor.execute("ALTER TABLE users ADD COLUMN referral_balance REAL DEFAULT 0")
 
-                logging.info(" -> The column 'referral_balance' is successfully added.")
+            logging.info(" -> The column 'referral_balance' is successfully added.")
 
-            else:
+        else:
 
-                logging.info(" -> The column 'referral_balance' already exists.")
+            logging.info(" -> The column 'referral_balance' already exists.")
 
-            if 'referral_balance_all' not in columns:
+        if 'referral_balance_all' not in columns:
 
-                cursor.execute("ALTER TABLE users ADD COLUMN referral_balance_all REAL DEFAULT 0")
+            cursor.execute("ALTER TABLE users ADD COLUMN referral_balance_all REAL DEFAULT 0")
 
-                logging.info(" -> The column 'referral_balance_all' is successfully added.")
+            logging.info(" -> The column 'referral_balance_all' is successfully added.")
 
-            else:
+        else:
 
-                logging.info(" -> The column 'referral_balance_all' already exists.")
+            logging.info(" -> The column 'referral_balance_all' already exists.")
 
-            if 'balance' not in columns:
+        if 'balance' not in columns:
 
-                cursor.execute("ALTER TABLE users ADD COLUMN balance REAL DEFAULT 0")
+            cursor.execute("ALTER TABLE users ADD COLUMN balance REAL DEFAULT 0")
 
-                logging.info(" -> The column 'balance' is successfully added.")
+            logging.info(" -> The column 'balance' is successfully added.")
 
-            else:
+        else:
 
-                logging.info(" -> The column 'balance' already exists.")
+            logging.info(" -> The column 'balance' already exists.")
 
-            if 'agreed_to_documents' not in columns:
+        if 'agreed_to_documents' not in columns:
 
-                cursor.execute("ALTER TABLE users ADD COLUMN agreed_to_documents BOOLEAN DEFAULT 0")
+            cursor.execute("ALTER TABLE users ADD COLUMN agreed_to_documents BOOLEAN DEFAULT 0")
 
-                logging.info(" -> The column 'agreed_to_documents' is successfully added.")
+            logging.info(" -> The column 'agreed_to_documents' is successfully added.")
 
-            else:
+        else:
 
-                logging.info(" -> The column 'agreed_to_documents' already exists.")
+            logging.info(" -> The column 'agreed_to_documents' already exists.")
 
-            if 'subscription_status' not in columns:
+        if 'subscription_status' not in columns:
 
-                cursor.execute("ALTER TABLE users ADD COLUMN subscription_status TEXT DEFAULT 'not_checked'")
+            cursor.execute("ALTER TABLE users ADD COLUMN subscription_status TEXT DEFAULT 'not_checked'")
 
-                logging.info(" -> The column 'subscription_status' is successfully added.")
+            logging.info(" -> The column 'subscription_status' is successfully added.")
 
-            else:
+        else:
 
-                logging.info(" -> The column 'subscription_status' already exists.")
+            logging.info(" -> The column 'subscription_status' already exists.")
 
-            # Добавляем колонки для ключей
+        # Добавляем колонки для ключей
 
-            if 'key_id' not in columns:
+        if 'key_id' not in columns:
 
-                cursor.execute("ALTER TABLE users ADD COLUMN key_id INTEGER")
+            cursor.execute("ALTER TABLE users ADD COLUMN key_id INTEGER")
 
-                logging.info(" -> The column 'key_id' is successfully added.")
+            logging.info(" -> The column 'key_id' is successfully added.")
 
-            else:
+        else:
 
-                logging.info(" -> The column 'key_id' already exists.")
+            logging.info(" -> The column 'key_id' already exists.")
 
-            if 'connection_string' not in columns:
+        if 'connection_string' not in columns:
 
-                cursor.execute("ALTER TABLE users ADD COLUMN connection_string TEXT")
+            cursor.execute("ALTER TABLE users ADD COLUMN connection_string TEXT")
 
-                logging.info(" -> The column 'connection_string' is successfully added.")
+            logging.info(" -> The column 'connection_string' is successfully added.")
 
-            else:
+        else:
 
-                logging.info(" -> The column 'connection_string' already exists.")
+            logging.info(" -> The column 'connection_string' already exists.")
 
-            if 'host_name' not in columns:
+        if 'host_name' not in columns:
 
-                cursor.execute("ALTER TABLE users ADD COLUMN host_name TEXT")
+            cursor.execute("ALTER TABLE users ADD COLUMN host_name TEXT")
 
-                logging.info(" -> The column 'host_name' is successfully added.")
+            logging.info(" -> The column 'host_name' is successfully added.")
 
-            else:
+        else:
 
-                logging.info(" -> The column 'host_name' already exists.")
+            logging.info(" -> The column 'host_name' already exists.")
 
-            if 'plan_name' not in columns:
+        if 'plan_name' not in columns:
 
-                cursor.execute("ALTER TABLE users ADD COLUMN plan_name TEXT")
+            cursor.execute("ALTER TABLE users ADD COLUMN plan_name TEXT")
 
-                logging.info(" -> The column 'plan_name' is successfully added.")
+            logging.info(" -> The column 'plan_name' is successfully added.")
 
-            else:
+        else:
 
-                logging.info(" -> The column 'plan_name' already exists.")
+            logging.info(" -> The column 'plan_name' already exists.")
 
-            if 'price' not in columns:
+        if 'price' not in columns:
 
-                cursor.execute("ALTER TABLE users ADD COLUMN price REAL")
+            cursor.execute("ALTER TABLE users ADD COLUMN price REAL")
 
-                logging.info(" -> The column 'price' is successfully added.")
+            logging.info(" -> The column 'price' is successfully added.")
 
-            else:
+        else:
 
-                logging.info(" -> The column 'price' already exists.")
+            logging.info(" -> The column 'price' already exists.")
 
-            if 'email' not in columns:
+        if 'email' not in columns:
 
-                cursor.execute("ALTER TABLE users ADD COLUMN email TEXT")
+            cursor.execute("ALTER TABLE users ADD COLUMN email TEXT")
 
-                logging.info(" -> The column 'email' is successfully added.")
+            logging.info(" -> The column 'email' is successfully added.")
 
-            else:
+        else:
 
-                logging.info(" -> The column 'email' already exists.")
+            logging.info(" -> The column 'email' already exists.")
 
-            if 'created_date' not in columns:
+        if 'created_date' not in columns:
 
-                cursor.execute("ALTER TABLE users ADD COLUMN created_date TIMESTAMP")
+            cursor.execute("ALTER TABLE users ADD COLUMN created_date TIMESTAMP")
 
-                logging.info(" -> The column 'created_date' is successfully added.")
+            logging.info(" -> The column 'created_date' is successfully added.")
 
-            else:
+        else:
 
-                logging.info(" -> The column 'created_date' already exists.")
+            logging.info(" -> The column 'created_date' already exists.")
 
-            if 'trial_days_given' not in columns:
+        if 'trial_days_given' not in columns:
 
-                cursor.execute("ALTER TABLE users ADD COLUMN trial_days_given INTEGER DEFAULT 0")
+            cursor.execute("ALTER TABLE users ADD COLUMN trial_days_given INTEGER DEFAULT 0")
 
-                logging.info(" -> The column 'trial_days_given' is successfully added.")
+            logging.info(" -> The column 'trial_days_given' is successfully added.")
 
-            else:
+        else:
 
-                logging.info(" -> The column 'trial_days_given' already exists.")
+            logging.info(" -> The column 'trial_days_given' already exists.")
 
-            if 'trial_reuses_count' not in columns:
+        if 'trial_reuses_count' not in columns:
 
-                cursor.execute("ALTER TABLE users ADD COLUMN trial_reuses_count INTEGER DEFAULT 0")
+            cursor.execute("ALTER TABLE users ADD COLUMN trial_reuses_count INTEGER DEFAULT 0")
 
-                logging.info(" -> The column 'trial_reuses_count' is successfully added.")
+            logging.info(" -> The column 'trial_reuses_count' is successfully added.")
 
-            else:
+        else:
 
-                logging.info(" -> The column 'trial_reuses_count' already exists.")
+            logging.info(" -> The column 'trial_reuses_count' already exists.")
 
-            if 'user_id' not in columns:
+        if 'user_id' not in columns:
 
-                # SQLite не позволяет добавить колонку с UNIQUE напрямую, добавляем без него
+            # SQLite не позволяет добавить колонку с UNIQUE напрямую, добавляем без него
 
-                cursor.execute("ALTER TABLE users ADD COLUMN user_id INTEGER")
+            cursor.execute("ALTER TABLE users ADD COLUMN user_id INTEGER")
 
-                logging.info(" -> The column 'user_id' is successfully added.")
+            logging.info(" -> The column 'user_id' is successfully added.")
+
+            
+
+            # Заполняем существующие записи значениями, начиная с 1000
+
+            cursor.execute("""
+
+                SELECT telegram_id, ROW_NUMBER() OVER (ORDER BY registration_date ASC) as row_num
+
+                FROM users
+
+            """)
+
+            users_to_update = cursor.fetchall()
+
+            
+
+            for telegram_id, row_num in users_to_update:
+
+                new_user_id = 999 + row_num  # Начинаем с 1000
+
+                cursor.execute("UPDATE users SET user_id = ? WHERE telegram_id = ?", (new_user_id, telegram_id))
 
                 
 
-                # Заполняем существующие записи значениями, начиная с 1000
+            logging.info(f" -> Заполнено {len(users_to_update)} записей user_id, начиная с 1000.")
 
-                cursor.execute("""
+            
 
-                    SELECT telegram_id, ROW_NUMBER() OVER (ORDER BY registration_date ASC) as row_num
+            # Создаем уникальный индекс на user_id
 
-                    FROM users
+            try:
 
-                """)
+                cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_user_id ON users(user_id)")
 
-                users_to_update = cursor.fetchall()
+                logging.info(" -> Уникальный индекс на user_id успешно создан.")
 
-                
+            except sqlite3.Error as e:
 
-                for telegram_id, row_num in users_to_update:
+                logging.warning(f" -> Не удалось создать уникальный индекс (возможно, уже существует): {e}")
 
-                    new_user_id = 999 + row_num  # Начинаем с 1000
+        else:
 
-                    cursor.execute("UPDATE users SET user_id = ? WHERE telegram_id = ?", (new_user_id, telegram_id))
+            logging.info(" -> The column 'user_id' already exists.")
 
-                
+        if 'fullname' not in columns:
 
-                logging.info(f" -> Заполнено {len(users_to_update)} записей user_id, начиная с 1000.")
+            cursor.execute("ALTER TABLE users ADD COLUMN fullname TEXT")
 
-                
+            logging.info(" -> The column 'fullname' is successfully added.")
 
-                # Создаем уникальный индекс на user_id
+        else:
 
-                try:
-
-                    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_user_id ON users(user_id)")
-
-                    logging.info(" -> Уникальный индекс на user_id успешно создан.")
-
-                except sqlite3.Error as e:
-
-                    logging.warning(f" -> Не удалось создать уникальный индекс (возможно, уже существует): {e}")
-
-            else:
-
-                logging.info(" -> The column 'user_id' already exists.")
-
-            if 'fullname' not in columns:
-
-                cursor.execute("ALTER TABLE users ADD COLUMN fullname TEXT")
-
-                logging.info(" -> The column 'fullname' is successfully added.")
-
-            else:
-
-                logging.info(" -> The column 'fullname' already exists.")
+            logging.info(" -> The column 'fullname' already exists.")
 
         
         
-            if 'fio' not in columns:
+        if 'fio' not in columns:
 
-                cursor.execute("ALTER TABLE users ADD COLUMN fio TEXT")
+            cursor.execute("ALTER TABLE users ADD COLUMN fio TEXT")
 
-                logging.info(" -> The column 'fio' is successfully added.")
+            logging.info(" -> The column 'fio' is successfully added.")
 
-            else:
+        else:
 
-                logging.info(" -> The column 'fio' already exists.")
+            logging.info(" -> The column 'fio' already exists.")
 
         
-            if 'group_id' not in columns:
+        if 'group_id' not in columns:
 
-                cursor.execute("ALTER TABLE users ADD COLUMN group_id INTEGER")
+            cursor.execute("ALTER TABLE users ADD COLUMN group_id INTEGER")
 
-                logging.info(" -> The column 'group_id' is successfully added.")
+            logging.info(" -> The column 'group_id' is successfully added.")
 
-                # Находим ID группы по умолчанию и назначаем её всем существующим пользователям
-                cursor.execute("SELECT group_id FROM user_groups WHERE is_default = 1 LIMIT 1")
-                default_group = cursor.fetchone()
-                
-                if default_group:
-                    default_group_id = default_group[0]
-                    cursor.execute("UPDATE users SET group_id = ? WHERE group_id IS NULL", (default_group_id,))
-                    logging.info(f" -> Все существующие пользователи назначены в группу с ID {default_group_id}")
+            # Находим ID группы по умолчанию и назначаем её всем существующим пользователям
+            cursor.execute("SELECT group_id FROM user_groups WHERE is_default = 1 LIMIT 1")
+            default_group = cursor.fetchone()
+            
+            if default_group:
+                default_group_id = default_group[0]
+                cursor.execute("UPDATE users SET group_id = ? WHERE group_id IS NULL", (default_group_id,))
+                logging.info(f" -> Все существующие пользователи назначены в группу с ID {default_group_id}")
 
-            else:
+        else:
 
-                logging.info(" -> The column 'group_id' already exists.")
+            logging.info(" -> The column 'group_id' already exists.")
 
-            if 'auto_renewal_enabled' not in columns:
+        if 'auto_renewal_enabled' not in columns:
 
-                cursor.execute("ALTER TABLE users ADD COLUMN auto_renewal_enabled INTEGER DEFAULT 1")
+            cursor.execute("ALTER TABLE users ADD COLUMN auto_renewal_enabled INTEGER DEFAULT 1")
 
-                logging.info(" -> The column 'auto_renewal_enabled' is successfully added.")
+            logging.info(" -> The column 'auto_renewal_enabled' is successfully added.")
 
-            else:
+        else:
 
-                logging.info(" -> The column 'auto_renewal_enabled' already exists.")
+            logging.info(" -> The column 'auto_renewal_enabled' already exists.")
 
-            logging.info("The table 'users' has been successfully updated.")
+        logging.info("The table 'users' has been successfully updated.")
 
-            logging.info("The migration of the table 'vpn_keys' ...")
+        logging.info("The migration of the table 'vpn_keys' ...")
 
-            cursor.execute("PRAGMA table_info(vpn_keys)")
+        cursor.execute("PRAGMA table_info(vpn_keys)")
 
-            vpn_keys_columns = [row[1] for row in cursor.fetchall()]
+        vpn_keys_columns = [row[1] for row in cursor.fetchall()]
 
-            if 'connection_string' not in vpn_keys_columns:
+        if 'connection_string' not in vpn_keys_columns:
 
-                cursor.execute("ALTER TABLE vpn_keys ADD COLUMN connection_string TEXT")
+            cursor.execute("ALTER TABLE vpn_keys ADD COLUMN connection_string TEXT")
 
-                logging.info(" -> The column 'connection_string' is successfully added to vpn_keys table.")
+            logging.info(" -> The column 'connection_string' is successfully added to vpn_keys table.")
 
-            else:
+        else:
 
-                logging.info(" -> The column 'connection_string' already exists in vpn_keys table.")
+            logging.info(" -> The column 'connection_string' already exists in vpn_keys table.")
 
             
 
@@ -1584,18 +1890,20 @@ def run_migration():
                 try:
 
                     cursor.execute("ALTER TABLE notifications ADD COLUMN key_id INTEGER")
+                    logging.info(" -> The column 'key_id' is successfully added to notifications table.")
 
                 except Exception as e:
-                    logger.debug(f"Migration error adding key_id column: {e}")
+                    logger.warning(f"Migration error adding key_id column: {e}")
 
             if 'marker_hours' not in notif_columns:
 
                 try:
 
                     cursor.execute("ALTER TABLE notifications ADD COLUMN marker_hours INTEGER")
+                    logging.info(" -> The column 'marker_hours' is successfully added to notifications table.")
 
                 except Exception as e:
-                    logger.debug(f"Migration error adding marker_hours column: {e}")
+                    logger.warning(f"Migration error adding marker_hours column: {e}")
 
         # Миграция для изменения типа поля vpn_plan_id в таблице promo_codes
         logging.info("The migration of the table 'promo_codes' ...")
@@ -1921,12 +2229,28 @@ def run_migration():
         migrate_backup_settings(conn)
 
         logging.info("--- The database is successfully completed! ---")
-
-
+        
+        # Коммитим изменения только если мы создали соединение сами
+        if should_close_conn:
+            conn.commit()
 
     except sqlite3.Error as e:
 
         logging.error(f"An error occurred during migration: {e}")
+        # Откатываем транзакцию только если мы создали соединение сами
+        if should_close_conn:
+            try:
+                conn.rollback()
+            except:
+                pass
+        raise
+    finally:
+        # Закрываем соединение только если мы его создали
+        if should_close_conn and conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 
 
@@ -7398,6 +7722,11 @@ def update_keys_status_by_expiry():
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
+            
+            # БЕЗОПАСНАЯ ПРОВЕРКА: существует ли колонка status
+            if not _column_exists(cursor, 'vpn_keys', 'status'):
+                logger.warning("Column 'status' does not exist in vpn_keys table. Skipping status update.")
+                return 0
             
             # Получаем все ключи с их временем истечения
             cursor.execute("""
