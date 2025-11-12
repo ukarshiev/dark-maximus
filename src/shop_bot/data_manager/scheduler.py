@@ -234,6 +234,14 @@ def _marker_logged(user_id: int, key_id: int, marker_hours: int, notif_type: str
                 cursor.execute("PRAGMA journal_mode=WAL")
             except Exception:
                 pass
+            
+            # БЕЗОПАСНАЯ ПРОВЕРКА: существует ли колонка key_id
+            cursor.execute("PRAGMA table_info(notifications)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if 'key_id' not in columns or 'marker_hours' not in columns:
+                logger.debug("Column 'key_id' or 'marker_hours' does not exist in notifications table. Returning False.")
+                return False
+            
             cursor.execute(
                 "SELECT 1 FROM notifications WHERE user_id = ? AND key_id = ? AND marker_hours = ? AND type = ? LIMIT 1",
                 (user_id, key_id, marker_hours, notif_type)
@@ -259,22 +267,32 @@ def cleanup_duplicate_notifications():
             except Exception:
                 pass
             
-            # Удаляем дублирующиеся уведомления, оставляя только самое свежее
-            cursor.execute("""
-                DELETE FROM notifications 
-                WHERE notification_id NOT IN (
-                    SELECT MAX(notification_id) 
-                    FROM notifications 
-                    WHERE type = 'subscription_plan_unavailable'
-                    GROUP BY user_id, key_id, marker_hours
-                ) AND type = 'subscription_plan_unavailable'
-            """)
+            # БЕЗОПАСНАЯ ПРОВЕРКА: существуют ли колонки key_id и marker_hours
+            cursor.execute("PRAGMA table_info(notifications)")
+            columns = [row[1] for row in cursor.fetchall()]
+            has_key_id = 'key_id' in columns
+            has_marker_hours = 'marker_hours' in columns
             
-            deleted_count = cursor.rowcount
-            if deleted_count > 0:
-                logger.info(f"Cleaned up {deleted_count} duplicate plan unavailable notifications")
+            # Очистка дубликатов только если обе колонки существуют
+            if has_key_id and has_marker_hours:
+                cursor.execute("""
+                    DELETE FROM notifications 
+                    WHERE notification_id NOT IN (
+                        SELECT MAX(notification_id) 
+                        FROM notifications 
+                        WHERE type = 'subscription_plan_unavailable'
+                        GROUP BY user_id, key_id, marker_hours
+                    ) AND type = 'subscription_plan_unavailable'
+                """)
+                
+                deleted_count = cursor.rowcount
+                if deleted_count > 0:
+                    logger.info(f"Cleaned up {deleted_count} duplicate plan unavailable notifications")
+            else:
+                logger.warning("Columns 'key_id' or 'marker_hours' do not exist in notifications table. Skipping duplicate cleanup.")
             
             # Удаляем уведомления старше 7 дней (используем UTC для консистентности)
+            # Эта часть работает даже без key_id и marker_hours
             week_ago = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7)
             cursor.execute("""
                 DELETE FROM notifications 

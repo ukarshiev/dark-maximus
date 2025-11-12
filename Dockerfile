@@ -25,7 +25,9 @@ COPY . /app/project/
 # Копируем собранный CSS из builder-слоя
 COPY --from=assets-builder /build/static/css/tw.css /app/project/src/shop_bot/webhook_server/static/css/tw.css
 WORKDIR /app/project
-RUN pip install --no-cache-dir -e .
+# Обновляем pip и устанавливаем пакет без проверки хешей
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -e .
 # Развертывание админской документации
 RUN echo "🚀 Начинаем развертывание админской документации..." && \
     # Создаем папку для админской документации

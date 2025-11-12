@@ -428,30 +428,16 @@ def create_key_info_keyboard(key_id: int, subscription_link: str | None = None) 
 
     subscription_button_added = False
     if subscription_link:
-        # Пытаемся использовать WebApp для всех ссылок (даже HTTP, преобразуя в HTTPS)
-        if _is_https_url(subscription_link):
-            # Уже HTTPS - используем как есть
+        # Используем обычную ссылку вместо WebApp
+        if _is_http_like_url(subscription_link):
             builder.button(
                 text="Шаг 2: 🔑 Подписка",
-                web_app=WebAppInfo(url=subscription_link)
-            )
-            subscription_button_added = True
-        elif _is_http_like_url(subscription_link):
-            # HTTP ссылка - преобразуем в HTTPS и пробуем использовать WebApp
-            https_link = _convert_to_https(subscription_link)
-            logger.info(
-                "Subscription link %s преобразована в HTTPS для WebApp: %s",
-                subscription_link,
-                https_link
-            )
-            builder.button(
-                text="Шаг 2: 🔑 Подписка",
-                web_app=WebAppInfo(url=https_link)
+                url=subscription_link
             )
             subscription_button_added = True
         else:
             logger.warning(
-                "Subscription link %s имеет неподдерживаемый формат; кнопка WebApp не будет добавлена.",
+                "Subscription link %s имеет неподдерживаемый формат; кнопка не будет добавлена.",
                 subscription_link
             )
 
