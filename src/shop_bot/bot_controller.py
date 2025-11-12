@@ -46,25 +46,35 @@ def _create_telegram_session(timeout: ClientTimeout) -> AiohttpSession:
     что помогает предотвратить ошибки типа "SSL record layer failure" при временных проблемах с сетью.
     Явное создание сессии гарантирует использование актуальных SSL сертификатов.
     
+    В aiogram 3.21.0 session.timeout должен быть числом (total из ClientTimeout),
+    а не объектом ClientTimeout, так как aiogram пытается сложить его с polling_timeout.
+    Устанавливаем timeout как число для совместимости с aiogram dispatcher.
+    
     Args:
-        timeout: Таймауты для HTTP запросов
+        timeout: Таймауты для HTTP запросов (ClientTimeout объект)
         
     Returns:
         AiohttpSession с настроенными таймаутами (SSL контекст настроен автоматически через certifi)
     """
     try:
         # AiohttpSession уже использует certifi по умолчанию для SSL контекста
-        # Создаем сессию и устанавливаем таймауты
+        # В aiogram 3.21.0 timeout должен быть числом для вычисления request_timeout = timeout + polling_timeout
+        # Используем total из ClientTimeout для совместимости с aiogram dispatcher
         session = AiohttpSession()
-        session.timeout = timeout
+        # Устанавливаем timeout как число (total), чтобы aiogram мог его использовать
+        # aiohttp автоматически создаст ClientTimeout из числа при создании сессии
+        timeout_value = timeout.total if isinstance(timeout, ClientTimeout) else timeout
+        session.timeout = timeout_value
         
-        logger.debug("Telegram session created with SSL context (certifi used by default)")
+        logger.debug(f"Telegram session created with timeout={timeout_value}s (certifi used by default)")
         return session
     except Exception as e:
         logger.warning(f"Failed to create session: {e}. Using default session.")
         # В случае ошибки возвращаем сессию с дефолтными настройками
         session = AiohttpSession()
-        session.timeout = timeout
+        # Устанавливаем timeout как число
+        timeout_value = timeout.total if isinstance(timeout, ClientTimeout) else timeout
+        session.timeout = timeout_value
         return session
 
 
@@ -94,7 +104,9 @@ class BotController:
         logger.info(f"BotController: Polling task for '{name}' has been started.")
         try:
             print(f"DEBUG: Starting polling for {name} with bot {bot.id}")
-            await dp.start_polling(bot)
+            # В aiogram 3.21.0 timeout должен быть числом для вычисления request_timeout
+            # Используем polling_timeout=10 (дефолт) и не устанавливаем timeout на сессии
+            await dp.start_polling(bot, polling_timeout=10)
         except asyncio.CancelledError:
             logger.info(f"BotController: Polling task for '{name}' was cancelled.")
         except Exception as e:
