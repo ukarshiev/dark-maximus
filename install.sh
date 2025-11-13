@@ -48,12 +48,24 @@ read_input() {
     }
 }
 
-# Выбираем docker compose v1/v2
-if docker compose version >/dev/null 2>&1; then
-    DC=("docker" "compose")
-else
-    DC=("docker-compose")
-fi
+# Определяем команду docker compose (v1/v2)
+DC=("docker" "compose")
+DC_SERVICE_CMD="/usr/bin/docker compose"
+
+set_dc_command() {
+    if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+        DC=("docker" "compose")
+        DC_SERVICE_CMD="$(command -v docker) compose"
+    elif command -v docker-compose >/dev/null 2>&1; then
+        DC=("docker-compose")
+        DC_SERVICE_CMD="$(command -v docker-compose)"
+    else
+        DC=("docker" "compose")
+        DC_SERVICE_CMD="/usr/bin/docker compose"
+    fi
+}
+
+set_dc_command
 
 echo -e "${GREEN}===============================================${NC}"
 echo -e "${GREEN}      🚀 Dark Maximus - Установка системы     ${NC}"
@@ -214,6 +226,8 @@ if ! command -v docker >/dev/null || ! docker compose version >/dev/null 2>&1; t
     chmod +x /usr/local/bin/docker-compose
     ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
 fi
+
+set_dc_command
 
 echo -e "${GREEN}✔ Docker и Docker Compose установлены${NC}"
 
@@ -1017,8 +1031,8 @@ After=docker.service
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=${PROJECT_DIR}
-ExecStart=/usr/bin/docker compose up -d
-ExecStop=/usr/bin/docker compose down
+ExecStart=${DC_SERVICE_CMD} up -d
+ExecStop=${DC_SERVICE_CMD} down
 TimeoutStartSec=0
 
 [Install]

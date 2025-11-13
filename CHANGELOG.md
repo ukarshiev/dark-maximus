@@ -1,3 +1,13 @@
+4.10.7 – 13.11.2025 17:58
+- [Fix] (Installer) `install.sh` — Автоопределение docker compose повторно вызывается после установки Docker, а systemd использует ту же команду, чтобы запуск не падал без бинарника `docker-compose`.
+
+4.10.6 – 13.11.2025 15:59
+- [Docs] (Admin Docs) docs/reference/admin-panel/message-templates-reference.md, docs/reference/admin-panel/README.md, docs/documentation-inventory.md — Расширен справочник меню бота (все разделы и диаграмма переходов), синхронизированы описание раздела и инвентаризация.
+
+4.10.5 – 13.11.2025 14:24
+- [Docs] (Admin Docs) docs/reference/admin-panel/message-templates-reference.md, docs/reference/admin-panel/README.md, docs/documentation-inventory.md — Добавлен подробный справочник шаблонов purchase-сообщений, обновлено оглавление раздела и инвентаризация документации.
+
+
 4.10.4 – 13.11.2025 13:06
 - [Docs] (Knowledge Base) `docs/tutorials/admin-quickstart.md`, `docs/guides/user/README.md`, `docs/guides/user/getting-started.md`, `docs/guides/user/faq.md`, `docs/guides/user/payment.md`, `docs/tutorials/README.md` — Обновлены метаданные, добавлены описания и приведены в порядок пользовательские инструкции после миграции.
 - [Docs] (Docsify) `docs/guides/deployment/wiki-deployment.md`, `docs/guides/deployment/advanced-setup.md`, `docs/internal/wiki/docsify-overview.md`, `docs/internal/wiki/user-portal-overview.md`, `docs/internal/wiki/public/.gitkeep` — Настроен экспорт статики в `docs/internal/wiki/public/`, обновлены гайды по поддержке Docsify.
