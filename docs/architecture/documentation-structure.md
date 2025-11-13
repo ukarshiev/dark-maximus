@@ -20,24 +20,18 @@ dark-maximus/
 ├── docs/                              # Вся документация
 │   ├── README.md                      # Главная страница документации
 │   │
-│   ├── user-docs/                     # Документация для пользователей (localhost:3001)
-│   │   ├── index.md                   # Главная страница
-│   │   ├── faq.md                     # FAQ
-│   │   ├── payment.md                 # Оплата
-│   │   ├── troubleshooting.md         # Решение проблем
-│   │   └── setup/                     # Инструкции по настройке
-│   │       ├── android.md
-│   │       ├── ios.md
-│   │       ├── linux.md
-│   │       ├── macos.md
-│   │       └── windows.md
+│   ├── guides/                        # How-to для пользователей и админов
+│   │   ├── user/                      # Руководства и FAQ для клиентов
+│   │   ├── admin/                     # Операционные инструкции
+│   │   └── deployment/                # Развертывание и эксплуатация
 │   │
-│   ├── technical/                     # Техническая документация
-│   │   ├── README.md                  # Главная страница
-│   │   ├── tutorials/                 # Обучение (Tutorials)
-│   │   ├── how-to-guides/             # Практические задачи (How-to)
-│   │   ├── reference/                 # Справочник (Reference)
-│   │   └── explanations/              # Объяснения (Explanations)
+│   ├── tutorials/                     # Обучение (Tutorials)
+│   │   ├── admin-quickstart.md
+│   │   └── admin/installation.md
+│   │
+│   ├── reference/                     # Справочник (Reference)
+│   │   ├── api/                       # Подробные эндпоинты
+│   │   └── admin-panel/               # Обзор API панели и клавиатур
 │   │
 │   ├── setup-scripts/                 # Скрипты настройки
 │   │   └── README.md                  # Описание скриптов
@@ -64,17 +58,10 @@ dark-maximus/
 │   │   ├── api.md
 │   │   └── security.md
 │   │
-│   ├── user-docs/                     # Пользовательская документация
-│   │   ├── index.md
-│   │   ├── faq.md
-│   │   ├── payment.md
-│   │   ├── troubleshooting.md
-│   │   └── setup/
-│   │       ├── android.md
-│   │       ├── ios.md
-│   │       ├── linux.md
-│   │       ├── macos.md
-│   │       └── windows.md
+│   ├── internal/wiki/                 # Docsify шаблоны и инструкция по wiki
+│   │   ├── docsify-overview.md
+│   │   ├── sidebar-template.md
+│   │   └── user-portal-overview.md
 │   │
 │   ├── wiki-editor/                   # Редактор Wiki
 │   │
@@ -154,9 +141,9 @@ dark-maximus/
 - Первые шаги
 
 **Файлы:**
-- `docs/installation.md`
-- `docs/admin-quickstart.md`
-- `docs/user-docs/setup/*.md`
+- `docs/tutorials/admin/installation.md`
+- `docs/tutorials/admin-quickstart.md`
+- `docs/guides/user/*.md`
 
 ### 2. How-to guides (Практические задачи)
 **Цель:** Решить конкретную задачу
@@ -167,10 +154,11 @@ dark-maximus/
 - Настройка уведомлений
 
 **Файлы:**
-- `docs/ssl-quick-guide.md`
+- `docs/guides/deployment/*.md`
+- `docs/guides/admin/*.md`
+- `docs/guides/user/*.md`
 - `docs/integrations/yookassa-webhook-setup.md`
 - `docs/notifications-setup.md`
-- `docs/server-deployment.md`
 
 ### 3. Reference (Справочник)
 **Цель:** Описать техническую информацию
@@ -181,7 +169,8 @@ dark-maximus/
 - Архитектура проекта
 
 **Файлы:**
-- `docs/api/*.md`
+- `docs/reference/api/*.md`
+- `docs/reference/admin-panel/*.md`
 - `docs/database.md`
 - `docs/architecture-rules.md`
 - `docs/modules.md`
@@ -197,7 +186,7 @@ dark-maximus/
 **Файлы:**
 - `docs/project-info.md`
 - `docs/tech-stack.md`
-- `docs/security.md`
+- `docs/security/security.md`
 - `docs/internal/roadmap-main.md`
 
 ## 🌐 Сервисы документации
@@ -206,7 +195,7 @@ dark-maximus/
 **Назначение:** Документация для конечных пользователей VPN
 
 **Содержимое:**
-- `docs/user-docs/`
+- `docs/internal/wiki/`
 
 **Используется:** Nginx + Docsify
 

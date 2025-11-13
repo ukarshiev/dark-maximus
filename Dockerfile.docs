@@ -2,19 +2,30 @@
 # Следует best practices из Docker документации
 
 # =========================================
-# Stage 1: Подготовка статичных файлов
+# Stage 1: Сборка статичных файлов через MkDocs
 # =========================================
-FROM alpine:3.22 AS docs-builder
+FROM python:3.11-alpine AS docs-builder
+
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
 WORKDIR /build
 
-# Копируем документацию
-COPY docs/user-docs ./docs
+# Устанавливаем зависимости MkDocs
+RUN apk add --no-cache build-base libffi-dev openssl-dev && \
+    pip install --no-cache-dir \
+        mkdocs>=1.6 \
+        mkdocs-material>=9.5 \
+        mkdocs-awesome-nav>=3.0 && \
+    apk del build-base libffi-dev openssl-dev
 
-# Создаем индекс если его нет
-RUN if [ ! -f ./docs/index.html ]; then \
-    echo '<!DOCTYPE html><html><head><title>Dark Maximus - Документация</title></head><body><h1>Документация</h1></body></html>' > ./docs/index.html; \
-    fi
+# Копируем конфигурацию и исходники документации
+COPY mkdocs.yml .
+COPY docs ./docs
+
+# Сборка статического сайта
+RUN mkdocs build --config-file mkdocs.yml --site-dir site
 
 # =========================================
 # Stage 2: Nginx для статичных файлов
@@ -34,7 +45,7 @@ USER nginx
 COPY deploy/nginx/docs.conf /etc/nginx/conf.d/default.conf
 
 # Копируем статичные файлы из builder stage
-COPY --chown=nginx:nginx --from=docs-builder /build/docs /usr/share/nginx/html/docs
+COPY --chown=nginx:nginx --from=docs-builder /build/site /usr/share/nginx/html/docs
 
 # Expose порт 80 (стандарт для nginx-unprivileged)
 EXPOSE 80

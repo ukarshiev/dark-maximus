@@ -1,0 +1,44 @@
+site_name: Dark Maximus Documentation
+site_description: Документация и руководства для команды Dark Maximus VPN
+site_url: http://localhost:3001/
+docs_dir: docs
+
+theme:
+  name: material
+  language: ru
+  palette:
+    - scheme: slate
+      primary: teal
+      accent: green
+  features:
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - navigation.path
+    - toc.follow
+
+plugins:
+  - search
+  - awesome-nav
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - tables
+  - footnotes
+  - attr_list
+  - def_list
+
+extra:
+  social:
+    - icon: fontawesome/brands/telegram
+      link: https://t.me/dark_maximus
+      name: Telegram канал
+    - icon: fontawesome/brands/github
+      link: https://github.com/ukarshiev/dark-maximus
+      name: GitHub репозиторий
+

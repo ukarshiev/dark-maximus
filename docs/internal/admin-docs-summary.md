@@ -204,7 +204,7 @@
 Если у вас есть вопросы или предложения по документации:
 
 1. Проверьте **[FAQ](FAQ.md)**
-2. Проверьте **[Решение проблем](user-docs/troubleshooting.md)**
+2. Проверьте **[Решение проблем](../troubleshooting/)**
 3. Создайте issue на [GitHub](https://github.com/ukarshiev/dark-maximus/issues)
 
 ---

@@ -1,0 +1,26 @@
+title: База знаний Dark Maximus
+flatten_single_child_sections: true
+sort:
+  type: natural
+  sections: mixed
+  ignore_case: true
+ignore: "health.md"
+
+nav:
+  - README.md
+  - Обучение:
+      - Туториалы: tutorials
+      - Скрипты развёртывания: setup-scripts
+  - Руководства: guides
+  - Интеграции: integrations
+  - Справочники: reference
+  - Безопасность: security
+  - Архитектура: architecture
+  - Аналитика и отчёты:
+      - Аналитика: analysis
+      - Отчёты: reports
+  - Внутренние процессы: internal
+  - Миграции: migration
+  - Решение проблем: troubleshooting
+  - Диаграммы: diagrams
+

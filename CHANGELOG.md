@@ -1,3 +1,8 @@
+4.10.4 – 13.11.2025 13:06
+- [Docs] (Knowledge Base) `docs/tutorials/admin-quickstart.md`, `docs/guides/user/README.md`, `docs/guides/user/getting-started.md`, `docs/guides/user/faq.md`, `docs/guides/user/payment.md`, `docs/tutorials/README.md` — Обновлены метаданные, добавлены описания и приведены в порядок пользовательские инструкции после миграции.
+- [Docs] (Docsify) `docs/guides/deployment/wiki-deployment.md`, `docs/guides/deployment/advanced-setup.md`, `docs/internal/wiki/docsify-overview.md`, `docs/internal/wiki/user-portal-overview.md`, `docs/internal/wiki/public/.gitkeep` — Настроен экспорт статики в `docs/internal/wiki/public/`, обновлены гайды по поддержке Docsify.
+- [Docs] (Inventory) `docs/documentation-inventory.md`, `docs/internal/README.md`, `docs/internal/admin-docs-summary.md`, `docs/internal/nx-guide.md`, `docs/guides/admin/admin-panel-guide.md`, `docs/guides/deployment/auto-deploy.md`, `docs/migration/migration-plan.md`, `docs/migration/migration-completed.md` — Актуализированы ссылки и описания структуры, удалены упоминания `docs/user-docs`.
+
 4.10.3 – 13.11.2025 12:44
 - [Fix] (Installer) `install.sh` — Шаблон docker-compose синхронизирован с рабочей конфигурацией, добавлен сервис user-cabinet и обновлена очистка контейнера при повторной установке.
 
