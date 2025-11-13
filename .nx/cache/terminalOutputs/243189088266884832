@@ -1,0 +1,525 @@
+> docker compose logs -f bot --tail=500
+
+dark-maximus-bot  | 2025-11-12 23:33:23,353 - [INFO] - shop_bot.data_manager.scheduler - Auto-renewal skipped for user 6044240344, key 124: auto-renewal is disabled
+dark-maximus-bot  | 2025-11-12 23:33:23,354 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Cycle finished. Next check in 300 seconds.
+dark-maximus-bot  | 2025-11-12 23:38:23,352 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting sync with XUI panels...
+dark-maximus-bot  | 2025-11-12 23:38:23,359 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇪🇪 Эстония Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'shop.karumweb.ru'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'shop.karumweb.ru'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:38:23,780 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'shop.karumweb.ru'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:38:23,849 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 5 clients on the '🇪🇪 Эстония Test' panel.
+dark-maximus-bot  | 2025-11-12 23:38:23,853 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇫🇮 Финляндия 1 Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:38:24,045 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv1.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:38:24,117 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 7 clients on the '🇫🇮 Финляндия 1 Test' panel.
+dark-maximus-bot  | 2025-11-12 23:38:24,122 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇳🇱 Нидерланды 1 Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:38:24,541 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv2.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:38:24,684 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇳🇱 Нидерланды 1 Test' panel.
+dark-maximus-bot  | 2025-11-12 23:38:24,688 - [WARNING] - shop_bot.data_manager.scheduler - Scheduler: Found 1 orphan client(s) on host '🇳🇱 Нидерланды 1 Test' (ID(s): 3afdf10a-61ed-47d3-a631-a07197094e80)
+dark-maximus-bot  | 2025-11-12 23:38:24,689 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Orphan client - Email: user6044240344-key5-trial@🇳🇱nederland1test.bot, ID: 3afdf10a-61ed-47d3-a631-a07197094e80, Expiry: 1763084614359
+dark-maximus-bot  | 2025-11-12 23:38:24,690 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting auto-deletion of 1 orphan client(s) on '🇳🇱 Нидерланды 1 Test'...
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:38:25,086 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv2.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:38:25,372 - [INFO] - shop_bot.modules.xui_api - Client 'user6044240344-key5-trial@🇳🇱nederland1test.bot' already deleted from host '🇳🇱 Нидерланды 1 Test' (no longer exists on panel).
+dark-maximus-bot  | 2025-11-12 23:38:25,374 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Successfully deleted orphan client 'user6044240344-key5-trial@🇳🇱nederland1test.bot' on '🇳🇱 Нидерланды 1 Test'.
+dark-maximus-bot  | 2025-11-12 23:38:25,377 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Auto-deletion complete on '🇳🇱 Нидерланды 1 Test': 1 deleted, 0 failed.
+dark-maximus-bot  | 2025-11-12 23:38:25,377 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇩🇪 Германия 1 Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:38:25,845 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv3.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:38:25,996 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇩🇪 Германия 1 Test' panel.
+dark-maximus-bot  | 2025-11-12 23:38:26,001 - [WARNING] - shop_bot.data_manager.scheduler - Scheduler: Found 1 orphan client(s) on host '🇩🇪 Германия 1 Test' (ID(s): f610165e-32c0-4902-8743-a369ec2dbd9c)
+dark-maximus-bot  | 2025-11-12 23:38:26,002 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Orphan client - Email: user1588069616-key1-trial@🇩🇪germany1test.bot, ID: f610165e-32c0-4902-8743-a369ec2dbd9c, Expiry: 1761226042779
+dark-maximus-bot  | 2025-11-12 23:38:26,002 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting auto-deletion of 1 orphan client(s) on '🇩🇪 Германия 1 Test'...
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:38:26,659 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv3.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:38:26,984 - [INFO] - shop_bot.modules.xui_api - Client 'user1588069616-key1-trial@🇩🇪germany1test.bot' already deleted from host '🇩🇪 Германия 1 Test' (no longer exists on panel).
+dark-maximus-bot  | 2025-11-12 23:38:26,986 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Successfully deleted orphan client 'user1588069616-key1-trial@🇩🇪germany1test.bot' on '🇩🇪 Германия 1 Test'.
+dark-maximus-bot  | 2025-11-12 23:38:26,989 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Auto-deletion complete on '🇩🇪 Германия 1 Test': 1 deleted, 0 failed.
+dark-maximus-bot  | 2025-11-12 23:38:26,989 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Sync with XUI panels finished. Total records affected: 2.
+dark-maximus-bot  | 2025-11-12 23:38:26,990 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Checking for expiring subscriptions...
+dark-maximus-bot  | 2025-11-12 23:38:27,059 - [INFO] - shop_bot.data_manager.scheduler - Auto-renewal skipped for user 6044240344, key 122: auto-renewal is disabled
+dark-maximus-bot  | 2025-11-12 23:38:27,069 - [INFO] - shop_bot.data_manager.scheduler - Auto-renewal skipped for user 5243157300, key 123: auto-renewal is disabled
+dark-maximus-bot  | 2025-11-12 23:38:27,079 - [INFO] - shop_bot.data_manager.scheduler - Auto-renewal skipped for user 6044240344, key 124: auto-renewal is disabled
+dark-maximus-bot  | 2025-11-12 23:38:27,080 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Cycle finished. Next check in 300 seconds.
+dark-maximus-bot  | 2025-11-12 23:43:27,087 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting sync with XUI panels...
+dark-maximus-bot  | 2025-11-12 23:43:27,094 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇪🇪 Эстония Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'shop.karumweb.ru'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'shop.karumweb.ru'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:43:27,489 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'shop.karumweb.ru'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:43:27,557 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 5 clients on the '🇪🇪 Эстония Test' panel.
+dark-maximus-bot  | 2025-11-12 23:43:27,561 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇫🇮 Финляндия 1 Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:43:27,757 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv1.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:43:27,827 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 7 clients on the '🇫🇮 Финляндия 1 Test' panel.
+dark-maximus-bot  | 2025-11-12 23:43:27,831 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇳🇱 Нидерланды 1 Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:43:28,279 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv2.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:43:28,424 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇳🇱 Нидерланды 1 Test' panel.
+dark-maximus-bot  | 2025-11-12 23:43:28,430 - [WARNING] - shop_bot.data_manager.scheduler - Scheduler: Found 1 orphan client(s) on host '🇳🇱 Нидерланды 1 Test' (ID(s): 3afdf10a-61ed-47d3-a631-a07197094e80)
+dark-maximus-bot  | 2025-11-12 23:43:28,431 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Orphan client - Email: user6044240344-key5-trial@🇳🇱nederland1test.bot, ID: 3afdf10a-61ed-47d3-a631-a07197094e80, Expiry: 1763084614359
+dark-maximus-bot  | 2025-11-12 23:43:28,432 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting auto-deletion of 1 orphan client(s) on '🇳🇱 Нидерланды 1 Test'...
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:43:28,848 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv2.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:43:29,145 - [INFO] - shop_bot.modules.xui_api - Client 'user6044240344-key5-trial@🇳🇱nederland1test.bot' already deleted from host '🇳🇱 Нидерланды 1 Test' (no longer exists on panel).
+dark-maximus-bot  | 2025-11-12 23:43:29,147 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Successfully deleted orphan client 'user6044240344-key5-trial@🇳🇱nederland1test.bot' on '🇳🇱 Нидерланды 1 Test'.
+dark-maximus-bot  | 2025-11-12 23:43:29,150 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Auto-deletion complete on '🇳🇱 Нидерланды 1 Test': 1 deleted, 0 failed.
+dark-maximus-bot  | 2025-11-12 23:43:29,151 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇩🇪 Германия 1 Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:43:29,608 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv3.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:43:29,760 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇩🇪 Германия 1 Test' panel.
+dark-maximus-bot  | 2025-11-12 23:43:29,764 - [WARNING] - shop_bot.data_manager.scheduler - Scheduler: Found 1 orphan client(s) on host '🇩🇪 Германия 1 Test' (ID(s): f610165e-32c0-4902-8743-a369ec2dbd9c)
+dark-maximus-bot  | 2025-11-12 23:43:29,765 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Orphan client - Email: user1588069616-key1-trial@🇩🇪germany1test.bot, ID: f610165e-32c0-4902-8743-a369ec2dbd9c, Expiry: 1761226042779
+dark-maximus-bot  | 2025-11-12 23:43:29,766 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting auto-deletion of 1 orphan client(s) on '🇩🇪 Германия 1 Test'...
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:43:30,193 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv3.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:43:30,489 - [INFO] - shop_bot.modules.xui_api - Client 'user1588069616-key1-trial@🇩🇪germany1test.bot' already deleted from host '🇩🇪 Германия 1 Test' (no longer exists on panel).
+dark-maximus-bot  | 2025-11-12 23:43:30,490 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Successfully deleted orphan client 'user1588069616-key1-trial@🇩🇪germany1test.bot' on '🇩🇪 Германия 1 Test'.
+dark-maximus-bot  | 2025-11-12 23:43:30,492 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Auto-deletion complete on '🇩🇪 Германия 1 Test': 1 deleted, 0 failed.
+dark-maximus-bot  | 2025-11-12 23:43:30,493 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Sync with XUI panels finished. Total records affected: 2.
+dark-maximus-bot  | 2025-11-12 23:43:30,494 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Checking for expiring subscriptions...
+dark-maximus-bot  | 2025-11-12 23:43:30,559 - [INFO] - shop_bot.data_manager.scheduler - Auto-renewal skipped for user 6044240344, key 122: auto-renewal is disabled
+dark-maximus-bot  | 2025-11-12 23:43:30,568 - [INFO] - shop_bot.data_manager.scheduler - Auto-renewal skipped for user 5243157300, key 123: auto-renewal is disabled
+dark-maximus-bot  | 2025-11-12 23:43:30,577 - [INFO] - shop_bot.data_manager.scheduler - Auto-renewal skipped for user 6044240344, key 124: auto-renewal is disabled
+dark-maximus-bot  | 2025-11-12 23:43:30,578 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Cycle finished. Next check in 300 seconds.
+dark-maximus-bot  | 2025-11-12 23:44:37,505 - [INFO] - database - (logger.py).info(97) - Database operation: backup_created on users
+dark-maximus-bot  | 2025-11-12 23:44:37,505 - [INFO] - database - Database operation: backup_created on users
+dark-maximus-bot  | 2025-11-12 23:44:37,508 - [INFO] - shop_bot.data_manager.backup - Database backup created successfully: backups/users_backup_20251112_234437.db
+dark-maximus-bot  | 2025-11-12 23:44:37,509 - [INFO] - shop_bot.data_manager.backup - Automatic backup completed successfully
+dark-maximus-bot  | 2025-11-12 23:44:37,568 - [INFO] - shop_bot.data_manager.backup - Deleted old backup: backups/users_backup_20251105_232613.db
+dark-maximus-bot  | 2025-11-12 23:44:37,695 - [INFO] - database - (logger.py).info(97) - Database operation: backups_cleaned on users
+dark-maximus-bot  | 2025-11-12 23:44:37,695 - [INFO] - database - Database operation: backups_cleaned on users
+dark-maximus-bot  | 2025-11-12 23:44:37,697 - [INFO] - shop_bot.data_manager.backup - Cleaned up 1 old backups
+dark-maximus-bot  | 2025-11-12 23:48:30,585 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting sync with XUI panels...
+dark-maximus-bot  | 2025-11-12 23:48:30,591 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇪🇪 Эстония Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'shop.karumweb.ru'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'shop.karumweb.ru'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:48:30,986 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'shop.karumweb.ru'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:48:31,053 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 5 clients on the '🇪🇪 Эстония Test' panel.
+dark-maximus-bot  | 2025-11-12 23:48:31,058 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇫🇮 Финляндия 1 Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:48:31,272 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv1.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:48:31,345 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 7 clients on the '🇫🇮 Финляндия 1 Test' panel.
+dark-maximus-bot  | 2025-11-12 23:48:31,350 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇳🇱 Нидерланды 1 Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:48:31,781 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv2.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:48:31,981 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇳🇱 Нидерланды 1 Test' panel.
+dark-maximus-bot  | 2025-11-12 23:48:31,985 - [WARNING] - shop_bot.data_manager.scheduler - Scheduler: Found 1 orphan client(s) on host '🇳🇱 Нидерланды 1 Test' (ID(s): 3afdf10a-61ed-47d3-a631-a07197094e80)
+dark-maximus-bot  | 2025-11-12 23:48:31,986 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Orphan client - Email: user6044240344-key5-trial@🇳🇱nederland1test.bot, ID: 3afdf10a-61ed-47d3-a631-a07197094e80, Expiry: 1763084614359
+dark-maximus-bot  | 2025-11-12 23:48:31,987 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting auto-deletion of 1 orphan client(s) on '🇳🇱 Нидерланды 1 Test'...
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:48:32,427 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv2.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:48:32,723 - [INFO] - shop_bot.modules.xui_api - Client 'user6044240344-key5-trial@🇳🇱nederland1test.bot' already deleted from host '🇳🇱 Нидерланды 1 Test' (no longer exists on panel).
+dark-maximus-bot  | 2025-11-12 23:48:32,725 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Successfully deleted orphan client 'user6044240344-key5-trial@🇳🇱nederland1test.bot' on '🇳🇱 Нидерланды 1 Test'.
+dark-maximus-bot  | 2025-11-12 23:48:32,728 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Auto-deletion complete on '🇳🇱 Нидерланды 1 Test': 1 deleted, 0 failed.
+dark-maximus-bot  | 2025-11-12 23:48:32,728 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇩🇪 Германия 1 Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:48:33,156 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv3.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:48:33,310 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇩🇪 Германия 1 Test' panel.
+dark-maximus-bot  | 2025-11-12 23:48:33,315 - [WARNING] - shop_bot.data_manager.scheduler - Scheduler: Found 1 orphan client(s) on host '🇩🇪 Германия 1 Test' (ID(s): f610165e-32c0-4902-8743-a369ec2dbd9c)
+dark-maximus-bot  | 2025-11-12 23:48:33,316 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Orphan client - Email: user1588069616-key1-trial@🇩🇪germany1test.bot, ID: f610165e-32c0-4902-8743-a369ec2dbd9c, Expiry: 1761226042779
+dark-maximus-bot  | 2025-11-12 23:48:33,317 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting auto-deletion of 1 orphan client(s) on '🇩🇪 Германия 1 Test'...
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:48:33,733 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv3.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:48:34,034 - [INFO] - shop_bot.modules.xui_api - Client 'user1588069616-key1-trial@🇩🇪germany1test.bot' already deleted from host '🇩🇪 Германия 1 Test' (no longer exists on panel).
+dark-maximus-bot  | 2025-11-12 23:48:34,036 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Successfully deleted orphan client 'user1588069616-key1-trial@🇩🇪germany1test.bot' on '🇩🇪 Германия 1 Test'.
+dark-maximus-bot  | 2025-11-12 23:48:34,039 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Auto-deletion complete on '🇩🇪 Германия 1 Test': 1 deleted, 0 failed.
+dark-maximus-bot  | 2025-11-12 23:48:34,039 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Sync with XUI panels finished. Total records affected: 2.
+dark-maximus-bot  | 2025-11-12 23:48:34,040 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Checking for expiring subscriptions...
+dark-maximus-bot  | 2025-11-12 23:48:34,107 - [INFO] - shop_bot.data_manager.scheduler - Auto-renewal skipped for user 6044240344, key 122: auto-renewal is disabled
+dark-maximus-bot  | 2025-11-12 23:48:34,116 - [INFO] - shop_bot.data_manager.scheduler - Auto-renewal skipped for user 5243157300, key 123: auto-renewal is disabled
+dark-maximus-bot  | 2025-11-12 23:48:34,124 - [INFO] - shop_bot.data_manager.scheduler - Auto-renewal skipped for user 6044240344, key 124: auto-renewal is disabled
+dark-maximus-bot  | 2025-11-12 23:48:34,125 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Cycle finished. Next check in 300 seconds.
+dark-maximus-bot  | 2025-11-12 23:53:34,131 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting sync with XUI panels...
+dark-maximus-bot  | 2025-11-12 23:53:34,138 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇪🇪 Эстония Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'shop.karumweb.ru'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'shop.karumweb.ru'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:53:34,508 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'shop.karumweb.ru'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:53:34,574 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 5 clients on the '🇪🇪 Эстония Test' panel.
+dark-maximus-bot  | 2025-11-12 23:53:34,579 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇫🇮 Финляндия 1 Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:53:34,773 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv1.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:53:34,847 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 7 clients on the '🇫🇮 Финляндия 1 Test' panel.
+dark-maximus-bot  | 2025-11-12 23:53:34,851 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇳🇱 Нидерланды 1 Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:53:35,267 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv2.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:53:35,412 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇳🇱 Нидерланды 1 Test' panel.
+dark-maximus-bot  | 2025-11-12 23:53:35,416 - [WARNING] - shop_bot.data_manager.scheduler - Scheduler: Found 1 orphan client(s) on host '🇳🇱 Нидерланды 1 Test' (ID(s): 3afdf10a-61ed-47d3-a631-a07197094e80)
+dark-maximus-bot  | 2025-11-12 23:53:35,417 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Orphan client - Email: user6044240344-key5-trial@🇳🇱nederland1test.bot, ID: 3afdf10a-61ed-47d3-a631-a07197094e80, Expiry: 1763084614359
+dark-maximus-bot  | 2025-11-12 23:53:35,418 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting auto-deletion of 1 orphan client(s) on '🇳🇱 Нидерланды 1 Test'...
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:53:35,830 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv2.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:53:36,119 - [INFO] - shop_bot.modules.xui_api - Client 'user6044240344-key5-trial@🇳🇱nederland1test.bot' already deleted from host '🇳🇱 Нидерланды 1 Test' (no longer exists on panel).
+dark-maximus-bot  | 2025-11-12 23:53:36,121 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Successfully deleted orphan client 'user6044240344-key5-trial@🇳🇱nederland1test.bot' on '🇳🇱 Нидерланды 1 Test'.
+dark-maximus-bot  | 2025-11-12 23:53:36,123 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Auto-deletion complete on '🇳🇱 Нидерланды 1 Test': 1 deleted, 0 failed.
+dark-maximus-bot  | 2025-11-12 23:53:36,124 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇩🇪 Германия 1 Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:53:36,539 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv3.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:53:36,693 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇩🇪 Германия 1 Test' panel.
+dark-maximus-bot  | 2025-11-12 23:53:36,697 - [WARNING] - shop_bot.data_manager.scheduler - Scheduler: Found 1 orphan client(s) on host '🇩🇪 Германия 1 Test' (ID(s): f610165e-32c0-4902-8743-a369ec2dbd9c)
+dark-maximus-bot  | 2025-11-12 23:53:36,698 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Orphan client - Email: user1588069616-key1-trial@🇩🇪germany1test.bot, ID: f610165e-32c0-4902-8743-a369ec2dbd9c, Expiry: 1761226042779
+dark-maximus-bot  | 2025-11-12 23:53:36,698 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting auto-deletion of 1 orphan client(s) on '🇩🇪 Германия 1 Test'...
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:53:37,145 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv3.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:53:37,448 - [INFO] - shop_bot.modules.xui_api - Client 'user1588069616-key1-trial@🇩🇪germany1test.bot' already deleted from host '🇩🇪 Германия 1 Test' (no longer exists on panel).
+dark-maximus-bot  | 2025-11-12 23:53:37,450 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Successfully deleted orphan client 'user1588069616-key1-trial@🇩🇪germany1test.bot' on '🇩🇪 Германия 1 Test'.
+dark-maximus-bot  | 2025-11-12 23:53:37,453 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Auto-deletion complete on '🇩🇪 Германия 1 Test': 1 deleted, 0 failed.
+dark-maximus-bot  | 2025-11-12 23:53:37,454 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Sync with XUI panels finished. Total records affected: 2.
+dark-maximus-bot  | 2025-11-12 23:53:37,454 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Checking for expiring subscriptions...
+dark-maximus-bot  | 2025-11-12 23:53:37,522 - [INFO] - shop_bot.data_manager.scheduler - Auto-renewal skipped for user 6044240344, key 122: auto-renewal is disabled
+dark-maximus-bot  | 2025-11-12 23:53:37,530 - [INFO] - shop_bot.data_manager.scheduler - Auto-renewal skipped for user 5243157300, key 123: auto-renewal is disabled
+dark-maximus-bot  | 2025-11-12 23:53:37,539 - [INFO] - shop_bot.data_manager.scheduler - Auto-renewal skipped for user 6044240344, key 124: auto-renewal is disabled
+dark-maximus-bot  | 2025-11-12 23:53:37,540 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Cycle finished. Next check in 300 seconds.
+dark-maximus-bot  | 2025-11-12 23:58:37,541 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting sync with XUI panels...
+dark-maximus-bot  | 2025-11-12 23:58:37,548 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇪🇪 Эстония Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'shop.karumweb.ru'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'shop.karumweb.ru'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:58:37,932 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'shop.karumweb.ru'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:58:37,997 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 5 clients on the '🇪🇪 Эстония Test' panel.
+dark-maximus-bot  | 2025-11-12 23:58:38,001 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇫🇮 Финляндия 1 Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:58:38,200 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv1.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:58:38,272 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 7 clients on the '🇫🇮 Финляндия 1 Test' panel.
+dark-maximus-bot  | 2025-11-12 23:58:38,277 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇳🇱 Нидерланды 1 Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:58:38,697 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv2.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:58:38,840 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇳🇱 Нидерланды 1 Test' panel.
+dark-maximus-bot  | 2025-11-12 23:58:38,844 - [WARNING] - shop_bot.data_manager.scheduler - Scheduler: Found 1 orphan client(s) on host '🇳🇱 Нидерланды 1 Test' (ID(s): 3afdf10a-61ed-47d3-a631-a07197094e80)
+dark-maximus-bot  | 2025-11-12 23:58:38,844 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Orphan client - Email: user6044240344-key5-trial@🇳🇱nederland1test.bot, ID: 3afdf10a-61ed-47d3-a631-a07197094e80, Expiry: 1763084614359
+dark-maximus-bot  | 2025-11-12 23:58:38,845 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting auto-deletion of 1 orphan client(s) on '🇳🇱 Нидерланды 1 Test'...
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:58:39,258 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv2.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:58:39,544 - [INFO] - shop_bot.modules.xui_api - Client 'user6044240344-key5-trial@🇳🇱nederland1test.bot' already deleted from host '🇳🇱 Нидерланды 1 Test' (no longer exists on panel).
+dark-maximus-bot  | 2025-11-12 23:58:39,546 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Successfully deleted orphan client 'user6044240344-key5-trial@🇳🇱nederland1test.bot' on '🇳🇱 Нидерланды 1 Test'.
+dark-maximus-bot  | 2025-11-12 23:58:39,548 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Auto-deletion complete on '🇳🇱 Нидерланды 1 Test': 1 deleted, 0 failed.
+dark-maximus-bot  | 2025-11-12 23:58:39,548 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇩🇪 Германия 1 Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:58:39,998 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv3.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:58:40,145 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇩🇪 Германия 1 Test' panel.
+dark-maximus-bot  | 2025-11-12 23:58:40,149 - [WARNING] - shop_bot.data_manager.scheduler - Scheduler: Found 1 orphan client(s) on host '🇩🇪 Германия 1 Test' (ID(s): f610165e-32c0-4902-8743-a369ec2dbd9c)
+dark-maximus-bot  | 2025-11-12 23:58:40,150 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Orphan client - Email: user1588069616-key1-trial@🇩🇪germany1test.bot, ID: f610165e-32c0-4902-8743-a369ec2dbd9c, Expiry: 1761226042779
+dark-maximus-bot  | 2025-11-12 23:58:40,151 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting auto-deletion of 1 orphan client(s) on '🇩🇪 Германия 1 Test'...
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:58:40,570 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv3.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-12 23:58:40,870 - [INFO] - shop_bot.modules.xui_api - Client 'user1588069616-key1-trial@🇩🇪germany1test.bot' already deleted from host '🇩🇪 Германия 1 Test' (no longer exists on panel).
+dark-maximus-bot  | 2025-11-12 23:58:40,872 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Successfully deleted orphan client 'user1588069616-key1-trial@🇩🇪germany1test.bot' on '🇩🇪 Германия 1 Test'.
+dark-maximus-bot  | 2025-11-12 23:58:40,874 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Auto-deletion complete on '🇩🇪 Германия 1 Test': 1 deleted, 0 failed.
+dark-maximus-bot  | 2025-11-12 23:58:40,875 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Sync with XUI panels finished. Total records affected: 2.
+dark-maximus-bot  | 2025-11-12 23:58:40,876 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Checking for expiring subscriptions...
+dark-maximus-bot  | 2025-11-12 23:58:40,940 - [INFO] - shop_bot.data_manager.scheduler - Auto-renewal skipped for user 6044240344, key 122: auto-renewal is disabled
+dark-maximus-bot  | 2025-11-12 23:58:40,949 - [INFO] - shop_bot.data_manager.scheduler - Auto-renewal skipped for user 5243157300, key 123: auto-renewal is disabled
+dark-maximus-bot  | 2025-11-12 23:58:40,957 - [INFO] - shop_bot.data_manager.scheduler - Auto-renewal skipped for user 6044240344, key 124: auto-renewal is disabled
+dark-maximus-bot  | 2025-11-12 23:58:40,958 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Cycle finished. Next check in 300 seconds.
+dark-maximus-bot  | DEBUG: MAIN BOT START HANDLER CALLED for user 6044240344 (k4rum_fwd)
+dark-maximus-bot  | 2025-11-13 00:01:04,644 - [INFO] - shop_bot.bot.handlers - MAIN BOT START HANDLER: User 6044240344 (k4rum_fwd) started bot
+dark-maximus-bot  | FORCE DEBUG: START HANDLER EXECUTING for user 6044240344
+dark-maximus-bot  | 2025-11-13 00:01:04,659 - [INFO] - shop_bot.bot.handlers - User 6044240344 registered/updated before deeplink processing
+dark-maximus-bot  | 2025-11-13 00:01:04,671 - [INFO] - shop_bot.bot.handlers - START HANDLER: Settings - force_subscription: True, channel_url: https://t.me/dark_maximus, terms_url: https://panel.dark-maximus.com/terms, privacy_url: https://panel.dark-maximus.com/privacy
+dark-maximus-bot  | 2025-11-13 00:01:04,672 - [INFO] - shop_bot.bot.handlers - START HANDLER: User 6044240344 status - agreed_to_terms: 1, agreed_to_documents: 1, subscription_status: subscribed
+dark-maximus-bot  | 2025-11-13 00:01:04,673 - [INFO] - shop_bot.bot.handlers - START HANDLER: All checks passed for user 6044240344, showing main menu
+dark-maximus-bot  | 2025-11-13 00:01:05,375 - [WARNING] - shop_bot.bot.middlewares - Slow request detected: Update from user unknown took 0.74s
+dark-maximus-bot  | 2025-11-13 00:01:05,376 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-13 00:01:05,377 - [INFO] - aiogram.event - Update id=415574100 is handled. Duration 743 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-13 00:01:11,136 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-13 00:01:11,138 - [INFO] - aiogram.event - Update id=415574101 is handled. Duration 144 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-13 00:01:16,060 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-13 00:01:16,062 - [INFO] - aiogram.event - Update id=415574102 is handled. Duration 135 ms by bot id=8226591457
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-13 00:01:17,954 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv1.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-13 00:01:18,122 - [INFO] - shop_bot.webhook_server.app - XUI traffic debug (clientStats) for user6044240344-key5-trial@finland1test.bot: total=0, up=40772872, down=359356936
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-13 00:01:18,260 - [INFO] - shop_bot.modules.xui_api - Got subURI from 3x-ui settings: https://serv1.dark-maximus.com/subs/
+dark-maximus-bot  | 2025-11-13 00:01:18,275 - [WARNING] - root - [get_key_info_text] Missing user_id or key_id for cabinet token: user_id=None (type: <class 'NoneType'>), key_id=None (type: <class 'NoneType'>)
+dark-maximus-bot  | 2025-11-13 00:01:18,363 - [WARNING] - shop_bot.bot.middlewares - Slow request detected: Update from user unknown took 0.83s
+dark-maximus-bot  | 2025-11-13 00:01:18,364 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-13 00:01:18,364 - [INFO] - aiogram.event - Update id=415574103 is handled. Duration 832 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-13 00:01:47,108 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-13 00:01:47,109 - [INFO] - aiogram.event - Update id=415574104 is handled. Duration 238 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-13 00:01:48,521 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-13 00:01:48,522 - [INFO] - aiogram.event - Update id=415574105 is handled. Duration 116 ms by bot id=8226591457
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-13 00:01:49,972 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv1.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-13 00:01:50,124 - [INFO] - shop_bot.webhook_server.app - XUI traffic debug (clientStats) for user6044240344-key4@🇫🇮finland1test.bot: total=0, up=1764, down=5437
+dark-maximus-bot  | 2025-11-13 00:01:50,136 - [WARNING] - root - [get_key_info_text] Missing user_id or key_id for cabinet token: user_id=None (type: <class 'NoneType'>), key_id=None (type: <class 'NoneType'>)
+dark-maximus-bot  | 2025-11-13 00:01:50,140 - [WARNING] - root - [get_key_info_text] No token available for cabinet_subscription, using URL without token for user None, key None
+dark-maximus-bot  | 2025-11-13 00:01:50,199 - [WARNING] - shop_bot.bot.middlewares - Slow request detected: Update from user unknown took 0.50s
+dark-maximus-bot  | 2025-11-13 00:01:50,200 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-13 00:01:50,201 - [INFO] - aiogram.event - Update id=415574106 is handled. Duration 503 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-13 00:03:40,957 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting sync with XUI panels...
+dark-maximus-bot  | 2025-11-13 00:03:40,964 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇪🇪 Эстония Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'shop.karumweb.ru'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'shop.karumweb.ru'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-13 00:03:41,377 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://shop.karumweb.ru:8443/manager' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'shop.karumweb.ru'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-13 00:03:41,441 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 5 clients on the '🇪🇪 Эстония Test' panel.
+dark-maximus-bot  | 2025-11-13 00:03:41,602 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇫🇮 Финляндия 1 Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-13 00:03:41,799 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv1.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-13 00:03:41,870 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 7 clients on the '🇫🇮 Финляндия 1 Test' panel.
+dark-maximus-bot  | 2025-11-13 00:03:41,874 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇳🇱 Нидерланды 1 Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-13 00:03:42,294 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv2.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-13 00:03:42,434 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇳🇱 Нидерланды 1 Test' panel.
+dark-maximus-bot  | 2025-11-13 00:03:42,439 - [WARNING] - shop_bot.data_manager.scheduler - Scheduler: Found 1 orphan client(s) on host '🇳🇱 Нидерланды 1 Test' (ID(s): 3afdf10a-61ed-47d3-a631-a07197094e80)
+dark-maximus-bot  | 2025-11-13 00:03:42,440 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Orphan client - Email: user6044240344-key5-trial@🇳🇱nederland1test.bot, ID: 3afdf10a-61ed-47d3-a631-a07197094e80, Expiry: 1763084614359
+dark-maximus-bot  | 2025-11-13 00:03:42,441 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting auto-deletion of 1 orphan client(s) on '🇳🇱 Нидерланды 1 Test'...
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-13 00:03:42,833 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv2.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv2.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-13 00:03:43,129 - [INFO] - shop_bot.modules.xui_api - Client 'user6044240344-key5-trial@🇳🇱nederland1test.bot' already deleted from host '🇳🇱 Нидерланды 1 Test' (no longer exists on panel).
+dark-maximus-bot  | 2025-11-13 00:03:43,131 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Successfully deleted orphan client 'user6044240344-key5-trial@🇳🇱nederland1test.bot' on '🇳🇱 Нидерланды 1 Test'.
+dark-maximus-bot  | 2025-11-13 00:03:43,134 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Auto-deletion complete on '🇳🇱 Нидерланды 1 Test': 1 deleted, 0 failed.
+dark-maximus-bot  | 2025-11-13 00:03:43,135 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Processing host: '🇩🇪 Германия 1 Test'
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-13 00:03:43,553 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv3.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-13 00:03:43,699 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Found 1 clients on the '🇩🇪 Германия 1 Test' panel.
+dark-maximus-bot  | 2025-11-13 00:03:43,704 - [WARNING] - shop_bot.data_manager.scheduler - Scheduler: Found 1 orphan client(s) on host '🇩🇪 Германия 1 Test' (ID(s): f610165e-32c0-4902-8743-a369ec2dbd9c)
+dark-maximus-bot  | 2025-11-13 00:03:43,705 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Orphan client - Email: user1588069616-key1-trial@🇩🇪germany1test.bot, ID: f610165e-32c0-4902-8743-a369ec2dbd9c, Expiry: 1761226042779
+dark-maximus-bot  | 2025-11-13 00:03:43,705 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Starting auto-deletion of 1 orphan client(s) on '🇩🇪 Германия 1 Test'...
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-13 00:03:44,132 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv3.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv3.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-13 00:03:44,432 - [INFO] - shop_bot.modules.xui_api - Client 'user1588069616-key1-trial@🇩🇪germany1test.bot' already deleted from host '🇩🇪 Германия 1 Test' (no longer exists on panel).
+dark-maximus-bot  | 2025-11-13 00:03:44,435 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Successfully deleted orphan client 'user1588069616-key1-trial@🇩🇪germany1test.bot' on '🇩🇪 Германия 1 Test'.
+dark-maximus-bot  | 2025-11-13 00:03:44,437 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: ✅ Auto-deletion complete on '🇩🇪 Германия 1 Test': 1 deleted, 0 failed.
+dark-maximus-bot  | 2025-11-13 00:03:44,438 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Sync with XUI panels finished. Total records affected: 2.
+dark-maximus-bot  | 2025-11-13 00:03:44,439 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Checking for expiring subscriptions...
+dark-maximus-bot  | 2025-11-13 00:03:44,502 - [INFO] - shop_bot.data_manager.scheduler - Auto-renewal skipped for user 6044240344, key 122: auto-renewal is disabled
+dark-maximus-bot  | 2025-11-13 00:03:44,510 - [INFO] - shop_bot.data_manager.scheduler - Auto-renewal skipped for user 5243157300, key 123: auto-renewal is disabled
+dark-maximus-bot  | 2025-11-13 00:03:44,518 - [INFO] - shop_bot.data_manager.scheduler - Auto-renewal skipped for user 6044240344, key 124: auto-renewal is disabled
+dark-maximus-bot  | 2025-11-13 00:03:44,519 - [INFO] - shop_bot.data_manager.scheduler - Scheduler: Cycle finished. Next check in 300 seconds.
+dark-maximus-bot  | 2025-11-13 00:05:08,150 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-13 00:05:08,151 - [INFO] - aiogram.event - Update id=415574107 is handled. Duration 169 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-13 00:05:09,508 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-13 00:05:09,509 - [INFO] - aiogram.event - Update id=415574108 is handled. Duration 122 ms by bot id=8226591457
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-13 00:05:10,867 - [INFO] - shop_bot.modules.xui_api - Successfully connected to host 'https://serv1.dark-maximus.com:8443/configpanel' (attempt 1)
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | /app/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host 'serv1.dark-maximus.com'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+dark-maximus-bot  |   warnings.warn(
+dark-maximus-bot  | 2025-11-13 00:05:11,019 - [INFO] - shop_bot.webhook_server.app - XUI traffic debug (clientStats) for user6044240344-key4@🇫🇮finland1test.bot: total=0, up=1764, down=5437
+dark-maximus-bot  | 2025-11-13 00:05:11,031 - [WARNING] - root - [get_key_info_text] Missing user_id or key_id for cabinet token: user_id=None (type: <class 'NoneType'>), key_id=None (type: <class 'NoneType'>)
+dark-maximus-bot  | 2025-11-13 00:05:11,034 - [WARNING] - root - [get_key_info_text] No token available for cabinet_subscription, using URL without token for user None, key None
+dark-maximus-bot  | 2025-11-13 00:05:11,096 - [INFO] - shop_bot.bot.middlewares - PerformanceMiddleware: handler_obj=None, handler_name=None, event_type=Update, data_keys=['dispatcher', 'bots', 'bot', 'event_context', 'event_from_user', 'event_chat', 'fsm_storage', 'state', 'raw_state']
+dark-maximus-bot  | 2025-11-13 00:05:11,097 - [INFO] - aiogram.event - Update id=415574109 is handled. Duration 498 ms by bot id=8226591457
+dark-maximus-bot  | 2025-11-13 00:05:30,568 - [WARNING] - aiogram.dispatcher - Received SIGTERM signal
+dark-maximus-bot  | 2025-11-13 00:05:30,571 - [INFO] - aiogram.dispatcher - Polling stopped for bot @darkmaxi_support_bot id=8230014622 - 'TEST Maximus support bot'
+dark-maximus-bot  | 2025-11-13 00:05:30,572 - [INFO] - aiogram.dispatcher - Polling stopped
+dark-maximus-bot  | 2025-11-13 00:05:30,825 - [INFO] - shop_bot.bot_controller - BotController: Polling for 'SupportBot' has gracefully stopped.
+[Kdark-maximus-bot exited with code 137

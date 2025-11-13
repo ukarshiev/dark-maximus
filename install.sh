@@ -71,6 +71,7 @@ MAIN_DOMAIN=""
 PANEL_DOMAIN=""
 DOCS_DOMAIN=""
 HELP_DOMAIN=""
+APP_DOMAIN=""
 
 # Определяем директорию установки
 INSTALL_DIR="/opt/dark-maximus"
@@ -255,11 +256,13 @@ fi
 PANEL_DOMAIN="panel.${MAIN_DOMAIN}"
 DOCS_DOMAIN="docs.${MAIN_DOMAIN}"
 HELP_DOMAIN="help.${MAIN_DOMAIN}"
+APP_DOMAIN="app.${MAIN_DOMAIN}"
 
 echo -e "${GREEN}✔ Домены настроены:${NC}"
 echo -e "   - Панель: ${PANEL_DOMAIN}"
 echo -e "   - Документация: ${DOCS_DOMAIN}"
 echo -e "   - Админ-документация: ${HELP_DOMAIN}"
+echo -e "   - Личный кабинет: ${APP_DOMAIN}"
 
 echo -e "\n${CYAN}Шаг 4: Генерация секретов...${NC}"
 
@@ -290,6 +293,7 @@ MAIN_DOMAIN=${MAIN_DOMAIN}
 PANEL_DOMAIN=${PANEL_DOMAIN}
 DOCS_DOMAIN=${DOCS_DOMAIN}
 HELP_DOMAIN=${HELP_DOMAIN}
+APP_DOMAIN=${APP_DOMAIN}
 EOF
 fi
 
@@ -312,6 +316,7 @@ DATABASE_URL=${DATABASE_URL:-sqlite:///bot.db}
 MAIN_DOMAIN=${MAIN_DOMAIN}
 DOCS_DOMAIN=${DOCS_DOMAIN}
 HELP_DOMAIN=${HELP_DOMAIN}
+APP_DOMAIN=${APP_DOMAIN}
 EOF
 
 # Примечание: учетные данные панели хранятся в базе данных users.db
@@ -660,6 +665,11 @@ upstream codex_docs_backend {
     keepalive 32;
 }
 
+upstream user_cabinet_backend {
+    server 127.0.0.1:3003;
+    keepalive 32;
+}
+
 # Основной сервер (панель)
 server {
     listen 80;
@@ -778,6 +788,42 @@ server {
     # Health check
     location /health {
         proxy_pass http://codex_docs_backend/;
+        access_log off;
+    }
+}
+
+# Сервер личного кабинета
+server {
+    listen 80;
+    server_name ${APP_DOMAIN};
+    
+    # Ограничение размера загружаемых файлов
+    client_max_body_size 20m;
+    
+    # Проксирование на user-cabinet сервис
+    location / {
+        proxy_pass http://user_cabinet_backend;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header X-Forwarded-Port \$server_port;
+        
+        # Таймауты
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+        
+        # Буферизация
+        proxy_buffering on;
+        proxy_buffer_size 4k;
+        proxy_buffers 8 4k;
+    }
+    
+    # Health check
+    location /health {
+        proxy_pass http://user_cabinet_backend/health;
         access_log off;
     }
 }
@@ -996,8 +1042,15 @@ timeout 60 bash -c 'until nc -z 127.0.0.1 3001; do sleep 2; done' || {
 # Ожидаем готовности codex-docs сервиса
 echo -e "${YELLOW}Проверка готовности codex-docs сервиса...${NC}"
 timeout 60 bash -c 'until nc -z 127.0.0.1 3002; do sleep 2; done' || {
-    echo -e "${RED}❌ Codex-docs сервис не запустился в течение 1 минуты${NC}"
-    ${DC[@]} logs codex-docs
+    echo -e "${RED}❌ Контейнер codex-docs не готов на порту 3002${NC}"
+    exit 1
+}
+
+# Ожидаем готовности user-cabinet сервиса
+echo -e "${YELLOW}Проверка готовности user-cabinet сервиса...${NC}"
+timeout 60 bash -c 'until nc -z 127.0.0.1 3003; do sleep 2; done' || {
+    echo -e "${RED}❌ User-cabinet сервис не запустился в течение 1 минуты${NC}"
+    ${DC[@]} logs user-cabinet
     exit 1
 }
 
@@ -1138,10 +1191,14 @@ echo -e "   - ${GREEN}http://${DOCS_DOMAIN}${NC}"
 echo -e "\n3. Админская документация (Codex.docs):"
 echo -e "   - ${GREEN}http://${HELP_DOMAIN}${NC}"
 
-echo -e "\n4. Прямые порты (только localhost):"
+echo -e "\n4. Личный кабинет:"
+echo -e "   - ${GREEN}http://${APP_DOMAIN}${NC}"
+
+echo -e "\n5. Прямые порты (только localhost):"
 echo -e "   - Бот: ${GREEN}http://localhost:50000${NC}"
 echo -e "   - Документация: ${GREEN}http://localhost:3001${NC}"
 echo -e "   - Админ-документация: ${GREEN}http://localhost:3002${NC}"
+echo -e "   - Личный кабинет: ${GREEN}http://localhost:3003${NC}"
 
 echo -e "\n${BLUE}🔧 Следующие шаги:${NC}"
 echo -e "1. Настройте DNS A-записи для всех доменов на IP этого сервера"

@@ -203,13 +203,21 @@
                 <div id="notifUserSuggestions" class="suggestions" style="margin-top: 6px;"></div>
             </div>
             <div class="form-group">
-                <label for="notifTypeSelect">Уведомление</label>
-                <select id="notifTypeSelect">
-                    <option value="72">окончание подписки через 3 дня</option>
-                    <option value="48">окончание подписки через 2 дня</option>
-                    <option value="24">окончание подписки через 1 день</option>
-                    <option value="1">окончание подписки через 1 час</option>
+                <label for="notifTemplateSelect">Тип уведомления</label>
+                <select id="notifTemplateSelect">
+                    <option value="">Загрузка...</option>
                 </select>
+                <div id="notifTemplateDescription" class="form-helper-text" style="margin-top:6px;color:#adb5bd;"></div>
+            </div>
+            <div class="form-group" id="notifMarkerGroup" style="display:none;">
+                <label for="notifMarkerSelect">Когда отправить</label>
+                <select id="notifMarkerSelect"></select>
+            </div>
+            <div class="form-group" id="notifForceGroup" style="display:flex;align-items:center;gap:8px;">
+                <label id="notifForceLabel" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                    <input type="checkbox" id="notifForceCheckbox" disabled />
+                    Отправить повторно (игнорировать защиту от дублей)
+                </label>
             </div>
         </div>
         <div class="modal-footer" style="justify-content: space-between;">

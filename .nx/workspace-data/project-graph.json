@@ -55,6 +55,15 @@
             },
             "configurations": {},
             "parallelism": true
+          },
+          "logs": {
+            "executor": "nx:run-commands",
+            "options": {
+              "command": "docker compose logs -f user-cabinet",
+              "cwd": ""
+            },
+            "configurations": {},
+            "parallelism": true
           }
         },
         "implicitDependencies": []
@@ -91,7 +100,7 @@
           "test": {
             "executor": "nx:run-commands",
             "options": {
-              "command": "python -m pytest libs/shared-utils/tests/",
+              "command": "python -c \"import pathlib, sys; path = pathlib.Path('libs/shared-utils/tests'); sys.exit(__import__('pytest').main([str(path)])) if path.exists() else print('No tests for shared-utils; skipping')\"",
               "cwd": ""
             },
             "configurations": {},
@@ -161,6 +170,15 @@
             },
             "configurations": {},
             "parallelism": true
+          },
+          "logs": {
+            "executor": "nx:run-commands",
+            "options": {
+              "command": "docker compose logs -f codex-docs",
+              "cwd": ""
+            },
+            "configurations": {},
+            "parallelism": true
           }
         },
         "implicitDependencies": []
@@ -208,6 +226,15 @@
             "executor": "nx:run-commands",
             "options": {
               "command": "docker compose down docs",
+              "cwd": ""
+            },
+            "configurations": {},
+            "parallelism": true
+          },
+          "logs": {
+            "executor": "nx:run-commands",
+            "options": {
+              "command": "docker compose logs -f docs",
               "cwd": ""
             },
             "configurations": {},

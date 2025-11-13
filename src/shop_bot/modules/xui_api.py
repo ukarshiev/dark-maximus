@@ -3,9 +3,11 @@
 API для работы с X-UI панелью
 """
 
+import os
 import uuid
 from datetime import datetime, timedelta
 import logging
+from pathlib import Path
 from urllib.parse import urlparse
 from typing import List, Dict
 import json
@@ -17,6 +19,63 @@ from py3xui import Api, Client, Inbound
 from shop_bot.data_manager.database import get_host, get_host_by_code, get_key_by_email, DB_FILE
 
 logger = logging.getLogger(__name__)
+
+_TLS_VERIFY_ENV = "XUI_TLS_VERIFY"
+_TLS_CA_BUNDLE_ENV = "XUI_CA_BUNDLE_PATH"
+
+
+def _resolve_tls_verify_option(host_url: str) -> bool | str:
+    """
+    Определяет режим проверки TLS для запросов к X-UI панели.
+
+    Предпочитаем полноценную проверку сертификатов (значение True).
+    Дополнительно поддерживается указание кастомного CA bundle через переменную
+    окружения `XUI_CA_BUNDLE_PATH` — в этом случае Requests и py3xui будут
+    использовать указанный файл.
+
+    Для аварийного обхода (не рекомендуется) можно установить `XUI_TLS_VERIFY=false`,
+    однако при этом логируется предупреждение.
+    """
+    disable_verify = os.getenv(_TLS_VERIFY_ENV)
+    if disable_verify and disable_verify.strip().lower() in {"0", "false", "off"}:
+        logger.warning(
+            f"TLS verification for X-UI requests is disabled via env {_TLS_VERIFY_ENV}. "
+            "Это снижает безопасность соединения — рекомендуется включить проверку сертификата."
+        )
+        return False
+
+    ca_bundle = os.getenv(_TLS_CA_BUNDLE_ENV)
+    if ca_bundle:
+        ca_path = Path(ca_bundle).expanduser()
+        if not ca_path.exists():
+            logger.error(
+                f"Указанный CA bundle '{ca_path}' не найден. "
+                f"Удалите переменную {_TLS_CA_BUNDLE_ENV} или исправьте путь."
+            )
+        else:
+            os.environ.setdefault("REQUESTS_CA_BUNDLE", str(ca_path))
+            logger.info(f"Используется кастомный CA bundle для X-UI: {ca_path}")
+            return str(ca_path)
+
+    return True
+
+
+def _create_verified_panel_session(host_url: str) -> requests.Session:
+    """
+    Создает requests.Session с проверкой SSL-сертификатов.
+
+    Если указан кастомный CA bundle (через XUI_CA_BUNDLE_PATH), Requests будет
+    использовать его автоматически.
+    """
+    session = requests.Session()
+    session.verify = _resolve_tls_verify_option(host_url)
+    session.headers.update(
+        {
+            "User-Agent": "DarkMaximus-XUI/1.0 (+https://dark-maximus.com)",
+            "Accept": "application/json, text/plain, */*",
+        }
+    )
+    return session
 
 # Карантин для проблемных хостов: при повторных сбоях временно пропускаем хост,
 # чтобы не засорять логи и не тратить время на заведомо недоступные панели.
@@ -35,17 +94,17 @@ def get_sub_uri_from_panel(host_url: str, username: str, password: str) -> str |
         return _sub_uri_cache[cache_key]
     
     try:
-        session = requests.Session()
+        session = _create_verified_panel_session(host_url)
         base = host_url.rstrip('/')
         
         # Логин
-        login_response = session.post(f"{base}/login", json={"username": username, "password": password}, timeout=10, verify=False)
+        login_response = session.post(f"{base}/login", json={"username": username, "password": password}, timeout=10)
         if login_response.status_code != 200:
             logger.warning(f"Failed to login to {base} for getting subURI")
             return None
         
         # Получаем настройки подписки
-        settings_response = session.post(f"{base}/panel/setting/all", timeout=10, verify=False)
+        settings_response = session.post(f"{base}/panel/setting/all", timeout=10)
         if settings_response.status_code != 200:
             logger.warning(f"Failed to get settings from {base}")
             return None
@@ -94,6 +153,11 @@ def get_sub_uri_from_panel(host_url: str, username: str, password: str) -> str |
     except Exception as e:
         logger.error(f"Error getting subURI from {base}: {e}")
         return None
+    finally:
+        try:
+            session.close()
+        except Exception:
+            pass
 
 def _normalize_host_url(host_url: str) -> str:
     """
@@ -169,11 +233,14 @@ def login_to_host(host_url: str, username: str, password: str, inbound_id: int, 
         logger.warning(f"Host '{normalized_url}' is quarantined for {remaining}s, skipping login.")
         return None, None
 
+    verify_option = _resolve_tls_verify_option(host_url)
+    verify_flag = False if verify_option is False else True
+
     last_error: Exception | None = None
     for attempt in range(max_retries):
         try:
             # Используем нормализованный URL и отключаем проверку TLS для самоподписанных сертификатов
-            api = Api(host=normalized_url, username=username, password=password, use_tls_verify=False)
+            api = Api(host=normalized_url, username=username, password=password, use_tls_verify=verify_flag)
             logger.debug(f"Attempting to login to '{normalized_url}' (attempt {attempt + 1}/{max_retries})")
             
             api.login()
@@ -1068,16 +1135,16 @@ def _panel_update_client_quota(host_url: str, username: str, password: str, inbo
     """Обновляет квоту трафика клиента через нативный эндпоинт панели"""
     try:
         base = host_url.rstrip('/')
-        session = requests.Session()
-        
+        session = _create_verified_panel_session(host_url)
+
         # Логин
-        login_response = session.post(f"{base}/login", json={"username": username, "password": password}, timeout=10, verify=False)
+        login_response = session.post(f"{base}/login", json={"username": username, "password": password}, timeout=10)
         if login_response.status_code != 200:
             logger.error(f"Failed to login to {base}")
             return False
             
         # Получаем текущие данные inbound
-        get_response = session.get(f"{base}/panel/inbound/get/{inbound_id}", timeout=10, verify=False)
+        get_response = session.get(f"{base}/panel/inbound/get/{inbound_id}", timeout=10)
         if get_response.status_code != 200:
             logger.error(f"Failed to get inbound data: HTTP {get_response.status_code}")
             logger.error(f"Response content: {get_response.text[:500]}")
@@ -1140,7 +1207,7 @@ def _panel_update_client_quota(host_url: str, username: str, password: str, inbo
         
         # Отправляем обновление
         headers = {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest"}
-        response = session.post(f"{base}/panel/inbound/update/{inbound_id}", data=update_data, headers=headers, timeout=10, verify=False)
+        response = session.post(f"{base}/panel/inbound/update/{inbound_id}", data=update_data, headers=headers, timeout=10)
         
         if response.status_code == 200:
             try:
@@ -1171,21 +1238,26 @@ def _panel_update_client_quota(host_url: str, username: str, password: str, inbo
         except Exception:
             pass
         return False
+    finally:
+        try:
+            session.close()
+        except Exception:
+            pass
 
 def _panel_update_client_enabled_status(host_url: str, username: str, password: str, inbound_id: int, client_uuid: str, email: str, enabled: bool, expiry_ms: int, comment: str = "") -> bool:
     """Обновляет статус включения/отключения клиента через нативный эндпоинт панели"""
     try:
         base = host_url.rstrip('/')
-        session = requests.Session()
-        
+        session = _create_verified_panel_session(host_url)
+
         # Логин
-        login_response = session.post(f"{base}/login", json={"username": username, "password": password}, timeout=10, verify=False)
+        login_response = session.post(f"{base}/login", json={"username": username, "password": password}, timeout=10)
         if login_response.status_code != 200:
             logger.error(f"Failed to login to {base}")
             return False
             
         # Получаем текущие данные inbound
-        get_response = session.get(f"{base}/panel/inbound/get/{inbound_id}", timeout=10, verify=False)
+        get_response = session.get(f"{base}/panel/inbound/get/{inbound_id}", timeout=10)
         if get_response.status_code != 200:
             logger.error(f"Failed to get inbound data: HTTP {get_response.status_code}")
             return False
@@ -1243,7 +1315,7 @@ def _panel_update_client_enabled_status(host_url: str, username: str, password: 
         
         # Отправляем обновление
         headers = {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest"}
-        response = session.post(f"{base}/panel/inbound/update/{inbound_id}", data=update_data, headers=headers, timeout=10, verify=False)
+        response = session.post(f"{base}/panel/inbound/update/{inbound_id}", data=update_data, headers=headers, timeout=10)
         
         if response.status_code == 200:
             try:
@@ -1269,6 +1341,11 @@ def _panel_update_client_enabled_status(host_url: str, username: str, password: 
         except Exception:
             logger.error(f"Failed panel updateClient enabled status for {email}: {e}")
         return False
+    finally:
+        try:
+            session.close()
+        except Exception:
+            pass
 
 async def update_client_enabled_status_on_host(host_name: str, client_email: str, enabled: bool) -> bool:
     """Обновляет статус включения/отключения клиента на указанном хосте"""
@@ -1342,17 +1419,17 @@ def get_subscription_settings(host_url: str, username: str, password: str) -> di
     """Получает настройки подписки (subscription) из панели 3x-ui"""
     try:
         base = host_url.rstrip('/')
-        session = requests.Session()
-        
+        session = _create_verified_panel_session(host_url)
+
         # Логин
-        login_response = session.post(f"{base}/login", json={"username": username, "password": password}, timeout=10, verify=False)
+        login_response = session.post(f"{base}/login", json={"username": username, "password": password}, timeout=10)
         if login_response.status_code != 200:
             logger.error(f"Failed to login to {base} to get subscription settings")
             return None
         
         # Получаем настройки панели через API
         # В 3x-ui настройки подписки хранятся в /panel/setting
-        settings_response = session.post(f"{base}/panel/setting/all", timeout=10, verify=False)
+        settings_response = session.post(f"{base}/panel/setting/all", timeout=10)
         if settings_response.status_code != 200:
             logger.error(f"Failed to get settings from {base}: HTTP {settings_response.status_code}")
             return None
@@ -1378,6 +1455,11 @@ def get_subscription_settings(host_url: str, username: str, password: str) -> di
     except Exception as e:
         logger.error(f"Error getting subscription settings from {host_url}: {e}", exc_info=True)
         return None
+    finally:
+        try:
+            session.close()
+        except Exception:
+            pass
 
 async def get_client_subscription_link(host_name: str, client_email: str) -> str | None:
     """Получает subscription link для клиента по email"""

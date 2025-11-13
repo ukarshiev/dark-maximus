@@ -1,0 +1,82 @@
+> python -m pytest tests/ --maxfail=1 -vv tests/test_auto_renewal_functionality.py tests/test_database_locks_fix.py tests/test_deeplink_base64.py tests/test_deeplink_functionality.py tests/test_timezone_utils.py tests/test_notifications_fix.py tests/test_database_indexes.py
+
+============================= test session starts =============================
+platform win32 -- Python 3.13.7, pytest-8.4.2, pluggy-1.6.0 -- C:\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: e:\GitHub\dark-maximus
+configfile: pyproject.toml
+plugins: anyio-4.10.0
+collecting ... collected 55 items
+
+tests/test_auto_renewal_functionality.py::TestAutoRenewalDatabase::test_get_auto_renewal_enabled_default PASSED [  1%]
+tests/test_auto_renewal_functionality.py::TestAutoRenewalDatabase::test_get_auto_renewal_enabled_explicit PASSED [  3%]
+tests/test_auto_renewal_functionality.py::TestAutoRenewalDatabase::test_set_auto_renewal_enabled PASSED [  5%]
+tests/test_auto_renewal_functionality.py::TestAutoRenewalDatabase::test_get_auto_renewal_enabled_missing_column PASSED [  7%]
+tests/test_auto_renewal_functionality.py::TestAutoRenewalNotifications::test_balance_deduction_notification_logged PASSED [  9%]
+tests/test_auto_renewal_functionality.py::TestAutoRenewalNotifications::test_autorenew_disabled_notification_logged PASSED [ 10%]
+tests/test_auto_renewal_functionality.py::TestAutoRenewalIntegration::test_autorenewal_skipped_when_disabled PASSED [ 12%]
+tests/test_auto_renewal_functionality.py::TestAutoRenewalIntegration::test_autorenewal_enabled_by_default PASSED [ 14%]
+tests/test_database_locks_fix.py::TestContextManager::test_connection_closed_automatically PASSED [ 16%]
+tests/test_database_locks_fix.py::TestContextManager::test_no_connection_leaks PASSED [ 18%]
+tests/test_database_locks_fix.py::TestPragmaSettings::test_busy_timeout_in_run_migration PASSED [ 20%]
+tests/test_database_locks_fix.py::TestPragmaSettings::test_wal_mode_in_run_migration PASSED [ 21%]
+tests/test_database_locks_fix.py::TestPragmaSettings::test_busy_timeout_in_migrate_backup_settings PASSED [ 23%]
+tests/test_database_locks_fix.py::TestRetryLogic::test_retry_on_lock PASSED [ 25%]
+tests/test_database_locks_fix.py::TestRetryLogic::test_successful_migration_without_locks PASSED [ 27%]
+tests/test_database_locks_fix.py::TestParallelOperations::test_parallel_migrations FAILED [ 29%]
+
+================================== FAILURES ===================================
+_______________ TestParallelOperations.test_parallel_migrations _______________
+
+self = <test_database_locks_fix.TestParallelOperations object at 0x000001DEEFD9BB10>
+temp_db = WindowsPath('C:/Users/umidt/AppData/Local/Temp/pytest-of-umidt/pytest-20/test_parallel_migrations0/test_users.db')
+
+    def test_parallel_migrations(self, temp_db):
+        """���� 4.1: ������������ ��������"""
+        results = []
+        errors = []
+    
+        def run_migration_thread():
+            try:
+                database.run_migration()
+                results.append("success")
+            except Exception as e:
+                errors.append(str(e))
+    
+        # ��������� ��� �������� �����������
+        thread1 = threading.Thread(target=run_migration_thread)
+        thread2 = threading.Thread(target=run_migration_thread)
+    
+        thread1.start()
+        thread2.start()
+    
+        thread1.join(timeout=10)
+        thread2.join(timeout=10)
+    
+        # ���������, ��� ��� ������ "database is locked"
+        lock_errors = [e for e in errors if "database is locked" in e.lower() or "locked" in e.lower()]
+>       assert len(lock_errors) == 0, f"Found lock errors in parallel execution: {lock_errors}"
+E       AssertionError: Found lock errors in parallel execution: ['database is locked']
+E       assert 1 == 0
+E        +  where 1 = len(['database is locked'])
+
+tests\test_database_locks_fix.py:375: AssertionError
+------------------------------ Captured log call ------------------------------
+WARNING  root:database.py:1702 The old structure of the TRANSACTIONS table was discovered. I rename in 'transactions_backup_20251112213158' ...
+============================== warnings summary ===============================
+tests/test_auto_renewal_functionality.py::TestAutoRenewalNotifications::test_balance_deduction_notification_logged
+tests/test_auto_renewal_functionality.py::TestAutoRenewalNotifications::test_autorenew_disabled_notification_logged
+  e:\GitHub\dark-maximus\src\shop_bot\data_manager\database.py:7429: DeprecationWarning: The default datetime adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    cursor.execute(
+
+tests/test_auto_renewal_functionality.py::TestAutoRenewalIntegration::test_autorenewal_skipped_when_disabled
+  e:\GitHub\dark-maximus\tests\test_auto_renewal_functionality.py:267: DeprecationWarning: The default datetime adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    cursor.execute("""
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_database_locks_fix.py::TestParallelOperations::test_parallel_migrations - AssertionError: Found lock errors in parallel execution: ['database is locked']
+assert 1 == 0
+ +  where 1 = len(['database is locked'])
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+================== 1 failed, 15 passed, 3 warnings in 5.00s ===================

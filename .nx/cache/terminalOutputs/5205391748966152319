@@ -1,0 +1,63 @@
+> docker build -f Dockerfile.docs -t dark-maximus-docs .
+
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile.docs
+#1 transferring dockerfile: 1.86kB 0.0s done
+#1 DONE 0.1s
+
+#2 [internal] load metadata for docker.io/library/alpine:3.22
+#2 DONE 0.5s
+
+#3 [internal] load metadata for docker.io/nginxinc/nginx-unprivileged:alpine3.22
+#3 DONE 1.2s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 921B 0.0s done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 DONE 0.0s
+
+#6 [docs-builder 1/4] FROM docker.io/library/alpine:3.22@sha256:4b7ce07002c69e8f3d704a9c5d6fd3053be500b7f1c69fc0d80990c2ad8dd412
+#6 resolve docker.io/library/alpine:3.22@sha256:4b7ce07002c69e8f3d704a9c5d6fd3053be500b7f1c69fc0d80990c2ad8dd412 0.1s done
+#6 DONE 0.1s
+
+#7 [stage-1 1/4] FROM docker.io/nginxinc/nginx-unprivileged:alpine3.22@sha256:b7d6477d6b83b6c152ffb766318f1f103553174ef91b195c3dfcb9a00e1e933d
+#7 resolve docker.io/nginxinc/nginx-unprivileged:alpine3.22@sha256:b7d6477d6b83b6c152ffb766318f1f103553174ef91b195c3dfcb9a00e1e933d 0.1s done
+#7 DONE 0.1s
+
+#5 [internal] load build context
+#5 transferring context: 105.69kB 0.1s done
+#5 DONE 0.2s
+
+#8 [stage-1 2/4] RUN apk add --no-cache netcat-openbsd wget
+#8 CACHED
+
+#9 [stage-1 3/4] COPY deploy/nginx/docs.conf /etc/nginx/conf.d/default.conf
+#9 CACHED
+
+#10 [docs-builder 2/4] WORKDIR /build
+#10 CACHED
+
+#11 [docs-builder 3/4] COPY docs/user-docs ./docs
+#11 CACHED
+
+#12 [docs-builder 4/4] RUN if [ ! -f ./docs/index.html ]; then     echo '<!DOCTYPE html><html><head><title>Dark Maximus - Документация</title></head><body><h1>Документация</h1></body></html>' > ./docs/index.html;     fi
+#12 CACHED
+
+#13 [stage-1 4/4] COPY --chown=nginx:nginx --from=docs-builder /build/docs /usr/share/nginx/html/docs
+#13 CACHED
+
+#14 exporting to image
+#14 exporting layers done
+#14 exporting manifest sha256:d69bbabb0fc7e7b649adc22f948d761bb524cf34977aeb654bcab39c1780e7b9 done
+#14 exporting config sha256:8eabf20f4fb5cce7848f349f68124da940f136ae665ce857ecc71930b029717c done
+#14 exporting attestation manifest sha256:cf6b5d0bf08ad72b3b8edba19fe33f63d44d3d740b76e85b734d70ef0e47f116
+#14 exporting attestation manifest sha256:cf6b5d0bf08ad72b3b8edba19fe33f63d44d3d740b76e85b734d70ef0e47f116 0.0s done
+#14 exporting manifest list sha256:c5baf4b82b5c691d674ce98d3e9df326634dc171fbcfac2ac3e394a2d6ef2815 0.0s done
+#14 naming to docker.io/library/dark-maximus-docs:latest done
+#14 unpacking to docker.io/library/dark-maximus-docs:latest 0.0s done
+#14 DONE 0.2s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/6d4pw5uerh4utd3j7pbkek7tp

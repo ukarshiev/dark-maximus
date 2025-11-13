@@ -42,6 +42,7 @@ from shop_bot.bot import handlers
 from shop_bot.security import rate_limit, get_client_ip
 from shop_bot.security.validators import InputValidator, ValidationError
 from shop_bot.utils import handle_exceptions
+from shop_bot.config import get_user_cabinet_domain
 from shop_bot.data_manager import database
 from shop_bot.data_manager.database import (
     get_all_settings, update_setting, get_all_hosts, get_plans_for_host,
@@ -56,9 +57,20 @@ from shop_bot.data_manager.database import (
     get_user_promo_codes, validate_promo_code, remove_user_promo_code_usage, can_delete_promo_code,
     get_all_user_groups, get_user_group, create_user_group, update_user_group, delete_user_group,
     get_user_group_by_name, get_default_user_group, update_user_group_assignment, get_user_group_info,
-    get_users_in_group, get_groups_statistics, update_transaction_status
+    get_users_in_group, get_groups_statistics, update_transaction_status,
+    get_message_template, get_all_message_templates, create_message_template, update_message_template,
+    delete_message_template, get_message_template_statistics
 )
-from shop_bot.data_manager.scheduler import send_subscription_notification
+from shop_bot.data_manager.scheduler import (
+    get_manual_notification_template,
+    get_manual_notification_templates,
+    send_autorenew_balance_notice,
+    send_autorenew_disabled_notice,
+    send_plan_unavailable_notice,
+    send_subscription_notification,
+    _get_plan_info_for_key,
+    _marker_logged,
+)
 from shop_bot.ton_monitor import start_ton_monitoring
 from shop_bot.utils.performance_monitor import get_performance_monitor, get_performance_report, measure_performance, measure_performance_sync
 from shop_bot.utils.datetime_utils import (
@@ -79,7 +91,7 @@ ALL_SETTINGS_KEYS = [
     "yookassa_secret_key", "yookassa_test_mode", "yookassa_test_shop_id", 
     "yookassa_test_secret_key", "yookassa_api_url", "yookassa_test_api_url", "yookassa_verify_ssl", "yookassa_test_verify_ssl", "sbp_enabled", "receipt_email", "cryptobot_token",
     "stars_enabled", "stars_conversion_rate", "yookassa_local_stub",
-    "heleket_merchant_id", "heleket_api_key", "domain", "global_domain", "docs_domain", "codex_docs_domain", "referral_percentage",
+    "heleket_merchant_id", "heleket_api_key", "domain", "global_domain", "docs_domain", "codex_docs_domain", "user_cabinet_domain", "referral_percentage",
     "referral_discount", "ton_wallet_address", "tonapi_key", "force_subscription", "trial_enabled", "trial_duration_days", "enable_referrals", "minimum_withdrawal",
     "support_group_id", "support_bot_token", "ton_monitoring_enabled", "hidden_mode", "support_enabled",
     # Настройки мониторинга производительности
@@ -1075,7 +1087,7 @@ def create_webhook_app(bot_controller_instance):
     @login_required
     def save_panel_settings():
         """Сохранение настроек панели - v2.1"""
-        panel_keys = ['panel_login', 'global_domain', 'docs_domain', 'codex_docs_domain', 'admin_timezone', 'monitoring_max_metrics', 'monitoring_slow_threshold', 'monitoring_cleanup_hours']
+        panel_keys = ['panel_login', 'global_domain', 'docs_domain', 'codex_docs_domain', 'user_cabinet_domain', 'admin_timezone', 'monitoring_max_metrics', 'monitoring_slow_threshold', 'monitoring_cleanup_hours']
         
         # Пароль отдельно, если указан
         if 'panel_password' in request.form and request.form.get('panel_password'):
@@ -2692,7 +2704,7 @@ def create_webhook_app(bot_controller_instance):
             
             # Получаем режим предоставления ключа
             key_provision_mode = request.form.get('key_provision_mode', 'key')
-            if key_provision_mode not in ['key', 'subscription', 'both']:
+            if key_provision_mode not in ['key', 'subscription', 'both', 'cabinet', 'cabinet_subscription']:
                 key_provision_mode = 'key'
             
             # Получаем режим отображения
@@ -2756,7 +2768,7 @@ def create_webhook_app(bot_controller_instance):
         
         # Получаем режим предоставления ключа
         key_provision_mode = request.form.get('key_provision_mode', plan.get('key_provision_mode', 'key'))
-        if key_provision_mode not in ['key', 'subscription', 'both']:
+        if key_provision_mode not in ['key', 'subscription', 'both', 'cabinet', 'cabinet_subscription']:
             key_provision_mode = 'key'
         
         # Получаем режим отображения
@@ -4179,7 +4191,36 @@ def create_webhook_app(bot_controller_instance):
                         key['remaining_seconds'] = None
                 else:
                     key['remaining_seconds'] = None
-                
+
+                # Ссылки личного кабинета
+                cabinet_links: list[dict] = []
+                try:
+                    cabinet_domain = get_user_cabinet_domain()
+                    user_id_value = key.get('user_id')
+                    if cabinet_domain and user_id_value:
+                        try:
+                            database.get_or_create_permanent_token(int(user_id_value), key_id)
+                        except Exception as token_error:
+                            logger.error(f"Error ensuring permanent cabinet token for key {key_id}: {token_error}")
+                        tokens = database.get_tokens_for_key(key_id)
+                        seen_tokens = set()
+                        for token_info in tokens:
+                            token_value = (token_info or {}).get('token')
+                            if not token_value or token_value in seen_tokens:
+                                continue
+                            seen_tokens.add(token_value)
+                            cabinet_links.append({
+                                'token': token_value,
+                                'url': f"{cabinet_domain}/auth/{token_value}",
+                                'created_at': token_info.get('created_at'),
+                                'last_used_at': token_info.get('last_used_at'),
+                                'access_count': token_info.get('access_count'),
+                            })
+                except Exception as cabinet_error:
+                    logger.error(f"Error building cabinet links for key {key_id}: {cabinet_error}")
+                    cabinet_links = []
+                key['cabinet_links'] = cabinet_links
+
                 return {'key': key}
                 
         except Exception as e:
@@ -4408,18 +4449,46 @@ def create_webhook_app(bot_controller_instance):
         users = db_search_users(query=query, limit=limit)
         return jsonify({'users': users})
 
+    @flask_app.route('/api/notification-templates')
+    @login_required
+    def api_notification_templates():
+        """Возвращает список доступных шаблонов уведомлений для панели."""
+        return jsonify({'templates': get_manual_notification_templates()})
+
     @flask_app.route('/create-notification', methods=['POST'])
     @login_required
     def create_notification_route():
-        """Ручной запуск отправки уведомления о скором окончании подписки.
-        Ожидает JSON: {"user_id": int, "marker_hours": int in [1,24,48,72]}.
+        """Ручной запуск отправки системных уведомлений.
+        Ожидает JSON: {"user_id": int, "template_code": str, "marker_hours": int?, "force": bool?}.
         """
         try:
             data = request.get_json(silent=True) or {}
             user_id = int(data.get('user_id') or 0)
-            marker_hours = int(data.get('marker_hours') or 0)
-            if user_id <= 0 or marker_hours not in (1, 24, 48, 72):
-                return jsonify({'message': 'Некорректные данные: выберите пользователя и тип уведомления'}), 400
+            template_code = str(data.get('template_code') or '').strip()
+            force = bool(data.get('force', False))
+            if user_id <= 0 or not template_code:
+                return jsonify({'message': 'Некорректные данные: требуется пользователь и тип уведомления'}), 400
+
+            template = get_manual_notification_template(template_code)
+            if not template:
+                return jsonify({'message': 'Неизвестный тип уведомления'}), 400
+
+            markers = template.get('markers', [])
+            default_marker = template.get('default_marker')
+            marker_value = data.get('marker_hours', default_marker)
+            try:
+                marker_hours = int(marker_value) if marker_value is not None else None
+            except (TypeError, ValueError):
+                return jsonify({'message': 'Некорректное значение маркера времени'}), 400
+
+            if markers:
+                if marker_hours is None:
+                    return jsonify({'message': 'Не выбран момент отправки уведомления'}), 400
+                if marker_hours not in markers:
+                    return jsonify({'message': 'Выбран недопустимый маркер времени для этого уведомления'}), 400
+
+            if force and not template.get('supports_force', False):
+                force = False
 
             # Проверяем наличие активного бота и цикла событий
             bot = _bot_controller.get_bot_instance()
@@ -4429,22 +4498,26 @@ def create_webhook_app(bot_controller_instance):
 
             # Ищем ключ пользователя с ближайшим истечением в будущем
             keys = get_user_keys(user_id) or []
-            from datetime import datetime as _dt
-            now = _dt.now()
-            def _to_dt(v):
+            from datetime import datetime as _dt, timezone as _tz
+            now = _dt.now(_tz.utc).replace(tzinfo=None)
+
+            def _to_dt(value):
                 try:
-                    if isinstance(v, str):
+                    if isinstance(value, str):
                         from datetime import datetime
-                        return datetime.fromisoformat(v.replace('Z', '+00:00'))
+                        return datetime.fromisoformat(value.replace('Z', '+00:00'))
                 except Exception:
                     return None
-                return v if isinstance(v, _dt) else None
+                return value if isinstance(value, _dt) else None
 
             future_keys = []
-            for k in keys:
-                exp = _to_dt(k.get('expiry_date'))
-                if exp and exp > now:
-                    future_keys.append((exp, k))
+            for key in keys:
+                exp = _to_dt(key.get('expiry_date'))
+                if exp:
+                    if exp.tzinfo is not None:
+                        exp = exp.astimezone(_tz.utc).replace(tzinfo=None)
+                    if exp > now:
+                        future_keys.append((exp, key))
 
             if not future_keys:
                 return jsonify({'message': 'У пользователя нет активных ключей с будущей датой истечения'}), 400
@@ -4454,19 +4527,94 @@ def create_webhook_app(bot_controller_instance):
             expiry_dt, key = future_keys[0]
             key_id = int(key.get('key_id'))
 
-            # Гарантируем, что дата истечения в будущем (на случай рассинхронизации)
+            if expiry_dt.tzinfo is not None:
+                expiry_dt = expiry_dt.astimezone(_tz.utc).replace(tzinfo=None)
             if expiry_dt <= now:
-                expiry_dt = now + timedelta(hours=marker_hours)
+                expiry_dt = now + timedelta(hours=marker_hours or 1)
 
-            # Отправляем уведомление асинхронно
-            asyncio.run_coroutine_threadsafe(
-                send_subscription_notification(bot=bot, user_id=user_id, key_id=key_id, time_left_hours=marker_hours, expiry_date=expiry_dt),
-                loop
-            )
+            try:
+                plan_info, price_to_renew, _, _, is_plan_available = _get_plan_info_for_key(key)
+            except Exception as e:
+                logger.error(f"Failed to resolve plan info for user {user_id}, key {key_id}: {e}", exc_info=True)
+                return jsonify({'message': 'Не удалось определить тариф для уведомления'}), 500
 
-            return jsonify({'message': 'Уведомление отправлено'}), 200
+            # Дополнительные данные для условий
+            from shop_bot.data_manager.database import get_user_balance, get_auto_renewal_enabled
+
+            user_balance = float(get_user_balance(user_id) or 0.0)
+            auto_enabled = get_auto_renewal_enabled(user_id)
+            balance_covers = price_to_renew > 0 and user_balance >= price_to_renew
+
+            conditions = template.get('conditions', {})
+            require_plan_available = conditions.get('require_plan_available')
+            require_balance = conditions.get('require_balance_covers')
+            require_autorenew_enabled = conditions.get('require_autorenew_enabled')
+            require_autorenew_disabled = conditions.get('require_autorenew_disabled')
+
+            if require_plan_available is True and not is_plan_available:
+                return jsonify({'message': 'Тариф недоступен. Используйте шаблон предупреждения о недоступности тарифа.'}), 409
+            if require_plan_available is False and is_plan_available and not force:
+                return jsonify({'message': 'Тариф доступен для продления, уведомление о недоступности не отправлено.'}), 409
+            if require_balance and not balance_covers:
+                return jsonify({'message': 'Баланс пользователя недостаточен для этого уведомления.'}), 409
+            if require_autorenew_enabled and not auto_enabled:
+                return jsonify({'message': 'Автопродление отключено. Выберите другой тип уведомления.'}), 409
+            if require_autorenew_disabled and auto_enabled:
+                return jsonify({'message': 'Автопродление включено. Этот тип уведомления не подходит.'}), 409
+
+            if not force and marker_hours is not None:
+                if _marker_logged(user_id, key_id, marker_hours, template_code):
+                    return jsonify({'message': 'Такое уведомление уже отправлялось. Включите повторную отправку.'}), 409
+
+            status_override = 'resent' if force else 'sent'
+
+            if template_code == 'subscription_expiry':
+                coroutine = send_subscription_notification(
+                    bot=bot,
+                    user_id=user_id,
+                    key_id=key_id,
+                    time_left_hours=marker_hours,
+                    expiry_date=expiry_dt,
+                    status=status_override,
+                )
+            elif template_code == 'subscription_plan_unavailable':
+                coroutine = send_plan_unavailable_notice(
+                    bot=bot,
+                    user_id=user_id,
+                    key_id=key_id,
+                    time_left_hours=marker_hours,
+                    expiry_date=expiry_dt,
+                    force=force,
+                    status=status_override,
+                )
+            elif template_code == 'subscription_autorenew_notice':
+                coroutine = send_autorenew_balance_notice(
+                    bot=bot,
+                    user_id=user_id,
+                    key_id=key_id,
+                    time_left_hours=marker_hours,
+                    expiry_date=expiry_dt,
+                    balance_val=user_balance,
+                    status=status_override,
+                )
+            elif template_code == 'subscription_autorenew_disabled':
+                coroutine = send_autorenew_disabled_notice(
+                    bot=bot,
+                    user_id=user_id,
+                    key_id=key_id,
+                    time_left_hours=marker_hours,
+                    expiry_date=expiry_dt,
+                    balance_val=user_balance,
+                    price_to_renew=price_to_renew,
+                    status=status_override,
+                )
+            else:
+                return jsonify({'message': 'Этот тип уведомлений пока не поддерживается вручную'}), 400
+
+            asyncio.run_coroutine_threadsafe(coroutine, loop)
+            return jsonify({'message': 'Уведомление запущено в отправку'}), 200
         except Exception as e:
-            logger.error(f"Failed to create notification: {e}")
+            logger.error(f"Failed to create notification: {e}", exc_info=True)
             return jsonify({'message': 'Внутренняя ошибка сервера'}), 500
 
     @flask_app.route('/resend-notification/<int:notification_id>', methods=['POST'])
@@ -5916,6 +6064,129 @@ def create_webhook_app(bot_controller_instance):
             return jsonify({'success': True, 'users': users})
         except Exception as e:
             logger.error(f"Ошибка получения пользователей группы: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @flask_app.route('/api/message-templates', methods=['GET'])
+    @login_required
+    def api_get_message_templates():
+        """Получить все шаблоны сообщений"""
+        try:
+            category = request.args.get('category')
+            templates = get_all_message_templates(category)
+            return jsonify({
+                'success': True,
+                'templates': templates
+            })
+        except Exception as e:
+            logger.error(f"Error getting message templates: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @flask_app.route('/api/message-templates/<int:template_id>', methods=['GET'])
+    @login_required
+    def api_get_message_template(template_id):
+        """Получить шаблон по ID"""
+        try:
+            templates = get_all_message_templates()
+            template = next((t for t in templates if t.get('template_id') == template_id), None)
+            if template:
+                return jsonify({'success': True, 'template': template})
+            else:
+                return jsonify({'success': False, 'error': 'Шаблон не найден'}), 404
+        except Exception as e:
+            logger.error(f"Error getting message template {template_id}: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @flask_app.route('/api/message-templates', methods=['POST'])
+    @login_required
+    def api_create_message_template():
+        """Создать новый шаблон сообщения"""
+        try:
+            data = request.get_json()
+            template_key = data.get('template_key', '').strip()
+            category = data.get('category', '').strip()
+            template_text = data.get('template_text', '').strip()
+            provision_mode = data.get('provision_mode')
+            description = data.get('description', '').strip()
+            variables = data.get('variables')
+            
+            if not template_key or not category or not template_text:
+                return jsonify({'success': False, 'error': 'Необходимы template_key, category и template_text'}), 400
+            
+            template_id = create_message_template(
+                template_key=template_key,
+                category=category,
+                template_text=template_text,
+                provision_mode=provision_mode,
+                description=description,
+                variables=variables
+            )
+            
+            if template_id:
+                return jsonify({'success': True, 'template_id': template_id})
+            else:
+                return jsonify({'success': False, 'error': 'Не удалось создать шаблон (возможно, ключ уже существует)'}), 400
+                
+        except Exception as e:
+            logger.error(f"Error creating message template: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @flask_app.route('/api/message-templates/<int:template_id>', methods=['PUT'])
+    @login_required
+    def api_update_message_template(template_id):
+        """Обновить шаблон сообщения"""
+        try:
+            data = request.get_json()
+            template_text = data.get('template_text')
+            description = data.get('description')
+            is_active = data.get('is_active')
+            
+            if template_text is not None:
+                template_text = template_text.strip()
+            
+            if description is not None:
+                description = description.strip()
+            
+            success = update_message_template(
+                template_id=template_id,
+                template_text=template_text,
+                description=description,
+                is_active=is_active
+            )
+            
+            if success:
+                return jsonify({'success': True, 'message': 'Шаблон обновлен'})
+            else:
+                return jsonify({'success': False, 'error': 'Не удалось обновить шаблон'}), 400
+                
+        except Exception as e:
+            logger.error(f"Error updating message template {template_id}: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @flask_app.route('/api/message-templates/<int:template_id>', methods=['DELETE'])
+    @login_required
+    def api_delete_message_template(template_id):
+        """Удалить шаблон сообщения"""
+        try:
+            success = delete_message_template(template_id)
+            
+            if success:
+                return jsonify({'success': True, 'message': 'Шаблон удален'})
+            else:
+                return jsonify({'success': False, 'error': 'Не удалось удалить шаблон'}), 400
+                
+        except Exception as e:
+            logger.error(f"Error deleting message template {template_id}: {e}", exc_info=True)
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @flask_app.route('/api/message-templates/statistics', methods=['GET'])
+    @login_required
+    def api_get_message_template_statistics():
+        """Получить статистику шаблонов сообщений"""
+        try:
+            statistics = get_message_template_statistics()
+            return jsonify({'success': True, 'statistics': statistics})
+        except Exception as e:
+            logger.error(f"Error getting message template statistics: {e}", exc_info=True)
             return jsonify({'success': False, 'error': str(e)}), 500
     
     @flask_app.route('/api/users/<int:user_id>/group', methods=['PUT'])

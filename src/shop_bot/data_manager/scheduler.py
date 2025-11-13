@@ -23,6 +23,64 @@ from shop_bot.utils.datetime_utils import ensure_utc_datetime, format_datetime_f
 
 CHECK_INTERVAL_SECONDS = 300
 NOTIFY_BEFORE_HOURS = {24, 1}
+MANUAL_NOTIFICATION_TEMPLATES: dict[str, dict] = {
+    "subscription_expiry": {
+        "code": "subscription_expiry",
+        "name": "Окончание подписки",
+        "description": "Стандартное напоминание об окончании подписки, когда тариф доступен и списание возможно.",
+        "markers": [72, 48, 24, 1],
+        "default_marker": 24,
+        "supports_force": True,
+        "conditions": {
+            "require_plan_available": True,
+            "require_balance_covers": False,
+            "require_autorenew_enabled": False,
+            "require_autorenew_disabled": False,
+        },
+    },
+    "subscription_plan_unavailable": {
+        "code": "subscription_plan_unavailable",
+        "name": "Тариф недоступен",
+        "description": "Предупреждение о том, что тариф снят с продажи и автопродление невозможно.",
+        "markers": [72, 48, 24, 1],
+        "default_marker": 24,
+        "supports_force": True,
+        "conditions": {
+            "require_plan_available": False,
+            "require_balance_covers": False,
+            "require_autorenew_enabled": False,
+            "require_autorenew_disabled": False,
+        },
+    },
+    "subscription_autorenew_notice": {
+        "code": "subscription_autorenew_notice",
+        "name": "Автопродление с баланса",
+        "description": "Сообщение о том, что автопродление выполнится автоматически при достаточном балансе.",
+        "markers": [24, 1],
+        "default_marker": 24,
+        "supports_force": True,
+        "conditions": {
+            "require_plan_available": True,
+            "require_balance_covers": True,
+            "require_autorenew_enabled": True,
+            "require_autorenew_disabled": False,
+        },
+    },
+    "subscription_autorenew_disabled": {
+        "code": "subscription_autorenew_disabled",
+        "name": "Автопродление отключено",
+        "description": "Уведомление о том, что баланс достаточен, но автопродление выключено.",
+        "markers": [24, 1],
+        "default_marker": 24,
+        "supports_force": True,
+        "conditions": {
+            "require_plan_available": True,
+            "require_balance_covers": True,
+            "require_autorenew_enabled": False,
+            "require_autorenew_disabled": True,
+        },
+    },
+}
 notified_users = {}
 
 logger = logging.getLogger(__name__)
@@ -70,6 +128,54 @@ def log_orphan_deletion(host_name: str, client_email: str, client_id: str, expir
     except Exception as e:
         logger.error(f"Failed to log orphan deletion: {e}")
 
+
+def _format_marker_label(hours: int) -> str:
+    """Возвращает текстовую метку для значения marker_hours."""
+    if hours <= 0:
+        return "менее часа"
+    if hours % 24 == 0 and hours >= 24:
+        days = hours // 24
+        if days == 1:
+            return "через 1 день"
+        if days in (2, 3, 4):
+            return f"через {days} дня"
+        return f"через {days} дней"
+    if hours == 1:
+        return "через 1 час"
+    if hours in (2, 3, 4):
+        return f"через {hours} часа"
+    return f"через {hours} часов"
+
+
+def get_manual_notification_templates() -> list[dict]:
+    """Возвращает список шаблонов уведомлений для панели."""
+    templates: list[dict] = []
+    for template in MANUAL_NOTIFICATION_TEMPLATES.values():
+        markers = [
+            {
+                "hours": hours,
+                "label": _format_marker_label(hours),
+            }
+            for hours in template.get("markers", [])
+        ]
+        templates.append(
+            {
+                "code": template["code"],
+                "name": template["name"],
+                "description": template["description"],
+                "markers": markers,
+                "default_marker": template.get("default_marker"),
+                "supports_force": template.get("supports_force", False),
+                "conditions": template.get("conditions", {}),
+            }
+        )
+    return templates
+
+
+def get_manual_notification_template(code: str) -> dict | None:
+    """Возвращает шаблон уведомления по коду."""
+    return MANUAL_NOTIFICATION_TEMPLATES.get(code)
+
 def format_time_left(hours: int) -> str:
     """Форматирует оставшееся время в читаемый формат.
     
@@ -99,7 +205,14 @@ def format_time_left(hours: int) -> str:
         else:
             return f"{hours} часов"
 
-async def send_subscription_notification(bot: Bot, user_id: int, key_id: int, time_left_hours: int, expiry_date: datetime):
+async def send_subscription_notification(
+    bot: Bot,
+    user_id: int,
+    key_id: int,
+    time_left_hours: int,
+    expiry_date: datetime,
+    status: str = 'sent',
+):
     try:
         # Дополнительная проверка: не отправляем уведомления, если время истекло
         # Используем UTC для сравнения, т.к. expiry_date хранится в UTC
@@ -169,7 +282,7 @@ async def send_subscription_notification(bot: Bot, user_id: int, key_id: int, ti
                 notif_type='subscription_expiry',
                 title=f'Окончание подписки (через {time_text})',
                 message=message,
-                status='sent',
+                status=status,
                 meta={
                     'key_id': key_id,
                     'expiry_at': expiry_str,
@@ -308,11 +421,19 @@ def cleanup_duplicate_notifications():
     except Exception as e:
         logger.error(f"Failed to cleanup duplicate notifications: {e}")
 
-async def send_plan_unavailable_notice(bot: Bot, user_id: int, key_id: int, time_left_hours: int, expiry_date: datetime):
+async def send_plan_unavailable_notice(
+    bot: Bot,
+    user_id: int,
+    key_id: int,
+    time_left_hours: int,
+    expiry_date: datetime,
+    force: bool = False,
+    status: str = 'sent',
+):
     """Уведомление о недоступности тарифа для автопродления."""
     try:
         # ДОПОЛНИТЕЛЬНАЯ ЗАЩИТА ОТ СПАМА: проверяем, не было ли уже отправлено уведомление
-        if _marker_logged(user_id, key_id, time_left_hours, 'subscription_plan_unavailable'):
+        if not force and _marker_logged(user_id, key_id, time_left_hours, 'subscription_plan_unavailable'):
             logger.debug(f"Plan unavailable notice already sent for user {user_id}, key {key_id}, marker {time_left_hours}h. Skipping.")
             return
         
@@ -336,13 +457,23 @@ async def send_plan_unavailable_notice(bot: Bot, user_id: int, key_id: int, time
             host_name = 'Неизвестный сервер'
             key_number = 0
 
+        key_label = f"#{key_number}" if key_number > 0 else f"ID {key_id}"
+
         message = (
-            "⚠️ Внимание! Ваш тариф больше не доступен для автопродления.\n\n"
-            f"Ключ #{key_number} ({host_name}) истекает через {time_text}.\n"
+            "⚠️ Внимание! ⚠️\n\n"
+            "Ваш тариф больше не доступен для автопродления.\n\n"
+            f"Ключ {key_label} ({host_name}) истекает через {time_text}.\n\n"
             f"📅 Окончание: {expiry_str}\n\n"
             "Пожалуйста, выберите новый тариф до истечения срока.\n\n"
-            "Для продления перейдите в меню: 🛒 Купить → 🔄 Продлить ключ"
+            "Для продления перейдите в меню: 🛒 Купить → 🔄 Продлить ключ и выберите другой тариф"
         )
+
+        keyboard_builder = InlineKeyboardBuilder()
+        keyboard_builder.button(text="🛒 Купить новый VPN", callback_data="buy_new_vpn")
+        keyboard_builder.button(text="🔄 Продлить VPN", callback_data=f"extend_key_{key_id}")
+        keyboard_builder.button(text="🔑 Перейти к ключу", callback_data=f"show_key_{key_id}")
+        keyboard_builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
+        keyboard_builder.adjust(2, 1, 1)
 
         # Сначала логируем уведомление в БД, чтобы предотвратить дублирование
         try:
@@ -354,7 +485,7 @@ async def send_plan_unavailable_notice(bot: Bot, user_id: int, key_id: int, time
                 notif_type='subscription_plan_unavailable',
                 title=f'Тариф недоступен (через {time_text})',
                 message=message,
-                status='sent',
+                status=status if status else 'sent',
                 meta={
                     'key_id': key_id,
                     'expiry_at': expiry_str,
@@ -374,14 +505,26 @@ async def send_plan_unavailable_notice(bot: Bot, user_id: int, key_id: int, time
             return  # Не отправляем сообщение, если не удалось записать в БД
 
         # Теперь отправляем сообщение
-        await bot.send_message(chat_id=user_id, text=message)
+        await bot.send_message(
+            chat_id=user_id,
+            text=message,
+            reply_markup=keyboard_builder.as_markup()
+        )
 
         logger.info(f"Sent plan unavailable notice to user {user_id} for key {key_id}, time_left={time_left_hours}h")
     except Exception as e:
         logger.error(f"Failed to send plan unavailable notice to user {user_id} for key {key_id}: {e}", exc_info=True)
 
 
-async def send_autorenew_balance_notice(bot: Bot, user_id: int, key_id: int, time_left_hours: int, expiry_date: datetime, balance_val: float):
+async def send_autorenew_balance_notice(
+    bot: Bot,
+    user_id: int,
+    key_id: int,
+    time_left_hours: int,
+    expiry_date: datetime,
+    balance_val: float,
+    status: str = 'sent',
+):
     try:
         from datetime import timezone, timedelta
         # Дополнительная проверка: не отправляем уведомления, если время истекло
@@ -455,7 +598,7 @@ async def send_autorenew_balance_notice(bot: Bot, user_id: int, key_id: int, tim
                 notif_type='subscription_autorenew_notice',
                 title=f'Автопродление (через {time_text})',
                 message=message,
-                status='sent',
+                status=status,
                 meta={
                     'key_id': key_id,
                     'expiry_at': expiry_str,
@@ -519,7 +662,16 @@ async def send_balance_deduction_notice(bot: Bot, user_id: int, key_id: int, amo
     except Exception as e:
         logger.error(f"Failed to send balance deduction notice to user {user_id}: {e}")
 
-async def send_autorenew_disabled_notice(bot: Bot, user_id: int, key_id: int, time_left_hours: int, expiry_date: datetime, balance_val: float, price_to_renew: float):
+async def send_autorenew_disabled_notice(
+    bot: Bot,
+    user_id: int,
+    key_id: int,
+    time_left_hours: int,
+    expiry_date: datetime,
+    balance_val: float,
+    price_to_renew: float,
+    status: str = 'sent',
+):
     """Отправляет уведомление о том, что автопродление отключено, но баланс достаточен."""
     try:
         from shop_bot.bot import keyboards
@@ -572,7 +724,7 @@ async def send_autorenew_disabled_notice(bot: Bot, user_id: int, key_id: int, ti
                 notif_type='subscription_autorenew_disabled',
                 title=f'Автопродление отключено (через {time_text})',
                 message=message,
-                status='sent',
+                status=status,
                 meta={
                     'key_id': key_id,
                     'expiry_at': expiry_str,
@@ -1013,6 +1165,10 @@ async def periodic_subscription_check(bot_controller: BotController):
     # Счетчик циклов для периодической очистки webhook'ов (раз в день)
     webhook_cleanup_counter = 0
     WEBHOOK_CLEANUP_INTERVAL = 288  # 288 циклов * 300 сек = 24 часа
+    
+    # Счетчик циклов для периодической очистки токенов (раз в день)
+    token_cleanup_counter = 0
+    TOKEN_CLEANUP_INTERVAL = 288  # 288 циклов * 300 сек = 24 часа
 
     while True:
         try:
@@ -1036,6 +1192,12 @@ async def periodic_subscription_check(bot_controller: BotController):
                     webhook_cleanup_counter = 0
                 except Exception as cleanup_error:
                     logger.error(f"Scheduler: Failed to cleanup old webhooks: {cleanup_error}", exc_info=True)
+            
+            # Периодическая очистка токенов истекших подписок (раз в день)
+            token_cleanup_counter += 1
+            if token_cleanup_counter >= TOKEN_CLEANUP_INTERVAL:
+                logger.debug("Scheduler: Token cleanup skipped (persistent cabinet links enabled)")
+                token_cleanup_counter = 0
 
             if bot_controller.get_status().get("shop_bot_running"):
                 bot = bot_controller.get_bot_instance()

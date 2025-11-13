@@ -1,0 +1,3 @@
+> docker compose up -d bot --skip-infer-target-options
+
+unknown flag: --skip-infer-target-options

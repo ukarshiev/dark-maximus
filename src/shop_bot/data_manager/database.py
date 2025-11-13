@@ -25,7 +25,44 @@ from typing import Optional
 import unicodedata
 import re
 import os
-import fcntl
+try:
+    import fcntl  # type: ignore[attr-defined]
+except ImportError:
+    try:
+        import msvcrt  # type: ignore[attr-defined]
+    except ImportError:
+        msvcrt = None  # type: ignore[assignment]
+
+    class _FcntlStub:
+        LOCK_EX = 0x01
+        LOCK_NB = 0x02
+        LOCK_UN = 0x04
+
+        @staticmethod
+        def flock(file_descriptor, operation):
+            logger = logging.getLogger(__name__)
+            if msvcrt is None:
+                logger.debug(
+                    "fcntl недоступен и msvcrt недоступен; операция блокировки пропущена."
+                )
+                return 0
+
+            length = 1
+            try:
+                if operation & _FcntlStub.LOCK_UN:
+                    msvcrt.locking(file_descriptor, msvcrt.LK_UNLCK, length)
+                else:
+                    mode = msvcrt.LK_LOCK
+                    if operation & _FcntlStub.LOCK_NB:
+                        mode = msvcrt.LK_NBLCK
+                    msvcrt.locking(file_descriptor, mode, length)
+            except OSError as exc:  # pragma: no cover - Windows specific
+                logger.debug(f"msvcrt.locking raise OSError: {exc}")
+                raise BlockingIOError(exc.errno, exc.strerror) from exc
+
+            return 0
+
+    fcntl = _FcntlStub()  # type: ignore[misc]
 def _parse_db_datetime(value) -> Optional[datetime]:
     """Парсит datetime из БД, возвращая aware UTC значение."""
     if value in (None, ''):
@@ -967,6 +1004,13 @@ def create_database_indexes(cursor):
     """Создает индексы для оптимизации производительности базы данных"""
 
     try:
+        def create_index_safe(sql: str, description: str) -> None:
+            try:
+                cursor.execute(sql)
+            except sqlite3.Error as e:
+                logging.debug(f"{description} may already exist: {e}")
+            else:
+                logging.debug(f"{description} ensure success")
 
         # Индексы для таблицы users
 
@@ -1097,9 +1141,20 @@ def create_database_indexes(cursor):
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_video_instructions_created_at ON video_instructions(created_at)")
 
         # Индексы для таблицы user_groups
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_groups_group_name ON user_groups(group_name)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_groups_is_default ON user_groups(is_default)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_groups_group_code ON user_groups(group_code)")
+        create_index_safe(
+            "CREATE INDEX IF NOT EXISTS idx_user_groups_group_name ON user_groups(group_name)",
+            "Index idx_user_groups_group_name",
+        )
+
+        create_index_safe(
+            "CREATE INDEX IF NOT EXISTS idx_user_groups_is_default ON user_groups(is_default)",
+            "Index idx_user_groups_is_default",
+        )
+
+        create_index_safe(
+            "CREATE INDEX IF NOT EXISTS idx_user_groups_group_code ON user_groups(group_code)",
+            "Index idx_user_groups_group_code",
+        )
 
         # Индекс для таблицы users по group_id (проверка существования колонки уже выполнена выше в create_database_indexes)
         # Индекс создается в функции create_database_indexes() с проверкой существования колонки
@@ -2227,6 +2282,120 @@ def run_migration(conn: Optional[sqlite3.Connection] = None):
         # Миграция настроек бекапов
         logging.info("Migrating backup settings...")
         migrate_backup_settings(conn)
+
+        # Миграция таблицы user_tokens для личного кабинета
+        logging.info("Migrating user_tokens table...")
+        try:
+            # Проверяем, была ли выполнена миграция создания таблицы user_tokens
+            cursor.execute("SELECT migration_id FROM migration_history WHERE migration_id = 'user_tokens_create_table'")
+            migration_done = cursor.fetchone()
+            
+            if not migration_done:
+                # Проверяем, существует ли таблица user_tokens
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_tokens'")
+                table_exists = cursor.fetchone()
+                
+                if not table_exists:
+                    # Создаем таблицу user_tokens
+                    cursor.execute('''
+                        CREATE TABLE IF NOT EXISTS user_tokens (
+                            token TEXT PRIMARY KEY,
+                            user_id INTEGER NOT NULL,
+                            key_id INTEGER NOT NULL,
+                            created_at TEXT NOT NULL,
+                            last_used_at TEXT,
+                            access_count INTEGER DEFAULT 0,
+                            FOREIGN KEY (user_id) REFERENCES users (telegram_id),
+                            FOREIGN KEY (key_id) REFERENCES vpn_keys (key_id)
+                        )
+                    ''')
+                    
+                    # Создаем индексы для оптимизации запросов
+                    cursor.execute('CREATE INDEX IF NOT EXISTS idx_token ON user_tokens(token)')
+                    cursor.execute('CREATE INDEX IF NOT EXISTS idx_user_key ON user_tokens(user_id, key_id)')
+                    cursor.execute('CREATE INDEX IF NOT EXISTS idx_key_id ON user_tokens(key_id)')
+                    
+                    # Отмечаем миграцию как выполненную
+                    cursor.execute("INSERT INTO migration_history (migration_id) VALUES ('user_tokens_create_table')")
+                    logging.info(" -> Table 'user_tokens' created successfully with indexes")
+                else:
+                    logging.info(" -> Table 'user_tokens' already exists")
+                    # Отмечаем миграцию как выполненную даже если таблица уже существует
+                    cursor.execute("INSERT OR IGNORE INTO migration_history (migration_id) VALUES ('user_tokens_create_table')")
+            else:
+                logging.info(" -> Migration 'user_tokens_create_table' already applied, skipping")
+                
+        except Exception as e:
+            logging.error(f" -> Error migrating user_tokens table: {e}")
+
+        # Миграция для создания таблицы шаблонов сообщений
+        try:
+            logging.info("Creating message_templates table...")
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='message_templates'")
+            table_exists = cursor.fetchone()
+            
+            if not table_exists:
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS message_templates (
+                        template_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        template_key TEXT UNIQUE NOT NULL,
+                        category TEXT NOT NULL,
+                        provision_mode TEXT,
+                        template_text TEXT NOT NULL,
+                        description TEXT,
+                        variables TEXT,
+                        is_active INTEGER DEFAULT 1,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                
+                # Создаем индексы для оптимизации запросов
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_template_key ON message_templates(template_key)')
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_category ON message_templates(category)')
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_provision_mode ON message_templates(provision_mode)')
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_is_active ON message_templates(is_active)')
+                
+                logging.info(" -> message_templates table created")
+                
+                # Инициализация дефолтных шаблонов только если таблица пустая
+                cursor.execute('SELECT COUNT(*) FROM message_templates')
+                count = cursor.fetchone()[0]
+                if count == 0:
+                    logging.info(" -> Initializing default message templates...")
+                    default_templates = [
+                        ('purchase_success_key', 'purchase', 'key', 
+                         '🎉 <b>Ваш ключ #{key_number}{trial_suffix} {action_text}!</b>\n\n⏳ <b>Он будет действовать до:</b> {expiry_formatted}\n\n⬇️ <b>НИЖЕ ВАШ КЛЮЧ</b> ⬇️\n------------------------------------------------------------------------\n<code>{connection_string}</code>\n------------------------------------------------------------------------\n<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n{cabinet_text}{fallback_text}',
+                         'Сообщение о покупке для режима "Ключ"', '["key_number", "trial_suffix", "action_text", "expiry_formatted", "connection_string", "cabinet_text", "fallback_text"]'),
+                        ('purchase_success_subscription', 'purchase', 'subscription',
+                         '🎉 <b>Ваш ключ #{key_number}{trial_suffix} {action_text}!</b>\n\n⏳ <b>Он будет действовать до:</b> {expiry_formatted}\n\n⬇️ <b>ВАША ПОДПИСКА</b> ⬇️\n------------------------------------------------------------------------\n{subscription_link}\n------------------------------------------------------------------------\n<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n{cabinet_text}{fallback_text}',
+                         'Сообщение о покупке для режима "Подписка"', '["key_number", "trial_suffix", "action_text", "expiry_formatted", "subscription_link", "cabinet_text", "fallback_text"]'),
+                        ('purchase_success_both', 'purchase', 'both',
+                         '🎉 <b>Ваш ключ #{key_number}{trial_suffix} {action_text}!</b>\n\n⏳ <b>Он будет действовать до:</b> {expiry_formatted}\n\n⬇️ <b>НИЖЕ ВАШ КЛЮЧ</b> ⬇️\n------------------------------------------------------------------------\n<code>{connection_string}</code>\n------------------------------------------------------------------------\n\n⬇️ <b>ВАША ПОДПИСКА</b> ⬇️\n------------------------------------------------------------------------\n{subscription_link}\n------------------------------------------------------------------------\n<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n{cabinet_text}{fallback_text}',
+                         'Сообщение о покупке для режима "Ключ + Подписка"', '["key_number", "trial_suffix", "action_text", "expiry_formatted", "connection_string", "subscription_link", "cabinet_text", "fallback_text"]'),
+                        ('purchase_success_cabinet', 'purchase', 'cabinet',
+                         '🎉 <b>Ваш ключ #{key_number}{trial_suffix} {action_text}!</b>\n\n⏳ <b>Он будет действовать до:</b> {expiry_formatted}\n\n⬇️ <b>ВАШ ЛИЧНЫЙ КАБИНЕТ</b> ⬇️\n------------------------------------------------------------------------\n<a href="{cabinet_url}">{cabinet_url}</a>\n------------------------------------------------------------------------\n<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n',
+                         'Сообщение о покупке для режима "Личный кабинет"', '["key_number", "trial_suffix", "action_text", "expiry_formatted", "cabinet_url"]'),
+                        ('purchase_success_cabinet_subscription', 'purchase', 'cabinet_subscription',
+                         '🎉 <b>Ваш ключ #{key_number}{trial_suffix} {action_text}!</b>\n\n⏳ <b>Он будет действовать до:</b> {expiry_formatted}\n\n⬇️ <b>ВАШ ЛИЧНЫЙ КАБИНЕТ</b> ⬇️\n------------------------------------------------------------------------\n<a href="{cabinet_url}">{cabinet_url}</a>\n------------------------------------------------------------------------\n<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n',
+                         'Сообщение о покупке для режима "Личный кабинет + Подписка"', '["key_number", "trial_suffix", "action_text", "expiry_formatted", "cabinet_url", "subscription_link"]'),
+                    ]
+                    
+                    for template_key, category, provision_mode, template_text, description, variables in default_templates:
+                        try:
+                            cursor.execute('''
+                                INSERT INTO message_templates 
+                                (template_key, category, provision_mode, template_text, description, variables, is_active)
+                                VALUES (?, ?, ?, ?, ?, ?, 0)
+                            ''', (template_key, category, provision_mode, template_text, description, variables))
+                        except Exception as e:
+                            logging.warning(f"Failed to insert default template {template_key}: {e}")
+                    
+                    logging.info(" -> Default message templates initialized (inactive by default)")
+            else:
+                logging.info(" -> message_templates table already exists")
+        except Exception as e:
+            logging.error(f" -> Failed to create message_templates table: {e}")
 
         logging.info("--- The database is successfully completed! ---")
         
@@ -6096,6 +6265,695 @@ def get_key_by_id(key_id: int):
 
         return None
 
+
+def create_user_token(user_id: int, key_id: int) -> str:
+    """
+    Создает токен для доступа к личному кабинету
+    
+    Args:
+        user_id: ID пользователя
+        key_id: ID ключа
+        
+    Returns:
+        Токен доступа (URL-safe строка)
+    """
+    import secrets
+    from datetime import datetime, timezone
+    
+    try:
+        # Генерируем безопасный токен
+        token = secrets.token_urlsafe(32)
+        
+        # Получаем текущее время в UTC
+        now = datetime.now(timezone.utc).isoformat()
+        
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
+            cursor = conn.cursor()
+            
+            # Устанавливаем PRAGMA для предотвращения блокировок
+            try:
+                cursor.execute("PRAGMA busy_timeout=30000")
+                cursor.execute("PRAGMA journal_mode=WAL")
+            except sqlite3.Error as e:
+                logging.debug(f"Failed to set PRAGMA in create_user_token: {e}")
+            
+            # Вставляем токен в БД
+            cursor.execute('''
+                INSERT INTO user_tokens (token, user_id, key_id, created_at, last_used_at, access_count)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (token, user_id, key_id, now, None, 0))
+            
+            conn.commit()
+            logging.info(f"Created token for user {user_id}, key {key_id}")
+            
+            return token
+            
+    except sqlite3.Error as e:
+        logging.error(f"Failed to create user token for user {user_id}, key {key_id}: {e}")
+        raise
+
+
+def validate_user_token(token: str) -> dict | None:
+    """
+    Проверяет токен и возвращает информацию о пользователе и ключе
+    Также проверяет активность подписки
+    
+    Args:
+        token: Токен доступа
+        
+    Returns:
+        Словарь с данными пользователя и ключа или None если токен недействителен
+    """
+    try:
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            # Устанавливаем PRAGMA для предотвращения блокировок
+            try:
+                cursor.execute("PRAGMA busy_timeout=30000")
+                cursor.execute("PRAGMA journal_mode=WAL")
+            except sqlite3.Error as e:
+                logging.debug(f"Failed to set PRAGMA in validate_user_token: {e}")
+            
+            # Получаем информацию о токене
+            cursor.execute('''
+                SELECT ut.token, ut.user_id, ut.key_id, ut.created_at, ut.last_used_at, ut.access_count,
+                       k.expiry_date, k.status, k.enabled, k.subscription_link
+                FROM user_tokens ut
+                JOIN vpn_keys k ON ut.key_id = k.key_id
+                WHERE ut.token = ?
+            ''', (token,))
+            
+            result = cursor.fetchone()
+            
+            if not result:
+                return None
+            
+            token_data = dict(result)
+            
+            # Проверяем активность подписки
+            expiry_date_str = token_data.get('expiry_date')
+            if expiry_date_str:
+                try:
+                    expiry_date = datetime.fromisoformat(expiry_date_str.replace('Z', '+00:00'))
+                    if expiry_date.tzinfo is None:
+                        expiry_date = expiry_date.replace(tzinfo=timezone.utc)
+                    
+                    current_time = datetime.now(timezone.utc)
+                    if expiry_date <= current_time:
+                        # Подписка истекла
+                        logging.info(f"Token {token[:10]}... expired (key {token_data['key_id']})")
+                        return None
+                except Exception as e:
+                    logging.warning(f"Failed to parse expiry_date for token validation: {e}")
+            
+            # Проверяем статус ключа
+            key_status = token_data.get('status')
+            key_enabled = token_data.get('enabled', 1)
+            
+            if key_status in ['deactivate'] or not key_enabled:
+                logging.info(f"Token {token[:10]}... invalid (key {token_data['key_id']} is deactivated)")
+                return None
+            
+            # Обновляем статистику использования токена
+            now = datetime.now(timezone.utc).isoformat()
+            cursor.execute('''
+                UPDATE user_tokens 
+                SET last_used_at = ?, access_count = access_count + 1
+                WHERE token = ?
+            ''', (now, token))
+            conn.commit()
+            
+            return token_data
+            
+    except sqlite3.Error as e:
+        logging.error(f"Failed to validate user token: {e}")
+        return None
+
+
+def update_token_usage(token: str) -> bool:
+    """
+    Обновляет статистику использования токена
+    
+    Args:
+        token: Токен доступа
+        
+    Returns:
+        True если обновление успешно, False в противном случае
+    """
+    try:
+        from datetime import datetime, timezone
+        
+        now = datetime.now(timezone.utc).isoformat()
+        
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                UPDATE user_tokens 
+                SET last_used_at = ?, access_count = access_count + 1
+                WHERE token = ?
+            ''', (now, token))
+            
+            conn.commit()
+            return cursor.rowcount > 0
+            
+    except sqlite3.Error as e:
+        logging.error(f"Failed to update token usage: {e}")
+        return False
+
+
+def cleanup_expired_tokens() -> int:
+    """
+    Историческая функция очистки токенов.
+    После перехода на постоянные ссылки личного кабинета не удаляет записи.
+    
+    Returns:
+        Количество удаленных токенов
+    """
+    logging.debug("cleanup_expired_tokens() called but skipped (persistent cabinet links enabled)")
+    return 0
+
+
+def get_user_tokens(user_id: int) -> list:
+    """
+    Получает все токены пользователя
+    
+    Args:
+        user_id: ID пользователя
+        
+    Returns:
+        Список словарей с информацией о токенах
+    """
+    try:
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT ut.token, ut.key_id, ut.created_at, ut.last_used_at, ut.access_count,
+                       k.expiry_date, k.status, k.host_name
+                FROM user_tokens ut
+                JOIN vpn_keys k ON ut.key_id = k.key_id
+                WHERE ut.user_id = ?
+                ORDER BY ut.created_at DESC
+            ''', (user_id,))
+            
+            tokens = cursor.fetchall()
+            return [dict(token) for token in tokens]
+            
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get user tokens for user {user_id}: {e}")
+        return []
+
+
+def get_or_create_permanent_token(user_id: int, key_id: int) -> str:
+    """
+    Получает или создает постоянный токен для пары (user_id, key_id).
+    Токен хранится в БД и не меняется при перезагрузках.
+    
+    Args:
+        user_id: ID пользователя
+        key_id: ID ключа
+    
+    Returns:
+        Постоянный токен доступа (URL-safe строка)
+    """
+    import secrets
+    from datetime import datetime, timezone
+    
+    try:
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            # Устанавливаем PRAGMA для предотвращения блокировок
+            try:
+                cursor.execute("PRAGMA busy_timeout=30000")
+                cursor.execute("PRAGMA journal_mode=WAL")
+            except sqlite3.Error as e:
+                logging.debug(f"Failed to set PRAGMA in get_or_create_permanent_token: {e}")
+            
+            # Проверяем наличие токена в БД
+            cursor.execute('''
+                SELECT token FROM user_tokens 
+                WHERE user_id = ? AND key_id = ?
+                LIMIT 1
+            ''', (user_id, key_id))
+            
+            result = cursor.fetchone()
+            
+            if result:
+                # Токен уже существует - возвращаем его
+                token = result['token']
+                logging.debug(f"Found existing token for user {user_id}, key {key_id}")
+                return token
+            
+            # Токена нет - создаем новый
+            token = secrets.token_urlsafe(32)
+            now = datetime.now(timezone.utc).isoformat()
+            
+            try:
+                cursor.execute('''
+                    INSERT INTO user_tokens (token, user_id, key_id, created_at, last_used_at, access_count)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (token, user_id, key_id, now, None, 0))
+                
+                conn.commit()
+                logging.info(f"Created permanent token for user {user_id}, key {key_id}")
+                return token
+                
+            except sqlite3.IntegrityError:
+                # Возможна гонка - токен был создан другим процессом
+                # Пробуем получить его снова
+                cursor.execute('''
+                    SELECT token FROM user_tokens 
+                    WHERE user_id = ? AND key_id = ?
+                    LIMIT 1
+                ''', (user_id, key_id))
+                
+                result = cursor.fetchone()
+                if result:
+                    logging.debug(f"Token was created by another process for user {user_id}, key {key_id}")
+                    return result['token']
+                else:
+                    # Если все еще нет - генерируем новый токен
+                    token = secrets.token_urlsafe(32)
+                    cursor.execute('''
+                        INSERT INTO user_tokens (token, user_id, key_id, created_at, last_used_at, access_count)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (token, user_id, key_id, now, None, 0))
+                    conn.commit()
+                    logging.info(f"Created permanent token (retry) for user {user_id}, key {key_id}")
+                    return token
+            
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get or create permanent token for user {user_id}, key {key_id}: {e}")
+        raise
+
+
+def get_permanent_token_by_key_id(key_id: int) -> str | None:
+    """
+    Получает постоянный токен по key_id
+    
+    Args:
+        key_id: ID ключа
+    
+    Returns:
+        Токен доступа или None если не найден
+    """
+    try:
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT token FROM user_tokens 
+                WHERE key_id = ?
+                LIMIT 1
+            ''', (key_id,))
+            
+            result = cursor.fetchone()
+            
+            if result:
+                return result['token']
+            
+            return None
+            
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get permanent token by key_id {key_id}: {e}")
+        return None
+
+
+def get_tokens_for_key(key_id: int) -> list[dict]:
+    """
+    Возвращает список токенов личного кабинета, связанных с ключом.
+
+    Args:
+        key_id: идентификатор ключа
+
+    Returns:
+        Список словарей с токенами и метаданными
+    """
+    try:
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            cursor.execute(
+                '''
+                SELECT token, user_id, key_id, created_at, last_used_at, access_count
+                FROM user_tokens
+                WHERE key_id = ?
+                ORDER BY created_at DESC
+                ''',
+                (key_id,),
+            )
+
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
+
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get tokens for key_id {key_id}: {e}")
+        return []
+
+
+def validate_permanent_token(token: str) -> dict | None:
+    """
+    Валидирует постоянный токен и возвращает информацию о пользователе и ключе.
+    Проверяет активность подписки и обновляет статистику использования.
+    
+    Args:
+        token: Токен доступа
+    
+    Returns:
+        Словарь с данными пользователя и ключа или None если токен недействителен
+    """
+    try:
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            # Устанавливаем PRAGMA для предотвращения блокировок
+            try:
+                cursor.execute("PRAGMA busy_timeout=30000")
+                cursor.execute("PRAGMA journal_mode=WAL")
+            except sqlite3.Error as e:
+                logging.debug(f"Failed to set PRAGMA in validate_permanent_token: {e}")
+            
+            # Получаем информацию о токене
+            token_preview = token[:10] + "..." if len(token) > 10 else token
+            logging.debug(f"Validating permanent token: {token_preview}")
+            
+            cursor.execute('''
+                SELECT ut.token, ut.user_id, ut.key_id, ut.created_at, ut.last_used_at, ut.access_count,
+                       k.expiry_date, k.status, k.enabled, k.subscription_link
+                FROM user_tokens ut
+                JOIN vpn_keys k ON ut.key_id = k.key_id
+                WHERE ut.token = ?
+            ''', (token,))
+            
+            result = cursor.fetchone()
+            
+            if not result:
+                logging.info(f"Permanent token {token_preview} not found in database")
+                return None
+            
+            token_data = dict(result)
+            logging.debug(f"Permanent token {token_preview} found, skip expiry/status validation (persistent links enabled)")
+            
+            # Обновляем статистику использования токена
+            now = datetime.now(timezone.utc).isoformat()
+            cursor.execute('''
+                UPDATE user_tokens 
+                SET last_used_at = ?, access_count = access_count + 1
+                WHERE token = ?
+            ''', (now, token))
+            conn.commit()
+            
+            logging.debug(f"Permanent token {token_preview} validated successfully (user_id={token_data.get('user_id')}, key_id={token_data.get('key_id')})")
+            return token_data
+            
+    except sqlite3.Error as e:
+        token_preview = token[:10] + "..." if len(token) > 10 else token
+        logging.error(f"Database error while validating permanent token {token_preview}: {e}", exc_info=True)
+        return None
+    except Exception as e:
+        token_preview = token[:10] + "..." if len(token) > 10 else token
+        logging.error(f"Unexpected error while validating permanent token {token_preview}: {e}", exc_info=True)
+        return None
+
+
+# Кэш для шаблонов сообщений (TTL 10 минут)
+_template_cache = {}
+_template_cache_time = {}
+CACHE_TTL_TEMPLATES = 600  # 10 минут
+
+
+def get_message_template(template_key: str, provision_mode: str = None) -> dict | None:
+    """
+    Получить шаблон сообщения из БД с кэшированием
+    
+    Args:
+        template_key: ключ шаблона (например: 'purchase_success_key')
+        provision_mode: режим предоставления для фильтрации (опционально)
+    
+    Returns:
+        Словарь с данными шаблона или None если не найден
+    """
+    cache_key = f"{template_key}_{provision_mode or 'all'}"
+    current_time = time.time()
+    
+    # Проверяем кэш
+    if cache_key in _template_cache:
+        cached_data, cached_time = _template_cache[cache_key]
+        if current_time - cached_time < CACHE_TTL_TEMPLATES:
+            return cached_data
+    
+    try:
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            if provision_mode:
+                cursor.execute('''
+                    SELECT * FROM message_templates 
+                    WHERE template_key = ? AND (provision_mode = ? OR provision_mode IS NULL) AND is_active = 1
+                    ORDER BY provision_mode DESC
+                    LIMIT 1
+                ''', (template_key, provision_mode))
+            else:
+                cursor.execute('''
+                    SELECT * FROM message_templates 
+                    WHERE template_key = ? AND (provision_mode IS NULL) AND is_active = 1
+                    LIMIT 1
+                ''', (template_key,))
+            
+            result = cursor.fetchone()
+            
+            if result:
+                template = dict(result)
+                # Сохраняем в кэш
+                _template_cache[cache_key] = (template, current_time)
+                return template
+            
+            return None
+            
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get message template {template_key}: {e}")
+        return None
+
+
+def get_all_message_templates(category: str = None) -> list[dict]:
+    """
+    Получить все шаблоны сообщений
+    
+    Args:
+        category: категория для фильтрации (опционально)
+    
+    Returns:
+        Список словарей с данными шаблонов
+    """
+    try:
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            if category:
+                cursor.execute('''
+                    SELECT * FROM message_templates 
+                    WHERE category = ?
+                    ORDER BY template_key, provision_mode
+                ''', (category,))
+            else:
+                cursor.execute('''
+                    SELECT * FROM message_templates 
+                    ORDER BY category, template_key, provision_mode
+                ''')
+            
+            templates = cursor.fetchall()
+            return [dict(template) for template in templates]
+            
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get all message templates: {e}")
+        return []
+
+
+def create_message_template(
+    template_key: str,
+    category: str,
+    template_text: str,
+    provision_mode: str = None,
+    description: str = None,
+    variables: str = None
+) -> int | None:
+    """
+    Создать новый шаблон сообщения
+    
+    Args:
+        template_key: уникальный ключ шаблона
+        category: категория шаблона
+        template_text: текст шаблона
+        provision_mode: режим предоставления (опционально)
+        description: описание шаблона (опционально)
+        variables: JSON список переменных (опционально)
+    
+    Returns:
+        ID созданного шаблона или None при ошибке
+    """
+    try:
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                INSERT INTO message_templates 
+                (template_key, category, provision_mode, template_text, description, variables, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, 1)
+            ''', (template_key, category, provision_mode, template_text, description, variables))
+            
+            conn.commit()
+            template_id = cursor.lastrowid
+            
+            # Очищаем кэш
+            _template_cache.clear()
+            
+            logging.info(f"Created message template {template_key} with ID {template_id}")
+            return template_id
+            
+    except sqlite3.IntegrityError as e:
+        logging.error(f"Template {template_key} already exists: {e}")
+        return None
+    except sqlite3.Error as e:
+        logging.error(f"Failed to create message template {template_key}: {e}")
+        return None
+
+
+def update_message_template(
+    template_id: int,
+    template_text: str = None,
+    description: str = None,
+    is_active: int = None
+) -> bool:
+    """
+    Обновить шаблон сообщения
+    
+    Args:
+        template_id: ID шаблона
+        template_text: новый текст шаблона (опционально)
+        description: новое описание (опционально)
+        is_active: активен ли шаблон (опционально)
+    
+    Returns:
+        True если успешно, False при ошибке
+    """
+    try:
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
+            cursor = conn.cursor()
+            
+            updates = []
+            params = []
+            
+            if template_text is not None:
+                updates.append("template_text = ?")
+                params.append(template_text)
+            
+            if description is not None:
+                updates.append("description = ?")
+                params.append(description)
+            
+            if is_active is not None:
+                updates.append("is_active = ?")
+                params.append(is_active)
+            
+            if not updates:
+                return False
+            
+            updates.append("updated_at = CURRENT_TIMESTAMP")
+            params.append(template_id)
+            
+            cursor.execute(f'''
+                UPDATE message_templates 
+                SET {', '.join(updates)}
+                WHERE template_id = ?
+            ''', params)
+            
+            conn.commit()
+            
+            # Очищаем кэш
+            _template_cache.clear()
+            
+            logging.info(f"Updated message template {template_id}")
+            return cursor.rowcount > 0
+            
+    except sqlite3.Error as e:
+        logging.error(f"Failed to update message template {template_id}: {e}")
+        return False
+
+
+def delete_message_template(template_id: int) -> bool:
+    """
+    Удалить шаблон сообщения
+    
+    Args:
+        template_id: ID шаблона
+    
+    Returns:
+        True если успешно, False при ошибке
+    """
+    try:
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute('DELETE FROM message_templates WHERE template_id = ?', (template_id,))
+            conn.commit()
+            
+            # Очищаем кэш
+            _template_cache.clear()
+            
+            logging.info(f"Deleted message template {template_id}")
+            return cursor.rowcount > 0
+            
+    except sqlite3.Error as e:
+        logging.error(f"Failed to delete message template {template_id}: {e}")
+        return False
+
+
+def get_message_template_statistics() -> dict:
+    """
+    Получить статистику шаблонов сообщений
+    
+    Returns:
+        Словарь со статистикой
+    """
+    try:
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute('SELECT COUNT(*) FROM message_templates')
+            total = cursor.fetchone()[0]
+            
+            cursor.execute('SELECT COUNT(*) FROM message_templates WHERE is_active = 1')
+            active = cursor.fetchone()[0]
+            
+            cursor.execute('SELECT COUNT(DISTINCT category) FROM message_templates')
+            categories = cursor.fetchone()[0]
+            
+            return {
+                'total_templates': total,
+                'active_templates': active,
+                'inactive_templates': total - active,
+                'categories_count': categories
+            }
+            
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get message template statistics: {e}")
+        return {
+            'total_templates': 0,
+            'active_templates': 0,
+            'inactive_templates': 0,
+            'categories_count': 0
+        }
 
 
 def get_key_by_email(key_email: str):

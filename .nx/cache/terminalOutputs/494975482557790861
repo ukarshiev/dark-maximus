@@ -1,0 +1,13 @@
+> python -m pytest tests/ tests/test_deeplink_base64.py tests/test_database_indexes.py
+
+============================= test session starts =============================
+platform win32 -- Python 3.13.7, pytest-8.4.2, pluggy-1.6.0
+rootdir: e:\GitHub\dark-maximus
+configfile: pyproject.toml
+plugins: anyio-4.10.0
+collected 14 items
+
+tests\test_deeplink_base64.py .............                              [ 92%]
+tests\test_database_indexes.py .                                         [100%]
+
+============================= 14 passed in 2.86s ==============================

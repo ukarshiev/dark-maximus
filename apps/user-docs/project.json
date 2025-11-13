@@ -24,6 +24,13 @@
         "command": "docker compose down docs",
         "cwd": "{workspaceRoot}"
       }
+    },
+    "logs": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker compose logs -f docs",
+        "cwd": "{workspaceRoot}"
+      }
     }
   },
   "tags": ["scope:docs", "type:app"]

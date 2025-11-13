@@ -31,6 +31,13 @@
         "command": "docker compose up -d bot",
         "cwd": "{workspaceRoot}"
       }
+    },
+    "logs": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker compose logs -f user-cabinet",
+        "cwd": "{workspaceRoot}"
+      }
     }
   },
   "tags": ["scope:web", "type:app"]

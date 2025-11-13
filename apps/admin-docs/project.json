@@ -31,6 +31,13 @@
         "command": "cd codex.docs && npm run dev",
         "cwd": "{workspaceRoot}"
       }
+    },
+    "logs": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker compose logs -f codex-docs",
+        "cwd": "{workspaceRoot}"
+      }
     }
   },
   "tags": ["scope:docs", "type:app"]

@@ -1,0 +1,111 @@
+> docker build -f Dockerfile.codex-docs -t dark-maximus-codex-docs .
+
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile.codex-docs
+#1 transferring dockerfile: 6.87kB 0.0s done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/node:20.18-alpine3.19
+#2 ...
+
+#3 [internal] load metadata for docker.io/library/alpine:3.19
+#3 DONE 0.4s
+
+#4 [internal] load metadata for ghcr.io/codex-team/codex.docs:v2.0.0-rc.8
+#4 DONE 1.0s
+
+#2 [internal] load metadata for docker.io/library/node:20.18-alpine3.19
+#2 DONE 1.0s
+
+#5 [internal] load .dockerignore
+#5 transferring context: 921B done
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 DONE 0.0s
+
+#7 [stage-2 1/8] FROM ghcr.io/codex-team/codex.docs:v2.0.0-rc.8@sha256:aba12cc74c619f1894f03606473292e1e3ad9ffd77b4d902a44de6fcd02c28d7
+#7 resolve ghcr.io/codex-team/codex.docs:v2.0.0-rc.8@sha256:aba12cc74c619f1894f03606473292e1e3ad9ffd77b4d902a44de6fcd02c28d7 0.1s done
+#7 DONE 0.1s
+
+#8 [builder 1/7] FROM docker.io/library/node:20.18-alpine3.19@sha256:1cc9088b0fbcb2009a8fc2cb57916cd129cd5e32b3c75fb12bb24bac76917a96
+#8 resolve docker.io/library/node:20.18-alpine3.19@sha256:1cc9088b0fbcb2009a8fc2cb57916cd129cd5e32b3c75fb12bb24bac76917a96
+#8 resolve docker.io/library/node:20.18-alpine3.19@sha256:1cc9088b0fbcb2009a8fc2cb57916cd129cd5e32b3c75fb12bb24bac76917a96 0.1s done
+#8 DONE 0.1s
+
+#9 [config-builder 1/6] FROM docker.io/library/alpine:3.19@sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1
+#9 resolve docker.io/library/alpine:3.19@sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1 0.1s done
+#9 DONE 0.1s
+
+#6 [internal] load build context
+#6 transferring context: 47.20MB 5.0s
+#6 transferring context: 123.18MB 10.0s done
+#6 DONE 10.0s
+
+#10 [stage-2 7/8] RUN if [ -f /usr/src/app/public/favicon.png ]; then echo "✅ favicon.png уже на месте"; else echo "⚠️  favicon.png не найден (не критично)"; fi || true
+#10 CACHED
+
+#11 [stage-2 3/8] COPY --from=config-builder /build/docs-config.yaml /usr/src/app/docs-config.yaml
+#11 CACHED
+
+#12 [stage-2 6/8] COPY --from=config-builder /build/public/dist /usr/src/app/public/dist
+#12 CACHED
+
+#13 [stage-2 2/8] RUN apk add --no-cache netcat-openbsd
+#13 CACHED
+
+#14 [builder 2/7] WORKDIR /build
+#14 CACHED
+
+#15 [config-builder 2/6] WORKDIR /build
+#15 CACHED
+
+#16 [builder 6/7] COPY codex.docs/ ./
+#16 CACHED
+
+#17 [builder 7/7] RUN mkdir -p dist &&     echo "Начинаем сборку проекта..." &&     yarn build-all &&     echo "Сборка завершена. Проверяем результат..." &&     ls -la dist/ &&     ls -la public/dist/ &&     test -d dist/backend && echo "✅ Папка dist/backend создана" || echo "❌ ОШИБКА: Папка dist/backend не создана!" &&     test -f dist/backend/app.js && echo "✅ Файл dist/backend/app.js создан" || echo "❌ ОШИБКА: Файл dist/backend/app.js не создан!" &&     test -d public/dist && echo "✅ Папка public/dist создана" || echo "❌ ОШИБКА: Папка public/dist не создана!" &&     test -f public/dist/main.js && echo "✅ Файл public/dist/main.js создан" || echo "❌ ОШИБКА: Файл public/dist/main.js не создан!" &&     test -f public/dist/main.css && echo "✅ Файл public/dist/main.css создан" || echo "❌ КРИТИЧЕСКАЯ ОШИБКА: Файл public/dist/main.css не создан!" &&     test -f public/dist/theme.js && echo "✅ Файл public/dist/theme.js создан" || echo "❌ ОШИБКА: Файл public/dist/theme.js не создан!" &&     echo "Проверка содержимого public/dist:" &&     ls -lah public/dist/ &&     echo "Размер main.css:" &&     du -h public/dist/main.css || echo "❌ main.css отсутствует!"
+#17 CACHED
+
+#18 [config-builder 6/6] RUN echo "Проверяем скопированную папку dist..." &&     ls -la dist/ &&     test -d dist/backend && echo "✅ Папка dist/backend скопирована" || echo "❌ ОШИБКА: Папка dist/backend не скопирована!" &&     test -f dist/backend/app.js && echo "✅ Файл dist/backend/app.js скопирован" || echo "❌ ОШИБКА: Файл dist/backend/app.js не скопирован!" &&     echo "Проверяем скопированную папку public..." &&     ls -la public/ &&     test -d public/dist && echo "✅ Папка public/dist скопирована" || echo "❌ ОШИБКА: Папка public/dist не скопирована!" &&     test -f public/dist/main.js && echo "✅ Файл public/dist/main.js скопирован" || echo "❌ ОШИБКА: Файл public/dist/main.js не скопирован!" &&     test -f public/dist/main.css && echo "✅ Файл public/dist/main.css скопирован" || echo "❌ ОШИБКА: Файл public/dist/main.css не скопирован!" &&     test -f public/favicon.png && echo "✅ Файл public/favicon.png скопирован" || echo "⚠️  Предупреждение: Файл public/favicon.png не найден (может быть загружен динамически)"
+#18 CACHED
+
+#19 [config-builder 5/6] COPY --from=builder /build/public ./public
+#19 CACHED
+
+#20 [stage-2 4/8] COPY --from=config-builder /build/dist /usr/src/app/dist
+#20 CACHED
+
+#21 [builder 3/7] RUN apk update && apk upgrade && apk add --no-cache libc6-compat
+#21 CACHED
+
+#22 [builder 4/7] COPY codex.docs/package.json codex.docs/yarn.lock ./
+#22 CACHED
+
+#23 [stage-2 5/8] RUN rm -rf /usr/src/app/public/dist || true
+#23 CACHED
+
+#24 [builder 5/7] RUN yarn install --frozen-lockfile
+#24 CACHED
+
+#25 [config-builder 4/6] COPY --from=builder /build/dist ./dist
+#25 CACHED
+
+#26 [config-builder 3/6] COPY codex.docs/docs-config.yaml ./docs-config.yaml
+#26 CACHED
+
+#27 [stage-2 8/8] RUN echo "Проверка финальной структуры public/dist:" &&     ls -lah /usr/src/app/public/dist/ &&     test -f /usr/src/app/public/dist/main.css && echo "✅ main.css на месте ($(du -h /usr/src/app/public/dist/main.css | cut -f1))" || (echo "❌ КРИТИЧЕСКАЯ ОШИБКА: main.css отсутствует!" && exit 1) &&     test -f /usr/src/app/public/dist/main.js && echo "✅ main.js на месте" || (echo "❌ ОШИБКА: main.js отсутствует!" && exit 1) &&     test -f /usr/src/app/public/dist/theme.js && echo "✅ theme.js на месте" || echo "⚠️  Предупреждение: theme.js отсутствует"
+#27 CACHED
+
+#28 exporting to image
+#28 exporting layers done
+#28 exporting manifest sha256:7e454fef49df42447354c50b1e5cacf93f910c1ec22969784b1b3e87065f26c9 done
+#28 exporting config sha256:d1f286a8e80318f7252a30777dac0fded8b4fbd3babbba4aee99b48138c24f37 done
+#28 exporting attestation manifest sha256:9fb200b42a708b3ada8d01a76895c5525b8b611035f05818288160404750a642 0.1s done
+#28 exporting manifest list sha256:4a01592d32f92250faf8aa1328e4a7f59121f92a6e804eaaa6661e4e1459abef
+#28 exporting manifest list sha256:4a01592d32f92250faf8aa1328e4a7f59121f92a6e804eaaa6661e4e1459abef 0.0s done
+#28 naming to docker.io/library/dark-maximus-codex-docs:latest done
+#28 unpacking to docker.io/library/dark-maximus-codex-docs:latest 0.0s done
+#28 DONE 0.2s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/klwhxzrxyt7fqa3irmni4f5nl

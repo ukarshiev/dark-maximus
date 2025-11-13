@@ -348,6 +348,7 @@ class TestRetryLogic:
 class TestParallelOperations:
     """Тесты для проверки параллельных операций"""
     
+    @pytest.mark.skipif(sys.platform.startswith("win"), reason="Windows не поддерживает fcntl, параллельная миграция проверяется вручную.")
     def test_parallel_migrations(self, temp_db):
         """Тест 4.1: Параллельные миграции"""
         results = []

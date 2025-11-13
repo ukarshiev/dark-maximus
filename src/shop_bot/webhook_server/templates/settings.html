@@ -303,6 +303,23 @@
 					<small class="text-muted">Если не указан, будет использоваться localhost:3002</small>
 				</div>
 				<div class="form-group">
+					<label for="user_cabinet_domain">Домен для личного кабинета:</label>
+					<div class="input-with-button">
+						<input
+							type="url"
+							id="user_cabinet_domain"
+							name="user_cabinet_domain"
+							value="{{ settings.user_cabinet_domain or '' }}"
+							placeholder="http://localhost:3003"
+							title="Домен для личного кабинета пользователя"
+						/>
+						<button type="button" class="button button-secondary button-sm" onclick="openDomain('user_cabinet_domain')" title="Открыть домен в новой вкладке">
+							<i class="fas fa-external-link-alt"></i>
+						</button>
+					</div>
+					<small class="text-muted">Если не указан, блок с личным кабинетом не будет отображаться в сообщениях</small>
+				</div>
+				<div class="form-group">
 					<label for="admin_timezone">Часовой пояс панели:</label>
 					<select id="admin_timezone" name="admin_timezone" title="Часовой пояс для отображения времени в панели управления">
 						{% for tz_name, tz_label, _ in timezone_options %}
@@ -1234,6 +1251,10 @@
 					<i class="fas fa-users"></i>
 					Группы пользователей
 				</button>
+				<button class="nav-button" onclick="showDirectoryTab('bot-texts', this)" title="Управление текстами бота">
+					<i class="fas fa-comment-alt"></i>
+					Тексты бота
+				</button>
 			</div>
 			
 			<!-- Подвкладка "Группы пользователей" -->
@@ -1274,6 +1295,53 @@
 							</tr>
 						</thead>
 						<tbody id="groups-table-body">
+							<!-- Данные загружаются через JavaScript -->
+						</tbody>
+					</table>
+				</div>
+			</div>
+			
+			<!-- Подвкладка "Тексты бота" -->
+			<div id="bot-texts-directory-tab" class="directory-tab">
+				<div class="directory-header">
+					<h3>Тексты бота</h3>
+					<div class="directory-actions">
+						<button type="button" class="button button-primary" data-size="md" onclick="openBotTextModal()" title="Создать новый шаблон текста">
+							<i class="fas fa-plus"></i>
+							Добавить шаблон
+						</button>
+					</div>
+				</div>
+				
+				<div class="directory-stats">
+					<div class="stat-item">
+						<span class="stat-label">Всего шаблонов:</span>
+						<span class="stat-value" id="total-templates-count">—</span>
+					</div>
+					<div class="stat-item">
+						<span class="stat-label">Активных:</span>
+						<span class="stat-value" id="active-templates-count">—</span>
+					</div>
+					<div class="stat-item">
+						<span class="stat-label">Категорий:</span>
+						<span class="stat-value" id="categories-count">—</span>
+					</div>
+				</div>
+				
+				<div class="table-scroll-x">
+					<table class="groups-table">
+						<thead>
+							<tr>
+								<th>ID</th>
+								<th>Ключ шаблона</th>
+								<th>Категория</th>
+								<th>Режим</th>
+								<th>Описание</th>
+								<th>Активен</th>
+								<th class="actions-cell">Действия</th>
+							</tr>
+						</thead>
+						<tbody id="bot-texts-table-body">
 							<!-- Данные загружаются через JavaScript -->
 						</tbody>
 					</table>
@@ -1329,6 +1397,16 @@
     max-width: 1600px;
     margin-left: auto;
     margin-right: auto;
+}
+
+/* Полная ширина для вкладки Справочники */
+#directories-tab > section.settings-section {
+    width: 100%;
+    max-width: none;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 16px;
+    box-sizing: border-box;
 }
 
 .settings-section {
@@ -2062,10 +2140,12 @@ function openPlanModal(planId, name, months, days, price, traffic, hostName, hou
               <div class="form-group"><label>Трафик (ГБ)</label><input type="number" step="0.01" name="traffic_gb" value="${traffic||''}" placeholder="0 (безлимит)" title="Введите лимит трафика в ГБ или 0 для безлимита"></div>
               <div class="form-group">
                 <label title="Выберите что будет предоставляться пользователю при покупке тарифа">Режим предоставления</label>
-                <select name="key_provision_mode" title="Что получит пользователь: ключ, подписка или оба варианта">
+                <select name="key_provision_mode" title="Что получит пользователь: ключ, подписка, личный кабинет или их комбинации">
                   <option value="key" ${provisionMode === 'key' ? 'selected' : ''}>Ключ</option>
                   <option value="subscription" ${provisionMode === 'subscription' ? 'selected' : ''}>Подписка</option>
                   <option value="both" ${provisionMode === 'both' ? 'selected' : ''}>Ключ + Подписка</option>
+                  <option value="cabinet" ${provisionMode === 'cabinet' ? 'selected' : ''}>Личный кабинет</option>
+                  <option value="cabinet_subscription" ${provisionMode === 'cabinet_subscription' ? 'selected' : ''}>Личный кабинет + Подписка</option>
                 </select>
               </div>
               <div class="form-group">
@@ -3424,6 +3504,8 @@ function showDirectoryTab(tabName, button) {
     // Загружаем данные для выбранной подвкладки
     if (tabName === 'groups') {
         loadGroupsData();
+    } else if (tabName === 'bot-texts') {
+        loadBotTextsData();
     }
 }
 
@@ -3804,6 +3886,285 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+// ==================== ФУНКЦИИ ДЛЯ РАБОТЫ С ТЕКСТАМИ БОТА ====================
+
+// Глобальная переменная для хранения ID редактируемого шаблона
+let currentEditingTemplateId = null;
+
+// Загрузка данных шаблонов текстов
+async function loadBotTextsData() {
+    try {
+        const response = await fetch('/api/message-templates');
+        const data = await response.json();
+        
+        if (data.success) {
+            displayBotTexts(data.templates);
+            loadBotTextsStatistics();
+        } else {
+            console.error('Ошибка загрузки шаблонов:', data.error);
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки шаблонов текстов:', error);
+    }
+}
+
+// Отображение шаблонов в таблице
+function displayBotTexts(templates) {
+    const tbody = document.getElementById('bot-texts-table-body');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    if (!templates || templates.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px;">Шаблоны не найдены</td></tr>';
+        return;
+    }
+    
+    templates.forEach(template => {
+        const row = document.createElement('tr');
+        const description = (template.description || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        const templateKey = (template.template_key || '').replace(/'/g, "\\'");
+        row.innerHTML = `
+            <td>${template.template_id}</td>
+            <td><code>${template.template_key || '—'}</code></td>
+            <td>${template.category || '—'}</td>
+            <td>${template.provision_mode || 'Все'}</td>
+            <td>${template.description || '—'}</td>
+            <td>${template.is_active ? '✅ Да' : '❌ Нет'}</td>
+            <td class="actions-cell">
+                <div class="kebab-wrapper">
+                    <button class="kebab-btn" onclick="toggleKebabMenu('kebab-template-${template.template_id}')" title="Действия">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <div class="kebab-menu" id="kebab-template-${template.template_id}">
+                        <div class="kebab-item" onclick="openBotTextModal(${template.template_id}, '${templateKey}', '${template.category}', '${template.provision_mode || ''}', '${description}', ${template.is_active ? 1 : 0})">
+                            <i class="fas fa-edit"></i> Редактировать
+                        </div>
+                        <div class="kebab-item" onclick="deleteBotText(${template.template_id}, '${templateKey}')">
+                            <i class="fas fa-trash"></i> Удалить
+                        </div>
+                    </div>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// Загрузка статистики шаблонов
+async function loadBotTextsStatistics() {
+    try {
+        const response = await fetch('/api/message-templates/statistics');
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('total-templates-count').textContent = data.statistics.total_templates || 0;
+            document.getElementById('active-templates-count').textContent = data.statistics.active_templates || 0;
+            document.getElementById('categories-count').textContent = data.statistics.categories_count || 0;
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки статистики шаблонов:', error);
+    }
+}
+
+// Модальное окно для создания/редактирования шаблона
+function openBotTextModal(templateId = null, templateKey = '', category = '', provisionMode = '', description = '', isActive = 1) {
+    if (templateId) {
+        closeKebabMenu(`kebab-template-${templateId}`);
+    }
+    
+    currentEditingTemplateId = templateId;
+    
+    const modalHtml = `
+        <div class="modal-backdrop" id="botTextModal">
+            <div class="modal">
+                <div class="modal-content" style="width: 90%; max-width: 1000px; max-height: 90vh;">
+                    <div class="modal-header">
+                        <h3>${templateId ? 'Редактировать шаблон' : 'Создать шаблон'}</h3>
+                        <button class="modal-close" onclick="closeBotTextModal()" title="Закрыть">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="botTextForm">
+                            <div class="form-group">
+                                <label for="template_key">Ключ шаблона:</label>
+                                <input type="text" id="template_key" name="template_key" value="${templateKey.replace(/"/g, '&quot;')}" ${templateId ? 'readonly' : ''} required 
+                                       placeholder="purchase_success_key" title="Уникальный ключ шаблона">
+                                <small class="text-muted">Уникальный идентификатор шаблона</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="category">Категория:</label>
+                                <select id="category" name="category" required title="Категория шаблона">
+                                    <option value="purchase" ${category === 'purchase' ? 'selected' : ''}>Покупка</option>
+                                    <option value="key_info" ${category === 'key_info' ? 'selected' : ''}>Информация о ключе</option>
+                                    <option value="cabinet" ${category === 'cabinet' ? 'selected' : ''}>Личный кабинет</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="provision_mode">Режим предоставления:</label>
+                                <select id="provision_mode" name="provision_mode" title="Режим предоставления (NULL для всех)">
+                                    <option value="">Все режимы</option>
+                                    <option value="key" ${provisionMode === 'key' ? 'selected' : ''}>Ключ</option>
+                                    <option value="subscription" ${provisionMode === 'subscription' ? 'selected' : ''}>Подписка</option>
+                                    <option value="both" ${provisionMode === 'both' ? 'selected' : ''}>Ключ + Подписка</option>
+                                    <option value="cabinet" ${provisionMode === 'cabinet' ? 'selected' : ''}>Личный кабинет</option>
+                                    <option value="cabinet_subscription" ${provisionMode === 'cabinet_subscription' ? 'selected' : ''}>Личный кабинет + Подписка</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="template_text">Текст шаблона:</label>
+                                <textarea id="template_text" name="template_text" rows="10" required 
+                                          placeholder="Используйте {variable_name} для подстановки переменных" 
+                                          title="Текст шаблона с плейсхолдерами"></textarea>
+                                <small class="text-muted">Используйте {key_number}, {expiry_date}, {connection_string}, {subscription_link} и другие переменные</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="description">Описание:</label>
+                                <input type="text" id="description" name="description" value="${description.replace(/"/g, '&quot;')}" 
+                                       placeholder="Описание шаблона для админ-панели" title="Описание шаблона">
+                            </div>
+                            <div class="form-group">
+                                <label class="checkbox-label" for="is_active">
+                                    <input type="checkbox" id="is_active" name="is_active" ${isActive ? 'checked' : ''}>
+                                    <span>Активен</span>
+                                </label>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="button button-secondary" onclick="closeBotTextModal()" title="Отменить">
+                            <i class="fas fa-times"></i>
+                            Отменить
+                        </button>
+                        <button type="button" class="button button-primary" onclick="saveBotText()" title="Сохранить">
+                            <i class="fas fa-save"></i>
+                            Сохранить
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    showModal(modalHtml);
+    
+    // Если редактируем, загружаем текст шаблона
+    if (templateId) {
+        loadTemplateText(templateId);
+    }
+}
+
+// Загрузка текста шаблона для редактирования
+async function loadTemplateText(templateId) {
+    try {
+        const response = await fetch(`/api/message-templates/${templateId}`);
+        const data = await response.json();
+        
+        if (data.success && data.template) {
+            document.getElementById('template_text').value = data.template.template_text || '';
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки текста шаблона:', error);
+    }
+}
+
+// Сохранение шаблона
+async function saveBotText() {
+    const form = document.getElementById('botTextForm');
+    if (!form) return;
+    
+    const formData = {
+        template_key: document.getElementById('template_key').value.trim(),
+        category: document.getElementById('category').value,
+        provision_mode: document.getElementById('provision_mode').value || null,
+        template_text: document.getElementById('template_text').value.trim(),
+        description: document.getElementById('description').value.trim() || null,
+        is_active: document.getElementById('is_active').checked ? 1 : 0
+    };
+    
+    if (!formData.template_key || !formData.category || !formData.template_text) {
+        alert('Заполните все обязательные поля');
+        return;
+    }
+    
+    try {
+        let response;
+        if (currentEditingTemplateId) {
+            // Обновление существующего шаблона
+            response = await fetch(`/api/message-templates/${currentEditingTemplateId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    template_text: formData.template_text,
+                    description: formData.description,
+                    is_active: formData.is_active
+                })
+            });
+        } else {
+            // Создание нового шаблона
+            response = await fetch('/api/message-templates', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            });
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            loadBotTextsData();
+            showNotification(result.message || 'Шаблон сохранен', 'success');
+            closeBotTextModal();
+        } else {
+            alert('Ошибка: ' + result.error);
+        }
+    } catch (error) {
+        console.error('Ошибка сохранения шаблона:', error);
+        alert('Ошибка сохранения шаблона');
+    }
+}
+
+// Удаление шаблона
+async function deleteBotText(templateId, templateKey) {
+    closeKebabMenu(`kebab-template-${templateId}`);
+    
+    if (!confirm(`Вы уверены, что хотите удалить шаблон "${templateKey}"?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/message-templates/${templateId}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            loadBotTextsData();
+            showNotification(result.message || 'Шаблон удален', 'success');
+        } else {
+            alert('Ошибка: ' + result.error);
+        }
+    } catch (error) {
+        console.error('Ошибка удаления шаблона:', error);
+        alert('Ошибка удаления шаблона');
+    }
+}
+
+// Закрытие модального окна шаблона
+function closeBotTextModal() {
+    const modal = document.getElementById('botTextModal');
+    if (modal) {
+        modal.remove();
+    }
+    currentEditingTemplateId = null;
+}
 
 </script>
 

@@ -14,6 +14,11 @@ upstream codex_docs_backend {
     keepalive 32;
 }
 
+upstream user_cabinet_backend {
+    server 127.0.0.1:3003;
+    keepalive 32;
+}
+
 # HTTP редирект на HTTPS для основного домена
 server {
     listen 80;
@@ -173,12 +178,67 @@ server {
         proxy_send_timeout 30s;
     }
 
-    # Пер-доменный CSP для help: допускаем безопасные внешние источники при необходимости
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https: data:; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss: https:; frame-ancestors 'none';" always;
+    # Убираем заголовки, запрещающие встраивание, и разрешаем iframe из личного кабинета
+    proxy_hide_header X-Frame-Options;
+    proxy_hide_header Content-Security-Policy;
+    add_header X-Frame-Options "ALLOWALL" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https: data:; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss: https:; frame-ancestors 'self' https://app.dark-maximus.com http://localhost:3003;" always;
 
     # Health check
     location /health {
         proxy_pass http://codex_docs_backend/;
+        access_log off;
+    }
+}
+
+# HTTP редирект на HTTPS для личного кабинета
+server {
+    listen 80;
+    server_name ${APP_DOMAIN};
+    return 301 https://$host$request_uri;
+}
+
+# HTTPS сервер для личного кабинета
+server {
+    listen 443 ssl http2;
+    server_name ${APP_DOMAIN};
+
+    # SSL сертификаты
+    ssl_certificate /etc/letsencrypt/live/${APP_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${APP_DOMAIN}/privkey.pem;
+    include /etc/nginx/snippets/ssl-params.conf;
+
+    # Ограничение размера загружаемых файлов
+    client_max_body_size 20m;
+
+    # Проксирование на user-cabinet сервис
+    location / {
+        proxy_pass http://user_cabinet_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+
+        # Таймауты
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+
+        # Буферизация
+        proxy_buffering on;
+        proxy_buffer_size 4k;
+        proxy_buffers 8 4k;
+    }
+
+    # Разрешаем фреймы для встраивания help.dark-maximus.com и subscription links
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://api.2ip.ru; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.2ip.ru https://help.dark-maximus.com https://serv*.dark-maximus.com; frame-src 'self' https://help.dark-maximus.com https://serv*.dark-maximus.com; frame-ancestors 'self';" always;
+
+    # Health check
+    location /health {
+        proxy_pass http://user_cabinet_backend/health;
         access_log off;
     }
 }

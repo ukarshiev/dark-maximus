@@ -8,6 +8,7 @@ import pytest
 import sqlite3
 import threading
 import time
+import asyncio
 import tempfile
 from pathlib import Path
 import sys
@@ -265,6 +266,90 @@ class TestNotificationFlow:
         # Второе уведомление должно быть создано (логика предотвращения дубликатов в scheduler)
         assert notification_id2 > 0
         assert notification_id2 != notification_id
+
+
+class TestManualNotificationControls:
+    """Тесты для ручных шаблонов уведомлений"""
+
+    def test_templates_registry(self):
+        from shop_bot.data_manager.scheduler import get_manual_notification_templates
+
+        templates = get_manual_notification_templates()
+        codes = {tpl["code"] for tpl in templates}
+        expected = {
+            "subscription_expiry",
+            "subscription_plan_unavailable",
+            "subscription_autorenew_notice",
+            "subscription_autorenew_disabled",
+        }
+        assert expected.issubset(codes), f"Справочник шаблонов должен содержать: {expected}"
+
+    def test_plan_unavailable_force_resend(self, temp_db, monkeypatch):
+        from shop_bot.data_manager import scheduler
+
+        # Подготавливаем окружение
+        monkeypatch.setattr(scheduler, '_format_datetime_for_user', lambda user_id, dt: dt.isoformat())
+        monkeypatch.setattr(database, 'get_user_keys', lambda user_id: [{'key_id': 1, 'host_name': 'Test Host'}])
+        monkeypatch.setattr(database, 'get_key_by_id', lambda key_id: {'host_name': 'Test Host'})
+        monkeypatch.setattr(database, 'get_user', lambda user_id: {'username': 'tester'})
+
+        class DummyBot:
+            def __init__(self):
+                self.messages = []
+
+            async def send_message(self, chat_id, text, reply_markup=None, parse_mode=None):
+                self.messages.append(
+                    {
+                        "chat_id": chat_id,
+                        "text": text,
+                        "status": parse_mode,
+                    }
+                )
+
+        bot = DummyBot()
+        expiry_date = (datetime.now(timezone.utc) + timedelta(hours=24)).replace(tzinfo=None)
+
+        async def _scenario():
+            await scheduler.send_plan_unavailable_notice(
+                bot=bot,
+                user_id=123456,
+                key_id=1,
+                time_left_hours=24,
+                expiry_date=expiry_date,
+            )
+            assert len(bot.messages) == 1, "Первое уведомление должно быть отправлено"
+
+            # Без force повторная отправка игнорируется
+            await scheduler.send_plan_unavailable_notice(
+                bot=bot,
+                user_id=123456,
+                key_id=1,
+                time_left_hours=24,
+                expiry_date=expiry_date,
+            )
+            assert len(bot.messages) == 1, "Повтор без force не должен отправлять сообщение"
+
+            # С force уведомление должно отправиться повторно и иметь статус 'resent'
+            await scheduler.send_plan_unavailable_notice(
+                bot=bot,
+                user_id=123456,
+                key_id=1,
+                time_left_hours=24,
+                expiry_date=expiry_date,
+                force=True,
+                status='resent',
+            )
+
+        asyncio.run(_scenario())
+        assert len(bot.messages) == 2, "Повтор с force должен отправить сообщение"
+
+        conn = sqlite3.connect(str(temp_db))
+        cursor = conn.cursor()
+        cursor.execute("SELECT status FROM notifications ORDER BY notification_id DESC LIMIT 1")
+        status = cursor.fetchone()[0]
+        conn.close()
+
+        assert status == 'resent', "Повторное уведомление должно логироваться со статусом 'resent'"
 
 
 if __name__ == "__main__":

@@ -97,12 +97,14 @@ fi
 PANEL_DOMAIN="panel.${MAIN_DOMAIN}"
 DOCS_DOMAIN="docs.${MAIN_DOMAIN}"
 HELP_DOMAIN="help.${MAIN_DOMAIN}"
+APP_DOMAIN="app.${MAIN_DOMAIN}"
 
 echo -e "${GREEN}✔ Домены настроены:${NC}"
 echo -e "   - Основной домен: ${MAIN_DOMAIN}"
 echo -e "   - Панель (поддомен): ${PANEL_DOMAIN}"
 echo -e "   - Документация: ${DOCS_DOMAIN}"
 echo -e "   - Админ-документация: ${HELP_DOMAIN}"
+echo -e "   - Личный кабинет: ${APP_DOMAIN}"
 
 # Устанавливаем email для Let's Encrypt
 EMAIL="admin@${MAIN_DOMAIN}"
@@ -285,6 +287,12 @@ if ! nc -z 127.0.0.1 50000 2>/dev/null; then
         exit 1
     }
     
+    timeout 60 bash -c 'until nc -z 127.0.0.1 3003; do sleep 2; done' || {
+        echo -e "${RED}❌ User-cabinet сервис не запустился в течение 1 минуты${NC}"
+        ${DC[@]} logs user-cabinet
+        exit 1
+    }
+    
     echo -e "${GREEN}✔ Контейнеры запущены${NC}"
 else
     echo -e "${GREEN}✔ Контейнеры уже запущены${NC}"
@@ -306,7 +314,7 @@ check_dns() {
 }
 
 DNS_OK=true
-for check_domain in "$MAIN_DOMAIN" "$PANEL_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN"; do
+for check_domain in "$MAIN_DOMAIN" "$PANEL_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN" "$APP_DOMAIN"; do
     if ! check_dns "$check_domain"; then
         echo -e "${RED}❌ ОШИБКА: DNS для ${check_domain} не указывает на IP этого сервера!${NC}"
         DNS_OK=false
@@ -413,6 +421,14 @@ certbot certonly --standalone \
     --non-interactive \
     -d "$HELP_DOMAIN"
 
+echo -e "${YELLOW}Получение сертификата для ${APP_DOMAIN}...${NC}"
+certbot certonly --standalone \
+    --email "$EMAIL" \
+    --agree-tos \
+    --no-eff-email \
+    --non-interactive \
+    -d "$APP_DOMAIN"
+
 echo -e "${GREEN}✔ Все SSL-сертификаты получены${NC}"
 
 echo -e "\n${CYAN}Шаг 6: Разворачиваем nginx-конфиг из шаблона репозитория...${NC}"
@@ -420,8 +436,8 @@ CONF_URL="https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/deploy/n
 curl -f -sSL "$CONF_URL" -o /tmp/dark-maximus.conf.tpl
 
 # Подставляем домены ТОЛЬКО в ${...}, оставляя nginx $host/$scheme нетронутыми
-export MAIN_DOMAIN PANEL_DOMAIN DOCS_DOMAIN HELP_DOMAIN
-envsubst '${MAIN_DOMAIN} ${PANEL_DOMAIN} ${DOCS_DOMAIN} ${HELP_DOMAIN}' \
+export MAIN_DOMAIN PANEL_DOMAIN DOCS_DOMAIN HELP_DOMAIN APP_DOMAIN
+envsubst '${MAIN_DOMAIN} ${PANEL_DOMAIN} ${DOCS_DOMAIN} ${HELP_DOMAIN} ${APP_DOMAIN}' \
   < /tmp/dark-maximus.conf.tpl > /etc/nginx/sites-available/dark-maximus
 
 # Чистим посторонние активные файлы (во избежание дублей upstream/server)

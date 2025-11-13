@@ -32,7 +32,7 @@ from aiogram.types import BufferedInputFile, InlineKeyboardMarkup, InlineKeyboar
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.enums import ChatMemberStatus
+from aiogram.enums import ChatMemberStatus, ParseMode
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from shop_bot.bot import keyboards
@@ -3218,13 +3218,22 @@ def get_user_router() -> Router:
                 user_timezone=user_timezone,
                 feature_enabled=feature_enabled,
                 is_trial=True,
+                user_id=user_id,
+                key_id=new_key_id,
             )
             
             # Проверяем, что new_key_id не None перед созданием клавиатуры
             if new_key_id is not None:
-                await callback.message.edit_text(text=final_text, reply_markup=keyboards.create_key_info_keyboard(new_key_id, subscription_link))
+                await callback.message.edit_text(
+                    text=final_text,
+                    reply_markup=keyboards.create_key_info_keyboard(new_key_id, subscription_link),
+                    parse_mode=ParseMode.HTML,
+                )
             else:
-                await callback.message.edit_text(text=final_text)
+                await callback.message.edit_text(
+                    text=final_text,
+                    parse_mode=ParseMode.HTML,
+                )
 
         except Exception as e:
             logger.error(f"Error creating trial key for user {user_id} on host {host_name}: {e}", exc_info=True)
@@ -3349,13 +3358,22 @@ def get_user_router() -> Router:
                 user_timezone=user_timezone,
                 feature_enabled=feature_enabled,
                 is_trial=True,
+                user_id=user_id,
+                key_id=new_key_id,
             )
             
             # Проверяем, что new_key_id не None перед созданием клавиатуры
             if new_key_id is not None:
-                await message.answer(text=final_text, reply_markup=keyboards.create_key_info_keyboard(new_key_id, subscription_link))
+                await message.answer(
+                    text=final_text,
+                    reply_markup=keyboards.create_key_info_keyboard(new_key_id, subscription_link),
+                    parse_mode=ParseMode.HTML,
+                )
             else:
-                await message.answer(text=final_text)
+                await message.answer(
+                    text=final_text,
+                    parse_mode=ParseMode.HTML,
+                )
 
         except Exception as e:
             logger.error(f"Error creating trial key for user {user_id} on host {host_name}: {e}", exc_info=True)
@@ -3414,11 +3432,14 @@ def get_user_router() -> Router:
                 user_timezone=user_timezone,
                 feature_enabled=feature_enabled,
                 is_trial=is_trial,
+                user_id=user_id,
+                key_id=key_id_to_show,
             )
             
             await callback.message.edit_text(
                 text=final_text,
-                reply_markup=keyboards.create_key_info_keyboard(key_id_to_show, subscription_link)
+                reply_markup=keyboards.create_key_info_keyboard(key_id_to_show, subscription_link),
+                parse_mode=ParseMode.HTML
             )
         except Exception as e:
             logger.error(f"Error showing key {key_id_to_show}: {e}")
@@ -4832,16 +4853,22 @@ def get_user_router() -> Router:
                     provision_mode=provision_mode,
                     user_timezone=user_timezone,
                     feature_enabled=feature_enabled,
+                    user_id=user_id,
+                    key_id=key_id,
                 )
                 
                 # Проверяем, что key_id не None перед созданием клавиатуры
                 if key_id is not None:
                     await callback.message.edit_text(
                         text=final_text,
-                        reply_markup=keyboards.create_key_info_keyboard(key_id, subscription_link)
+                        reply_markup=keyboards.create_key_info_keyboard(key_id, subscription_link),
+                        parse_mode=ParseMode.HTML,
                     )
                 else:
-                    await callback.message.edit_text(text=final_text)
+                    await callback.message.edit_text(
+                        text=final_text,
+                        parse_mode=ParseMode.HTML,
+                    )
                 
                 await state.clear()
                 return
@@ -5320,16 +5347,22 @@ def get_user_router() -> Router:
                     provision_mode=provision_mode,
                     user_timezone=user_timezone,
                     feature_enabled=feature_enabled,
+                    user_id=user_id,
+                    key_id=key_id,
                 )
                 
                 # Проверяем, что key_id не None перед созданием клавиатуры
                 if key_id is not None:
                     await callback.message.edit_text(
                         text=final_text,
-                        reply_markup=keyboards.create_key_info_keyboard(key_id, subscription_link)
+                        reply_markup=keyboards.create_key_info_keyboard(key_id, subscription_link),
+                        parse_mode=ParseMode.HTML,
                     )
                 else:
-                    await callback.message.edit_text(text=final_text)
+                    await callback.message.edit_text(
+                        text=final_text,
+                        parse_mode=ParseMode.HTML,
+                    )
                 
                 await state.clear()
                 return
@@ -6763,6 +6796,8 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
                         provision_mode=provision_mode,
                         user_timezone=user_timezone,
                         feature_enabled=feature_enabled,
+                        user_id=user_id,
+                        key_id=key_id,
                     )
 
                     try:
@@ -6849,6 +6884,8 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
                     provision_mode=provision_mode,
                     user_timezone=user_timezone,
                     feature_enabled=feature_enabled,
+                    user_id=user_id,
+                    key_id=key_id,
                 )
                 
                 try:
@@ -7166,6 +7203,8 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
             provision_mode=provision_mode,
             user_timezone=user_timezone,
             feature_enabled=feature_enabled,
+            user_id=user_id,
+            key_id=key_id,
         )
         
         # Добавляем информацию о транзакции, если есть

@@ -1,6 +1,6 @@
 [project]
 name = "dark-maximus"
-version = "4.1.23"
+version = "4.10.1"
 description = "Продвинутый Telegram-бот для автоматической продажи VLESS VPN с улучшенным веб-интерфейсом и аналитикой"
 authors = [
     {name = "Karshie Umid", email = "umid.t.karshiev@gmail.com"}
@@ -35,7 +35,7 @@ dependencies = [
     "aiohttp==3.12.15",
     "aiohttp-sse-client==0.2.1",
     "pytonconnect==0.3.2",
-    "requests==2.31.0",
+"requests==2.32.3",
     "bcrypt==4.1.2",
     "aiosqlite==0.20.0",
     "aiocache==0.12.2",

@@ -1,0 +1,83 @@
+> python -m pytest tests/ --maxfail=1 -vv tests/test_auto_renewal_functionality.py tests/test_database_locks_fix.py tests/test_deeplink_base64.py tests/test_deeplink_functionality.py tests/test_timezone_utils.py tests/test_notifications_fix.py
+
+============================= test session starts =============================
+platform win32 -- Python 3.13.7, pytest-8.4.2, pluggy-1.6.0 -- C:\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: e:\GitHub\dark-maximus
+configfile: pyproject.toml
+plugins: anyio-4.10.0
+collecting ... collected 54 items
+
+tests/test_auto_renewal_functionality.py::TestAutoRenewalDatabase::test_get_auto_renewal_enabled_default PASSED [  1%]
+tests/test_auto_renewal_functionality.py::TestAutoRenewalDatabase::test_get_auto_renewal_enabled_explicit PASSED [  3%]
+tests/test_auto_renewal_functionality.py::TestAutoRenewalDatabase::test_set_auto_renewal_enabled PASSED [  5%]
+tests/test_auto_renewal_functionality.py::TestAutoRenewalDatabase::test_get_auto_renewal_enabled_missing_column PASSED [  7%]
+tests/test_auto_renewal_functionality.py::TestAutoRenewalNotifications::test_balance_deduction_notification_logged PASSED [  9%]
+tests/test_auto_renewal_functionality.py::TestAutoRenewalNotifications::test_autorenew_disabled_notification_logged PASSED [ 11%]
+tests/test_auto_renewal_functionality.py::TestAutoRenewalIntegration::test_autorenewal_skipped_when_disabled PASSED [ 12%]
+tests/test_auto_renewal_functionality.py::TestAutoRenewalIntegration::test_autorenewal_enabled_by_default PASSED [ 14%]
+tests/test_database_locks_fix.py::TestContextManager::test_connection_closed_automatically PASSED [ 16%]
+tests/test_database_locks_fix.py::TestContextManager::test_no_connection_leaks PASSED [ 18%]
+tests/test_database_locks_fix.py::TestPragmaSettings::test_busy_timeout_in_run_migration PASSED [ 20%]
+tests/test_database_locks_fix.py::TestPragmaSettings::test_wal_mode_in_run_migration PASSED [ 22%]
+tests/test_database_locks_fix.py::TestPragmaSettings::test_busy_timeout_in_migrate_backup_settings PASSED [ 24%]
+tests/test_database_locks_fix.py::TestRetryLogic::test_retry_on_lock PASSED [ 25%]
+tests/test_database_locks_fix.py::TestRetryLogic::test_successful_migration_without_locks PASSED [ 27%]
+tests/test_database_locks_fix.py::TestParallelOperations::test_parallel_migrations SKIPPED��.) [ 29%]
+tests/test_database_locks_fix.py::TestParallelOperations::test_migration_with_concurrent_reads PASSED [ 31%]
+tests/test_database_locks_fix.py::TestIntegration::test_full_migration_with_data PASSED [ 33%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_create_deeplink_all_params PASSED [ 35%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_create_deeplink_basic PASSED [ 37%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_create_deeplink_referral PASSED [ 38%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_create_deeplink_with_both PASSED [ 40%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_create_deeplink_with_group PASSED [ 42%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_create_deeplink_with_promo PASSED [ 44%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_parse_deeplink_base64 PASSED [ 46%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_parse_deeplink_invalid PASSED [ 48%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_parse_deeplink_legacy_fallback PASSED [ 50%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_parse_deeplink_referral PASSED [ 51%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_roundtrip_consistency PASSED [ 53%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_telegram_length_limit PASSED [ 55%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_validate_deeplink_length PASSED [ 57%]
+tests/test_deeplink_functionality.py::test_deeplink_functionality FAILED [ 59%]
+
+================================== FAILURES ===================================
+_________________________ test_deeplink_functionality _________________________
+
+    def test_deeplink_functionality() -> None:
+        """������ ��� ������� ������������ �������� ������ pytest."""
+    
+        result = asyncio.run(_run_deeplink_functionality())
+>       assert result, "�������� deeplink ������ ����������� ��� ������"
+E       AssertionError: �������� deeplink ������ ����������� ��� ������
+E       assert False
+
+tests\test_deeplink_functionality.py:237: AssertionError
+---------------------------- Captured stdout call -----------------------------
+================================================================================
+����: ���������� deeplink
+================================================================================
+
+�������� ������������ ����������� deeplink...
+
+1. ������� �������� ������ � ����� 'test_group_deeplink_2'...
+- ������ �������� ������
+------------------------------ Captured log call ------------------------------
+ERROR    root:database.py:9083 Failed to get user group by code 'test_group_deeplink_2': database disk image is malformed
+ERROR    root:database.py:8951 Failed to create user group '�������� ������ ��� deeplink 2': database disk image is malformed
+============================== warnings summary ===============================
+tests/test_auto_renewal_functionality.py::TestAutoRenewalNotifications::test_balance_deduction_notification_logged
+tests/test_auto_renewal_functionality.py::TestAutoRenewalNotifications::test_autorenew_disabled_notification_logged
+  e:\GitHub\dark-maximus\src\shop_bot\data_manager\database.py:7451: DeprecationWarning: The default datetime adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    cursor.execute(
+
+tests/test_auto_renewal_functionality.py::TestAutoRenewalIntegration::test_autorenewal_skipped_when_disabled
+  e:\GitHub\dark-maximus\tests\test_auto_renewal_functionality.py:267: DeprecationWarning: The default datetime adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    cursor.execute("""
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_deeplink_functionality.py::test_deeplink_functionality - AssertionError: �������� deeplink ������ ����������� ��� ������
+assert False
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+============= 1 failed, 30 passed, 1 skipped, 3 warnings in 5.90s =============

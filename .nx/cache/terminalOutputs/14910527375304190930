@@ -1,0 +1,13 @@
+> python -m pytest tests/ --maxfail=1 -vv tests/test_database_indexes.py
+
+============================= test session starts =============================
+platform win32 -- Python 3.13.7, pytest-8.4.2, pluggy-1.6.0 -- C:\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: e:\GitHub\dark-maximus
+configfile: pyproject.toml
+plugins: anyio-4.10.0
+collecting ... collected 1 item
+
+tests/test_database_indexes.py::test_database_module_import_reload PASSED [100%]
+
+============================== 1 passed in 0.22s ==============================

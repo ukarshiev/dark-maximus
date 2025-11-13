@@ -71,6 +71,28 @@ services:
     networks:
       - dark-maximus-network
 
+  user-cabinet:
+    build:
+      context: ./apps/user-cabinet
+      dockerfile: Dockerfile
+    container_name: dark-maximus-user-cabinet
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:3003:3003'
+    volumes:
+      - ./users.db:/app/project/users.db
+      - ./src:/app/project/src
+    environment:
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 3003 || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - dark-maximus-network
+
 networks:
   dark-maximus-network:
     driver: bridge

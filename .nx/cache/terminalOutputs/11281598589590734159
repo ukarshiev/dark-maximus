@@ -1,0 +1,12 @@
+> python -m pytest libs/shared-utils/tests/
+
+ERROR: file or directory not found: libs/shared-utils/tests/
+
+============================= test session starts =============================
+platform win32 -- Python 3.13.7, pytest-8.4.2, pluggy-1.6.0
+rootdir: e:\GitHub\dark-maximus
+configfile: pyproject.toml
+plugins: anyio-4.10.0
+collected 0 items
+
+============================ no tests ran in 0.05s ============================

@@ -360,14 +360,30 @@ def create_payment_method_keyboard(payment_methods: dict | None, action: str, ke
     builder.adjust(1)
     return builder.as_markup()
 
-def create_ton_connect_keyboard(connect_url: str) -> InlineKeyboardMarkup:
+def create_ton_connect_keyboard(
+    connect_url: str,
+    *,
+    back_callback: str = "back_to_plans",
+    back_text: str = "⬅️ Назад к тарифам",
+) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="🚀 Открыть кошелек", url=connect_url)
+    if back_callback:
+        builder.button(text=back_text, callback_data=back_callback)
+    builder.adjust(1)
     return builder.as_markup()
 
-def create_payment_keyboard(payment_url: str) -> InlineKeyboardMarkup:
+def create_payment_keyboard(
+    payment_url: str,
+    *,
+    back_callback: str = "back_to_plans",
+    back_text: str = "⬅️ Назад к тарифам",
+) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="Перейти к оплате", url=payment_url)
+    if back_callback:
+        builder.button(text=back_text, callback_data=back_callback)
+    builder.adjust(1)
     return builder.as_markup()
 
 def create_keys_management_keyboard(keys: list, trial_used: int = 1) -> InlineKeyboardMarkup:
@@ -409,49 +425,47 @@ def create_keys_management_keyboard(keys: list, trial_used: int = 1) -> InlineKe
 
 def create_key_info_keyboard(key_id: int, subscription_link: str | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    
-    # Первая строка: Настройка и Подписка (если есть)
+    subscription_button_added = False
+    key_data = None
+
+    try:
+        from shop_bot.data_manager.database import get_key_by_id
+        key_data = get_key_by_id(key_id)
+    except Exception as e:
+        logger.warning(f"Failed to get key data for key {key_id}: {e}")
+
+    # Извлекаем ссылку на подписку из БД, если она не передана
+    if not subscription_link and key_data:
+        subscription_link = key_data.get('subscription_link')
+
+    # Кнопка настройки
     builder.button(
-        text="Шаг 1: ⚙️ Настройка",
+        text="⚙️ Настройка",
         web_app=WebAppInfo(url="https://help.dark-maximus.com/setup")
     )
 
-    # Если subscription_link не передан, пытаемся получить из БД
-    if not subscription_link:
-        try:
-            from shop_bot.data_manager.database import get_key_by_id
-            key_data = get_key_by_id(key_id)
-            if key_data:
-                subscription_link = key_data.get('subscription_link')
-        except Exception as e:
-            logger.warning(f"Failed to get subscription_link from DB for key {key_id}: {e}")
+    if subscription_link and _is_http_like_url(subscription_link):
+        builder.button(
+            text="🔑 Подписка",
+            url=subscription_link
+        )
+        subscription_button_added = True
+    elif subscription_link:
+        logger.warning(
+            "Subscription link %s имеет неподдерживаемый формат; кнопка не будет добавлена.",
+            subscription_link
+        )
 
-    subscription_button_added = False
-    if subscription_link:
-        # Используем обычную ссылку вместо WebApp
-        if _is_http_like_url(subscription_link):
-            builder.button(
-                text="Шаг 2: 🔑 Подписка",
-                url=subscription_link
-            )
-            subscription_button_added = True
-        else:
-            logger.warning(
-                "Subscription link %s имеет неподдерживаемый формат; кнопка не будет добавлена.",
-                subscription_link
-            )
-
-    # Вторая строка: Продлить этот ключ
+    # Кнопка продления
     builder.button(text="🔄 Продлить этот ключ", callback_data=f"extend_key_{key_id}")
 
-    # Третья строка: Назад к списку ключей
+    # Кнопка возврата
     builder.button(text="⬅️ Назад к списку ключей", callback_data="manage_keys")
-    
-    # Настройка расположения: первая строка - 2 кнопки (если есть подписка) или 1 кнопка, остальные по 1
+
     if subscription_button_added:
-        builder.adjust(2, 1, 1)  # Первая строка: 2 кнопки, остальные по 1
+        builder.adjust(2, 1, 1)
     else:
-        builder.adjust(1, 1, 1)  # Все строки по 1 кнопке
+        builder.adjust(1, 1, 1)
     return builder.as_markup()
 
 def create_qr_keyboard(key_id: int) -> InlineKeyboardMarkup:

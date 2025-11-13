@@ -1,4 +1,4 @@
-> docker compose down bot
+[2m> [22mdocker compose down bot
 
  Container dark-maximus-bot  Stopping
  Container dark-maximus-bot  Stopped

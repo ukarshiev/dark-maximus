@@ -1,4 +1,4 @@
-> docker compose up -d bot
+[2m> [22mdocker compose up -d bot
 
  Container dark-maximus-bot  Creating
  Container dark-maximus-bot  Created

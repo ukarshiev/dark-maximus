@@ -13,7 +13,7 @@
     "test": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "python -m pytest libs/shared-utils/tests/",
+        "command": "python -c \"import pathlib, sys; path = pathlib.Path('libs/shared-utils/tests'); sys.exit(__import__('pytest').main([str(path)])) if path.exists() else print('No tests for shared-utils; skipping')\"",
         "cwd": "{workspaceRoot}"
       }
     }

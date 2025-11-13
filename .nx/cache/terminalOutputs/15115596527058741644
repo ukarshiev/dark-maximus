@@ -1,0 +1,35 @@
+> python -m pytest tests/ --maxfail=1 -vv tests/test_deeplink_base64.py tests/test_database_indexes.py tests/test_utils.py
+
+============================= test session starts =============================
+platform win32 -- Python 3.13.7, pytest-8.4.2, pluggy-1.6.0 -- C:\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: e:\GitHub\dark-maximus
+configfile: pyproject.toml
+plugins: anyio-4.10.0
+collecting ... collected 15 items
+
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_create_deeplink_all_params PASSED [  6%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_create_deeplink_basic PASSED [ 13%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_create_deeplink_referral PASSED [ 20%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_create_deeplink_with_both PASSED [ 26%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_create_deeplink_with_group PASSED [ 33%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_create_deeplink_with_promo PASSED [ 40%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_parse_deeplink_base64 PASSED [ 46%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_parse_deeplink_invalid PASSED [ 53%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_parse_deeplink_legacy_fallback PASSED [ 60%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_parse_deeplink_referral PASSED [ 66%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_roundtrip_consistency PASSED [ 73%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_telegram_length_limit PASSED [ 80%]
+tests/test_deeplink_base64.py::TestDeeplinkUtils::test_validate_deeplink_length PASSED [ 86%]
+tests/test_database_indexes.py::test_database_module_import_reload PASSED [ 93%]
+tests/test_utils.py::test_unicode_output PASSED                          [100%]
+
+============================== warnings summary ===============================
+tests/test_utils.py::test_unicode_output
+  C:\Users\umidt\AppData\Roaming\Python\Python313\site-packages\_pytest\python.py:161: PytestReturnNotNoneWarning: Test functions should return None, but tests/test_utils.py::test_unicode_output returned <class 'bool'>.
+  Did you mean to use `assert` instead of `return`?
+  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 15 passed, 1 warning in 1.98s ========================

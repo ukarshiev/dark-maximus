@@ -926,26 +926,154 @@ function initializeTransactionsTableInteractions() {
 
 // Кебаб-меню теперь работают на чистом CSS без JavaScript
 
-function openCreateNotificationModal() {
-    const modal = document.getElementById('createNotificationModal')
-    if (modal) {
-        // Сброс полей
-        const input = document.getElementById('notifUserSearch')
-        const selectedId = document.getElementById('notifSelectedUserId')
-        const label = document.getElementById('notifSelectedUserLabel')
-        const sugg = document.getElementById('notifUserSuggestions')
-        if (input) input.value = ''
-        if (selectedId) selectedId.value = ''
-        if (label) {
-            label.textContent = ''
-            label.style.display = 'none'
-        }
-        if (sugg) {
-            sugg.innerHTML = ''
-            sugg.style.display = 'none'
-        }
-        modal.style.display = 'flex'
+let notificationTemplatesCache = null
+let notificationTemplatesInitialized = false
+
+function getNotificationTemplateByCode(code) {
+    if (!notificationTemplatesCache) return undefined
+    return notificationTemplatesCache.find(t => t.code === code)
+}
+
+function setupNotificationTemplateControls() {
+    if (notificationTemplatesInitialized) return
+    const templateSelect = document.getElementById('notifTemplateSelect')
+    if (!templateSelect) return
+    templateSelect.addEventListener('change', handleNotificationTemplateChange)
+    notificationTemplatesInitialized = true
+}
+
+function handleNotificationTemplateChange() {
+    const templateSelect = document.getElementById('notifTemplateSelect')
+    const markerSelect = document.getElementById('notifMarkerSelect')
+    const markerGroup = document.getElementById('notifMarkerGroup')
+    const descriptionEl = document.getElementById('notifTemplateDescription')
+    const forceCheckbox = document.getElementById('notifForceCheckbox')
+    const forceLabel = document.getElementById('notifForceLabel')
+
+    if (!templateSelect) return
+    const template = getNotificationTemplateByCode(templateSelect.value)
+
+    if (descriptionEl) {
+        descriptionEl.textContent = template ? (template.description || '') : ''
     }
+
+    if (markerSelect && markerGroup) {
+        markerSelect.innerHTML = ''
+        if (template && Array.isArray(template.markers) && template.markers.length) {
+            template.markers.forEach((marker) => {
+                const option = document.createElement('option')
+                option.value = marker.hours
+                option.textContent = marker.label
+                if (template.default_marker && template.default_marker === marker.hours) {
+                    option.selected = true
+                }
+                markerSelect.appendChild(option)
+            })
+            if (!markerSelect.value && template.markers.length) {
+                markerSelect.value = template.markers[0].hours
+            }
+            markerSelect.dataset.required = '1'
+            markerGroup.style.display = 'block'
+        } else {
+            markerSelect.dataset.required = '0'
+            markerGroup.style.display = 'none'
+        }
+    }
+
+    if (forceCheckbox) {
+        const supportsForce = template && template.supports_force
+        forceCheckbox.disabled = !supportsForce
+        if (!supportsForce) {
+            forceCheckbox.checked = false
+        }
+        if (forceLabel) {
+            forceLabel.style.opacity = supportsForce ? '1' : '0.5'
+        }
+    }
+}
+
+function renderNotificationTemplateOptions(templates) {
+    const templateSelect = document.getElementById('notifTemplateSelect')
+    const markerSelect = document.getElementById('notifMarkerSelect')
+    const markerGroup = document.getElementById('notifMarkerGroup')
+    if (!templateSelect) return
+
+    templateSelect.innerHTML = ''
+    if (!templates.length) {
+        templateSelect.innerHTML = '<option value=\"\">Недоступно</option>'
+        templateSelect.disabled = true
+        if (markerGroup) markerGroup.style.display = 'none'
+        if (markerSelect) markerSelect.innerHTML = ''
+        return
+    }
+
+    templateSelect.disabled = false
+    const placeholder = document.createElement('option')
+    placeholder.value = ''
+    placeholder.textContent = 'Выберите уведомление'
+    placeholder.disabled = true
+    placeholder.selected = true
+    templateSelect.appendChild(placeholder)
+
+    templates.forEach((template) => {
+        const option = document.createElement('option')
+        option.value = template.code
+        option.textContent = template.name
+        templateSelect.appendChild(option)
+    })
+}
+
+async function ensureNotificationTemplatesLoaded() {
+    if (Array.isArray(notificationTemplatesCache)) {
+        renderNotificationTemplateOptions(notificationTemplatesCache)
+        handleNotificationTemplateChange()
+        return notificationTemplatesCache
+    }
+    try {
+        const resp = await fetch('/api/notification-templates')
+        if (!resp.ok) {
+            throw new Error(`HTTP ${resp.status}`)
+        }
+        const data = await resp.json()
+        notificationTemplatesCache = data.templates || []
+    } catch (error) {
+        console.error('Не удалось загрузить шаблоны уведомлений:', error)
+        alert('Не удалось загрузить список уведомлений. Попробуйте обновить страницу.')
+        notificationTemplatesCache = []
+    }
+    renderNotificationTemplateOptions(notificationTemplatesCache)
+    handleNotificationTemplateChange()
+    return notificationTemplatesCache
+}
+
+async function openCreateNotificationModal() {
+    const modal = document.getElementById('createNotificationModal')
+    if (!modal) return
+
+    const input = document.getElementById('notifUserSearch')
+    const selectedId = document.getElementById('notifSelectedUserId')
+    const label = document.getElementById('notifSelectedUserLabel')
+    const sugg = document.getElementById('notifUserSuggestions')
+    const forceCheckbox = document.getElementById('notifForceCheckbox')
+
+    if (input) input.value = ''
+    if (selectedId) selectedId.value = ''
+    if (label) {
+        label.textContent = ''
+        label.style.display = 'none'
+    }
+    if (sugg) {
+        sugg.innerHTML = ''
+        sugg.style.display = 'none'
+    }
+    if (forceCheckbox) {
+        forceCheckbox.checked = false
+    }
+
+    setupNotificationTemplateControls()
+    await ensureNotificationTemplatesLoaded()
+
+    modal.style.display = 'flex'
 }
 
 function closeCreateNotificationModal() {
@@ -1035,29 +1163,63 @@ async function searchUsers(query, context) {
 
 async function submitCreateNotification() {
     const userIdEl = document.getElementById('notifSelectedUserId')
-    const typeEl = document.getElementById('notifTypeSelect')
-    const userId = userIdEl && userIdEl.value ? parseInt(userIdEl.value) : null
-    const marker = typeEl ? parseInt(typeEl.value) : null
-    if (!userId || !marker) {
-        alert('Выберите пользователя и тип уведомления')
+    const templateSelect = document.getElementById('notifTemplateSelect')
+    const markerSelect = document.getElementById('notifMarkerSelect')
+    const forceCheckbox = document.getElementById('notifForceCheckbox')
+
+    const userId = userIdEl && userIdEl.value ? parseInt(userIdEl.value, 10) : NaN
+    if (!userId || Number.isNaN(userId)) {
+        alert('Выберите пользователя')
         return
     }
+
+    if (!templateSelect || !templateSelect.value) {
+        alert('Выберите тип уведомления')
+        return
+    }
+
+    const template = getNotificationTemplateByCode(templateSelect.value)
+    if (!template) {
+        alert('Выбран неизвестный тип уведомления')
+        return
+    }
+
+    let markerHours = null
+    if (template.markers && template.markers.length) {
+        if (!markerSelect || !markerSelect.value) {
+            alert('Выберите момент отправки уведомления')
+            return
+        }
+        markerHours = parseInt(markerSelect.value, 10)
+        if (!markerHours || Number.isNaN(markerHours)) {
+            alert('Некорректное значение маркера времени')
+            return
+        }
+    }
+
+    const payload = {
+        user_id: userId,
+        template_code: template.code,
+        marker_hours: markerHours,
+        force: forceCheckbox ? Boolean(forceCheckbox.checked) : false
+    }
+
     try {
         const resp = await fetch('/create-notification', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: userId, marker_hours: marker })
+            body: JSON.stringify(payload)
         })
         const data = await resp.json()
         if (resp.ok) {
             alert(data.message || 'Уведомление отправлено')
             closeCreateNotificationModal()
-            // Перезагрузим страницу, чтобы увидеть новую запись
             window.location.reload()
         } else {
             alert(data.message || 'Ошибка отправки')
         }
-    } catch (e) {
+    } catch (error) {
+        console.error('Ошибка создания уведомления:', error)
         alert('Ошибка создания уведомления')
     }
 }
@@ -2995,6 +3157,54 @@ function fillKeyDrawerData(key) {
 	const subscriptionLinkEl = document.getElementById('keyDetailSubscriptionLink');
 	if (subscriptionLinkEl) {
 		subscriptionLinkEl.textContent = (key.subscription_link && key.subscription_link.trim() !== '') ? key.subscription_link : '—';
+	}
+	const cabinetLinksContainer = document.getElementById('keyDetailCabinetLinks');
+	if (cabinetLinksContainer) {
+		cabinetLinksContainer.innerHTML = '';
+		const cabinetLinks = Array.isArray(key.cabinet_links) ? key.cabinet_links : [];
+		if (cabinetLinks.length === 0) {
+			const placeholder = document.createElement('span');
+			placeholder.textContent = '—';
+			placeholder.style.fontFamily = "'Courier New', monospace";
+			placeholder.style.fontSize = '12px';
+			placeholder.style.wordBreak = 'break-all';
+			cabinetLinksContainer.appendChild(placeholder);
+		} else {
+			cabinetLinks.forEach((link, index) => {
+				if (!link || !link.url) {
+					return;
+				}
+				const row = document.createElement('div');
+				row.style.display = 'flex';
+				row.style.alignItems = 'center';
+				row.style.gap = '8px';
+				row.style.width = '100%';
+
+				const linkId = `keyDetailCabinetLink-${key.key_id || 'unknown'}-${index}`;
+				const linkElement = document.createElement('a');
+				linkElement.id = linkId;
+				linkElement.href = link.url;
+				linkElement.target = '_blank';
+				linkElement.rel = 'noopener noreferrer';
+				linkElement.textContent = link.url;
+				linkElement.style.fontFamily = "'Courier New', monospace";
+				linkElement.style.fontSize = '12px';
+				linkElement.style.wordBreak = 'break-all';
+				linkElement.style.flex = '1';
+
+				const copyButton = document.createElement('button');
+				copyButton.className = 'copy-btn';
+				copyButton.dataset.size = 'xs';
+				copyButton.title = `Скопировать ссылку №${index + 1}`;
+				copyButton.innerHTML = '<i class="fas fa-copy"></i>';
+				copyButton.addEventListener('click', () => copyKeyField(linkId));
+
+				row.appendChild(linkElement);
+				row.appendChild(copyButton);
+
+				cabinetLinksContainer.appendChild(row);
+			});
+		}
 	}
 	document.getElementById('keyDetailTelegramChatId').textContent = key.telegram_chat_id || '—';
 	document.getElementById('keyDetailComment').textContent = key.comment || '—';

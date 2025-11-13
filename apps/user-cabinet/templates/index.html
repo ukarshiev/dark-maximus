@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Личный кабинет - Dark Maximus</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header__inner">
+                <nav class="steps-nav" role="tablist" aria-label="Прогресс подключения VPN">
+                    <button type="button" class="steps-nav__item is-active" id="step-tab-setup" data-step="setup" role="tab" aria-selected="true" aria-controls="step-panel-setup" tabindex="0">
+                        <span class="steps-nav__bullet" aria-hidden="true">1</span>
+                        <span class="steps-nav__label">Настройка VPN</span>
+                    </button>
+                    <button type="button" class="steps-nav__item" id="step-tab-subscription" data-step="subscription" role="tab" aria-selected="false" aria-controls="step-panel-subscription" tabindex="-1">
+                        <span class="steps-nav__bullet" aria-hidden="true">2</span>
+                        <span class="steps-nav__label">Подключение</span>
+                    </button>
+                    <button type="button" class="steps-nav__item" id="step-tab-ip-check" data-step="ip-check" role="tab" aria-selected="false" aria-controls="step-panel-ip-check" tabindex="-1">
+                        <span class="steps-nav__bullet" aria-hidden="true">3</span>
+                        <span class="steps-nav__label">Проверка IP</span>
+                    </button>
+                </nav>
+                <div class="header__actions">
+                    <label class="theme-toggle" for="theme-toggle">
+                        <input type="checkbox" id="theme-toggle" class="theme-toggle__input">
+                        <span class="theme-toggle__icon theme-toggle__icon--sun">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="4"></circle>
+                                <path d="M12 2v2"></path>
+                                <path d="M12 20v2"></path>
+                                <path d="m4.93 4.93 1.41 1.41"></path>
+                                <path d="m17.66 17.66 1.41 1.41"></path>
+                                <path d="M2 12h2"></path>
+                                <path d="M20 12h2"></path>
+                                <path d="m6.34 17.66-1.41 1.41"></path>
+                                <path d="m19.07 4.93-1.41 1.41"></path>
+                            </svg>
+                        </span>
+                        <span class="theme-toggle__icon theme-toggle__icon--moon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+                            </svg>
+                        </span>
+                    </label>
+                </div>
+            </div>
+        </header>
+        <main class="main">
+            <div class="steps">
+                <!-- Шаг 1: Настройка VPN -->
+                <section class="step-pane step-pane--setup is-active" id="step-panel-setup" data-step="setup" role="tabpanel" aria-labelledby="step-tab-setup" aria-hidden="false" tabindex="0">
+                    <div class="step-pane__content">
+                        <div class="step-pane__toolbar" role="group" aria-label="Действия с инструкцией">
+                            <h2 class="step-pane__heading">Инструкции</h2>
+                            <div class="step-pane__actions">
+                                <button type="button" class="step-pane__action" data-action="open" data-target-iframe="setup-iframe" aria-label="Открыть инструкцию в новой вкладке">
+                                    <span class="step-pane__icon" aria-hidden="true">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M14 3h7v7"></path>
+                                            <path d="M10 14 21 3"></path>
+                                            <path d="M21 14v7h-7"></path>
+                                            <path d="M3 10v11h11"></path>
+                                        </svg>
+                                    </span>
+                                </button>
+                                <button type="button" class="step-pane__action" data-action="fullscreen" data-state="collapsed" aria-pressed="false" aria-label="Развернуть на весь экран">
+                                    <span class="step-pane__icon step-pane__icon--expand" aria-hidden="true">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M9 3H4v5"></path>
+                                            <path d="m15 3 6 0 0 6"></path>
+                                            <path d="M21 15v6h-6"></path>
+                                            <path d="M9 21H4v-5"></path>
+                                        </svg>
+                                    </span>
+                                    <span class="step-pane__icon step-pane__icon--collapse" aria-hidden="true">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M4 9h5V4"></path>
+                                            <path d="M20 9h-5V4"></path>
+                                            <path d="M4 15h5v5"></path>
+                                            <path d="M20 15h-5v5"></path>
+                                        </svg>
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+                        <iframe
+                            id="setup-iframe"
+                            class="step__iframe"
+                            src="{{ knowledge_base_setup_url }}"
+                            data-fallback-url="{{ knowledge_base_setup_url }}"
+                            data-error-message="Похоже, что сайт базы знаний запрещает открывать страницу во встроенном окне. Воспользуйтесь ссылкой ниже."
+                            title="Инструкция по настройке VPN"
+                            onerror="handleIframeError('setup-iframe', '{{ knowledge_base_setup_url }}')">
+                        </iframe>
+                    </div>
+                </section>
+
+                <!-- Шаг 2: Подключение -->
+                <section class="step-pane step-pane--subscription" id="step-panel-subscription" data-step="subscription" role="tabpanel" aria-labelledby="step-tab-subscription" aria-hidden="true" tabindex="-1">
+                    <div class="step-pane__content">
+                        <div class="step-pane__toolbar" role="group" aria-label="Действия с подпиской">
+                            <h2 class="step-pane__heading">Подписка</h2>
+                            <div class="step-pane__actions">
+                                <button type="button" class="step-pane__action" data-action="open" data-target-iframe="subscription-iframe" aria-label="Открыть страницу подписки в новой вкладке">
+                                    <span class="step-pane__icon" aria-hidden="true">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M14 3h7v7"></path>
+                                            <path d="M10 14 21 3"></path>
+                                            <path d="M21 14v7h-7"></path>
+                                            <path d="M3 10v11h11"></path>
+                                        </svg>
+                                    </span>
+                                </button>
+                                <button type="button" class="step-pane__action" data-action="fullscreen" data-state="collapsed" aria-pressed="false" aria-label="Развернуть на весь экран">
+                                    <span class="step-pane__icon step-pane__icon--expand" aria-hidden="true">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M9 3H4v5"></path>
+                                            <path d="m15 3 6 0 0 6"></path>
+                                            <path d="M21 15v6h-6"></path>
+                                            <path d="M9 21H4v-5"></path>
+                                        </svg>
+                                    </span>
+                                    <span class="step-pane__icon step-pane__icon--collapse" aria-hidden="true">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M4 9h5V4"></path>
+                                            <path d="M20 9h-5V4"></path>
+                                            <path d="M4 15h5v5"></path>
+                                            <path d="M20 15h-5v5"></path>
+                                        </svg>
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+                        {% if session.get('subscription_link') %}
+                        <div id="subscription-container">
+                            <iframe
+                                id="subscription-iframe"
+                                class="step__iframe"
+                                src="{{ session.subscription_link }}"
+                                data-error-message="Провайдер подписки блокирует встраивание страницы. Откройте подписку по ссылке ниже."
+                                title="Страница подписки"
+                                onerror="handleIframeError('subscription-iframe', '{{ session.subscription_link }}')">
+                            </iframe>
+                        </div>
+                        {% else %}
+                        <p>Ссылка на подписку недоступна.</p>
+                        {% endif %}
+                    </div>
+                </section>
+
+                <!-- Шаг 3: Проверка IP -->
+                <section class="step-pane step-pane--ip-check" id="step-panel-ip-check" data-step="ip-check" role="tabpanel" aria-labelledby="step-tab-ip-check" aria-hidden="true" tabindex="-1">
+                    <div class="step-pane__content">
+                        <p>Проверьте ваш текущий IP-адрес после подключения к VPN:</p>
+                        <div id="ip-info" class="ip-info">
+                            <p>Загрузка информации...</p>
+                        </div>
+                        <button class="ip-refresh" type="button" onclick="checkIP()">Обновить IP</button>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

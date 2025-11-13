@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ошибка - Личный кабинет Dark Maximus</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="error-body">
+    <div class="error-page">
+        <div class="error-glow" aria-hidden="true"></div>
+        <div class="error-card" role="alert" aria-live="assertive">
+            <div class="error-card__icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" focusable="false">
+                    <path d="M24 6a18 18 0 1 0 18 18A18 18 0 0 0 24 6Zm0 26a2 2 0 1 1-2 2 2 2 0 0 1 2-2Zm2-6a2 2 0 0 1-4 0V16a2 2 0 0 1 4 0Z"/>
+                </svg>
+            </div>
+            <div class="error-card__content">
+                <h1 class="error__title">{{ error_title if error_title else 'Ошибка' }}</h1>
+                <p class="error__message">{{ error_message if error_message else 'Произошла ошибка при обработке запроса.' }}</p>
+            </div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</body>
+</html>
+

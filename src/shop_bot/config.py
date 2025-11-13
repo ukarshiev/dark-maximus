@@ -3,7 +3,11 @@
 Конфигурационные настройки для Telegram-бота
 """
 
+import logging
 from datetime import datetime, timezone
+from decimal import Decimal, ROUND_HALF_UP
+from html import escape
+from typing import Optional
 
 from shop_bot.utils.datetime_utils import ensure_utc_datetime, format_datetime_for_user
 
@@ -26,6 +30,72 @@ def get_payment_method_message_with_plan(host_name: str, plan_name: str, price: 
         return message
     else:
         return f"Вы выбрали {host_name}: {plan_name} - {price:.2f} RUB\n\nТеперь выберите удобный способ оплаты:"
+
+
+def build_payment_summary_text(
+    *,
+    description: str,
+    final_price: float | Decimal,
+    payment_method_label: str,
+    currency: str = "RUB",
+    original_price: float | Decimal | None = None,
+    promo_code: str | None = None,
+    discount_amount: float | Decimal | None = None,
+) -> str:
+    """
+    Формирует текст резюме перед оплатой.
+    description — что именно выбирает пользователь (пример: "🇫🇮 Финляндия: 💜 F.Friends - Start")
+    """
+
+    def _to_decimal(value: float | Decimal) -> Decimal:
+        if isinstance(value, Decimal):
+            return value
+        return Decimal(str(value))
+
+    def _format_amount(value: Decimal) -> str:
+        quantized = value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        return format(quantized, ".2f")
+
+    description_safe = escape(description.strip())
+    payment_method_safe = escape(payment_method_label.strip())
+
+    final_price_dec = _to_decimal(final_price)
+    summary_lines = [f"🧾 <b>Вы выбрали:</b> {description_safe}"]
+
+    price_line: str
+    original_price_dec: Optional[Decimal] = None
+
+    if original_price is not None:
+        original_price_dec = _to_decimal(original_price)
+
+    if original_price_dec is not None and original_price_dec > final_price_dec:
+        price_line = (
+            f"💰 <b>Стоимость:</b> {_format_amount(original_price_dec)} {currency} → "
+            f"<b>{_format_amount(final_price_dec)} {currency}</b>"
+        )
+        summary_lines.append(price_line)
+
+        if discount_amount is None:
+            discount_amount_dec = original_price_dec - final_price_dec
+        else:
+            discount_amount_dec = _to_decimal(discount_amount)
+
+        if discount_amount_dec > Decimal("0"):
+            discount_value = _format_amount(discount_amount_dec)
+            if promo_code:
+                summary_lines.append(
+                    f"🎫 <b>Промокод:</b> {escape(promo_code)} — скидка {discount_value} {currency}"
+                )
+            else:
+                summary_lines.append(f"🎁 <b>Скидка:</b> {discount_value} {currency}")
+    else:
+        price_line = f"💰 <b>Стоимость:</b> {_format_amount(final_price_dec)} {currency}"
+        summary_lines.append(price_line)
+        if promo_code:
+            summary_lines.append(f"🎫 <b>Промокод:</b> {escape(promo_code)}")
+
+    summary_lines.append(f"💳 <b>Тип оплаты:</b> {payment_method_safe}")
+    return "\n".join(summary_lines)
 HOWTO_CHOOSE_OS_MESSAGE = "Выберите операционную систему устройства для получения инструкции по настройке:"
 VPN_INACTIVE_TEXT = "❌ <b>Статус VPN:</b> Неактивен (срок истек)"
 VPN_NO_DATA_TEXT = "У вас пока нет активных ключей."
@@ -89,6 +159,8 @@ def get_key_info_text(
     subscription_link: str = None,
     provision_mode: str = 'key',
     *,
+    user_id: int | None = None,
+    key_id: int | None = None,
     user_timezone: str | None = None,
     feature_enabled: bool = False,
     is_trial: bool = False,
@@ -103,7 +175,9 @@ def get_key_info_text(
         connection_string: VLESS ключ (опционально)
         status: статус ключа
         subscription_link: ссылка на подписку (опционально)
-        provision_mode: режим предоставления ('key', 'subscription', 'both')
+        provision_mode: режим предоставления ('key', 'subscription', 'both', 'cabinet', 'cabinet_subscription')
+        user_id: ID пользователя (для генерации токена личного кабинета)
+        key_id: ID ключа (для генерации токена личного кабинета)
         is_trial: является ли ключ пробным
     """
     expiry_dt = expiry_date if isinstance(expiry_date, datetime) else datetime.fromisoformat(str(expiry_date))
@@ -140,6 +214,67 @@ def get_key_info_text(
         f"<b>{status_icon} Статус:</b> {status_text}\n\n"
     )
     
+    # Получаем токен для личного кабинета, если user_id и key_id переданы
+    cabinet_token = None
+    if user_id and key_id:
+        try:
+            from shop_bot.data_manager.database import get_or_create_permanent_token
+            cabinet_token = get_or_create_permanent_token(user_id, key_id)
+            if cabinet_token:
+                logging.info(f"[get_key_info_text] Generated cabinet token for user {user_id}, key {key_id}: {cabinet_token[:20]}...")
+            else:
+                logging.error(f"[get_key_info_text] Token creation returned None for user {user_id}, key {key_id}")
+        except Exception as e:
+            logging.error(f"[get_key_info_text] Failed to get/create permanent token for user {user_id}, key {key_id}: {e}", exc_info=True)
+            cabinet_token = None
+    else:
+        logging.warning(f"[get_key_info_text] Missing user_id or key_id for cabinet token: user_id={user_id} (type: {type(user_id)}), key_id={key_id} (type: {type(key_id)})")
+    
+    # Обработка режимов с личным кабинетом
+    if provision_mode == 'cabinet':
+        cabinet_domain = get_user_cabinet_domain()
+        if cabinet_domain:
+            cabinet_is_https = cabinet_domain.lower().startswith("https://")
+            if cabinet_token:
+                cabinet_url = f"{cabinet_domain}/auth/{cabinet_token}"
+                logging.info(f"[get_key_info_text] Using token in cabinet URL for user {user_id}, key {key_id}")
+            else:
+                cabinet_url = f"{cabinet_domain}/"
+                logging.warning(f"[get_key_info_text] No token available, using URL without token for user {user_id}, key {key_id}")
+            if not cabinet_is_https:
+                logging.warning("[get_key_info_text] Cabinet domain %s is not HTTPS; Telegram buttons will be disabled.", cabinet_domain)
+            cabinet_link_markup = f'<a href="{cabinet_url}">{cabinet_url}</a>'
+            content_text = (
+                f"                    ⬇️ <b>ВАШ ЛИЧНЫЙ КАБИНЕТ</b> ⬇️\n"
+                f"------------------------------------------------------------------------\n"
+                f"{cabinet_link_markup}\n"
+                f"------------------------------------------------------------------------\n\n"
+                f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
+            )
+            return base_text + content_text
+
+    elif provision_mode == 'cabinet_subscription' and subscription_link:
+        cabinet_domain = get_user_cabinet_domain()
+        if cabinet_domain:
+            cabinet_is_https = cabinet_domain.lower().startswith("https://")
+            if cabinet_token:
+                cabinet_url = f"{cabinet_domain}/auth/{cabinet_token}"
+                logging.info(f"[get_key_info_text] Using token in cabinet_subscription URL for user {user_id}, key {key_id}")
+            else:
+                cabinet_url = f"{cabinet_domain}/"
+                logging.warning(f"[get_key_info_text] No token available for cabinet_subscription, using URL without token for user {user_id}, key {key_id}")
+            if not cabinet_is_https:
+                logging.warning("[get_key_info_text] Cabinet domain %s is not HTTPS; Telegram buttons will be disabled.", cabinet_domain)
+            cabinet_link_markup = f'<a href="{cabinet_url}">{cabinet_url}</a>'
+            content_text = (
+                f"                    ⬇️ <b>ВАШ ЛИЧНЫЙ КАБИНЕТ</b> ⬇️\n"
+                f"------------------------------------------------------------------------\n"
+                f"{cabinet_link_markup}\n"
+                f"------------------------------------------------------------------------\n\n"
+                f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
+            )
+            return base_text + content_text
+    
     # Формируем текст в зависимости от режима
     if provision_mode == 'subscription' and subscription_link:
         # Только подписка
@@ -149,7 +284,7 @@ def get_key_info_text(
             f"{subscription_link}\n"
             f"------------------------------------------------------------------------\n"
             #f"💡<i>Просто нажмите на ссылку один раз, чтобы перейти на страницу подписки</i>\n\n"
-            f"<blockquote>⁉️ Чтобы установить и настроить приложение, нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
+            f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
             #f"<blockquote>📢 Вставьте эту ссылку в VPN приложение как URL подписки</blockquote>\n"
             #f"<blockquote>Чтобы получить инструкцию, нажмите на кнопку [🌐 Инструкции❓]</blockquote>"
         )
@@ -166,7 +301,7 @@ def get_key_info_text(
             f"{subscription_link}\n"
             f"------------------------------------------------------------------------\n"
             #f"💡<i>Просто нажмите на текст один раз, чтобы перейти на страницу подписки</i>\n\n"
-            f"<blockquote>⁉️ Чтобы установить и настроить приложение, нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
+            f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
             #f"<blockquote>📢 Вставьте эту ссылку в VPN приложение как URL подписки</blockquote>\n"
             #f"<blockquote>Чтобы получить инструкцию, нажмите на кнопку [🌐 Инструкции❓]</blockquote>"
         )
@@ -178,12 +313,26 @@ def get_key_info_text(
             f"<code>{connection_string}</code>\n"
             f"------------------------------------------------------------------------\n"
             #f"💡<i>Просто нажмите на ключ один раз, чтобы скопировать</i>\n\n"
-            f"<blockquote>⁉️ Чтобы установить и настроить приложение, нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
+            f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
             #f"<blockquote>📢 Вставьте эту ссылку в VPN приложение как URL подписки</blockquote>\n"
             #f"<blockquote>Чтобы получить инструкцию, нажмите на кнопку [🌐 Инструкции❓]</blockquote>"
         )
     
-    return base_text + content_text
+    # Добавляем ссылку на личный кабинет (только если домен настроен) для существующих режимов
+    cabinet_text = ""
+    cabinet_domain = get_user_cabinet_domain()
+    if cabinet_domain:
+        cabinet_is_https = cabinet_domain.lower().startswith("https://")
+        if cabinet_token:
+            cabinet_url = f"{cabinet_domain}/auth/{cabinet_token}"
+        else:
+            cabinet_url = f"{cabinet_domain}/"
+        if not cabinet_is_https:
+            logging.warning("[get_key_info_text] Cabinet domain %s is not HTTPS; Telegram buttons will be disabled.", cabinet_domain)
+        cabinet_link_markup = f'<a href="{cabinet_url}">{cabinet_url}</a>'
+        cabinet_text = f"\n\n📱 <b>Ваш личный кабинет (рекомендуется):</b>\n{cabinet_link_markup}\n"
+    
+    return base_text + content_text + cabinet_text
 
 def get_purchase_success_text(
     action: str,
@@ -193,6 +342,8 @@ def get_purchase_success_text(
     subscription_link: str = None,
     provision_mode: str = 'key',
     *,
+    user_id: int | None = None,
+    key_id: int | None = None,
     user_timezone: str | None = None,
     feature_enabled: bool = False,
     is_trial: bool = False,
@@ -206,7 +357,9 @@ def get_purchase_success_text(
         expiry_date: дата истечения (в UTC)
         connection_string: VLESS ключ (опционально)
         subscription_link: ссылка на подписку (опционально)
-        provision_mode: режим предоставления ('key', 'subscription', 'both')
+        provision_mode: режим предоставления ('key', 'subscription', 'both', 'cabinet', 'cabinet_subscription')
+        user_id: ID пользователя (для генерации токена личного кабинета)
+        key_id: ID ключа (для генерации токена личного кабинета)
         is_trial: является ли ключ пробным
     """
     action_normalized = (str(action or "").strip().lower())
@@ -226,6 +379,68 @@ def get_purchase_success_text(
         f"⏳ <b>Он будет действовать до:</b> {expiry_formatted}\n\n"
     )
 
+    # Получаем токен для личного кабинета, если user_id и key_id переданы
+    cabinet_token = None
+    if user_id and key_id:
+        try:
+            from shop_bot.data_manager.database import get_or_create_permanent_token
+            cabinet_token = get_or_create_permanent_token(user_id, key_id)
+            if cabinet_token:
+                logging.info(f"[get_purchase_success_text] Generated cabinet token for user {user_id}, key {key_id}: {cabinet_token[:20]}...")
+            else:
+                logging.error(f"[get_purchase_success_text] Token creation returned None for user {user_id}, key {key_id}")
+        except Exception as e:
+            logging.error(f"[get_purchase_success_text] Failed to get/create permanent token for user {user_id}, key {key_id}: {e}", exc_info=True)
+            cabinet_token = None
+    else:
+        logging.warning(f"[get_purchase_success_text] Missing user_id or key_id for cabinet token: user_id={user_id} (type: {type(user_id)}), key_id={key_id} (type: {type(key_id)})")
+
+    # Обработка режимов с личным кабинетом
+    if provision_mode == 'cabinet':
+        cabinet_domain = get_user_cabinet_domain()
+        if cabinet_domain:
+            cabinet_is_https = cabinet_domain.lower().startswith("https://")
+            if cabinet_token:
+                cabinet_url = f"{cabinet_domain}/auth/{cabinet_token}"
+                logging.info(f"[get_purchase_success_text] Using token in cabinet URL for user {user_id}, key {key_id}")
+            else:
+                cabinet_url = f"{cabinet_domain}/"
+                logging.warning(f"[get_purchase_success_text] No token available, using URL without token for user {user_id}, key {key_id}")
+            if not cabinet_is_https:
+                logging.warning("[get_purchase_success_text] Cabinet domain %s is not HTTPS; Telegram buttons will be disabled.", cabinet_domain)
+            cabinet_link_markup = f'<a href="{cabinet_url}">{cabinet_url}</a>'
+            content_text = (
+                f"                    ⬇️ <b>ВАШ ЛИЧНЫЙ КАБИНЕТ</b> ⬇️\n"
+                f"------------------------------------------------------------------------\n"
+                f"{cabinet_link_markup}\n"
+                f"------------------------------------------------------------------------\n"
+                f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
+            )
+            # Не добавляем fallback для режима cabinet
+            return base_text + content_text
+
+    elif provision_mode == 'cabinet_subscription' and subscription_link:
+        cabinet_domain = get_user_cabinet_domain()
+        if cabinet_domain:
+            cabinet_is_https = cabinet_domain.lower().startswith("https://")
+            if cabinet_token:
+                cabinet_url = f"{cabinet_domain}/auth/{cabinet_token}"
+                logging.info(f"[get_purchase_success_text] Using token in cabinet_subscription URL for user {user_id}, key {key_id}")
+            else:
+                cabinet_url = f"{cabinet_domain}/"
+                logging.warning(f"[get_purchase_success_text] No token available for cabinet_subscription, using URL without token for user {user_id}, key {key_id}")
+            if not cabinet_is_https:
+                logging.warning("[get_purchase_success_text] Cabinet domain %s is not HTTPS; Telegram buttons will be disabled.", cabinet_domain)
+            cabinet_link_markup = f'<a href="{cabinet_url}">{cabinet_url}</a>'
+            content_text = (
+                f"                    ⬇️ <b>ВАШ ЛИЧНЫЙ КАБИНЕТ</b> ⬇️\n"
+                f"------------------------------------------------------------------------\n"
+                f"{cabinet_link_markup}\n"
+                f"------------------------------------------------------------------------\n"
+                f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
+            )
+            return base_text + content_text
+
     # Формируем текст в зависимости от режима
     if provision_mode == 'subscription' and subscription_link:
         # Только подписка
@@ -235,7 +450,7 @@ def get_purchase_success_text(
             f"{subscription_link}\n"
             f"------------------------------------------------------------------------\n"
             #f"💡<i>Просто нажмите на ссылку один раз, чтобы перейти на страницу подписки</i>\n\n"
-            f"<blockquote>⁉️ Чтобы установить и настроить приложение, нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
+            f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
             #f"<blockquote>📢 Вставьте эту ссылку в VPN приложение как URL подписки</blockquote>\n"
             #f"<blockquote>Чтобы получить инструкцию, нажмите на кнопку [🌐 Инструкции❓]</blockquote>"
         )
@@ -251,7 +466,7 @@ def get_purchase_success_text(
             f"{subscription_link}\n"
             f"------------------------------------------------------------------------\n"
             #f"💡<i>Просто нажмите на текст один раз, чтобы перейти на страницу подписки</i>\n\n"
-            f"<blockquote>⁉️ Чтобы установить и настроить приложение, нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
+            f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
             #f"<blockquote>📢 Вставьте эту ссылку в VPN приложение как URL подписки</blockquote>\n"
             #f"<blockquote>Чтобы получить инструкцию, нажмите на кнопку [🌐 Инструкции❓]</blockquote>"
         )
@@ -263,12 +478,83 @@ def get_purchase_success_text(
             f"<code>{connection_string}</code>\n"
             f"------------------------------------------------------------------------\n"
             #f"💡<i>Просто нажмите на ключ один раз, чтобы скопировать</i>\n\n"
-            f"<blockquote>⁉️ Чтобы установить и настроить приложение, нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
+            f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
             #f"<blockquote>📢 Вставьте эту ссылку в VPN приложение как URL подписки</blockquote>\n"
             #f"<blockquote>Чтобы получить инструкцию, нажмите на кнопку [🌐 Инструкции❓]</blockquote>"
         )
+    
+    # Добавляем ссылку на личный кабинет (только если домен настроен) для существующих режимов
+    cabinet_text = ""
+    cabinet_domain = get_user_cabinet_domain()
+    if cabinet_domain:
+        cabinet_is_https = cabinet_domain.lower().startswith("https://")
+        if cabinet_token:
+            cabinet_url = f"{cabinet_domain}/auth/{cabinet_token}"
+        else:
+            cabinet_url = f"{cabinet_domain}/"
+        if not cabinet_is_https:
+            logging.warning("[get_purchase_success_text] Cabinet domain %s is not HTTPS; Telegram buttons will be disabled.", cabinet_domain)
+        cabinet_link_markup = f'<a href="{cabinet_url}">{cabinet_url}</a>'
+        cabinet_text = f"\n\n📱 <b>Ваш личный кабинет (рекомендуется):</b>\n{cabinet_link_markup}\n"
+    
+    return base_text + content_text + cabinet_text
 
-    return base_text + content_text
+def get_user_cabinet_domain() -> str | None:
+    """
+    Получить домен личного кабинета из настроек
+    
+    Returns:
+        Домен личного кабинета (нормализованный) или None если не указан
+    """
+    from shop_bot.data_manager.database import get_setting
+    
+    domain = get_setting("user_cabinet_domain")
+    if not domain or not domain.strip():
+        return None
+    
+    # Нормализация домена
+    domain = domain.strip().rstrip('/')
+    
+    # Добавляем протокол если отсутствует
+    if not domain.startswith(('http://', 'https://')):
+        domain = f'https://{domain}'
+    
+    return domain
+
+
+def get_message_text(template_key: str, variables: dict, fallback_text: str, provision_mode: str = None) -> str:
+    """
+    Получить текст сообщения из справочника с fallback на код
+    
+    Args:
+        template_key: ключ шаблона (например: 'purchase_success_key')
+        variables: словарь переменных для подстановки
+        fallback_text: текст по умолчанию если шаблон не найден
+        provision_mode: режим предоставления для фильтрации
+    
+    Returns:
+        Отформатированный текст сообщения
+    """
+    from shop_bot.data_manager.database import get_message_template
+    
+    # Пытаемся получить шаблон из БД
+    template = get_message_template(template_key, provision_mode)
+    
+    if template and template.get('is_active') and template.get('template_text'):
+        try:
+            # Подставляем переменные в шаблон
+            text = template['template_text']
+            for key, value in variables.items():
+                # Экранируем фигурные скобки в значениях
+                safe_value = str(value).replace('{', '{{').replace('}', '}}')
+                text = text.replace(f'{{{key}}}', safe_value)
+            return text
+        except Exception as e:
+            logging.warning(f"Failed to format template {template_key}: {e}")
+            return fallback_text
+    
+    # Fallback на код если шаблон не найден или неактивен
+    return fallback_text
 
 def get_video_instruction_path(platform: str) -> str:
     """Возвращает путь к видеоинструкции для платформы"""
