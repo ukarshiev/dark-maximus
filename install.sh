@@ -509,9 +509,7 @@ fi
 # Создаем docker-compose.yml только если его нет или он был сохранен в бэкап
 if [ ! -f "docker-compose.yml" ] || [ -f "docker-compose.yml.backup" ]; then
     echo -e "${YELLOW}Создание docker-compose.yml с localhost-only портами...${NC}"
-cat > docker-compose.yml << EOF
-version: '3.8'
-
+cat > docker-compose.yml << 'EOF'
 services:
   bot:
     build: .
@@ -523,8 +521,20 @@ services:
       - ./users.db:/app/project/users.db
       - ./logs:/app/project/logs
       - ./backups:/app/project/backups
+      - ./instructions:/app/project/instructions
+      - ./video_instructions:/app/project/video_instructions
+      - ./sessions:/app/sessions
+      # Volume-маппинги для исходного кода (позволяют изменения без пересборки)
+      - ./src:/app/project/src
+      - ./src/shop_bot/webhook_server/templates:/app/project/src/shop_bot/webhook_server/templates
+      - ./src/shop_bot/webhook_server/static:/app/project/src/shop_bot/webhook_server/static
+      # Маппинг корневых файлов проекта
+      - ./pyproject.toml:/app/project/pyproject.toml
+      - ./CHANGELOG.md:/app/project/CHANGELOG.md
+      # Docker socket для управления контейнерами из панели
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - FLASK_SECRET_KEY=\${FLASK_SECRET_KEY}
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
     healthcheck:
       test: ["CMD-SHELL", "nc -z localhost 50000 || exit 1"]
       interval: 30s
@@ -570,6 +580,28 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    networks:
+      - dark-maximus-network
+
+  user-cabinet:
+    build:
+      context: ./apps/user-cabinet
+      dockerfile: Dockerfile
+    container_name: dark-maximus-user-cabinet
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:3003:3003'
+    volumes:
+      - ./users.db:/app/project/users.db
+      - ./src:/app/project/src
+    environment:
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 3003 || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
     networks:
       - dark-maximus-network
 
@@ -1004,7 +1036,7 @@ echo -e "\n${CYAN}Шаг 8: Запуск Docker контейнеров...${NC}"
 # Принудительно останавливаем и удаляем существующие контейнеры по именам
 # Это необходимо, если контейнеры были созданы не через docker-compose или есть конфликты
 echo -e "${YELLOW}Проверка и удаление существующих контейнеров...${NC}"
-CONTAINER_NAMES=("dark-maximus-bot" "dark-maximus-docs" "dark-maximus-codex-docs")
+CONTAINER_NAMES=("dark-maximus-bot" "dark-maximus-docs" "dark-maximus-codex-docs" "dark-maximus-user-cabinet")
 for container_name in "${CONTAINER_NAMES[@]}"; do
     if docker ps -a --format '{{.Names}}' | grep -q "^${container_name}$"; then
         echo -e "${YELLOW}Останавливаем и удаляем контейнер ${container_name}...${NC}"

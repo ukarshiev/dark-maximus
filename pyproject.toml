@@ -1,6 +1,6 @@
 [project]
 name = "dark-maximus"
-version = "4.10.1"
+version = "4.10.3"
 description = "Продвинутый Telegram-бот для автоматической продажи VLESS VPN с улучшенным веб-интерфейсом и аналитикой"
 authors = [
     {name = "Karshie Umid", email = "umid.t.karshiev@gmail.com"}
@@ -48,6 +48,11 @@ dev = [
     "pip-tools",
     "pylint",
     "black"
+]
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocs-awesome-nav>=3.0"
 ]
 
 [tool.setuptools.packages.find]
