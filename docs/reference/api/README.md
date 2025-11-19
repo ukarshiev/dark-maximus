@@ -18,7 +18,7 @@
 ### Базовый URL
 
 ```
-Разработка: http://localhost:3001
+Разработка: http://localhost:50001
 Продакшн: https://your-domain.com
 ```
 

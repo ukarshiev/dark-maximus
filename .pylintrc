@@ -1,0 +1,23 @@
+[MAIN]
+# Игнорируем файлы
+ignore=tests,venv,node_modules
+
+# Отключаем проверки, которые уже отключены в команде
+disable=
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+    too-few-public-methods,
+    too-many-arguments,
+    too-many-locals,
+    too-many-branches,
+    too-many-statements
+
+[FORMAT]
+# Максимальная длина строки
+max-line-length=120
+
+[REPORTS]
+# Включаем отчеты (эмодзи будут отображаться при правильной кодировке)
+reports=yes
+

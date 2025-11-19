@@ -11,7 +11,7 @@
 ### 1. Вход в панель
 
 ```
-URL: http://localhost:3001/login (или ваш домен)
+URL: http://localhost:50001/login (или ваш домен)
 Логин: admin
 Пароль: admin
 ```

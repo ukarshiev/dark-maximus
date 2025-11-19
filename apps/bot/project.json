@@ -42,7 +42,7 @@
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "python -m pylint src/shop_bot/",
+        "command": "powershell -ExecutionPolicy Bypass -File scripts/lint.ps1",
         "cwd": "{workspaceRoot}"
       }
     }

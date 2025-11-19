@@ -140,6 +140,7 @@
                                     <th>Трафик</th>
                                     <th>Режим</th>
                                     <th>Группы</th>
+                                    <th title="Режим предоставления тарифа">Режим</th>
                                     <th style="text-align:right;">Действия</th>
                                 </tr>
                             </thead>
@@ -204,6 +205,21 @@
                                             {% endif %}
                                         {% else %}
                                             <span style="color: #888;">Все</span>
+                                        {% endif %}
+                                    </td>
+                                    <td title="Режим предоставления тарифа">
+                                        {% if provision_mode == 'key' %}
+                                            <span style="color: #4CAF50;">🔑 Ключ</span>
+                                        {% elif provision_mode == 'subscription' %}
+                                            <span style="color: #9C27B0;">🪪 Подписка</span>
+                                        {% elif provision_mode == 'both' %}
+                                            <span style="color: #03A9F4;">🔑+🪪 Ключ + Подписка</span>
+                                        {% elif provision_mode == 'cabinet' %}
+                                            <span style="color: #FF9800;">🗂️ Личный кабинет</span>
+                                        {% elif provision_mode == 'cabinet_subscription' %}
+                                            <span style="color: #00BCD4;">🗂️+🪪 Кабинет + Подписка</span>
+                                        {% else %}
+                                            <span style="color: #888;">—</span>
                                         {% endif %}
                                     </td>
 								<td style="text-align:right; position:relative;">
@@ -283,7 +299,7 @@
 							<i class="fas fa-external-link-alt"></i>
 						</button>
 					</div>
-					<small class="text-muted">Если не указан, будет использоваться localhost:3001</small>
+					<small class="text-muted">Если не указан, будет использоваться localhost:50001</small>
 				</div>
 				<div class="form-group">
 					<label for="codex_docs_domain">Домен codex-docs для Базы знаний:</label>
@@ -300,7 +316,7 @@
 							<i class="fas fa-external-link-alt"></i>
 						</button>
 					</div>
-					<small class="text-muted">Если не указан, будет использоваться localhost:3002</small>
+					<small class="text-muted">Если не указан, будет использоваться localhost:50002</small>
 				</div>
 				<div class="form-group">
 					<label for="user_cabinet_domain">Домен для личного кабинета:</label>
@@ -310,7 +326,7 @@
 							id="user_cabinet_domain"
 							name="user_cabinet_domain"
 							value="{{ settings.user_cabinet_domain or '' }}"
-							placeholder="http://localhost:3003"
+							placeholder="http://localhost:50003"
 							title="Домен для личного кабинета пользователя"
 						/>
 						<button type="button" class="button button-secondary button-sm" onclick="openDomain('user_cabinet_domain')" title="Открыть домен в новой вкладке">

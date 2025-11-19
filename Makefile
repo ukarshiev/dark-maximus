@@ -128,7 +128,18 @@ db-backup: ## Создать резервную копию базы данных
 
 check: ## Проверить код (linting)
 	@echo "$(GREEN)Проверка кода...$(RESET)"
-	pylint src/shop_bot/ --disable=C0111,C0103 || true
+	@echo "$(GREEN)=== Python linting (pylint) ===$(RESET)"
+	PYTHONIOENCODING=utf-8 pylint src/shop_bot/ --disable=C0111,C0103 --fail-under=7.0 || true
+	@echo "$(GREEN)=== Python formatting (black) ===$(RESET)"
+	black --check src/shop_bot/ || true
+	@echo "$(GREEN)=== Jinja2 templates (djlint) ===$(RESET)"
+	djlint --check src/shop_bot/webhook_server/templates/ apps/user-cabinet/templates/ || true
+	@echo "$(GREEN)=== JavaScript (eslint) ===$(RESET)"
+	npx eslint apps/user-cabinet/static/js/ src/shop_bot/webhook_server/static/js/ apps/web-interface/server.js || true
+	@echo "$(GREEN)=== HTML (htmlhint) ===$(RESET)"
+	npx htmlhint apps/web-interface/src/*.html || true
+	@echo "$(GREEN)=== CSS (stylelint) ===$(RESET)"
+	npx stylelint "src/shop_bot/webhook_server/static/css/*.css" "apps/user-cabinet/static/css/*.css" --ignore-path .stylelintignore || true
 	@echo "$(GREEN)✓ Проверка завершена$(RESET)"
 
 format: ## Отформатировать код

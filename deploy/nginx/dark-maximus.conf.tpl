@@ -5,17 +5,22 @@ upstream bot_backend {
 }
 
 upstream docs_backend {
-    server 127.0.0.1:3001;
+    server 127.0.0.1:50001;
     keepalive 32;
 }
 
 upstream codex_docs_backend {
-    server 127.0.0.1:3002;
+    server 127.0.0.1:50002;
     keepalive 32;
 }
 
 upstream user_cabinet_backend {
-    server 127.0.0.1:3003;
+    server 127.0.0.1:50003;
+    keepalive 32;
+}
+
+upstream allure_backend {
+    server 127.0.0.1:50005;
     keepalive 32;
 }
 
@@ -136,6 +141,54 @@ server {
     }
 }
 
+# HTTP редирект на HTTPS для Allure
+server {
+    listen 80;
+    server_name ${ALLURE_DOMAIN};
+    return 301 https://$host$request_uri;
+}
+
+# HTTPS сервер для Allure
+server {
+    listen 443 ssl http2;
+    server_name ${ALLURE_DOMAIN};
+
+    # SSL сертификаты
+    ssl_certificate /etc/letsencrypt/live/${ALLURE_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${ALLURE_DOMAIN}/privkey.pem;
+    include /etc/nginx/snippets/ssl-params.conf;
+
+    # Ограничение размера загружаемых файлов
+    client_max_body_size 20m;
+
+    # Проксирование на allure-homepage сервис
+    location / {
+        proxy_pass http://allure_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+
+        # Таймауты
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+
+        # Буферизация
+        proxy_buffering on;
+        proxy_buffer_size 4k;
+        proxy_buffers 8 4k;
+    }
+
+    # Health check
+    location /health {
+        proxy_pass http://allure_backend/health;
+        access_log off;
+    }
+}
+
 # HTTP редирект на HTTPS для админской документации
 server {
     listen 80;
@@ -182,7 +235,7 @@ server {
     proxy_hide_header X-Frame-Options;
     proxy_hide_header Content-Security-Policy;
     add_header X-Frame-Options "ALLOWALL" always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https: data:; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss: https:; frame-ancestors 'self' https://app.dark-maximus.com http://localhost:3003;" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https: data:; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss: https:; frame-ancestors 'self' https://app.dark-maximus.com http://localhost:50003;" always;
 
     # Health check
     location /health {
@@ -240,6 +293,43 @@ server {
     location /health {
         proxy_pass http://user_cabinet_backend/health;
         access_log off;
+    }
+}
+
+# HTTP редирект на HTTPS для tests поддомена (мониторинг)
+server {
+    listen 80;
+    server_name tests.${MAIN_DOMAIN};
+    return 301 https://$host$request_uri;
+}
+
+# HTTPS сервер для tests поддомена (Allure отчеты / мониторинг)
+server {
+    listen 443 ssl http2;
+    server_name tests.${MAIN_DOMAIN};
+
+    # SSL сертификаты
+    ssl_certificate /etc/letsencrypt/live/tests.${MAIN_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/tests.${MAIN_DOMAIN}/privkey.pem;
+    include /etc/nginx/snippets/ssl-params.conf;
+
+    # Ограничение размера загружаемых файлов
+    client_max_body_size 20m;
+
+    # Проксирование на allure-service
+    location / {
+        proxy_pass http://allure_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+
+        # Таймауты для длительных операций
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
     }
 }
 

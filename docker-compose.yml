@@ -38,8 +38,9 @@ services:
       dockerfile: Dockerfile.docs
     container_name: dark-maximus-docs
     restart: unless-stopped
-    ports:
-      - '127.0.0.1:3001:80'
+    # Порт не публикуется наружу - доступен только через docs-proxy
+    expose:
+      - '80'
     healthcheck:
       test: ["CMD-SHELL", "nc -z localhost 80 || exit 1"]
       interval: 30s
@@ -49,6 +50,32 @@ services:
     networks:
       - dark-maximus-network
 
+  docs-proxy:
+    build:
+      context: ./apps/docs-proxy
+      dockerfile: Dockerfile
+    container_name: dark-maximus-docs-proxy
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:50001:50001'
+    volumes:
+      - ./sessions-docs:/app/sessions
+      - ./users.db:/app/users.db
+      - ./src:/app/src
+    environment:
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
+      - DOCS_BACKEND_URL=http://docs:80
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 50001 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - dark-maximus-network
+    depends_on:
+      - docs
+
   codex-docs:
     build:
       context: .
@@ -56,14 +83,14 @@ services:
     container_name: dark-maximus-codex-docs
     restart: unless-stopped
     ports:
-      - '127.0.0.1:3002:3000'
+      - '127.0.0.1:50002:50002'
     volumes:
       - ./codex.docs/uploads:/usr/src/app/uploads
       - ./codex.docs/db:/usr/src/app/db
     environment:
       - NODE_ENV=production
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 3000 || exit 1"]
+      test: ["CMD-SHELL", "nc -z localhost 50002 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -78,20 +105,85 @@ services:
     container_name: dark-maximus-user-cabinet
     restart: unless-stopped
     ports:
-      - '127.0.0.1:3003:3003'
+      - '127.0.0.1:50003:50003'
     volumes:
       - ./users.db:/app/project/users.db
       - ./src:/app/project/src
     environment:
       - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 3003 || exit 1"]
+      test: ["CMD-SHELL", "nc -z localhost 50003 || exit 1"]
       interval: 30s
       timeout: 3s
       retries: 3
       start_period: 5s
     networks:
       - dark-maximus-network
+
+  autotest:
+    build:
+      context: .
+      dockerfile: Dockerfile.tests
+    container_name: dark-maximus-autotest
+    volumes:
+      - ./tests:/app/tests
+      - ./src:/app/src
+      - ./apps:/app/apps
+      - ./allure-results:/app/allure-results
+      - ./allure-report:/app/allure-report
+      - ./.env:/app/.env:ro  # Маппинг .env файла для загрузки переменных окружения в тестах
+      - ./users.db:/app/users.db:ro  # Эталонная БД для тестов целостности схемы (только чтение)
+    networks:
+      - dark-maximus-network
+
+  allure-service:
+    image: frankescobar/allure-docker-service:latest
+    container_name: dark-maximus-allure
+    # Внутренний порт (не публикуется наружу, доступен только через allure-homepage)
+    expose:
+      - '5050'
+    ports:
+      - '127.0.0.1:50004:5050'
+    volumes:
+      - ./allure-results:/app/allure-docker-api/static/projects/default/results
+      - ./allure-report:/app/allure-report
+      - ./allure-reports:/app/allure-docker-api/static/projects
+      - ./allure-categories.json:/app/allure-categories.json
+    environment:
+      - CHECK_RESULTS_EVERY_SECONDS=3
+      - KEEP_HISTORY=1
+      - KEEP_HISTORY_LATEST=100
+      - ALLURE_PUBLIC_URL=http://localhost:50005
+      - URL_PREFIX=/allure-docker-service
+    networks:
+      - dark-maximus-network
+
+  allure-homepage:
+    build:
+      context: ./apps/allure-homepage
+      dockerfile: Dockerfile
+    container_name: dark-maximus-allure-homepage
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:50005:50005'
+    volumes:
+      - ./sessions-allure:/app/sessions
+      - ./users.db:/app/users.db
+      - ./src:/app/src
+    environment:
+      - ALLURE_SERVICE_URL=http://allure-service:5050
+      - PORT=50005
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 50005 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - dark-maximus-network
+    depends_on:
+      - allure-service
 
 networks:
   dark-maximus-network:

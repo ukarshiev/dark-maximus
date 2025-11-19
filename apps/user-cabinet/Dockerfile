@@ -22,11 +22,11 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY . .
 
 # Expose порт
-EXPOSE 3003
+EXPOSE 50003
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD nc -z localhost 3003 || exit 1
+    CMD nc -z localhost 50003 || exit 1
 
 # Запускаем Flask приложение
 CMD ["python", "app.py"]

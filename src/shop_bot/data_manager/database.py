@@ -9,6 +9,7 @@
 
 
 import sqlite3
+import contextlib
 
 from datetime import datetime, timezone, timedelta
 
@@ -178,6 +179,21 @@ def _column_exists(cursor, table_name: str, column_name: str) -> bool:
         return False
 
 
+@contextlib.contextmanager
+def _get_db_connection():
+    """Контекстный менеджер для получения соединения с БД с гарантированным закрытием.
+    
+    Используется для исправления ResourceWarning в Python 3.13+.
+    """
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        yield conn
+    finally:
+        if conn:
+            conn.close()
+
+
 # Локальная самодиагностика/восстановление БД при мягких повреждениях индексов
 def _repair_database_indexes() -> bool:
     """Пытается восстановить индексы и провести обслуживание БД.
@@ -335,14 +351,24 @@ def initialize_db():
                     conn = sqlite3.connect(str(DB_FILE), timeout=30)
                     cursor = conn.cursor()
                     
-                    # Установка WAL режима и оптимизационных PRAGMA
+                    # Установка режима журналирования и оптимизационных PRAGMA
                     try:
                         cursor.execute("PRAGMA busy_timeout=30000")
-                        cursor.execute("PRAGMA journal_mode=WAL")
+                        # Проверяем текущий режим и переключаем на DELETE, если нужно
+                        cursor.execute("PRAGMA journal_mode")
+                        current_mode = cursor.fetchone()[0]
+                        if current_mode.upper() != 'DELETE':
+                            logger.info(f"[PID {process_id}] Переключение режима журналирования с {current_mode} на DELETE")
+                            cursor.execute("PRAGMA journal_mode=DELETE")
+                            cursor.execute("PRAGMA journal_mode")
+                            new_mode = cursor.fetchone()[0]
+                            logger.info(f"[PID {process_id}] Режим журналирования переключен на {new_mode}")
+                        else:
+                            cursor.execute("PRAGMA journal_mode=DELETE")
                         cursor.execute("PRAGMA synchronous=NORMAL")
                         cursor.execute("PRAGMA cache_size=10000")
                         cursor.execute("PRAGMA temp_store=MEMORY")
-                        logger.debug(f"[PID {process_id}] Database PRAGMA settings configured (WAL mode enabled)")
+                        logger.debug(f"[PID {process_id}] Database PRAGMA settings configured (journal mode: DELETE)")
                     except sqlite3.Error as pragma_error:
                         logger.warning(f"[PID {process_id}] Failed to set some PRAGMA settings: {pragma_error}")
                         # Продолжаем работу даже если PRAGMA не установились
@@ -1055,6 +1081,9 @@ def create_database_indexes(cursor):
         if 'enabled' in vpn_keys_columns:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_vpn_keys_enabled ON vpn_keys(enabled)")
 
+        if 'auto_renewal_enabled' in vpn_keys_columns:
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_vpn_keys_auto_renewal_enabled ON vpn_keys(auto_renewal_enabled)")
+
         
 
         # Индексы для таблицы transactions
@@ -1191,7 +1220,7 @@ def run_migration(conn: Optional[sqlite3.Connection] = None):
         cursor = conn.cursor()
         # Устанавливаем PRAGMA для предотвращения блокировок только для нового соединения
         cursor.execute("PRAGMA busy_timeout=30000")
-        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA journal_mode=DELETE")
     else:
         cursor = conn.cursor()
         # Проверяем, что PRAGMA уже установлены (они должны быть установлены в initialize_db)
@@ -1467,6 +1496,54 @@ def run_migration(conn: Optional[sqlite3.Connection] = None):
 
             logging.info(" -> The column 'auto_renewal_enabled' already exists.")
 
+        # Миграция: добавляем поле keys_count для счетчика ключей пользователя
+        if 'keys_count' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN keys_count INTEGER DEFAULT 0")
+            logging.info(" -> The column 'keys_count' is successfully added to users table.")
+            
+            # Инициализируем счетчик для существующих пользователей
+            # Вычисляем максимальный номер ключа для каждого пользователя на основе email
+            logging.info(" -> Initializing keys_count for existing users...")
+            try:
+                # Получаем всех пользователей с ключами
+                cursor.execute("SELECT DISTINCT user_id FROM vpn_keys")
+                users_with_keys = cursor.fetchall()
+                
+                initialized_count = 0
+                for (user_id,) in users_with_keys:
+                    # Получаем все ключи пользователя
+                    cursor.execute("SELECT key_email FROM vpn_keys WHERE user_id = ?", (user_id,))
+                    user_keys = cursor.fetchall()
+                    
+                    max_key_number = 0
+                    for (key_email,) in user_keys:
+                        # Парсим номер ключа из email: user{user_id}-key{N}@...
+                        try:
+                            # Ищем паттерн -key{N}@ или -key{N}-trial@
+                            match = re.search(r'-key(\d+)', key_email)
+                            if match:
+                                key_num = int(match.group(1))
+                                if key_num > max_key_number:
+                                    max_key_number = key_num
+                        except (ValueError, AttributeError):
+                            continue
+                    
+                    if max_key_number > 0:
+                        cursor.execute(
+                            "UPDATE users SET keys_count = ? WHERE telegram_id = ?",
+                            (max_key_number, user_id)
+                        )
+                        initialized_count += 1
+                        logging.debug(f" -> Initialized keys_count={max_key_number} for user_id={user_id}")
+                
+                conn.commit()
+                logging.info(f" -> Initialized keys_count for {initialized_count} users.")
+            except Exception as e:
+                logging.warning(f" -> Failed to initialize keys_count for existing users: {e}", exc_info=True)
+                # Не прерываем миграцию, продолжаем работу
+        else:
+            logging.info(" -> The column 'keys_count' already exists in users table.")
+
         logging.info("The table 'users' has been successfully updated.")
 
         logging.info("The migration of the table 'vpn_keys' ...")
@@ -1580,6 +1657,18 @@ def run_migration(conn: Optional[sqlite3.Connection] = None):
         else:
 
             logging.info(" -> The column 'enabled' already exists in vpn_keys table.")
+
+        
+
+        if 'auto_renewal_enabled' not in vpn_keys_columns:
+
+            cursor.execute("ALTER TABLE vpn_keys ADD COLUMN auto_renewal_enabled INTEGER DEFAULT 1")
+
+            logging.info(" -> The column 'auto_renewal_enabled' is successfully added to vpn_keys table.")
+
+        else:
+
+            logging.info(" -> The column 'auto_renewal_enabled' already exists in vpn_keys table.")
 
         
 
@@ -1855,6 +1944,13 @@ def run_migration(conn: Optional[sqlite3.Connection] = None):
             logging.info(" -> The column 'key_provision_mode' is successfully added to plans table.")
         else:
             logging.info(" -> The column 'key_provision_mode' already exists in plans table.")
+
+        # Добавляем поле display_mode для выбора режима отображения тарифа
+        if 'display_mode' not in plans_columns:
+            cursor.execute("ALTER TABLE plans ADD COLUMN display_mode TEXT DEFAULT 'all'")
+            logging.info(" -> The column 'display_mode' is successfully added to plans table.")
+        else:
+            logging.info(" -> The column 'display_mode' already exists in plans table.")
 
         # Добавляем поле display_mode_groups для выбора групп пользователей
         if 'display_mode_groups' not in plans_columns:
@@ -2366,19 +2462,44 @@ def run_migration(conn: Optional[sqlite3.Connection] = None):
                     default_templates = [
                         ('purchase_success_key', 'purchase', 'key', 
                          '🎉 <b>Ваш ключ #{key_number}{trial_suffix} {action_text}!</b>\n\n⏳ <b>Он будет действовать до:</b> {expiry_formatted}\n\n⬇️ <b>НИЖЕ ВАШ КЛЮЧ</b> ⬇️\n------------------------------------------------------------------------\n<code>{connection_string}</code>\n------------------------------------------------------------------------\n<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n{cabinet_text}{fallback_text}',
-                         'Сообщение о покупке для режима "Ключ"', '["key_number", "trial_suffix", "action_text", "expiry_formatted", "connection_string", "cabinet_text", "fallback_text"]'),
+                         'Сообщение о покупке для режима "Ключ"', '["key_number", "trial_suffix", "action_text", "expiry_formatted", "connection_string", "cabinet_text", "fallback_text", "status_icon", "host_flag", "tariff_name", "price_formatted", "tariff_info"]'),
+                        
                         ('purchase_success_subscription', 'purchase', 'subscription',
                          '🎉 <b>Ваш ключ #{key_number}{trial_suffix} {action_text}!</b>\n\n⏳ <b>Он будет действовать до:</b> {expiry_formatted}\n\n⬇️ <b>ВАША ПОДПИСКА</b> ⬇️\n------------------------------------------------------------------------\n{subscription_link}\n------------------------------------------------------------------------\n<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n{cabinet_text}{fallback_text}',
-                         'Сообщение о покупке для режима "Подписка"', '["key_number", "trial_suffix", "action_text", "expiry_formatted", "subscription_link", "cabinet_text", "fallback_text"]'),
+                         'Сообщение о покупке для режима "Подписка"', '["key_number", "trial_suffix", "action_text", "expiry_formatted", "subscription_link", "cabinet_text", "fallback_text", "status_icon", "host_flag", "tariff_name", "price_formatted", "tariff_info"]'),
+                        
                         ('purchase_success_both', 'purchase', 'both',
                          '🎉 <b>Ваш ключ #{key_number}{trial_suffix} {action_text}!</b>\n\n⏳ <b>Он будет действовать до:</b> {expiry_formatted}\n\n⬇️ <b>НИЖЕ ВАШ КЛЮЧ</b> ⬇️\n------------------------------------------------------------------------\n<code>{connection_string}</code>\n------------------------------------------------------------------------\n\n⬇️ <b>ВАША ПОДПИСКА</b> ⬇️\n------------------------------------------------------------------------\n{subscription_link}\n------------------------------------------------------------------------\n<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n{cabinet_text}{fallback_text}',
-                         'Сообщение о покупке для режима "Ключ + Подписка"', '["key_number", "trial_suffix", "action_text", "expiry_formatted", "connection_string", "subscription_link", "cabinet_text", "fallback_text"]'),
+                         'Сообщение о покупке для режима "Ключ + Подписка"', '["key_number", "trial_suffix", "action_text", "expiry_formatted", "connection_string", "subscription_link", "cabinet_text", "fallback_text", "status_icon", "host_flag", "tariff_name", "price_formatted", "tariff_info"]'),
+                        
                         ('purchase_success_cabinet', 'purchase', 'cabinet',
                          '🎉 <b>Ваш ключ #{key_number}{trial_suffix} {action_text}!</b>\n\n⏳ <b>Он будет действовать до:</b> {expiry_formatted}\n\n⬇️ <b>ВАШ ЛИЧНЫЙ КАБИНЕТ</b> ⬇️\n------------------------------------------------------------------------\n<a href="{cabinet_url}">{cabinet_url}</a>\n------------------------------------------------------------------------\n<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n',
-                         'Сообщение о покупке для режима "Личный кабинет"', '["key_number", "trial_suffix", "action_text", "expiry_formatted", "cabinet_url"]'),
+                         'Сообщение о покупке для режима "Личный кабинет"', '["key_number", "trial_suffix", "action_text", "expiry_formatted", "cabinet_url", "status_icon", "host_flag", "tariff_name", "price_formatted", "tariff_info"]'),
+                        
                         ('purchase_success_cabinet_subscription', 'purchase', 'cabinet_subscription',
                          '🎉 <b>Ваш ключ #{key_number}{trial_suffix} {action_text}!</b>\n\n⏳ <b>Он будет действовать до:</b> {expiry_formatted}\n\n⬇️ <b>ВАШ ЛИЧНЫЙ КАБИНЕТ</b> ⬇️\n------------------------------------------------------------------------\n<a href="{cabinet_url}">{cabinet_url}</a>\n------------------------------------------------------------------------\n<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n',
-                         'Сообщение о покупке для режима "Личный кабинет + Подписка"', '["key_number", "trial_suffix", "action_text", "expiry_formatted", "cabinet_url", "subscription_link"]'),
+                         'Сообщение о покупке для режима "Личный кабинет + Подписка"', '["key_number", "trial_suffix", "action_text", "expiry_formatted", "cabinet_url", "subscription_link", "status_icon", "host_flag", "tariff_name", "price_formatted", "tariff_info"]'),
+                        
+                        # Шаблоны информации о ключе
+                        ('key_info_key', 'key_info', 'key',
+                         '<b>🔑 Информация о ключе #{key_number}{trial_suffix}</b><br><br><b>➕ Приобретён:</b> {created_formatted}<br><b>⏳ Действителен до:</b> {expiry_formatted}<br><b>{status_icon} Статус:</b> {status_text}<br><br>⬇️ <b>НИЖЕ ВАШ КЛЮЧ</b> ⬇️<br>------------------------------------------------------------------------<br><code>{connection_string}</code><br>------------------------------------------------------------------------<br><blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>',
+                         'Информация о ключе для режима "Ключ"', '["key_number", "trial_suffix", "created_formatted", "expiry_formatted", "status_icon", "status_text", "connection_string", "host_flag", "tariff_name", "price_formatted", "tariff_info"]'),
+                        
+                        ('key_info_subscription', 'key_info', 'subscription',
+                         '<b>🔑 Информация о ключе #{key_number}{trial_suffix}</b><br><br><b>➕ Приобретён:</b> {created_formatted}<br><b>⏳ Действителен до:</b> {expiry_formatted}<br><b>{status_icon} Статус:</b> {status_text}<br><br>⬇️ <b>ВАША ПОДПИСКА</b> ⬇️<br>------------------------------------------------------------------------<br>{subscription_link}<br>------------------------------------------------------------------------<br><blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>',
+                         'Информация о ключе для режима "Подписка"', '["key_number", "trial_suffix", "created_formatted", "expiry_formatted", "status_icon", "status_text", "subscription_link", "host_flag", "tariff_name", "price_formatted", "tariff_info"]'),
+                        
+                        ('key_info_both', 'key_info', 'both',
+                         '<b>🔑 Информация о ключе #{key_number}{trial_suffix}</b><br><br><b>➕ Приобретён:</b> {created_formatted}<br><b>⏳ Действителен до:</b> {expiry_formatted}<br><b>{status_icon} Статус:</b> {status_text}<br><br>⬇️ <b>НИЖЕ ВАШ КЛЮЧ</b> ⬇️<br>------------------------------------------------------------------------<br><code>{connection_string}</code><br>------------------------------------------------------------------------<br>💡<i>Просто нажмите на ключ один раз, чтобы скопировать</i><br><br>⬇️ <b>ВАША ПОДПИСКА</b> ⬇️<br>------------------------------------------------------------------------<br>{subscription_link}<br>------------------------------------------------------------------------<br><blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>',
+                         'Информация о ключе для режима "Ключ + Подписка"', '["key_number", "trial_suffix", "created_formatted", "expiry_formatted", "status_icon", "status_text", "connection_string", "subscription_link", "host_flag", "tariff_name", "price_formatted", "tariff_info"]'),
+                        
+                        ('key_info_cabinet', 'key_info', 'cabinet',
+                         '<b>🔑 Информация о ключе #{key_number}{trial_suffix}</b><br><br><b>➕ Приобретён:</b> {created_formatted}<br><b>⏳ Действителен до:</b> {expiry_formatted}<br><b>{status_icon} Статус:</b> {status_text}<br><br>⬇️ <b>ВАШ ЛИЧНЫЙ КАБИНЕТ</b> ⬇️<br>------------------------------------------------------------------------<br><a href="{cabinet_url}">{cabinet_url}</a><br>------------------------------------------------------------------------<br><br><blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>',
+                         'Информация о ключе для режима "Личный кабинет"', '["key_number", "trial_suffix", "created_formatted", "expiry_formatted", "status_icon", "status_text", "cabinet_url", "host_flag", "tariff_name", "price_formatted", "tariff_info"]'),
+                        
+                        ('key_info_cabinet_subscription', 'key_info', 'cabinet_subscription',
+                         '<b>🔑 Информация о ключе #{key_number}{trial_suffix}</b><br><br><b>➕ Приобретён:</b> {created_formatted}<br><b>⏳ Действителен до:</b> {expiry_formatted}<br><b>{status_icon} Статус:</b> {status_text}<br><br>⬇️ <b>ВАШ ЛИЧНЫЙ КАБИНЕТ</b> ⬇️<br>------------------------------------------------------------------------<br><a href="{cabinet_url}">{cabinet_url}</a><br>------------------------------------------------------------------------<br><br><blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>',
+                         'Информация о ключе для режима "Личный кабинет + Подписка"', '["key_number", "trial_suffix", "created_formatted", "expiry_formatted", "status_icon", "status_text", "cabinet_url", "subscription_link", "host_flag", "tariff_name", "price_formatted", "tariff_info"]'),
                     ]
                     
                     for template_key, category, provision_mode, template_text, description, variables in default_templates:
@@ -2491,7 +2612,7 @@ def create_host(name: str, url: str, user: str, passwd: str, inbound: int, host_
 
     try:
 
-        with sqlite3.connect(DB_FILE) as conn:
+        with _get_db_connection() as conn:
 
             cursor = conn.cursor()
 
@@ -2699,21 +2820,13 @@ def get_all_hosts() -> list[dict]:
 def get_all_keys() -> list[dict]:
 
     try:
-
-        with sqlite3.connect(DB_FILE) as conn:
-
+        with _get_db_connection() as conn:
             conn.row_factory = sqlite3.Row
-
             cursor = conn.cursor()
-
             cursor.execute("SELECT * FROM vpn_keys")
-
             return [dict(row) for row in cursor.fetchall()]
-
     except sqlite3.Error as e:
-
         logging.error(f"Failed to get all keys: {e}")
-
         return []
 
 
@@ -2795,11 +2908,6 @@ def update_setting(key: str, value: str):
 
             cursor.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)", (key, value))
 
-            conn.commit()
-            
-            # КРИТИЧЕСКИ ВАЖНО: Принудительная синхронизация WAL для немедленного отображения изменений
-            # Это гарантирует, что изменения видны сразу после сохранения без задержек WAL
-            cursor.execute("PRAGMA wal_checkpoint(FULL)")
             conn.commit()
             
             # Проверяем что действительно сохранилось
@@ -3045,32 +3153,29 @@ def migrate_backup_settings(conn: sqlite3.Connection):
 
 def create_plan(host_name: str, plan_name: str, months: int, price: float, days: int = 0, traffic_gb: float = 0.0, hours: int = 0, key_provision_mode: str = 'key', display_mode: str = 'all', display_mode_groups: list[int] | None = None):
     try:
-        with sqlite3.connect(DB_FILE) as conn:
+        with _get_db_connection() as conn:
             cursor = conn.cursor()
 
-            # Ensure 'hours' column exists
-            try:
-                cursor.execute("ALTER TABLE plans ADD COLUMN hours INTEGER DEFAULT 0")
-            except Exception as e:
-                logger.debug(f"Failed to add hours column to plans table: {e}")
+            # Проверяем существование колонок через PRAGMA table_info (безопасный метод, только чтение)
+            # Если колонки отсутствуют - это означает проблему с миграцией, логируем предупреждение
+            cursor.execute("PRAGMA table_info(plans)")
+            plans_columns = [row[1] for row in cursor.fetchall()]
 
-            # Ensure 'key_provision_mode' column exists
-            try:
-                cursor.execute("ALTER TABLE plans ADD COLUMN key_provision_mode TEXT DEFAULT 'key'")
-            except Exception as e:
-                logger.debug(f"Failed to add key_provision_mode column to plans table: {e}")
+            missing_columns = []
+            if 'hours' not in plans_columns:
+                missing_columns.append('hours')
+            if 'key_provision_mode' not in plans_columns:
+                missing_columns.append('key_provision_mode')
+            if 'display_mode' not in plans_columns:
+                missing_columns.append('display_mode')
+            if 'display_mode_groups' not in plans_columns:
+                missing_columns.append('display_mode_groups')
 
-            # Ensure 'display_mode' column exists
-            try:
-                cursor.execute("ALTER TABLE plans ADD COLUMN display_mode TEXT DEFAULT 'all'")
-            except Exception as e:
-                logger.debug(f"Failed to add display_mode column to plans table: {e}")
-
-            # Ensure 'display_mode_groups' column exists
-            try:
-                cursor.execute("ALTER TABLE plans ADD COLUMN display_mode_groups TEXT DEFAULT NULL")
-            except Exception as e:
-                logger.debug(f"Failed to add display_mode_groups column to plans table: {e}")
+            if missing_columns:
+                logger.warning(
+                    f"Missing columns in plans table: {', '.join(missing_columns)}. "
+                    f"Database migration may not have been executed. Please run migration."
+                )
 
             # Сериализуем display_mode_groups в JSON
             serialized_display_mode_groups = None
@@ -3100,47 +3205,32 @@ def get_plans_for_host(host_name: str) -> list[dict]:
 
     try:
 
-        with sqlite3.connect(DB_FILE) as conn:
+        with _get_db_connection() as conn:
 
             conn.row_factory = sqlite3.Row
 
             cursor = conn.cursor()
 
-            # Ensure hours column exists
+            # Проверяем существование колонок через PRAGMA table_info (безопасный метод, только чтение)
+            # Если колонки отсутствуют - это означает проблему с миграцией, логируем предупреждение
+            cursor.execute("PRAGMA table_info(plans)")
+            plans_columns = [row[1] for row in cursor.fetchall()]
 
-            try:
+            missing_columns = []
+            if 'hours' not in plans_columns:
+                missing_columns.append('hours')
+            if 'key_provision_mode' not in plans_columns:
+                missing_columns.append('key_provision_mode')
+            if 'display_mode' not in plans_columns:
+                missing_columns.append('display_mode')
+            if 'display_mode_groups' not in plans_columns:
+                missing_columns.append('display_mode_groups')
 
-                cursor.execute("ALTER TABLE plans ADD COLUMN hours INTEGER DEFAULT 0")
-
-            except Exception as e:
-                logger.debug(f"Failed to add hours column to plans table in get_plans_for_host: {e}")
-
-            # Ensure key_provision_mode column exists
-
-            try:
-
-                cursor.execute("ALTER TABLE plans ADD COLUMN key_provision_mode TEXT DEFAULT 'key'")
-
-            except Exception as e:
-                logger.debug(f"Failed to add key_provision_mode column to plans table in get_plans_for_host: {e}")
-
-            # Ensure display_mode column exists
-
-            try:
-
-                cursor.execute("ALTER TABLE plans ADD COLUMN display_mode TEXT DEFAULT 'all'")
-
-            except Exception as e:
-                logger.debug(f"Failed to add display_mode column to plans table in get_plans_for_host: {e}")
-
-            # Ensure display_mode_groups column exists
-
-            try:
-
-                cursor.execute("ALTER TABLE plans ADD COLUMN display_mode_groups TEXT DEFAULT NULL")
-
-            except Exception as e:
-                logger.debug(f"Failed to add display_mode_groups column to plans table in get_plans_for_host: {e}")
+            if missing_columns:
+                logger.warning(
+                    f"Missing columns in plans table: {', '.join(missing_columns)}. "
+                    f"Database migration may not have been executed. Please run migration."
+                )
 
             cursor.execute("SELECT * FROM plans WHERE host_name = ? ORDER BY months, days, hours", (host_name,))
 
@@ -3235,42 +3325,26 @@ def update_plan(plan_id: int, plan_name: str, months: int, days: int, price: flo
 
             cursor = conn.cursor()
 
-            # Ensure 'hours' column exists
+            # Проверяем существование колонок через PRAGMA table_info (безопасный метод, только чтение)
+            # Если колонки отсутствуют - это означает проблему с миграцией, логируем предупреждение
+            cursor.execute("PRAGMA table_info(plans)")
+            plans_columns = [row[1] for row in cursor.fetchall()]
 
-            try:
+            missing_columns = []
+            if 'hours' not in plans_columns:
+                missing_columns.append('hours')
+            if 'key_provision_mode' not in plans_columns:
+                missing_columns.append('key_provision_mode')
+            if 'display_mode' not in plans_columns:
+                missing_columns.append('display_mode')
+            if 'display_mode_groups' not in plans_columns:
+                missing_columns.append('display_mode_groups')
 
-                cursor.execute("ALTER TABLE plans ADD COLUMN hours INTEGER DEFAULT 0")
-
-            except Exception:
-
-                pass
-
-            # Ensure 'key_provision_mode' column exists
-
-            try:
-
-                cursor.execute("ALTER TABLE plans ADD COLUMN key_provision_mode TEXT DEFAULT 'key'")
-
-            except Exception as e:
-                logger.debug(f"Failed to add key_provision_mode column to plans table in update_plan: {e}")
-
-            # Ensure 'display_mode' column exists
-
-            try:
-
-                cursor.execute("ALTER TABLE plans ADD COLUMN display_mode TEXT DEFAULT 'all'")
-
-            except Exception as e:
-                logger.debug(f"Failed to add display_mode column to plans table in update_plan: {e}")
-
-            # Ensure 'display_mode_groups' column exists
-
-            try:
-
-                cursor.execute("ALTER TABLE plans ADD COLUMN display_mode_groups TEXT DEFAULT NULL")
-
-            except Exception as e:
-                logger.debug(f"Failed to add display_mode_groups column to plans table in update_plan: {e}")
+            if missing_columns:
+                logger.warning(
+                    f"Missing columns in plans table: {', '.join(missing_columns)}. "
+                    f"Database migration may not have been executed. Please run migration."
+                )
 
             # Сериализуем display_mode_groups в JSON
             serialized_display_mode_groups = None
@@ -3329,6 +3403,57 @@ def has_user_used_plan(user_id: int, plan_id: int) -> bool:
         return False
 
 
+def get_user_used_plans_batch(user_id: int) -> set[int]:
+    """
+    Получает все plan_id из оплаченных транзакций пользователя одним запросом.
+    Оптимизированная версия для устранения N+1 проблемы.
+    
+    Args:
+        user_id: ID пользователя
+        
+    Returns:
+        Множество plan_id, которые пользователь использовал ранее
+    """
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            
+            # Получаем все metadata из оплаченных транзакций пользователя
+            cursor.execute(
+                "SELECT metadata FROM transactions WHERE user_id = ? AND status = 'paid' AND metadata IS NOT NULL",
+                (user_id,)
+            )
+            
+            rows = cursor.fetchall()
+            used_plan_ids = set()
+            
+            # Парсим JSON из metadata и извлекаем plan_id
+            for (metadata_str,) in rows:
+                if not metadata_str:
+                    continue
+                    
+                try:
+                    metadata = json.loads(metadata_str)
+                    plan_id = metadata.get('plan_id')
+                    if plan_id is not None:
+                        # Преобразуем в int для консистентности
+                        try:
+                            used_plan_ids.add(int(plan_id))
+                        except (ValueError, TypeError):
+                            # Если plan_id не число, пропускаем
+                            continue
+                except (json.JSONDecodeError, TypeError):
+                    # Если metadata не валидный JSON, пропускаем
+                    continue
+            
+            return used_plan_ids
+            
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get user used plans batch for user {user_id}: {e}")
+        # Возвращаем пустое множество в случае ошибки (безопасный fallback)
+        return set()
+
+
 def filter_plans_by_display_mode(plans: list[dict], user_id: int) -> list[dict]:
     """
     Фильтрует список тарифов по режиму отображения для конкретного пользователя.
@@ -3353,6 +3478,10 @@ def filter_plans_by_display_mode(plans: list[dict], user_id: int) -> list[dict]:
     user_group_info = get_user_group_info(user_id)
     user_group_id = user_group_info.get('group_id') if user_group_info else None
     
+    # Оптимизация: получаем все использованные планы пользователя одним запросом
+    # Это устраняет N+1 проблему при проверке display_mode 'hidden_new' и 'hidden_old'
+    used_plan_ids = get_user_used_plans_batch(user_id)
+    
     filtered_plans = []
     
     for plan in plans:
@@ -3371,7 +3500,8 @@ def filter_plans_by_display_mode(plans: list[dict], user_id: int) -> list[dict]:
         else:
             # Для режимов 'hidden_new' и 'hidden_old' проверяем историю использования
             if plan_id:
-                has_used = has_user_used_plan(user_id, plan_id)
+                # Используем оптимизированную проверку через set (O(1) вместо запроса к БД)
+                has_used = plan_id in used_plan_ids
                 
                 # Если 'hidden_new' - скрываем от тех, кто НЕ использовал (новые)
                 if display_mode == 'hidden_new' and not has_used:
@@ -3401,19 +3531,19 @@ def _normalize_bot_value(bot: str) -> str:
     """Нормализует и валидирует значение бота.
     
     Args:
-        bot: Название бота (должно быть 'shop')
+        bot: Название бота (должно быть 'shop' или 'test_bot' для тестов)
         
     Returns:
         Нормализованное значение бота в нижнем регистре
         
     Raises:
-        ValueError: Если бот не 'shop'
+        ValueError: Если бот не 'shop' или 'test_bot'
     """
     normalized = (bot or "").strip().lower()
     
-    # Валидация: поддерживаем только 'shop' бота
-    if normalized and normalized != 'shop':
-        raise ValueError(f"Неподдерживаемый тип бота: '{bot}'. Допустимые значения: 'shop'")
+    # Валидация: поддерживаем 'shop' бота и 'test_bot' для тестов
+    if normalized and normalized not in ('shop', 'test_bot'):
+        raise ValueError(f"Неподдерживаемый тип бота: '{bot}'. Допустимые значения: 'shop', 'test_bot'")
     
     return normalized
 
@@ -3765,8 +3895,8 @@ def update_promo_usage_status(usage_id: int, plan_id: int | None = None) -> bool
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             
-            # Включаем WAL режим для лучшей производительности при конкурентном доступе
-            cursor.execute("PRAGMA journal_mode=WAL")
+            # Устанавливаем режим журналирования
+            cursor.execute("PRAGMA journal_mode=DELETE")
             
             # Начинаем транзакцию с блокировкой
             cursor.execute("BEGIN IMMEDIATE")
@@ -4137,8 +4267,8 @@ def record_promo_code_usage(
 
             cursor = conn.cursor()
             
-            # Включаем WAL режим для лучшей производительности при конкурентном доступе
-            cursor.execute("PRAGMA journal_mode=WAL")
+            # Устанавливаем режим журналирования
+            cursor.execute("PRAGMA journal_mode=DELETE")
             
             # Начинаем транзакцию с блокировкой
             cursor.execute("BEGIN IMMEDIATE")
@@ -4268,8 +4398,8 @@ def remove_promo_code_usage(promo_id: int, bot: str) -> bool:
 
             cursor = conn.cursor()
             
-            # Включаем WAL режим для лучшей производительности при конкурентном доступе
-            cursor.execute("PRAGMA journal_mode=WAL")
+            # Устанавливаем режим журналирования
+            cursor.execute("PRAGMA journal_mode=DELETE")
             
             # Начинаем транзакцию
             cursor.execute("BEGIN IMMEDIATE")
@@ -4458,8 +4588,8 @@ def remove_user_promo_code_usage(user_id: int, usage_id: int, bot: str) -> bool:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             
-            # Включаем WAL режим для лучшей производительности при конкурентном доступе
-            cursor.execute("PRAGMA journal_mode=WAL")
+            # Устанавливаем режим журналирования
+            cursor.execute("PRAGMA journal_mode=DELETE")
             
             # Начинаем транзакцию
             cursor.execute("BEGIN IMMEDIATE")
@@ -4566,8 +4696,9 @@ def register_user_if_not_exists(telegram_id: int, username: str, referrer_id, fu
 
     try:
 
-        with sqlite3.connect(DB_FILE) as conn:
+        with _get_db_connection() as conn:
 
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
             cursor.execute("SELECT telegram_id FROM users WHERE telegram_id = ?", (telegram_id,))
@@ -4600,10 +4731,17 @@ def register_user_if_not_exists(telegram_id: int, username: str, referrer_id, fu
                 cursor.execute("UPDATE users SET username = ?, fullname = ? WHERE telegram_id = ?", (username, fullname, telegram_id))
 
             conn.commit()
+            
+            # Получаем и возвращаем созданного/обновлённого пользователя
+            cursor.execute("SELECT * FROM users WHERE telegram_id = ?", (telegram_id,))
+            user_data = cursor.fetchone()
+            
+            return dict(user_data) if user_data else None
 
     except sqlite3.Error as e:
 
         logging.error(f"Failed to register user {telegram_id}: {e}")
+        return None
 
 
 
@@ -4711,7 +4849,7 @@ def get_user(telegram_id: int):
 
     try:
 
-        with sqlite3.connect(DB_FILE) as conn:
+        with _get_db_connection() as conn:
 
             conn.row_factory = sqlite3.Row
 
@@ -4734,21 +4872,13 @@ def get_user(telegram_id: int):
 def get_user_balance(user_id: int) -> float:
 
     try:
-
-        with sqlite3.connect(DB_FILE) as conn:
-
+        with _get_db_connection() as conn:
             cursor = conn.cursor()
-
             cursor.execute("SELECT balance FROM users WHERE telegram_id = ?", (user_id,))
-
             row = cursor.fetchone()
-
             return float(row[0]) if row and row[0] is not None else 0.0
-
     except sqlite3.Error as e:
-
         logging.error(f"Failed to get balance for user {user_id}: {e}")
-
         return 0.0
 
 
@@ -4803,7 +4933,7 @@ def set_auto_renewal_enabled(user_id: int, enabled: bool) -> bool:
 
     try:
 
-        with sqlite3.connect(DB_FILE) as conn:
+        with _get_db_connection() as conn:
 
             cursor = conn.cursor()
 
@@ -4825,7 +4955,7 @@ def set_auto_renewal_enabled(user_id: int, enabled: bool) -> bool:
 
                 # Пытаемся добавить колонку напрямую
 
-                with sqlite3.connect(DB_FILE) as conn2:
+                with _get_db_connection() as conn2:
 
                     cursor2 = conn2.cursor()
 
@@ -4861,6 +4991,114 @@ def set_auto_renewal_enabled(user_id: int, enabled: bool) -> bool:
 
 
 
+def get_key_auto_renewal_enabled(key_id: int) -> bool:
+
+    """Получает статус автопродления для конкретного ключа. По умолчанию True (включено)."""
+
+    try:
+
+        with _get_db_connection() as conn:
+
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT auto_renewal_enabled FROM vpn_keys WHERE key_id = ?", (key_id,))
+
+            row = cursor.fetchone()
+
+            # По умолчанию автопродление включено (1), если поле NULL или отсутствует - возвращаем True
+
+            if row and row[0] is not None:
+
+                return bool(row[0])
+
+            return True  # По умолчанию включено
+
+    except sqlite3.OperationalError as e:
+
+        # Если колонка еще не существует (миграция не выполнилась), возвращаем True по умолчанию
+
+        if "no such column" in str(e).lower():
+
+            logging.debug(f"Column auto_renewal_enabled does not exist yet for key {key_id}, returning default True")
+
+            return True  # По умолчанию включено
+
+        logging.error(f"Failed to get auto_renewal_enabled for key {key_id}: {e}")
+
+        return True  # По умолчанию включено при ошибке
+
+    except sqlite3.Error as e:
+
+        logging.error(f"Failed to get auto_renewal_enabled for key {key_id}: {e}")
+
+        return True  # По умолчанию включено при ошибке
+
+
+
+def set_key_auto_renewal_enabled(key_id: int, enabled: bool) -> bool:
+
+    """Устанавливает статус автопродления для ключа."""
+
+    try:
+
+        with _get_db_connection() as conn:
+
+            cursor = conn.cursor()
+
+            cursor.execute("UPDATE vpn_keys SET auto_renewal_enabled = ? WHERE key_id = ?", (1 if enabled else 0, key_id))
+
+            conn.commit()
+
+            return True
+
+    except sqlite3.OperationalError as e:
+
+        # Если колонка еще не существует (миграция не выполнилась), пытаемся выполнить миграцию
+
+        if "no such column" in str(e).lower():
+
+            logging.warning(f"Column auto_renewal_enabled does not exist yet in vpn_keys. Attempting to add it...")
+
+            try:
+
+                # Пытаемся добавить колонку напрямую
+
+                with _get_db_connection() as conn2:
+
+                    cursor2 = conn2.cursor()
+
+                    cursor2.execute("ALTER TABLE vpn_keys ADD COLUMN auto_renewal_enabled INTEGER DEFAULT 1")
+
+                    conn2.commit()
+
+                    # Теперь устанавливаем значение
+
+                    cursor2.execute("UPDATE vpn_keys SET auto_renewal_enabled = ? WHERE key_id = ?", (1 if enabled else 0, key_id))
+
+                    conn2.commit()
+
+                    logging.info(f"Column auto_renewal_enabled added and value set for key {key_id}")
+
+                    return True
+
+            except Exception as e2:
+
+                logging.error(f"Failed to add column auto_renewal_enabled to vpn_keys: {e2}")
+
+                return False
+
+        logging.error(f"Failed to set auto_renewal_enabled for key {key_id}: {e}")
+
+        return False
+
+    except sqlite3.Error as e:
+
+        logging.error(f"Failed to set auto_renewal_enabled for key {key_id}: {e}")
+
+        return False
+
+
+
 def add_to_user_balance(user_id: int, amount: float) -> bool:
 
     try:
@@ -4869,7 +5107,7 @@ def add_to_user_balance(user_id: int, amount: float) -> bool:
 
             return True
 
-        with sqlite3.connect(DB_FILE) as conn:
+        with _get_db_connection() as conn:
 
             cursor = conn.cursor()
 
@@ -5142,7 +5380,7 @@ def create_pending_transaction(payment_id: str, user_id: int, amount_rub: float,
             # Устанавливаем PRAGMA для предотвращения блокировок
             try:
                 cursor.execute("PRAGMA busy_timeout=30000")
-                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA journal_mode=DELETE")
             except sqlite3.Error as e:
                 logging.debug(f"Failed to set PRAGMA in create_pending_transaction: {e}")
 
@@ -5370,6 +5608,70 @@ def update_transaction_on_payment(payment_id: str, status: str, amount_rub: floa
         return False
 
 
+def update_yookassa_transaction_atomic(payment_id: str, old_status: str, new_status: str, amount_rub: float, 
+                                      yookassa_payment_id: str | None = None, rrn: str | None = None, 
+                                      authorization_code: str | None = None, payment_type: str | None = None,
+                                      metadata: dict | None = None, api_response: str | None = None) -> bool:
+    """
+    Атомарно обновляет транзакцию YooKassa только если текущий статус соответствует old_status.
+    Это предотвращает race conditions при одновременной обработке webhook'ов.
+    """
+    try:
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
+            cursor = conn.cursor()
+            
+            # Устанавливаем PRAGMA для предотвращения блокировок
+            try:
+                cursor.execute("PRAGMA busy_timeout=30000")
+                cursor.execute("PRAGMA journal_mode=DELETE")
+            except sqlite3.Error as e:
+                logging.debug(f"Failed to set PRAGMA in update_yookassa_transaction_atomic: {e}")
+            
+            # Начинаем транзакцию с блокировкой
+            cursor.execute("BEGIN IMMEDIATE")
+            
+            try:
+                # Проверяем текущий статус и обновляем только если он соответствует ожидаемому
+                if api_response is not None:
+                    cursor.execute("""
+                        UPDATE transactions 
+                        SET status = ?, amount_rub = ?, yookassa_payment_id = ?, rrn = ?, 
+                            authorization_code = ?, payment_type = ?, metadata = ?, api_response = ?
+                        WHERE payment_id = ? AND status = ?
+                    """, (new_status, amount_rub, yookassa_payment_id, rrn, authorization_code, 
+                          payment_type, json.dumps(metadata) if metadata else None, api_response, 
+                          payment_id, old_status))
+                else:
+                    cursor.execute("""
+                        UPDATE transactions 
+                        SET status = ?, amount_rub = ?, yookassa_payment_id = ?, rrn = ?, 
+                            authorization_code = ?, payment_type = ?, metadata = ?
+                        WHERE payment_id = ? AND status = ?
+                    """, (new_status, amount_rub, yookassa_payment_id, rrn, authorization_code, 
+                          payment_type, json.dumps(metadata) if metadata else None, 
+                          payment_id, old_status))
+                
+                updated = cursor.rowcount > 0
+                
+                if updated:
+                    cursor.execute("COMMIT")
+                    logging.info(f"Atomically updated YooKassa transaction {payment_id} from {old_status} to {new_status}")
+                else:
+                    cursor.execute("ROLLBACK")
+                    logging.warning(f"Failed to atomically update YooKassa transaction {payment_id}: status mismatch (expected {old_status})")
+                
+                return updated
+                
+            except sqlite3.Error as e:
+                cursor.execute("ROLLBACK")
+                logging.error(f"Database error in update_yookassa_transaction_atomic: {e}")
+                raise
+
+    except sqlite3.Error as e:
+        logging.error(f"Failed to atomically update YooKassa transaction: {e}")
+        return False
+
+
 def update_yookassa_transaction(payment_id: str, status: str, amount_rub: float, 
                               yookassa_payment_id: str | None = None, rrn: str | None = None, 
                               authorization_code: str | None = None, payment_type: str | None = None,
@@ -5386,7 +5688,7 @@ def update_yookassa_transaction(payment_id: str, status: str, amount_rub: float,
             # Устанавливаем PRAGMA для предотвращения блокировок
             try:
                 cursor.execute("PRAGMA busy_timeout=30000")
-                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA journal_mode=DELETE")
             except sqlite3.Error as e:
                 logging.debug(f"Failed to set PRAGMA in update_yookassa_transaction: {e}")
 
@@ -5457,7 +5759,7 @@ def save_webhook_to_db(webhook_type: str, event_type: str, payment_id: str | Non
             # Устанавливаем PRAGMA для предотвращения блокировок
             try:
                 cursor.execute("PRAGMA busy_timeout=30000")
-                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA journal_mode=DELETE")
             except sqlite3.Error as e:
                 logging.debug(f"Failed to set PRAGMA in save_webhook_to_db: {e}")
             
@@ -5516,7 +5818,7 @@ def cleanup_old_webhooks(days_to_keep: int = 90) -> int:
             # Устанавливаем PRAGMA для предотвращения блокировок
             try:
                 cursor.execute("PRAGMA busy_timeout=30000")
-                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA journal_mode=DELETE")
             except sqlite3.Error as e:
                 logging.debug(f"Failed to set PRAGMA in cleanup_old_webhooks: {e}")
             
@@ -5639,7 +5941,7 @@ def find_ton_transaction_by_amount(amount_ton: float) -> dict | None:
 
 
 
-def find_and_complete_ton_transaction(payment_id: str, amount_ton: float, tx_hash: str = None) -> dict | None:
+def find_and_complete_ton_transaction(payment_id: str, amount_ton: float, tx_hash: str = None, user_id: int | None = None) -> dict | None:
 
     try:
 
@@ -5659,11 +5961,18 @@ def find_and_complete_ton_transaction(payment_id: str, amount_ton: float, tx_has
 
             
 
-            # Если не найдено, попробуем найти по сумме (fallback)
+            # Если не найдено, попробуем найти по сумме (fallback) - ТОЛЬКО если передан user_id для безопасности
+            if not transaction and user_id is not None:
 
-            if not transaction:
-
-                cursor.execute("SELECT * FROM transactions WHERE status = 'pending' AND payment_method = 'TON Connect' AND ABS(amount_currency - ?) < 0.01", (amount_ton,))
+                cursor.execute("""
+                    SELECT * FROM transactions 
+                    WHERE status = 'pending' 
+                    AND payment_method = 'TON Connect' 
+                    AND user_id = ?
+                    AND ABS(amount_currency - ?) < 0.01
+                    ORDER BY created_date DESC
+                    LIMIT 1
+                """, (user_id, amount_ton))
 
                 transaction = cursor.fetchone()
 
@@ -5717,6 +6026,7 @@ def log_transaction(username: str, transaction_id: str | None, payment_id: str |
 
         with sqlite3.connect(DB_FILE) as conn:
 
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
             # Используем локальное время (UTC+3)
@@ -5731,19 +6041,34 @@ def log_transaction(username: str, transaction_id: str | None, payment_id: str |
 
                 """INSERT INTO transactions
 
-                   (username, transaction_id, payment_id, user_id, status, amount_rub, amount_currency, currency_name, payment_method, metadata, created_date)
+                   (username, payment_id, user_id, status, amount_rub, amount_currency, currency_name, payment_method, metadata, created_date)
 
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
 
-                (username, transaction_id, payment_id, user_id, status, amount_rub, amount_currency, currency_name, payment_method, metadata, local_now)
+                (username, payment_id, user_id, status, amount_rub, amount_currency, currency_name, payment_method, metadata, local_now)
 
             )
 
             conn.commit()
+            
+            # Получаем и возвращаем созданную транзакцию
+            if payment_id:
+                cursor.execute("SELECT * FROM transactions WHERE payment_id = ? LIMIT 1", (payment_id,))
+                row = cursor.fetchone()
+                if row:
+                    result = {key: row[key] for key in row.keys()}
+                    try:
+                        result['metadata'] = json.loads(result.get('metadata') or '{}')
+                    except Exception:
+                        result['metadata'] = {}
+                    return result
+            
+            return None
 
     except sqlite3.Error as e:
 
         logging.error(f"Failed to log transaction for user {user_id}: {e}")
+        return None
 
 
 
@@ -5994,6 +6319,16 @@ def admin_reset_trial_completely(telegram_id: int):
             
 
             # Удаляем все триальные ключи пользователя
+            # Сначала получаем key_id всех триальных ключей для удаления токенов
+            cursor.execute("SELECT key_id FROM vpn_keys WHERE user_id = ? AND is_trial = 1", (telegram_id,))
+            trial_key_ids = [row[0] for row in cursor.fetchall()]
+            
+            # Удаляем токены для всех триальных ключей
+            if trial_key_ids:
+                placeholders = ','.join(['?'] * len(trial_key_ids))
+                cursor.execute(f"DELETE FROM user_tokens WHERE key_id IN ({placeholders})", trial_key_ids)
+                deleted_tokens = cursor.rowcount
+                logging.info(f"Deleted {deleted_tokens} tokens for {len(trial_key_ids)} trial keys before deleting keys")
 
             cursor.execute("""
 
@@ -6075,35 +6410,223 @@ def get_trial_info(telegram_id: int) -> dict:
 
 
 
-def add_new_key(user_id: int, host_name: str, xui_client_uuid: str, key_email: str, expiry_timestamp_ms: int, connection_string: str = None, plan_name: str = None, price: float = None, protocol: str = 'vless', is_trial: int = 0, subscription: str = None, subscription_link: str = None, telegram_chat_id: int = None, comment: str = None):
-
+def create_key_with_stats_atomic(user_id: int, host_name: str, xui_client_uuid: str, key_email: str, 
+                                  expiry_timestamp_ms: int, amount_spent: float, months_purchased: int,
+                                  payment_id: str | None = None, promo_usage_id: int | None = None, 
+                                  plan_id: int | None = None, connection_string: str = None, 
+                                  plan_name: str = None, price: float = None, protocol: str = 'vless', 
+                                  is_trial: int = 0, subscription: str = None, subscription_link: str = None, 
+                                  telegram_chat_id: int = None, comment: str = None) -> int | None:
+    """
+    Атомарно создает ключ и обновляет статистику пользователя, транзакцию и промокод в одной транзакции БД.
+    Возвращает key_id при успехе, None при ошибке.
+    """
     try:
-
         with sqlite3.connect(DB_FILE, timeout=30) as conn:
-
             cursor = conn.cursor()
             
             # Устанавливаем PRAGMA для предотвращения блокировок
             try:
                 cursor.execute("PRAGMA busy_timeout=30000")
+                cursor.execute("PRAGMA journal_mode=DELETE")
             except sqlite3.Error as e:
-                logging.debug(f"Failed to set PRAGMA busy_timeout in add_new_key: {e}")
-
-            from datetime import timezone, timedelta
-            # Импортируем новые утилиты для работы с timezone
-            from shop_bot.utils.datetime_utils import timestamp_to_utc_datetime, calculate_remaining_seconds, get_moscow_now
-
-            local_tz = timezone(timedelta(hours=3))
+                logging.debug(f"Failed to set PRAGMA in create_key_with_stats_atomic: {e}")
             
-            # Используем новую утилиту для корректной конвертации timestamp в UTC
-            expiry_date = timestamp_to_utc_datetime(expiry_timestamp_ms)
-
-            local_now = get_moscow_now()
-
-            # Рассчитываем remaining_seconds с помощью утилиты
-            remaining_seconds = calculate_remaining_seconds(expiry_timestamp_ms)
-
+            # Начинаем транзакцию с блокировкой
+            cursor.execute("BEGIN IMMEDIATE")
+            
             try:
+                from datetime import timezone, timedelta
+                from shop_bot.utils.datetime_utils import timestamp_to_utc_datetime, calculate_remaining_seconds, get_moscow_now
+                
+                local_tz = timezone(timedelta(hours=3))
+                expiry_date = timestamp_to_utc_datetime(expiry_timestamp_ms)
+                local_now = get_moscow_now()
+                remaining_seconds = calculate_remaining_seconds(expiry_timestamp_ms)
+                
+                # Определяем статус ключа
+                if is_trial and remaining_seconds > 0:
+                    status = 'trial-active'
+                elif is_trial and remaining_seconds <= 0:
+                    status = 'trial-ended'
+                elif not is_trial and remaining_seconds > 0:
+                    status = 'pay-active'
+                else:
+                    status = 'pay-ended'
+                
+                enabled = 1
+                start_date = local_now
+                
+                # 1. Создаем ключ
+                cursor.execute(
+                    """INSERT INTO vpn_keys 
+                    (user_id, host_name, xui_client_uuid, key_email, expiry_date, connection_string, 
+                     plan_name, price, created_date, protocol, is_trial, remaining_seconds, status, 
+                     enabled, start_date, subscription, subscription_link, telegram_chat_id, comment) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (user_id, host_name, xui_client_uuid, key_email, expiry_date, connection_string, 
+                     plan_name, price, local_now, protocol, is_trial, remaining_seconds, status, 
+                     enabled, start_date, subscription, subscription_link, telegram_chat_id, comment)
+                )
+                
+                new_key_id = cursor.lastrowid
+                
+                # 2. Обновляем статистику пользователя
+                cursor.execute(
+                    "UPDATE users SET total_spent = total_spent + ?, total_months = total_months + ? WHERE telegram_id = ?",
+                    (amount_spent, months_purchased, user_id)
+                )
+                
+                # 3. Обновляем транзакцию (если передан payment_id)
+                if payment_id:
+                    cursor.execute(
+                        "UPDATE transactions SET status = 'paid', amount_rub = ? WHERE payment_id = ? AND status = 'pending'",
+                        (price or amount_spent, payment_id)
+                    )
+                
+                # 4. Обновляем статус промокода (если передан promo_usage_id)
+                if promo_usage_id and plan_id:
+                    cursor.execute(
+                        """UPDATE promo_code_usage 
+                        SET status = 'used', plan_id = ?, used_at = CURRENT_TIMESTAMP 
+                        WHERE usage_id = ? AND status = 'applied'""",
+                        (plan_id, promo_usage_id)
+                    )
+                
+                # Коммитим все изменения
+                cursor.execute("COMMIT")
+                
+                logging.info(
+                    f"Atomically created key_id={new_key_id} for user_id={user_id} with stats update, "
+                    f"amount_spent={amount_spent}, months={months_purchased}"
+                )
+                
+                # Создаем токен для личного кабинета после успешного создания ключа
+                try:
+                    from shop_bot.data_manager.database import get_or_create_permanent_token
+                    get_or_create_permanent_token(user_id, new_key_id)
+                    logging.info(f"Created permanent token for new key_id={new_key_id}, user_id={user_id}")
+                except Exception as token_error:
+                    logging.error(f"Failed to create permanent token for key_id={new_key_id}, user_id={user_id}: {token_error}", exc_info=True)
+                
+                return new_key_id
+                
+            except sqlite3.IntegrityError as integrity_err:
+                cursor.execute("ROLLBACK")
+                logging.warning(f"IntegrityError in create_key_with_stats_atomic for user_id={user_id}, email={key_email}: {integrity_err}")
+                # Ключ с таким email уже существует - возвращаем None, вызывающий код должен обработать это
+                return None
+            except sqlite3.Error as e:
+                cursor.execute("ROLLBACK")
+                logging.error(f"Database error in create_key_with_stats_atomic: {e}", exc_info=True)
+                raise
+                
+    except sqlite3.Error as e:
+        logging.error(f"Failed to atomically create key with stats: {e}", exc_info=True)
+        return None
+
+
+def add_new_key(user_id: int, host_name: str, xui_client_uuid: str, key_email: str, expiry_timestamp_ms: int, connection_string: str = None, plan_name: str = None, price: float = None, protocol: str = 'vless', is_trial: int = 0, subscription: str = None, subscription_link: str = None, telegram_chat_id: int = None, comment: str = None):
+
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_FILE, timeout=30)
+        cursor = conn.cursor()
+        
+        # Устанавливаем PRAGMA для предотвращения блокировок
+        try:
+            cursor.execute("PRAGMA busy_timeout=30000")
+        except sqlite3.Error as e:
+            logging.debug(f"Failed to set PRAGMA busy_timeout in add_new_key: {e}")
+
+        # Импортируем необходимые модули
+        from datetime import timezone, timedelta
+        # Импортируем новые утилиты для работы с timezone
+        from shop_bot.utils.datetime_utils import timestamp_to_utc_datetime, calculate_remaining_seconds, get_moscow_now
+
+        local_tz = timezone(timedelta(hours=3))
+        
+        # Используем новую утилиту для корректной конвертации timestamp в UTC
+        expiry_date = timestamp_to_utc_datetime(expiry_timestamp_ms)
+
+        local_now = get_moscow_now()
+
+        # Рассчитываем remaining_seconds с помощью утилиты
+        remaining_seconds = calculate_remaining_seconds(expiry_timestamp_ms)
+
+        try:
+
+            # Определяем статус ключа на основе активности и типа
+            if is_trial and remaining_seconds > 0:
+                status = 'trial-active'
+            elif is_trial and remaining_seconds <= 0:
+                status = 'trial-ended'
+            elif not is_trial and remaining_seconds > 0:
+                status = 'pay-active'
+            else:
+                status = 'pay-ended'
+
+            enabled = 1
+            
+            # Устанавливаем start_date как created_date
+            start_date = local_now
+
+            logging.info(
+                f"add_new_key: Inserting new key: user_id={user_id}, email={key_email}, "
+                f"host_name={host_name}, expiry_date={expiry_date}, is_trial={is_trial}, "
+                f"status={status}, remaining_seconds={remaining_seconds}"
+            )
+
+            cursor.execute(
+
+                "INSERT INTO vpn_keys (user_id, host_name, xui_client_uuid, key_email, expiry_date, connection_string, plan_name, price, created_date, protocol, is_trial, remaining_seconds, status, enabled, start_date, subscription, subscription_link, telegram_chat_id, comment) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+
+                (user_id, host_name, xui_client_uuid, key_email, expiry_date, connection_string, plan_name, price, local_now, protocol, is_trial, remaining_seconds, status, enabled, start_date, subscription, subscription_link, telegram_chat_id, comment)
+
+            )
+
+            new_key_id = cursor.lastrowid
+
+            conn.commit()
+            
+            logging.info(
+                f"add_new_key: Successfully created new key: key_id={new_key_id}, user_id={user_id}, "
+                f"email={key_email}"
+            )
+            
+            # Создаем токен для личного кабинета после успешного создания ключа
+            try:
+                get_or_create_permanent_token(user_id, new_key_id)
+                logging.info(f"Created permanent token for new key_id={new_key_id}, user_id={user_id}")
+            except Exception as token_error:
+                # Логируем ошибку, но не прерываем создание ключа
+                logging.error(f"Failed to create permanent token for key_id={new_key_id}, user_id={user_id}: {token_error}", exc_info=True)
+
+            return new_key_id
+
+        except sqlite3.IntegrityError as integrity_err:
+
+            # Ключ с таким email уже есть — считаем это продлением и обновляем данные
+            logging.warning(
+                f"add_new_key: IntegrityError for user_id={user_id}, email={key_email}. "
+                f"This means a key with this email already exists. Error: {integrity_err}"
+            )
+
+            cursor.execute("SELECT key_id, user_id, created_date FROM vpn_keys WHERE key_email = ? LIMIT 1", (key_email,))
+
+            row = cursor.fetchone()
+
+            if row:
+
+                key_id = row[0]
+                existing_user_id = row[1]
+                existing_created_date = row[2] if len(row) > 2 else None
+                
+                logging.warning(
+                    f"add_new_key: Found existing key_id={key_id} with email={key_email}, "
+                    f"existing_user_id={existing_user_id}, existing_created_date={existing_created_date}, "
+                    f"new_user_id={user_id}. This will update the existing key instead of creating a new one!"
+                )
 
                 # Определяем статус ключа на основе активности и типа
                 if is_trial and remaining_seconds > 0:
@@ -6117,87 +6640,57 @@ def add_new_key(user_id: int, host_name: str, xui_client_uuid: str, key_email: s
 
                 enabled = 1
                 
-                # Устанавливаем start_date как created_date
-                start_date = local_now
+                # Устанавливаем start_date если его нет
+                cursor.execute("SELECT start_date FROM vpn_keys WHERE key_id = ?", (key_id,))
+                existing_start_date = cursor.fetchone()
+                start_date_to_set = None
+                if not existing_start_date or not existing_start_date[0]:
+                    start_date_to_set = datetime.now(timezone(timedelta(hours=3)))
 
                 cursor.execute(
 
-                    "INSERT INTO vpn_keys (user_id, host_name, xui_client_uuid, key_email, expiry_date, connection_string, plan_name, price, created_date, protocol, is_trial, remaining_seconds, status, enabled, start_date, subscription, subscription_link, telegram_chat_id, comment) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "UPDATE vpn_keys SET xui_client_uuid = ?, expiry_date = ?, remaining_seconds = ?, plan_name = COALESCE(?, plan_name), price = COALESCE(?, price), protocol = ?, is_trial = ?, status = COALESCE(?, status), enabled = COALESCE(?, enabled), subscription = COALESCE(?, subscription), telegram_chat_id = COALESCE(?, telegram_chat_id), comment = COALESCE(?, comment), start_date = COALESCE(?, start_date) WHERE key_id = ?",
 
-                    (user_id, host_name, xui_client_uuid, key_email, expiry_date, connection_string, plan_name, price, local_now, protocol, is_trial, remaining_seconds, status, enabled, start_date, subscription, subscription_link, telegram_chat_id, comment)
+                    (xui_client_uuid, expiry_date, remaining_seconds, plan_name, price, protocol, is_trial, status, enabled, subscription, telegram_chat_id, comment, start_date_to_set, key_id)
 
                 )
 
-                new_key_id = cursor.lastrowid
+                # connection_string обновляем, если пришёл
 
-                conn.commit()
-
-                return new_key_id
-
-            except sqlite3.IntegrityError:
-
-                # Ключ с таким email уже есть — считаем это продлением и обновляем данные
-
-                cursor.execute("SELECT key_id FROM vpn_keys WHERE key_email = ? LIMIT 1", (key_email,))
-
-                row = cursor.fetchone()
-
-                if row:
-
-                    key_id = row[0]
-
-                    # Определяем статус ключа на основе активности и типа
-                    if is_trial and remaining_seconds > 0:
-                        status = 'trial-active'
-                    elif is_trial and remaining_seconds <= 0:
-                        status = 'trial-ended'
-                    elif not is_trial and remaining_seconds > 0:
-                        status = 'pay-active'
-                    else:
-                        status = 'pay-ended'
-
-                    enabled = 1
-                    
-                    # Устанавливаем start_date если его нет
-                    cursor.execute("SELECT start_date FROM vpn_keys WHERE key_id = ?", (key_id,))
-                    existing_start_date = cursor.fetchone()
-                    start_date_to_set = None
-                    if not existing_start_date or not existing_start_date[0]:
-                        start_date_to_set = datetime.now(timezone(timedelta(hours=3)))
+                if connection_string:
 
                     cursor.execute(
 
-                        "UPDATE vpn_keys SET xui_client_uuid = ?, expiry_date = ?, remaining_seconds = ?, plan_name = COALESCE(?, plan_name), price = COALESCE(?, price), protocol = ?, is_trial = ?, status = COALESCE(?, status), enabled = COALESCE(?, enabled), subscription = COALESCE(?, subscription), telegram_chat_id = COALESCE(?, telegram_chat_id), comment = COALESCE(?, comment), start_date = COALESCE(?, start_date) WHERE key_id = ?",
+                        "UPDATE vpn_keys SET connection_string = ? WHERE key_id = ?",
 
-                        (xui_client_uuid, expiry_date, remaining_seconds, plan_name, price, protocol, is_trial, status, enabled, subscription, telegram_chat_id, comment, start_date_to_set, key_id)
+                        (connection_string, key_id)
 
                     )
 
-                    # connection_string обновляем, если пришёл
+                conn.commit()
+                
+                # Создаем токен для личного кабинета после успешного обновления ключа (продление)
+                try:
+                    get_or_create_permanent_token(user_id, key_id)
+                    logging.debug(f"Ensured permanent token exists for extended key_id={key_id}, user_id={user_id}")
+                except Exception as token_error:
+                    # Логируем ошибку, но не прерываем обновление ключа
+                    logging.error(f"Failed to create/ensure permanent token for key_id={key_id}, user_id={user_id}: {token_error}", exc_info=True)
 
-                    if connection_string:
+                return key_id
 
-                        cursor.execute(
+            else:
 
-                            "UPDATE vpn_keys SET connection_string = ? WHERE key_id = ?",
-
-                            (connection_string, key_id)
-
-                        )
-
-                    conn.commit()
-
-                    return key_id
-
-                else:
-
-                    raise
+                raise
 
     except sqlite3.Error as e:
 
         logging.error(f"Failed to add new key for user {user_id}: {e}")
 
         return None
+    finally:
+        if conn:
+            conn.close()
 
 
 
@@ -6208,10 +6701,24 @@ def delete_key_by_email(email: str):
         with sqlite3.connect(DB_FILE) as conn:
 
             cursor = conn.cursor()
-
+            
+            # Получаем key_id для логирования
+            cursor.execute("SELECT key_id FROM vpn_keys WHERE key_email = ? LIMIT 1", (email,))
+            row = cursor.fetchone()
+            
+            key_id = row[0] if row else None
+            
+            # Удаляем ключ (токен НЕ удаляем, чтобы validate_permanent_token мог определить,
+            # что ключ был удален, и вернуть key_deleted=True для корректной обработки в приложении)
             cursor.execute("DELETE FROM vpn_keys WHERE key_email = ?", (email,))
+            deleted_keys = cursor.rowcount
 
             conn.commit()
+            if deleted_keys > 0:
+                if key_id:
+                    logging.info(f"Deleted key with email '{email}' (key_id={key_id}). Token preserved for proper error handling.")
+                else:
+                    logging.info(f"Deleted key with email '{email}'")
 
     except sqlite3.Error as e:
 
@@ -6223,7 +6730,7 @@ def get_user_keys(user_id: int):
 
     try:
 
-        with sqlite3.connect(DB_FILE) as conn:
+        with _get_db_connection() as conn:
 
             conn.row_factory = sqlite3.Row
 
@@ -6247,7 +6754,7 @@ def get_key_by_id(key_id: int):
 
     try:
 
-        with sqlite3.connect(DB_FILE) as conn:
+        with _get_db_connection() as conn:
 
             conn.row_factory = sqlite3.Row
 
@@ -6257,7 +6764,42 @@ def get_key_by_id(key_id: int):
 
             key_data = cursor.fetchone()
 
-            return dict(key_data) if key_data else None
+            if not key_data:
+                return None
+            
+            # Конвертируем Row в dict
+            key_dict = dict(key_data)
+            
+            # Добавляем expiry_timestamp_ms для совместимости с тестами и API
+            # expiry_date хранится как naive UTC datetime в БД
+            if key_dict.get('expiry_date'):
+                from datetime import datetime, timezone
+                expiry_date = key_dict['expiry_date']
+                
+                # SQLite возвращает datetime как строку или datetime объект
+                if isinstance(expiry_date, str):
+                    # Парсим строку в формате 'YYYY-MM-DD HH:MM:SS' или ISO format
+                    try:
+                        # Пробуем ISO format
+                        expiry_date = datetime.fromisoformat(expiry_date.replace('Z', '+00:00'))
+                    except (ValueError, AttributeError):
+                        # Пробуем стандартный формат SQLite
+                        try:
+                            expiry_date = datetime.strptime(expiry_date, '%Y-%m-%d %H:%M:%S')
+                        except ValueError:
+                            # Пробуем формат с микросекундами
+                            expiry_date = datetime.strptime(expiry_date, '%Y-%m-%d %H:%M:%S.%f')
+                
+                # Если naive datetime, считаем что это UTC (как хранится в БД)
+                if expiry_date.tzinfo is None:
+                    expiry_date = expiry_date.replace(tzinfo=timezone.utc)
+                
+                # Конвертируем в timestamp в миллисекундах
+                key_dict['expiry_timestamp_ms'] = int(expiry_date.timestamp() * 1000)
+            else:
+                key_dict['expiry_timestamp_ms'] = None
+
+            return key_dict
 
     except sqlite3.Error as e:
 
@@ -6293,7 +6835,7 @@ def create_user_token(user_id: int, key_id: int) -> str:
             # Устанавливаем PRAGMA для предотвращения блокировок
             try:
                 cursor.execute("PRAGMA busy_timeout=30000")
-                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA journal_mode=DELETE")
             except sqlite3.Error as e:
                 logging.debug(f"Failed to set PRAGMA in create_user_token: {e}")
             
@@ -6332,7 +6874,7 @@ def validate_user_token(token: str) -> dict | None:
             # Устанавливаем PRAGMA для предотвращения блокировок
             try:
                 cursor.execute("PRAGMA busy_timeout=30000")
-                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA journal_mode=DELETE")
             except sqlite3.Error as e:
                 logging.debug(f"Failed to set PRAGMA in validate_user_token: {e}")
             
@@ -6491,7 +7033,7 @@ def get_or_create_permanent_token(user_id: int, key_id: int) -> str:
             # Устанавливаем PRAGMA для предотвращения блокировок
             try:
                 cursor.execute("PRAGMA busy_timeout=30000")
-                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA journal_mode=DELETE")
             except sqlite3.Error as e:
                 logging.debug(f"Failed to set PRAGMA in get_or_create_permanent_token: {e}")
             
@@ -6630,6 +7172,8 @@ def validate_permanent_token(token: str) -> dict | None:
     Returns:
         Словарь с данными пользователя и ключа или None если токен недействителен
     """
+    token_preview = token[:10] + "..." if len(token) > 10 else token
+    
     try:
         with sqlite3.connect(DB_FILE, timeout=30) as conn:
             conn.row_factory = sqlite3.Row
@@ -6638,30 +7182,55 @@ def validate_permanent_token(token: str) -> dict | None:
             # Устанавливаем PRAGMA для предотвращения блокировок
             try:
                 cursor.execute("PRAGMA busy_timeout=30000")
-                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA journal_mode=DELETE")
             except sqlite3.Error as e:
                 logging.debug(f"Failed to set PRAGMA in validate_permanent_token: {e}")
             
             # Получаем информацию о токене
-            token_preview = token[:10] + "..." if len(token) > 10 else token
             logging.debug(f"Validating permanent token: {token_preview}")
             
+            # Сначала проверяем наличие токена в user_tokens
+            cursor.execute('''
+                SELECT token, user_id, key_id, created_at, last_used_at, access_count
+                FROM user_tokens
+                WHERE token = ?
+            ''', (token,))
+            
+            token_row = cursor.fetchone()
+            
+            if not token_row:
+                logging.info(f"Permanent token {token_preview} not found in user_tokens table")
+                return None
+            
+            token_data = dict(token_row)
+            user_id = token_data['user_id']
+            key_id = token_data['key_id']
+            
+            # Теперь проверяем наличие ключа через LEFT JOIN
             cursor.execute('''
                 SELECT ut.token, ut.user_id, ut.key_id, ut.created_at, ut.last_used_at, ut.access_count,
                        k.expiry_date, k.status, k.enabled, k.subscription_link
                 FROM user_tokens ut
-                JOIN vpn_keys k ON ut.key_id = k.key_id
+                LEFT JOIN vpn_keys k ON ut.key_id = k.key_id
                 WHERE ut.token = ?
             ''', (token,))
             
             result = cursor.fetchone()
             
             if not result:
-                logging.info(f"Permanent token {token_preview} not found in database")
+                logging.error(f"Permanent token {token_preview} found in user_tokens but JOIN failed (user_id={user_id}, key_id={key_id})")
                 return None
             
             token_data = dict(result)
-            logging.debug(f"Permanent token {token_preview} found, skip expiry/status validation (persistent links enabled)")
+            
+            # Проверяем наличие ключа
+            if token_data.get('expiry_date') is None:
+                # Ключ не найден - токен есть, но ключ удален
+                logging.warning(f"Permanent token {token_preview} found but key_id={key_id} does not exist in vpn_keys (key was deleted)")
+                # Возвращаем данные токена без данных ключа для отображения соответствующего сообщения
+                token_data['key_deleted'] = True
+            else:
+                logging.debug(f"Permanent token {token_preview} found with valid key (user_id={user_id}, key_id={key_id})")
             
             # Обновляем статистику использования токена
             now = datetime.now(timezone.utc).isoformat()
@@ -6672,15 +7241,13 @@ def validate_permanent_token(token: str) -> dict | None:
             ''', (now, token))
             conn.commit()
             
-            logging.debug(f"Permanent token {token_preview} validated successfully (user_id={token_data.get('user_id')}, key_id={token_data.get('key_id')})")
+            logging.debug(f"Permanent token {token_preview} validated successfully (user_id={user_id}, key_id={key_id})")
             return token_data
             
     except sqlite3.Error as e:
-        token_preview = token[:10] + "..." if len(token) > 10 else token
         logging.error(f"Database error while validating permanent token {token_preview}: {e}", exc_info=True)
         return None
     except Exception as e:
-        token_preview = token[:10] + "..." if len(token) > 10 else token
         logging.error(f"Unexpected error while validating permanent token {token_preview}: {e}", exc_info=True)
         return None
 
@@ -7009,12 +7576,114 @@ def update_key_info(key_id: int, new_xui_uuid: str, new_expiry_ms: int, subscrip
         logging.error(f"Failed to update key {key_id}: {e}")
 
 
+def update_key_trial_status(key_id: int, is_trial: int):
+    """
+    Обновляет is_trial и пересчитывает status ключа на основе is_trial и remaining_seconds.
+    
+    Args:
+        key_id: ID ключа для обновления
+        is_trial: Новое значение is_trial (0 или 1)
+    """
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            
+            # Получаем текущий ключ для получения remaining_seconds
+            cursor.execute("SELECT remaining_seconds FROM vpn_keys WHERE key_id = ?", (key_id,))
+            row = cursor.fetchone()
+            
+            if not row:
+                logging.warning(f"Key {key_id} not found for trial status update")
+                return False
+            
+            remaining_seconds = row[0] if row[0] is not None else 0
+            
+            # Определяем статус ключа на основе is_trial и remaining_seconds
+            if is_trial and remaining_seconds > 0:
+                status = 'trial-active'
+            elif is_trial and remaining_seconds <= 0:
+                status = 'trial-ended'
+            elif not is_trial and remaining_seconds > 0:
+                status = 'pay-active'
+            else:
+                status = 'pay-ended'
+            
+            # Обновляем is_trial и status
+            cursor.execute(
+                "UPDATE vpn_keys SET is_trial = ?, status = ? WHERE key_id = ?",
+                (is_trial, status, key_id)
+            )
+            
+            conn.commit()
+            logging.info(f"Updated key {key_id}: is_trial={is_trial}, status={status}")
+            return True
+            
+    except sqlite3.Error as e:
+        logging.error(f"Failed to update key trial status {key_id}: {e}")
+        return False
+
+
 
 def get_next_key_number(user_id: int) -> int:
-
-    keys = get_user_keys(user_id)
-
-    return len(keys) + 1
+    """
+    Получает следующий номер ключа для пользователя с атомарным инкрементом счетчика.
+    
+    Использует счетчик keys_count из таблицы users для гарантии уникальности номера,
+    даже если старые ключи были удалены.
+    
+    Args:
+        user_id: ID пользователя
+        
+    Returns:
+        Следующий номер ключа
+    """
+    try:
+        with sqlite3.connect(DB_FILE, timeout=30) as conn:
+            cursor = conn.cursor()
+            
+            # Устанавливаем PRAGMA для предотвращения блокировок
+            try:
+                cursor.execute("PRAGMA busy_timeout=30000")
+            except sqlite3.Error as e:
+                logging.debug(f"Failed to set PRAGMA busy_timeout in get_next_key_number: {e}")
+            
+            # Атомарно получаем текущий счетчик и инкрементируем его
+            cursor.execute("SELECT keys_count FROM users WHERE telegram_id = ?", (user_id,))
+            row = cursor.fetchone()
+            
+            if row:
+                current_count = row[0] or 0
+                next_number = current_count + 1
+                
+                # Атомарно обновляем счетчик
+                cursor.execute("UPDATE users SET keys_count = ? WHERE telegram_id = ?", (next_number, user_id))
+                conn.commit()
+                
+                logging.info(f"get_next_key_number: user_id={user_id}, current_count={current_count}, next_number={next_number}")
+                return next_number
+            else:
+                # Пользователь не найден - создаем пользователя с keys_count=0, затем возвращаем 1
+                logging.warning(f"get_next_key_number: user {user_id} not found, creating user with keys_count=0")
+                try:
+                    # Создаем пользователя с keys_count=0
+                    cursor.execute("INSERT OR IGNORE INTO users (telegram_id, keys_count) VALUES (?, 0)", (user_id,))
+                    conn.commit()
+                    # После создания пользователя возвращаем 1 и обновляем счетчик до 1
+                    cursor.execute("UPDATE users SET keys_count = 1 WHERE telegram_id = ?", (user_id,))
+                    conn.commit()
+                    logging.info(f"get_next_key_number: Created user {user_id} with keys_count=1")
+                    return 1
+                except Exception as e:
+                    logging.error(f"get_next_key_number: Failed to create user {user_id}: {e}")
+                    # Fallback на старую логику
+                    keys = get_user_keys(user_id)
+                    return len(keys) + 1
+                
+    except sqlite3.Error as e:
+        logging.error(f"Failed to get next key number for user {user_id}: {e}")
+        # Fallback на старую логику
+        keys = get_user_keys(user_id)
+        return len(keys) + 1
 
 
 
@@ -7376,14 +8045,14 @@ def log_notification(user_id: int, username: str | None, notif_type: str, title:
 
     try:
 
-        with sqlite3.connect(DB_FILE) as conn:
+        with _get_db_connection() as conn:
 
             cursor = conn.cursor()
             
             # Устанавливаем PRAGMA настройки для предотвращения блокировок
             try:
                 cursor.execute("PRAGMA busy_timeout=30000")
-                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA journal_mode=DELETE")
             except sqlite3.Error as e:
                 logging.debug(f"Failed to set PRAGMA settings in log_notification: {e}")
 
@@ -7843,10 +8512,24 @@ def delete_user_keys(user_id: int):
         with sqlite3.connect(DB_FILE) as conn:
 
             cursor = conn.cursor()
+            
+            # Сначала получаем key_id всех ключей пользователя для удаления токенов
+            cursor.execute("SELECT key_id FROM vpn_keys WHERE user_id = ?", (user_id,))
+            key_ids = [row[0] for row in cursor.fetchall()]
+            
+            # Удаляем токены для всех ключей пользователя
+            if key_ids:
+                placeholders = ','.join(['?'] * len(key_ids))
+                cursor.execute(f"DELETE FROM user_tokens WHERE key_id IN ({placeholders})", key_ids)
+                deleted_tokens = cursor.rowcount
+                logging.info(f"Deleted {deleted_tokens} tokens for user {user_id} before deleting keys")
 
+            # Удаляем ключи
             cursor.execute("DELETE FROM vpn_keys WHERE user_id = ?", (user_id,))
+            deleted_keys = cursor.rowcount
 
             conn.commit()
+            logging.info(f"Deleted {deleted_keys} keys for user {user_id}")
 
     except sqlite3.Error as e:
 
@@ -8427,8 +9110,8 @@ def can_user_use_promo_code(user_id: int, promo_code: str, bot: str) -> dict:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             
-            # Включаем WAL режим для лучшей производительности при конкурентном доступе
-            cursor.execute("PRAGMA journal_mode=WAL")
+            # Устанавливаем режим журналирования
+            cursor.execute("PRAGMA journal_mode=DELETE")
             
             # Начинаем транзакцию с блокировкой
             cursor.execute("BEGIN IMMEDIATE")

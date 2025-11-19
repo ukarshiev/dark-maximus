@@ -356,7 +356,7 @@ def create_payment_method_keyboard(payment_methods: dict | None, action: str, ke
     # Кнопка для применения промокода
     builder.button(text="🎫 Применить промокод", callback_data="apply_promo_code")
     
-    builder.button(text="⬅️ Назад", callback_data="back_to_email_prompt")
+    builder.button(text="⬅️ Назад к тарифам", callback_data="back_to_plans")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -409,9 +409,53 @@ def create_keys_management_keyboard(keys: list, trial_used: int = 1) -> InlineKe
                 else:
                     status_icon = "✅"
             
-            host_name = key.get('host_name', 'Неизвестный хост')
-            trial_suffix = " (Пробный)" if key.get('is_trial') == 1 else ""
-            button_text = f"{status_icon} Ключ #{i+1}{trial_suffix} ({host_name}) (до {expiry_date.strftime('%d.%m.%Y')})"
+            # Формируем номер
+            key_number = i + 1
+            
+            # Получаем флаг хоста
+            host_name = key.get('host_name', '')
+            # Берём первые 2 символа для флага (флаги стран состоят из 2 региональных индикаторов)
+            # Если меньше 2 символов - используем fallback, так как один символ не является полноценным флагом
+            if len(host_name) >= 2:
+                host_flag = host_name[:2]
+            else:
+                host_flag = '🌐'
+            
+            # Определяем название тарифа или TRIAL
+            plan_name = key.get('plan_name', '')
+            is_trial = key.get('is_trial') == 1
+            
+            if is_trial:
+                tariff_display = "TRIAL"
+            elif plan_name:
+                tariff_display = plan_name
+            else:
+                tariff_display = ""
+            
+            # Форматируем цену
+            price = key.get('price')
+            if price is not None:
+                if price == int(price):
+                    price_display = f"{int(price)}₽"
+                else:
+                    price_display = f"{price:.2f}₽"
+            else:
+                price_display = ""
+            
+            # Формируем дату в формате DD.MM.YY (год из двух символов)
+            expiry_date_str = expiry_date.strftime('%d.%m.%y')
+            
+            # Формируем компоненты строки
+            parts = [
+                f"{status_icon} #{key_number}",
+                host_flag,
+                tariff_display,
+                price_display,
+                f"до {expiry_date_str}"
+            ]
+            
+            # Убираем пустые компоненты и собираем через разделитель |
+            button_text = " | ".join(part for part in parts if part)
             builder.button(text=button_text, callback_data=f"show_key_{key['key_id']}")
     
     # Добавляем пробный период только если он не использован
@@ -423,16 +467,22 @@ def create_keys_management_keyboard(keys: list, trial_used: int = 1) -> InlineKe
     builder.adjust(1)
     return builder.as_markup()
 
-def create_key_info_keyboard(key_id: int, subscription_link: str | None = None) -> InlineKeyboardMarkup:
+def create_key_info_keyboard(key_id: int, subscription_link: str | None = None, key_auto_renewal_enabled: bool | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     subscription_button_added = False
     key_data = None
 
     try:
-        from shop_bot.data_manager.database import get_key_by_id
+        from shop_bot.data_manager.database import get_key_by_id, get_key_auto_renewal_enabled
         key_data = get_key_by_id(key_id)
+        # Если статус автопродления не передан, получаем его из БД
+        if key_auto_renewal_enabled is None:
+            key_auto_renewal_enabled = get_key_auto_renewal_enabled(key_id)
     except Exception as e:
         logger.warning(f"Failed to get key data for key {key_id}: {e}")
+        # Если не удалось получить статус, используем значение по умолчанию
+        if key_auto_renewal_enabled is None:
+            key_auto_renewal_enabled = True
 
     # Извлекаем ссылку на подписку из БД, если она не передана
     if not subscription_link and key_data:
@@ -457,15 +507,19 @@ def create_key_info_keyboard(key_id: int, subscription_link: str | None = None) 
         )
 
     # Кнопка продления
-    builder.button(text="🔄 Продлить этот ключ", callback_data=f"extend_key_{key_id}")
+    builder.button(text="🔁 Продлить этот ключ", callback_data=f"extend_key_{key_id}")
+    
+    # Кнопка переключения автопродления
+    auto_renewal_text = "🔄 Автопродление: 🟢Вкл" if key_auto_renewal_enabled else "🔄 Автопродление: 🔴Выкл"
+    builder.button(text=auto_renewal_text, callback_data=f"toggle_key_auto_renewal_{key_id}")
 
     # Кнопка возврата
     builder.button(text="⬅️ Назад к списку ключей", callback_data="manage_keys")
 
     if subscription_button_added:
-        builder.adjust(2, 1, 1)
+        builder.adjust(2, 1, 1, 1)
     else:
-        builder.adjust(1, 1, 1)
+        builder.adjust(1, 1, 1, 1)
     return builder.as_markup()
 
 def create_qr_keyboard(key_id: int) -> InlineKeyboardMarkup:

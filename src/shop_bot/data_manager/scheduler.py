@@ -337,14 +337,14 @@ def _cleanup_notified_users(all_db_keys: list[dict]):
 
 def _marker_logged(user_id: int, key_id: int, marker_hours: int, notif_type: str = 'subscription_expiry') -> bool:
     try:
-        from shop_bot.data_manager.database import DB_FILE
+        from shop_bot.data_manager.database import _get_db_connection
         import sqlite3
-        with sqlite3.connect(DB_FILE) as conn:
+        with _get_db_connection() as conn:
             cursor = conn.cursor()
             # Устанавливаем PRAGMA настройки для предотвращения блокировок
             try:
                 cursor.execute("PRAGMA busy_timeout=30000")
-                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA journal_mode=DELETE")
             except Exception:
                 pass
             
@@ -366,17 +366,17 @@ def _marker_logged(user_id: int, key_id: int, marker_hours: int, notif_type: str
 def cleanup_duplicate_notifications():
     """Очищает дублирующиеся уведомления в базе данных."""
     try:
-        from shop_bot.data_manager.database import DB_FILE
+        from shop_bot.data_manager.database import _get_db_connection
         import sqlite3
         from datetime import datetime, timedelta
         
-        with sqlite3.connect(DB_FILE) as conn:
+        with _get_db_connection() as conn:
             cursor = conn.cursor()
             
             # Устанавливаем PRAGMA настройки для предотвращения блокировок
             try:
                 cursor.execute("PRAGMA busy_timeout=30000")
-                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA journal_mode=DELETE")
             except Exception:
                 pass
             
@@ -527,6 +527,11 @@ async def send_autorenew_balance_notice(
 ):
     try:
         from datetime import timezone, timedelta
+        from shop_bot.data_manager.database import get_key_auto_renewal_enabled
+        # Проверяем, включено ли автопродление для ключа
+        if not get_key_auto_renewal_enabled(key_id):
+            logger.debug(f"Skipping autorenew balance notice for key {key_id}: key auto-renewal is disabled")
+            return
         # Дополнительная проверка: не отправляем уведомления, если время истекло
         # Используем UTC для сравнения, т.к. expiry_date хранится в UTC
         current_time_utc = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -576,7 +581,7 @@ async def send_autorenew_balance_notice(
             f"Срок действия ключа #{key_number} ({host_name}) истекает {time_phrase} {time_text_for_message}.\n"
             f"📅 Окончание: {expiry_str}\n"
             f"💰 Баланс: {balance_str}\n\n"
-            f"🔄 Если услуга \"Автопродления с баланса\" включена, то услуга продлится автоматически, сумма {price_str} будет списана с вашего баланса.\n\n"
+            f"🔄 Если \"Автопродление с баланса\" включено, то услуга продлится автоматически, сумма {price_str} будет списана с вашего баланса.\n\n"
             "❤️ Спасибо, что остаётесь с нами!"
         )
 
@@ -675,12 +680,17 @@ async def send_autorenew_disabled_notice(
     """Отправляет уведомление о том, что автопродление отключено, но баланс достаточен."""
     try:
         from shop_bot.bot import keyboards
-        from shop_bot.data_manager.database import get_user_keys, get_key_by_id
+        from shop_bot.data_manager.database import get_user_keys, get_key_by_id, get_key_auto_renewal_enabled, get_auto_renewal_enabled
         
         # Проверяем, что время не истекло
         current_time_utc = datetime.now(timezone.utc).replace(tzinfo=None)
         if expiry_date <= current_time_utc:
             logger.warning(f"Attempted to send autorenew disabled notice for already expired key {key_id} (user {user_id}). Skipping.")
+            return
+        
+        # Проверяем статус автопродления: если оба включены, не отправляем это уведомление
+        if get_auto_renewal_enabled(user_id) and get_key_auto_renewal_enabled(key_id):
+            logger.debug(f"Skipping autorenew disabled notice for key {key_id}: both global and key auto-renewal are enabled")
             return
         
         time_text = format_time_left(time_left_hours)
@@ -710,7 +720,7 @@ async def send_autorenew_disabled_notice(
         )
 
         builder = InlineKeyboardBuilder()
-        builder.button(text="⚙️ Настройки профиля", callback_data="back_to_main_menu")
+        builder.button(text="⚙️ Настройки профиля", callback_data="show_profile")
         builder.button(text="🔄 Продлить ключ", callback_data=f"extend_key_{key_id}")
         builder.adjust(1)
 
@@ -840,14 +850,16 @@ async def check_expiring_subscriptions(bot: Bot):
                         balance_covers = price_to_renew > 0 and user_balance >= price_to_renew
                         if balance_covers:
                             # Проверяем статус автопродления
-                            from shop_bot.data_manager.database import get_auto_renewal_enabled
+                            from shop_bot.data_manager.database import get_auto_renewal_enabled, get_key_auto_renewal_enabled
                             auto_renewal_enabled = get_auto_renewal_enabled(user_id)
+                            key_auto_renewal_enabled = get_key_auto_renewal_enabled(key_id)
                             
                             # Логируем для отладки
                             if total_seconds_left < 7200:  # Меньше 2 часов
-                                logger.info(f"Key {key_id}: balance_covers={balance_covers}, auto_renewal_enabled={auto_renewal_enabled}, hours_mark={hours_mark}, marker_logged={_marker_logged(user_id, key_id, hours_mark, 'subscription_autorenew_notice')}")
+                                logger.info(f"Key {key_id}: balance_covers={balance_covers}, auto_renewal_enabled={auto_renewal_enabled}, key_auto_renewal_enabled={key_auto_renewal_enabled}, hours_mark={hours_mark}, marker_logged={_marker_logged(user_id, key_id, hours_mark, 'subscription_autorenew_notice')}")
                             
-                            if auto_renewal_enabled:
+                            # Проверяем, включено ли автопродление для пользователя и ключа
+                            if auto_renewal_enabled and key_auto_renewal_enabled:
                                 # Подавляем стандартные уведомления. На 24ч и 1ч — отправляем новый тип, один раз.
                                 if hours_mark in (24, 1) and not _marker_logged(user_id, key_id, hours_mark, 'subscription_autorenew_notice'):
                                     try:
@@ -858,7 +870,7 @@ async def check_expiring_subscriptions(bot: Bot):
                                         logger.error(f"Failed to send autorenew notice: {e}")
                                 break  # ВАЖНО: выходим из цикла после проверки автопродления
                             else:
-                                # Автопродление отключено, но баланс достаточен - отправляем специальное уведомление
+                                # Автопродление отключено (глобально или для ключа), но баланс достаточен - отправляем специальное уведомление
                                 if not _marker_logged(user_id, key_id, hours_mark, 'subscription_autorenew_disabled'):
                                     try:
                                         await send_autorenew_disabled_notice(bot, user_id, key_id, hours_mark, expiry_date, user_balance, price_to_renew)
@@ -932,9 +944,14 @@ async def perform_auto_renewals(bot: Bot):
                 continue
 
             # Проверяем, включено ли автопродление для пользователя
-            from shop_bot.data_manager.database import get_auto_renewal_enabled
+            from shop_bot.data_manager.database import get_auto_renewal_enabled, get_key_auto_renewal_enabled
             if not get_auto_renewal_enabled(user_id):
-                logger.info(f"Auto-renewal skipped for user {user_id}, key {key_id}: auto-renewal is disabled")
+                logger.info(f"Auto-renewal skipped for user {user_id}, key {key_id}: global auto-renewal is disabled")
+                continue
+
+            # Проверяем, включено ли автопродление для конкретного ключа
+            if not get_key_auto_renewal_enabled(key_id):
+                logger.info(f"Auto-renewal skipped for user {user_id}, key {key_id}: key auto-renewal is disabled")
                 continue
 
             # Сохраняем старое expiry_date для проверки на дублирование

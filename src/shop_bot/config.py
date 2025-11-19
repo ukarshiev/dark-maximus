@@ -4,6 +4,7 @@
 """
 
 import logging
+import re
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from html import escape
@@ -17,19 +18,20 @@ CHOOSE_PAYMENT_METHOD_MESSAGE = "Выберите удобный способ о
 
 def get_payment_method_message_with_plan(host_name: str, plan_name: str, price: float, original_price: float | None = None, promo_code: str | None = None) -> str:
     """Генерирует сообщение с информацией о выбранном тарифе для формы оплаты"""
+    message = "Вы выбрали:\n\n"
+    message += f"✅ Хост: {host_name}\n"
+    message += f"✅ Тариф: {plan_name}\n"
+    
     if original_price and original_price != price:
-        # Если есть скидка, показываем старую и новую цену с информацией о промокоде
-        discount_amount = original_price - price
-        message = f"Вы выбрали {host_name}: {plan_name}\n\n"
+        # Если есть скидка, показываем итоговую цену
+        message += f"✅ Стоимость: {price:.2f} RUB\n"
         if promo_code:
             message += f"🎫 Промокод '{promo_code}' применен!\n"
-        message += f"💰 Стоимость тарифа: {original_price:.2f} RUB\n"
-        message += f"🎁 Скидка: {discount_amount:.2f} RUB\n"
-        message += f"✅ Итоговая цена: {price:.2f} RUB\n\n"
-        message += "Теперь выберите удобный способ оплаты:"
-        return message
     else:
-        return f"Вы выбрали {host_name}: {plan_name} - {price:.2f} RUB\n\nТеперь выберите удобный способ оплаты:"
+        message += f"✅ Стоимость: {price:.2f} RUB\n"
+    
+    message += "\n➡️ Теперь выберите удобный способ оплаты:"
+    return message
 
 
 def build_payment_summary_text(
@@ -150,6 +152,88 @@ def get_status_icon_and_text(status: str) -> tuple[str, str]:
     icon, text = status_mapping.get(status, ('❓', 'Неизвестный статус'))
     return icon, text
 
+def format_tariff_info(
+    host_name: str | None = None,
+    plan_name: str | None = None,
+    price: float | None = None,
+    is_trial: bool = False,
+    status: str | None = None,
+    expiry_date = None,
+) -> dict[str, str]:
+    """
+    Формирует переменные для информации о тарифе в шаблонах
+    
+    Args:
+        host_name: название хоста (первые 2 символа используются как флаг)
+        plan_name: название тарифа
+        price: цена тарифа
+        is_trial: является ли ключ пробным
+        status: статус ключа
+        expiry_date: дата истечения (для определения истёкших ключей)
+    
+    Returns:
+        Словарь с переменными:
+        - status_icon: ✅ или ❌
+        - host_flag: флаг страны или 🌐
+        - tariff_name: TRIAL или plan_name
+        - price_formatted: цена в формате X₽ или 0₽
+        - tariff_info: готовая строка {status_icon} {host_flag} | {tariff_name} | {price_formatted}
+    """
+    # Определяем статус иконку
+    if expiry_date:
+        expiry_dt = expiry_date if isinstance(expiry_date, datetime) else datetime.fromisoformat(str(expiry_date))
+        expiry_dt_aware = expiry_dt if expiry_dt.tzinfo else expiry_dt.replace(tzinfo=timezone.utc)
+        current_time = datetime.now(timezone.utc)
+        is_expired = expiry_dt_aware <= current_time
+        
+        if is_expired:
+            status_icon = "❌"
+        elif status and status in ['deactivate']:
+            status_icon = "❌"
+        else:
+            status_icon = "✅"
+    elif status and status in ['deactivate']:
+        status_icon = "❌"
+    else:
+        status_icon = "✅"
+    
+    # Получаем флаг хоста
+    if host_name and len(host_name) >= 2:
+        host_flag = host_name[:2]
+    else:
+        host_flag = '🌐'
+    
+    # Определяем название тарифа
+    if is_trial:
+        tariff_name = "TRIAL"
+    elif plan_name:
+        tariff_name = plan_name
+    else:
+        tariff_name = ""
+    
+    # Форматируем цену
+    if is_trial:
+        price_formatted = "0₽"
+    elif price is not None:
+        if price == int(price):
+            price_formatted = f"{int(price)}₽"
+        else:
+            price_formatted = f"{price:.2f}₽"
+    else:
+        price_formatted = ""
+    
+    # Формируем готовую строку
+    parts = [status_icon, host_flag, tariff_name, price_formatted]
+    tariff_info = " | ".join(part for part in parts if part)
+    
+    return {
+        'status_icon': status_icon,
+        'host_flag': host_flag,
+        'tariff_name': tariff_name,
+        'price_formatted': price_formatted,
+        'tariff_info': tariff_info,
+    }
+
 def get_key_info_text(
     key_number,
     expiry_date,
@@ -164,6 +248,10 @@ def get_key_info_text(
     user_timezone: str | None = None,
     feature_enabled: bool = False,
     is_trial: bool = False,
+    host_name: str | None = None,
+    plan_name: str | None = None,
+    price: float | None = None,
+    key_auto_renewal_enabled: bool | None = None,
 ):
     """
     Формирует текст информации о ключе
@@ -207,11 +295,37 @@ def get_key_info_text(
         status_icon, status_text = "❓", "Статус неизвестен"
     
     trial_suffix = " (Пробный)" if is_trial else ""
+    
+    # Формируем информацию о тарифе
+    tariff_vars = format_tariff_info(
+        host_name=host_name,
+        plan_name=plan_name,
+        price=price,
+        is_trial=is_trial,
+        status=status,
+        expiry_date=expiry_date,
+    )
+    
+    # Определяем template_key на основе provision_mode
+    template_key_mapping = {
+        'key': 'key_info_key',
+        'subscription': 'key_info_subscription',
+        'both': 'key_info_both',
+        'cabinet': 'key_info_cabinet',
+        'cabinet_subscription': 'key_info_cabinet_subscription',
+    }
+    template_key = template_key_mapping.get(provision_mode, 'key_info_key')
+    
+    # Формируем информацию об автопродлении
+    auto_renewal_status = "Включено 🟢" if (key_auto_renewal_enabled if key_auto_renewal_enabled is not None else True) else "Отключено 🔴"
+    
+    # Формируем base_text для fallback
     base_text = (
         f"<b>🔑 Информация о ключе #{key_number}{trial_suffix}</b>\n\n"
         f"<b>➕ Приобретён:</b> {created_formatted}\n"
         f"<b>⏳ Действителен до:</b> {expiry_formatted}\n"
-        f"<b>{status_icon} Статус:</b> {status_text}\n\n"
+        f"<b>{status_icon} Статус:</b> {status_text}\n"
+        f"<b>🔄 Автопродление:</b> {auto_renewal_status}\n\n"
     )
     
     # Получаем токен для личного кабинета, если user_id и key_id переданы
@@ -230,97 +344,9 @@ def get_key_info_text(
     else:
         logging.warning(f"[get_key_info_text] Missing user_id or key_id for cabinet token: user_id={user_id} (type: {type(user_id)}), key_id={key_id} (type: {type(key_id)})")
     
-    # Обработка режимов с личным кабинетом
-    if provision_mode == 'cabinet':
-        cabinet_domain = get_user_cabinet_domain()
-        if cabinet_domain:
-            cabinet_is_https = cabinet_domain.lower().startswith("https://")
-            if cabinet_token:
-                cabinet_url = f"{cabinet_domain}/auth/{cabinet_token}"
-                logging.info(f"[get_key_info_text] Using token in cabinet URL for user {user_id}, key {key_id}")
-            else:
-                cabinet_url = f"{cabinet_domain}/"
-                logging.warning(f"[get_key_info_text] No token available, using URL without token for user {user_id}, key {key_id}")
-            if not cabinet_is_https:
-                logging.warning("[get_key_info_text] Cabinet domain %s is not HTTPS; Telegram buttons will be disabled.", cabinet_domain)
-            cabinet_link_markup = f'<a href="{cabinet_url}">{cabinet_url}</a>'
-            content_text = (
-                f"                    ⬇️ <b>ВАШ ЛИЧНЫЙ КАБИНЕТ</b> ⬇️\n"
-                f"------------------------------------------------------------------------\n"
-                f"{cabinet_link_markup}\n"
-                f"------------------------------------------------------------------------\n\n"
-                f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
-            )
-            return base_text + content_text
-
-    elif provision_mode == 'cabinet_subscription' and subscription_link:
-        cabinet_domain = get_user_cabinet_domain()
-        if cabinet_domain:
-            cabinet_is_https = cabinet_domain.lower().startswith("https://")
-            if cabinet_token:
-                cabinet_url = f"{cabinet_domain}/auth/{cabinet_token}"
-                logging.info(f"[get_key_info_text] Using token in cabinet_subscription URL for user {user_id}, key {key_id}")
-            else:
-                cabinet_url = f"{cabinet_domain}/"
-                logging.warning(f"[get_key_info_text] No token available for cabinet_subscription, using URL without token for user {user_id}, key {key_id}")
-            if not cabinet_is_https:
-                logging.warning("[get_key_info_text] Cabinet domain %s is not HTTPS; Telegram buttons will be disabled.", cabinet_domain)
-            cabinet_link_markup = f'<a href="{cabinet_url}">{cabinet_url}</a>'
-            content_text = (
-                f"                    ⬇️ <b>ВАШ ЛИЧНЫЙ КАБИНЕТ</b> ⬇️\n"
-                f"------------------------------------------------------------------------\n"
-                f"{cabinet_link_markup}\n"
-                f"------------------------------------------------------------------------\n\n"
-                f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
-            )
-            return base_text + content_text
-    
-    # Формируем текст в зависимости от режима
-    if provision_mode == 'subscription' and subscription_link:
-        # Только подписка
-        content_text = (
-            f"                    ⬇️ <b>ВАША ПОДПИСКА</b> ⬇️\n"
-            f"------------------------------------------------------------------------\n"
-            f"{subscription_link}\n"
-            f"------------------------------------------------------------------------\n"
-            #f"💡<i>Просто нажмите на ссылку один раз, чтобы перейти на страницу подписки</i>\n\n"
-            f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
-            #f"<blockquote>📢 Вставьте эту ссылку в VPN приложение как URL подписки</blockquote>\n"
-            #f"<blockquote>Чтобы получить инструкцию, нажмите на кнопку [🌐 Инструкции❓]</blockquote>"
-        )
-    elif provision_mode == 'both' and connection_string and subscription_link:
-        # Ключ + подписка
-        content_text = (
-            f"                    ⬇️ <b>НИЖЕ ВАШ КЛЮЧ</b> ⬇️\n"
-            f"------------------------------------------------------------------------\n"
-            f"<code>{connection_string}</code>\n"
-            f"------------------------------------------------------------------------\n"
-            f"💡<i>Просто нажмите на ключ один раз, чтобы скопировать</i>\n\n"
-            f"                    ⬇️ <b>ВАША ПОДПИСКА</b> ⬇️\n"
-            f"------------------------------------------------------------------------\n"
-            f"{subscription_link}\n"
-            f"------------------------------------------------------------------------\n"
-            #f"💡<i>Просто нажмите на текст один раз, чтобы перейти на страницу подписки</i>\n\n"
-            f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
-            #f"<blockquote>📢 Вставьте эту ссылку в VPN приложение как URL подписки</blockquote>\n"
-            #f"<blockquote>Чтобы получить инструкцию, нажмите на кнопку [🌐 Инструкции❓]</blockquote>"
-        )
-    else:
-        # Только ключ (по умолчанию)
-        content_text = (
-            f"                    ⬇️ <b>НИЖЕ ВАШ КЛЮЧ</b> ⬇️\n"
-            f"------------------------------------------------------------------------\n"
-            f"<code>{connection_string}</code>\n"
-            f"------------------------------------------------------------------------\n"
-            #f"💡<i>Просто нажмите на ключ один раз, чтобы скопировать</i>\n\n"
-            f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
-            #f"<blockquote>📢 Вставьте эту ссылку в VPN приложение как URL подписки</blockquote>\n"
-            #f"<blockquote>Чтобы получить инструкцию, нажмите на кнопку [🌐 Инструкции❓]</blockquote>"
-        )
-    
-    # Добавляем ссылку на личный кабинет (только если домен настроен) для существующих режимов
-    cabinet_text = ""
+    # Получаем cabinet_url для шаблонов
     cabinet_domain = get_user_cabinet_domain()
+    cabinet_url = None
     if cabinet_domain:
         cabinet_is_https = cabinet_domain.lower().startswith("https://")
         if cabinet_token:
@@ -329,10 +355,96 @@ def get_key_info_text(
             cabinet_url = f"{cabinet_domain}/"
         if not cabinet_is_https:
             logging.warning("[get_key_info_text] Cabinet domain %s is not HTTPS; Telegram buttons will be disabled.", cabinet_domain)
-        cabinet_link_markup = f'<a href="{cabinet_url}">{cabinet_url}</a>'
-        cabinet_text = f"\n\n📱 <b>Ваш личный кабинет (рекомендуется):</b>\n{cabinet_link_markup}\n"
     
-    return base_text + content_text + cabinet_text
+    # Формируем fallback текст (текущая логика)
+    fallback_text = ""
+    
+    # Обработка режимов с личным кабинетом
+    if provision_mode == 'cabinet':
+        if cabinet_domain and cabinet_url:
+            content_text = (
+                f"⬇️ <b>ВАШ ЛИЧНЫЙ КАБИНЕТ</b> ⬇️\n------------------------------------------------------------------------\n"
+                f"<a href=\"{cabinet_url}\">{cabinet_url}</a>\n------------------------------------------------------------------------\n\n"
+                f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>"
+            )
+            fallback_text = base_text + content_text
+        else:
+            fallback_text = base_text
+
+    elif provision_mode == 'cabinet_subscription' and subscription_link:
+        if cabinet_domain and cabinet_url:
+            content_text = (
+                f"⬇️ <b>ВАШ ЛИЧНЫЙ КАБИНЕТ</b> ⬇️\n------------------------------------------------------------------------\n"
+                f"<a href=\"{cabinet_url}\">{cabinet_url}</a>\n------------------------------------------------------------------------\n\n"
+                f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>"
+            )
+            fallback_text = base_text + content_text
+        else:
+            fallback_text = base_text
+    
+    # Формируем текст в зависимости от режима
+    elif provision_mode == 'subscription' and subscription_link:
+        # Только подписка
+        content_text = (
+            f"⬇️ <b>ВАША ПОДПИСКА</b> ⬇️\n------------------------------------------------------------------------\n"
+            f"{subscription_link}\n------------------------------------------------------------------------\n"
+            f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>"
+        )
+        fallback_text = base_text + content_text
+    elif provision_mode == 'both' and connection_string and subscription_link:
+        # Ключ + подписка
+        content_text = (
+            f"⬇️ <b>НИЖЕ ВАШ КЛЮЧ</b> ⬇️\n------------------------------------------------------------------------\n"
+            f"<code>{connection_string}</code>\n------------------------------------------------------------------------\n"
+            f"💡<i>Просто нажмите на ключ один раз, чтобы скопировать</i>\n\n"
+            f"⬇️ <b>ВАША ПОДПИСКА</b> ⬇️\n------------------------------------------------------------------------\n"
+            f"{subscription_link}\n------------------------------------------------------------------------\n"
+            f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>"
+        )
+        fallback_text = base_text + content_text
+    else:
+        # Только ключ (по умолчанию)
+        content_text = (
+            f"⬇️ <b>НИЖЕ ВАШ КЛЮЧ</b> ⬇️\n------------------------------------------------------------------------\n"
+            f"<code>{connection_string}</code>\n------------------------------------------------------------------------\n"
+            f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>"
+        )
+        fallback_text = base_text + content_text
+    
+    # Подготавливаем переменные для подстановки в шаблон
+    template_variables = {
+        'key_number': str(key_number),
+        'trial_suffix': trial_suffix,
+        'created_formatted': created_formatted,
+        'expiry_formatted': expiry_formatted,
+        'status_icon': status_icon,
+        'status_text': status_text,
+        'connection_string': connection_string or '',
+        'subscription_link': subscription_link or '',
+        'cabinet_url': cabinet_url or '',
+        **tariff_vars,  # Добавляем переменные о тарифе
+    }
+    
+    # Пытаемся получить шаблон из справочника
+    try:
+        template_result = get_message_text(
+            template_key=template_key,
+            variables=template_variables,
+            fallback_text=fallback_text,
+            provision_mode=provision_mode
+        )
+        
+        # Если шаблон найден и активен, возвращаем его
+        if template_result != fallback_text:
+            logging.info(f"[get_key_info_text] Using template from database: {template_key} for provision_mode={provision_mode}")
+            return template_result
+        else:
+            logging.debug(f"[get_key_info_text] Template {template_key} not found or inactive, using fallback")
+    except Exception as e:
+        logging.warning(f"[get_key_info_text] Failed to get template {template_key}: {e}, using fallback")
+    
+    # Возвращаем fallback текст (текущая логика)
+    return fallback_text
 
 def get_purchase_success_text(
     action: str,
@@ -347,6 +459,10 @@ def get_purchase_success_text(
     user_timezone: str | None = None,
     feature_enabled: bool = False,
     is_trial: bool = False,
+    host_name: str | None = None,
+    plan_name: str | None = None,
+    price: float | None = None,
+    status: str | None = None,
 ):
     """
     Формирует сообщение об успешной покупке/обновлении ключа
@@ -395,97 +511,13 @@ def get_purchase_success_text(
     else:
         logging.warning(f"[get_purchase_success_text] Missing user_id or key_id for cabinet token: user_id={user_id} (type: {type(user_id)}), key_id={key_id} (type: {type(key_id)})")
 
-    # Обработка режимов с личным кабинетом
-    if provision_mode == 'cabinet':
-        cabinet_domain = get_user_cabinet_domain()
-        if cabinet_domain:
-            cabinet_is_https = cabinet_domain.lower().startswith("https://")
-            if cabinet_token:
-                cabinet_url = f"{cabinet_domain}/auth/{cabinet_token}"
-                logging.info(f"[get_purchase_success_text] Using token in cabinet URL for user {user_id}, key {key_id}")
-            else:
-                cabinet_url = f"{cabinet_domain}/"
-                logging.warning(f"[get_purchase_success_text] No token available, using URL without token for user {user_id}, key {key_id}")
-            if not cabinet_is_https:
-                logging.warning("[get_purchase_success_text] Cabinet domain %s is not HTTPS; Telegram buttons will be disabled.", cabinet_domain)
-            cabinet_link_markup = f'<a href="{cabinet_url}">{cabinet_url}</a>'
-            content_text = (
-                f"                    ⬇️ <b>ВАШ ЛИЧНЫЙ КАБИНЕТ</b> ⬇️\n"
-                f"------------------------------------------------------------------------\n"
-                f"{cabinet_link_markup}\n"
-                f"------------------------------------------------------------------------\n"
-                f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
-            )
-            # Не добавляем fallback для режима cabinet
-            return base_text + content_text
-
-    elif provision_mode == 'cabinet_subscription' and subscription_link:
-        cabinet_domain = get_user_cabinet_domain()
-        if cabinet_domain:
-            cabinet_is_https = cabinet_domain.lower().startswith("https://")
-            if cabinet_token:
-                cabinet_url = f"{cabinet_domain}/auth/{cabinet_token}"
-                logging.info(f"[get_purchase_success_text] Using token in cabinet_subscription URL for user {user_id}, key {key_id}")
-            else:
-                cabinet_url = f"{cabinet_domain}/"
-                logging.warning(f"[get_purchase_success_text] No token available for cabinet_subscription, using URL without token for user {user_id}, key {key_id}")
-            if not cabinet_is_https:
-                logging.warning("[get_purchase_success_text] Cabinet domain %s is not HTTPS; Telegram buttons will be disabled.", cabinet_domain)
-            cabinet_link_markup = f'<a href="{cabinet_url}">{cabinet_url}</a>'
-            content_text = (
-                f"                    ⬇️ <b>ВАШ ЛИЧНЫЙ КАБИНЕТ</b> ⬇️\n"
-                f"------------------------------------------------------------------------\n"
-                f"{cabinet_link_markup}\n"
-                f"------------------------------------------------------------------------\n"
-                f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
-            )
-            return base_text + content_text
-
-    # Формируем текст в зависимости от режима
-    if provision_mode == 'subscription' and subscription_link:
-        # Только подписка
-        content_text = (
-            f"                    ⬇️ <b>ВАША ПОДПИСКА</b> ⬇️\n"
-            f"------------------------------------------------------------------------\n"
-            f"{subscription_link}\n"
-            f"------------------------------------------------------------------------\n"
-            #f"💡<i>Просто нажмите на ссылку один раз, чтобы перейти на страницу подписки</i>\n\n"
-            f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
-            #f"<blockquote>📢 Вставьте эту ссылку в VPN приложение как URL подписки</blockquote>\n"
-            #f"<blockquote>Чтобы получить инструкцию, нажмите на кнопку [🌐 Инструкции❓]</blockquote>"
-        )
-    elif provision_mode == 'both' and connection_string and subscription_link:
-        # Ключ + подписка
-        content_text = (
-            f"                    ⬇️ <b>НИЖЕ ВАШ КЛЮЧ</b> ⬇️\n"
-            f"------------------------------------------------------------------------\n"
-            f"<code>{connection_string}</code>\n"
-            f"------------------------------------------------------------------------\n\n"
-            f"                    ⬇️ <b>ВАША ПОДПИСКА</b> ⬇️\n"
-            f"------------------------------------------------------------------------\n"
-            f"{subscription_link}\n"
-            f"------------------------------------------------------------------------\n"
-            #f"💡<i>Просто нажмите на текст один раз, чтобы перейти на страницу подписки</i>\n\n"
-            f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
-            #f"<blockquote>📢 Вставьте эту ссылку в VPN приложение как URL подписки</blockquote>\n"
-            #f"<blockquote>Чтобы получить инструкцию, нажмите на кнопку [🌐 Инструкции❓]</blockquote>"
-        )
-    else:
-        # Только ключ (по умолчанию)
-        content_text = (
-            f"                    ⬇️ <b>НИЖЕ ВАШ КЛЮЧ</b> ⬇️\n"
-            f"------------------------------------------------------------------------\n"
-            f"<code>{connection_string}</code>\n"
-            f"------------------------------------------------------------------------\n"
-            #f"💡<i>Просто нажмите на ключ один раз, чтобы скопировать</i>\n\n"
-            f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>\n"
-            #f"<blockquote>📢 Вставьте эту ссылку в VPN приложение как URL подписки</blockquote>\n"
-            #f"<blockquote>Чтобы получить инструкцию, нажмите на кнопку [🌐 Инструкции❓]</blockquote>"
-        )
-    
-    # Добавляем ссылку на личный кабинет (только если домен настроен) для существующих режимов
-    cabinet_text = ""
+    # Подготовка данных для личного кабинета
     cabinet_domain = get_user_cabinet_domain()
+    cabinet_url = None
+    cabinet_link_markup = ""
+    cabinet_text = ""  # Отключено: больше не показываем личный кабинет в сообщениях
+    
+    # Формируем cabinet_url для использования в шаблонах (если нужно)
     if cabinet_domain:
         cabinet_is_https = cabinet_domain.lower().startswith("https://")
         if cabinet_token:
@@ -495,9 +527,124 @@ def get_purchase_success_text(
         if not cabinet_is_https:
             logging.warning("[get_purchase_success_text] Cabinet domain %s is not HTTPS; Telegram buttons will be disabled.", cabinet_domain)
         cabinet_link_markup = f'<a href="{cabinet_url}">{cabinet_url}</a>'
-        cabinet_text = f"\n\n📱 <b>Ваш личный кабинет (рекомендуется):</b>\n{cabinet_link_markup}\n"
+
+    # Определяем template_key на основе provision_mode
+    template_key_mapping = {
+        'key': 'purchase_success_key',
+        'subscription': 'purchase_success_subscription',
+        'both': 'purchase_success_both',
+        'cabinet': 'purchase_success_cabinet',
+        'cabinet_subscription': 'purchase_success_cabinet_subscription',
+    }
+    template_key = template_key_mapping.get(provision_mode, 'purchase_success_key')
+
+    # Формируем информацию о тарифе
+    tariff_vars = format_tariff_info(
+        host_name=host_name,
+        plan_name=plan_name,
+        price=price,
+        is_trial=is_trial,
+        status=status,
+        expiry_date=expiry_date,
+    )
     
-    return base_text + content_text + cabinet_text
+    # Формируем fallback текст (синхронизировано с шаблонами из справочника)
+    fallback_text = ""
+    
+    # Обработка режимов с личным кабинетом
+    if provision_mode == 'cabinet':
+        if cabinet_domain and cabinet_url:
+            # Точный текст из справочника для режима cabinet
+            fallback_text = (
+                f"🎉 <b>Ваш ключ #{key_number}{trial_suffix} {action_text}!</b>\n\n"
+                f"⏳ <b>Он будет действовать до:</b> {expiry_formatted}\n\n"
+                f"⬇️ <b>ВАШ ЛИЧНЫЙ КАБИНЕТ</b> ⬇️\n------------------------------------------------------------------------\n"
+                f"<a href=\"{cabinet_url}\">{cabinet_url}</a>\n------------------------------------------------------------------------\n"
+                f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>"
+            )
+        else:
+            fallback_text = base_text
+
+    elif provision_mode == 'cabinet_subscription' and subscription_link:
+        if cabinet_domain and cabinet_url:
+            # Точный текст из справочника для режима cabinet_subscription
+            fallback_text = (
+                f"🎉 <b>Ваш ключ #{key_number}{trial_suffix} {action_text}!</b>\n\n"
+                f"⏳ <b>Он будет действовать до:</b> {expiry_formatted}\n\n"
+                f"⬇️ <b>ВАШ ЛИЧНЫЙ КАБИНЕТ</b> ⬇️\n------------------------------------------------------------------------\n"
+                f"<a href=\"{cabinet_url}\">{cabinet_url}</a>\n------------------------------------------------------------------------\n"
+                f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>"
+            )
+        else:
+            fallback_text = base_text
+
+    # Формируем текст в зависимости от режима
+    elif provision_mode == 'subscription' and subscription_link:
+        # Точный текст из справочника для режима subscription
+        fallback_text = (
+            f"🎉 <b>Ваш ключ #{key_number}{trial_suffix} {action_text}!</b>\n\n"
+            f"⏳ <b>Он будет действовать до:</b> {expiry_formatted}\n\n"
+            f"⬇️ <b>ВАША ПОДПИСКА</b> ⬇️\n------------------------------------------------------------------------\n"
+            f"{subscription_link}\n------------------------------------------------------------------------\n"
+            f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>"
+        )
+
+    elif provision_mode == 'both' and connection_string and subscription_link:
+        # Точный текст из справочника для режима both
+        fallback_text = (
+            f"🎉 <b>Ваш ключ #{key_number}{trial_suffix} {action_text}!</b>\n\n"
+            f"⏳ <b>Он будет действовать до:</b> {expiry_formatted}\n\n"
+            f"⬇️ <b>НИЖЕ ВАШ КЛЮЧ</b> ⬇️\n------------------------------------------------------------------------\n"
+            f"<code>{connection_string}</code>\n------------------------------------------------------------------------\n\n"
+            f"⬇️ <b>ВАША ПОДПИСКА</b> ⬇️\n------------------------------------------------------------------------\n"
+            f"{subscription_link}\n------------------------------------------------------------------------\n"
+            f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>"
+        )
+
+    else:
+        # Точный текст из справочника для режима key (по умолчанию)
+        fallback_text = (
+            f"🎉 <b>Ваш ключ #{key_number}{trial_suffix} {action_text}!</b>\n\n"
+            f"⏳ <b>Он будет действовать до:</b> {expiry_formatted}\n\n"
+            f"⬇️ <b>НИЖЕ ВАШ КЛЮЧ</b> ⬇️\n------------------------------------------------------------------------\n"
+            f"<code>{connection_string or ''}</code>\n------------------------------------------------------------------------\n"
+            f"<blockquote>⁉️ Чтобы настроить VPN, перейдите по ссылке или нажмите на кнопку [⚙️ Настройка]</blockquote>"
+        )
+
+    # Подготавливаем переменные для подстановки в шаблон
+    template_variables = {
+        'key_number': str(key_number),
+        'trial_suffix': trial_suffix,
+        'action_text': action_text,
+        'expiry_formatted': expiry_formatted,
+        'connection_string': connection_string or '',
+        'subscription_link': subscription_link or '',
+        'cabinet_url': cabinet_url or '',
+        'cabinet_text': cabinet_text,
+        'fallback_text': '',
+        **tariff_vars,  # Добавляем переменные о тарифе
+    }
+
+    # Пытаемся получить шаблон из справочника
+    try:
+        template_result = get_message_text(
+            template_key=template_key,
+            variables=template_variables,
+            fallback_text=fallback_text,
+            provision_mode=provision_mode
+        )
+        
+        # Если шаблон найден и активен, возвращаем его
+        if template_result != fallback_text:
+            logging.info(f"[get_purchase_success_text] Using template from database: {template_key} for provision_mode={provision_mode}, cabinet_text length: {len(cabinet_text)}")
+            return template_result
+        else:
+            logging.debug(f"[get_purchase_success_text] Template {template_key} not found or inactive, using fallback")
+    except Exception as e:
+        logging.warning(f"[get_purchase_success_text] Failed to get template {template_key}: {e}, using fallback")
+    
+    # Возвращаем fallback текст (текущая логика)
+    return fallback_text
 
 def get_user_cabinet_domain() -> str | None:
     """
@@ -536,6 +683,7 @@ def get_message_text(template_key: str, variables: dict, fallback_text: str, pro
         Отформатированный текст сообщения
     """
     from shop_bot.data_manager.database import get_message_template
+    from shop_bot.security.validators import InputValidator
     
     # Пытаемся получить шаблон из БД
     template = get_message_template(template_key, provision_mode)
@@ -547,10 +695,29 @@ def get_message_text(template_key: str, variables: dict, fallback_text: str, pro
             for key, value in variables.items():
                 # Экранируем фигурные скобки в значениях
                 safe_value = str(value).replace('{', '{{').replace('}', '}}')
-                text = text.replace(f'{{{key}}}', safe_value)
+                # Заменяем все вхождения переменной в шаблоне
+                placeholder = f'{{{key}}}'
+                if placeholder in text:
+                    text = text.replace(placeholder, safe_value)
+                    logging.debug(f"[get_message_text] Replaced {placeholder} with value (length: {len(safe_value)})")
+            
+            # Заменяем невалидные HTML-теги на поддерживаемые Telegram
+            # <br>, <br/>, <br /> -> \n (новая строка)
+            text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+            
+            # Валидация HTML-тегов после подстановки переменных
+            is_valid, errors = InputValidator.validate_html_tags(text)
+            if not is_valid:
+                logging.warning(
+                    f"[get_message_text] HTML validation failed for template {template_key}: {errors}. "
+                    f"Using fallback text to prevent Telegram API error."
+                )
+                return fallback_text
+            
+            logging.debug(f"[get_message_text] Template {template_key} formatted successfully, result length: {len(text)}")
             return text
         except Exception as e:
-            logging.warning(f"Failed to format template {template_key}: {e}")
+            logging.warning(f"Failed to format template {template_key}: {e}", exc_info=True)
             return fallback_text
     
     # Fallback на код если шаблон не найден или неактивен

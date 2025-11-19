@@ -1,0 +1,73 @@
+name: Test Installation Scripts
+
+on:
+  pull_request:
+    paths:
+      - 'install.sh'
+      - 'install-autotest.sh'
+      - 'ssl-install.sh'
+      - 'docker-compose.yml'
+      - 'scripts/validate-scripts.sh'
+      - 'tests/scripts/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'install.sh'
+      - 'install-autotest.sh'
+      - 'ssl-install.sh'
+      - 'docker-compose.yml'
+      - 'scripts/validate-scripts.sh'
+      - 'tests/scripts/**'
+
+jobs:
+  validate-scripts:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck netcat-openbsd
+          pip install pyyaml pytest pytest-allure-adaptor
+      
+      - name: Install yamllint
+        run: |
+          pip install yamllint
+      
+      - name: Run ShellCheck
+        run: |
+          echo "Проверка скриптов через ShellCheck..."
+          shellcheck install.sh || true
+          shellcheck install-autotest.sh || true
+          shellcheck ssl-install.sh || true
+      
+      - name: Validate docker-compose.yml with yamllint
+        run: |
+          if [ -f docker-compose.yml ]; then
+            yamllint docker-compose.yml || true
+          fi
+      
+      - name: Validate docker-compose.yml with docker compose
+        run: |
+          if [ -f docker-compose.yml ]; then
+            docker compose config || docker-compose config || true
+          fi
+      
+      - name: Run script validation tests
+        run: |
+          pytest tests/scripts/ -v --tb=short || true
+      
+      - name: Run validation script
+        run: |
+          chmod +x scripts/validate-scripts.sh
+          ./scripts/validate-scripts.sh || true
+

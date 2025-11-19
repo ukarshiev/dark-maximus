@@ -21,7 +21,7 @@
 
 ### 🐳 Docker контейнер:
 - **Образ**: `nginx:alpine` (легковесный, ~10 MB)
-- **Порт**: `3001` (локально)
+- **Порт**: `50001` (локально)
 - **Изоляция**: Полностью изолирован от бота
 - **Статус**: ✅ Работает
 
@@ -58,7 +58,7 @@ docker compose ps
 ```
 NAME                  STATUS         PORTS
 dark-maximus-bot      Up X hours     0.0.0.0:50000->50000/tcp
-dark-maximus-docs     Up X seconds   0.0.0.0:3001->80/tcp
+dark-maximus-docs     Up X seconds   0.0.0.0:50001->80/tcp
 ```
 
 ### Шаг 3: Проверка работы
@@ -68,7 +68,7 @@ dark-maximus-docs     Up X seconds   0.0.0.0:3001->80/tcp
 docker compose logs docs
 
 # Тестовый запрос
-curl http://localhost:3001
+curl http://localhost:50001
 ```
 
 Если всё хорошо, вы увидите HTML-код страницы Docsify.
@@ -130,7 +130,7 @@ server {
     
     # Прокси на Docker контейнер
     location / {
-        proxy_pass http://localhost:3001;
+        proxy_pass http://localhost:50001;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -204,7 +204,7 @@ InlineKeyboardButton(
 ### Изоляция обеспечена:
 - ✅ Отдельный Docker контейнер
 - ✅ Отдельная сеть Docker
-- ✅ Отдельный порт (3001)
+- ✅ Отдельный порт (50001)
 - ✅ Read-only файловая система
 - ✅ SSL через Let's Encrypt
 
@@ -233,7 +233,7 @@ services:
     restart: unless-stopped
     container_name: dark-maximus-docs
     ports:
-      - '3001:80'
+      - '50001:80'
     volumes:
       - ./docs/internal/wiki/public:/usr/share/nginx/html/docs:ro
       - ./deploy/nginx/docs.conf:/etc/nginx/conf.d/default.conf:ro
@@ -247,8 +247,8 @@ services:
 # Проверьте логи
 docker compose logs docs
 
-# Проверьте что порт 3001 свободен
-sudo netstat -tulpn | grep 3001
+# Проверьте что порт 50001 свободен
+sudo netstat -tulpn | grep 50001
 
 # Пересоздайте контейнер
 docker compose up -d --force-recreate docs
@@ -275,7 +275,7 @@ sudo certbot certificates
 docker compose ps docs
 
 # Проверьте что порт доступен
-curl http://localhost:3001
+curl http://localhost:50001
 ```
 
 ## 💡 Полезные команды

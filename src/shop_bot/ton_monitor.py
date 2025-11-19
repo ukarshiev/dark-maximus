@@ -116,6 +116,7 @@ class TONMonitor:
                         logger.info(f"Found payment comment: {payment_id}")
                         
                         # Ищем pending транзакцию по payment_id
+                        # Безопасный поиск только по payment_id (без fallback по сумме)
                         metadata = find_and_complete_ton_transaction(payment_id, amount_ton, tx_hash)
                         if metadata:
                             logger.info(f"TON Payment found by comment: {payment_id}")
@@ -130,24 +131,9 @@ class TONMonitor:
                         else:
                             logger.warning(f"No pending transaction found for payment_id: {payment_id}")
                     else:
-                        # Если нет комментария, ищем по сумме (fallback)
-                        # Но только для транзакций с разумной суммой (больше 0.001 TON)
-                        if amount_ton >= 0.001:
-                            metadata = find_ton_transaction_by_amount(amount_ton)
-                            if metadata:
-                                logger.info(f"TON Payment found by amount: {amount_ton} TON")
-                                
-                                # Обрабатываем платеж
-                                bot = self.bot_controller.get_bot_instance()
-                                if bot:
-                                    from shop_bot.bot import handlers
-                                    await handlers.process_successful_payment(bot, metadata, tx_hash)
-                                else:
-                                    logger.error("Bot instance not available")
-                            else:
-                                logger.debug(f"No pending transaction found for amount: {amount_ton} TON")
-                        else:
-                            logger.debug(f"Ignoring small transaction: {amount_ton} TON")
+                        # Безопасность: не обрабатываем транзакции без payment_id комментария
+                        # Fallback поиск по сумме небезопасен (может найти транзакцию другого пользователя)
+                        logger.debug(f"TON transaction without payment_id comment ignored: {amount_ton} TON, comment: {comment}")
                         
         except Exception as e:
             logger.error(f"Failed to process event: {e}")

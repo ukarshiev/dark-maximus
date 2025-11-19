@@ -21,11 +21,11 @@
 dark-maximus/
 ├── *.md (много файлов в корне)
 ├── docs/
-│   ├── user-docs/          # Пользовательская документация (localhost:3001)
+│   ├── user-docs/          # Пользовательская документация (localhost:50001)
 │   ├── api/
 │   ├── integrations/
 │   └── *.md (много файлов)
-├── codex.docs/             # Codex Docs (localhost:3002)
+├── codex.docs/             # Codex Docs (localhost:50002)
 ├── instructions/           # Инструкции (дубликаты)
 └── codex-page-*.txt        # Временные файлы
 ```
@@ -47,7 +47,7 @@ dark-maximus/
 │   ├── DOCUMENTATION-STRUCTURE.md  # Структура документации
 │   ├── MIGRATION-PLAN.md   # Этот файл
 │   │
-│   ├── user-docs/          # Пользовательская документация (localhost:3001)
+│   ├── user-docs/          # Пользовательская документация (localhost:50001)
 │   │   ├── index.md
 │   │   ├── faq.md
 │   │   ├── payment.md
@@ -74,7 +74,7 @@ dark-maximus/
 │   ├── admin/              # Админская документация
 │   └── *.md                # Основные документы
 │
-├── codex.docs/             # Codex Docs (localhost:3002)
+├── codex.docs/             # Codex Docs (localhost:50002)
 │   ├── docs-config.yaml
 │   └── ...
 │
@@ -152,8 +152,8 @@ dark-maximus/
 - [ ] Обновить CHANGELOG.md
 
 ### Этап 5: Тестирование (⏳ Ожидание)
-- [ ] Проверить работу localhost:3001 (пользовательская Wiki)
-- [ ] Проверить работу localhost:3002 (Codex Docs)
+- [ ] Проверить работу localhost:50001 (пользовательская Wiki)
+- [ ] Проверить работу localhost:50002 (Codex Docs)
 - [ ] Проверить работу localhost:50000 (админ-панель)
 - [ ] Проверить все ссылки
 - [ ] Проверить скрипты установки

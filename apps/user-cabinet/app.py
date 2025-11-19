@@ -68,9 +68,9 @@ def _build_knowledge_base_url(settings: dict) -> tuple[str, str]:
         temp_url = global_domain.rstrip('/')
         if not temp_url.startswith(('http://', 'https://')):
             temp_url = f'https://{temp_url}'
-        base_url = f'{temp_url}:3002'
+        base_url = f'{temp_url}:50002'
     else:
-        base_url = 'http://localhost:3002'
+        base_url = 'http://localhost:50002'
 
     setup_url = f"{base_url.rstrip('/')}/setup"
     return base_url, setup_url
@@ -194,8 +194,8 @@ def require_token(f):
         if not token:
             logger.warning("Token validation failed: token not provided")
             return render_template('error.html', 
-                                 error_title="Токен не предоставлен",
-                                 error_message="Для доступа к личному кабинету необходим токен доступа."), 401
+                                 error_title="Ссылка не предоставлена",
+                                 error_message="Для доступа к личному кабинету необходима ссылка доступа."), 401
         
         # Логируем попытку валидации (первые 10 символов для безопасности)
         token_preview = token[:10] + "..." if len(token) > 10 else token
@@ -208,8 +208,15 @@ def require_token(f):
             if not token_data:
                 logger.warning(f"Token validation failed: token {token_preview} not found")
                 return render_template('error.html',
-                                     error_title="Токен недействителен",
+                                     error_title="Ссылка недействительна",
                                      error_message="Ссылка устарела или указана с ошибкой. Скопируйте ссылку заново из Telegram-бота и попробуйте ещё раз."), 403
+            
+            # Проверяем, не был ли ключ удален
+            if token_data.get('key_deleted'):
+                logger.warning(f"Token validated but key_id={token_data.get('key_id')} was deleted")
+                return render_template('error.html',
+                                     error_title="Ключ удален",
+                                     error_message="Ссылка действительна, но ключ был удален. Обратитесь в поддержку или создайте новый ключ."), 404
             
             # Логируем успешную валидацию
             logger.info(f"Token validated successfully: user_id={token_data.get('user_id')}, key_id={token_data.get('key_id')}")
@@ -224,8 +231,8 @@ def require_token(f):
         except Exception as e:
             logger.error(f"Exception during token validation for token {token_preview}: {e}", exc_info=True)
             return render_template('error.html',
-                                 error_title="Ошибка при проверке токена",
-                                 error_message="Произошла ошибка при проверке токена доступа. Попробуйте позже."), 500
+                                 error_title="Ошибка при проверке ссылки",
+                                 error_message="Произошла ошибка при проверке ссылки доступа. Попробуйте позже."), 500
         
     return decorated_function
 
@@ -257,6 +264,13 @@ def index():
             if token_data:
                 logger.info(f"Index page: token validated - user_id={token_data.get('user_id')}, key_id={token_data.get('key_id')}")
                 
+                # Проверяем, не был ли ключ удален
+                if token_data.get('key_deleted'):
+                    logger.warning(f"Index page: token valid but key_id={token_data.get('key_id')} was deleted")
+                    return render_template('error.html',
+                                         error_title="Ключ удален",
+                                         error_message="Ссылка действительна, но ключ был удален. Обратитесь в поддержку или создайте новый ключ."), 404
+                
                 # Сохраняем данные в сессию
                 session['token'] = token
                 session['user_id'] = token_data['user_id']
@@ -278,14 +292,14 @@ def index():
                                          knowledge_base_url=knowledge_base_url,
                                          knowledge_base_setup_url=knowledge_base_setup_url)
                 else:
-                    logger.warning(f"Index page: key not found for key_id={key_id}")
+                    logger.warning(f"Index page: key not found for key_id={key_id} (token was valid but key missing)")
                     return render_template('error.html',
                                          error_title="Ключ не найден",
-                                         error_message="Не удалось получить информацию о ключе."), 404
+                                         error_message="Ссылка действительна, но информация о ключе недоступна. Обратитесь в поддержку."), 404
             else:
                 logger.warning(f"Index page: token validation failed for token {token_preview}")
                 return render_template('error.html',
-                                     error_title="Токен недействителен",
+                                     error_title="Ссылка недействительна",
                                      error_message="Ссылка устарела или указана с ошибкой. Скопируйте ссылку заново из Telegram-бота и попробуйте ещё раз."), 403
         except Exception as e:
             logger.error(f"Index page: exception during token validation or key retrieval: {e}", exc_info=True)
@@ -293,13 +307,13 @@ def index():
                                  error_title="Ошибка при загрузке данных",
                                  error_message="Произошла ошибка при загрузке данных личного кабинета. Попробуйте позже."), 500
     else:
-        # Если токена нет - показываем сообщение о необходимости токена
+        # Если токена нет - показываем сообщение о необходимости ссылки
         logger.info("Index page: no token provided in request")
         return render_template('error.html',
-                             error_title="Токен не предоставлен",
-                             error_message="Для доступа к личному кабинету необходим токен доступа. Используйте ссылку из Telegram."), 401
+                             error_title="Ссылка не предоставлена",
+                             error_message="Для доступа к личному кабинету необходима ссылка доступа. Используйте ссылку из Telegram."), 401
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=3003, debug=False)
+    app.run(host='0.0.0.0', port=50003, debug=False)
 

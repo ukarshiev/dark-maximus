@@ -98,11 +98,13 @@ PANEL_DOMAIN="panel.${MAIN_DOMAIN}"
 DOCS_DOMAIN="docs.${MAIN_DOMAIN}"
 HELP_DOMAIN="help.${MAIN_DOMAIN}"
 APP_DOMAIN="app.${MAIN_DOMAIN}"
+ALLURE_DOMAIN="allure.${MAIN_DOMAIN}"
 
 echo -e "${GREEN}✔ Домены настроены:${NC}"
 echo -e "   - Основной домен: ${MAIN_DOMAIN}"
 echo -e "   - Панель (поддомен): ${PANEL_DOMAIN}"
 echo -e "   - Документация: ${DOCS_DOMAIN}"
+echo -e "   - Allure: ${ALLURE_DOMAIN}"
 echo -e "   - Админ-документация: ${HELP_DOMAIN}"
 echo -e "   - Личный кабинет: ${APP_DOMAIN}"
 
@@ -125,12 +127,12 @@ upstream bot_backend {
 }
 
 upstream docs_backend {
-    server 127.0.0.1:3001;
+    server 127.0.0.1:50001;
     keepalive 32;
 }
 
 upstream codex_docs_backend {
-    server 127.0.0.1:3002;
+    server 127.0.0.1:50002;
     keepalive 32;
 }
 
@@ -275,19 +277,19 @@ if ! nc -z 127.0.0.1 50000 2>/dev/null; then
         exit 1
     }
     
-    timeout 60 bash -c 'until nc -z 127.0.0.1 3001; do sleep 2; done' || {
-        echo -e "${RED}❌ Docs сервис не запустился в течение 1 минуты${NC}"
-        ${DC[@]} logs docs
+    timeout 60 bash -c 'until nc -z 127.0.0.1 50001; do sleep 2; done' || {
+        echo -e "${RED}❌ Docs-proxy сервис не запустился в течение 1 минуты${NC}"
+        ${DC[@]} logs docs-proxy
         exit 1
     }
     
-    timeout 60 bash -c 'until nc -z 127.0.0.1 3002; do sleep 2; done' || {
+    timeout 60 bash -c 'until nc -z 127.0.0.1 50002; do sleep 2; done' || {
         echo -e "${RED}❌ Codex-docs сервис не запустился в течение 1 минуты${NC}"
         ${DC[@]} logs codex-docs
         exit 1
     }
     
-    timeout 60 bash -c 'until nc -z 127.0.0.1 3003; do sleep 2; done' || {
+    timeout 60 bash -c 'until nc -z 127.0.0.1 50003; do sleep 2; done' || {
         echo -e "${RED}❌ User-cabinet сервис не запустился в течение 1 минуты${NC}"
         ${DC[@]} logs user-cabinet
         exit 1
@@ -429,6 +431,14 @@ certbot certonly --standalone \
     --non-interactive \
     -d "$APP_DOMAIN"
 
+echo -e "${YELLOW}Получение сертификата для ${ALLURE_DOMAIN}...${NC}"
+certbot certonly --standalone \
+    --email "$EMAIL" \
+    --agree-tos \
+    --no-eff-email \
+    --non-interactive \
+    -d "$ALLURE_DOMAIN"
+
 echo -e "${GREEN}✔ Все SSL-сертификаты получены${NC}"
 
 echo -e "\n${CYAN}Шаг 6: Разворачиваем nginx-конфиг из шаблона репозитория...${NC}"
@@ -436,8 +446,8 @@ CONF_URL="https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/deploy/n
 curl -f -sSL "$CONF_URL" -o /tmp/dark-maximus.conf.tpl
 
 # Подставляем домены ТОЛЬКО в ${...}, оставляя nginx $host/$scheme нетронутыми
-export MAIN_DOMAIN PANEL_DOMAIN DOCS_DOMAIN HELP_DOMAIN APP_DOMAIN
-envsubst '${MAIN_DOMAIN} ${PANEL_DOMAIN} ${DOCS_DOMAIN} ${HELP_DOMAIN} ${APP_DOMAIN}' \
+export MAIN_DOMAIN PANEL_DOMAIN DOCS_DOMAIN HELP_DOMAIN APP_DOMAIN ALLURE_DOMAIN
+envsubst '${MAIN_DOMAIN} ${PANEL_DOMAIN} ${DOCS_DOMAIN} ${HELP_DOMAIN} ${APP_DOMAIN} ${ALLURE_DOMAIN}' \
   < /tmp/dark-maximus.conf.tpl > /etc/nginx/sites-available/dark-maximus
 
 # Чистим посторонние активные файлы (во избежание дублей upstream/server)

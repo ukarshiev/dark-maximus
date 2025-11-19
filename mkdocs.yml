@@ -1,6 +1,6 @@
 site_name: Dark Maximus Documentation
 site_description: Документация и руководства для команды Dark Maximus VPN
-site_url: http://localhost:3001/
+site_url: http://localhost:50001/
 docs_dir: docs
 
 theme:
@@ -13,7 +13,6 @@ theme:
   features:
     - navigation.instant
     - navigation.instant.prefetch
-    - navigation.sections
     - navigation.indexes
     - navigation.top
     - navigation.footer

@@ -12,5 +12,6 @@
 - `docs-rules.mdc` — правила работы с документацией
 - `terminal-command.mdc` — правила работы с терминалом PowerShell
 - `tooltip-guide-ui.mdc` — правила добавления tooltips в UI
+- `testing-rules.mdc` — правила организации тестирования, Allure Framework и инфраструктуры
 
 Все правила имеют флаг `alwaysApply: true` и применяются автоматически.

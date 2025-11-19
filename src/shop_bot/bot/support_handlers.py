@@ -10,6 +10,7 @@ from aiogram import Bot, Router, F, types
 from aiogram.filters import CommandStart, Command
 from aiogram.enums import ParseMode
 from aiogram.types import ErrorEvent
+from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -359,8 +360,15 @@ def get_support_router() -> Router:
                     await message.reply("❌ Не удалось доставить сообщение этому пользователю (возможно, он заблокировал бота).")
     
     @support_router.error()
-    async def support_router_error_handler(event: ErrorEvent):
+    async def support_router_error_handler(event: ErrorEvent, bot: Bot):
         """Глобальный обработчик ошибок для support_router"""
+        # Пропускаем сетевые ошибки - они обрабатываются автоматически aiogram
+        if isinstance(event.exception, TelegramNetworkError):
+            logger.warning(
+                f"Network error in support router (will retry automatically): {event.exception}"
+            )
+            return
+        
         logger.critical(
             "Critical error in support router caused by %s", 
             event.exception, 
@@ -380,10 +388,34 @@ def get_support_router() -> Router:
                 )
             elif update.callback_query:
                 user_id = update.callback_query.from_user.id
-                await update.callback_query.answer(
-                    "⚠️ Ошибка. Попробуйте позже.",
-                    show_alert=True
-                )
+                try:
+                    # Пытаемся ответить на callback query
+                    await update.callback_query.answer(
+                        "⚠️ Ошибка. Попробуйте позже.",
+                        show_alert=True
+                    )
+                except TelegramBadRequest as e:
+                    error_msg = str(e).lower()
+                    # Если callback query устарел, отправляем обычное сообщение
+                    if "query is too old" in error_msg or "response timeout expired" in error_msg or "query id is invalid" in error_msg:
+                        logger.debug(
+                            f"Callback query expired for user {user_id}, sending regular message instead"
+                        )
+                        try:
+                            await bot.send_message(
+                                chat_id=user_id,
+                                text="⚠️ Произошла ошибка в системе поддержки.\n"
+                                     "Попробуйте позже или напишите напрямую администратору."
+                            )
+                        except Exception as send_error:
+                            logger.error(
+                                f"Failed to send error notification message to user {user_id}: {send_error}"
+                            )
+                    else:
+                        # Другие ошибки TelegramBadRequest просто логируем
+                        logger.error(
+                            f"Failed to answer callback query for user {user_id}: {e}"
+                        )
         except Exception as notification_error:
             logger.error(f"Failed to send error notification to user {user_id}: {notification_error}")
     

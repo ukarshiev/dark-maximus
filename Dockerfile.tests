@@ -1,0 +1,33 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Установка системных зависимостей для Allure CLI
+RUN apt-get update && \
+    apt-get install -y wget unzip && \
+    rm -rf /var/lib/apt/lists/*
+
+# Установка Allure CLI (версия 2.24.1)
+RUN wget https://github.com/allure-framework/allure2/releases/download/2.24.1/allure-2.24.1.tgz && \
+    tar -xzf allure-2.24.1.tgz && \
+    mv allure-2.24.1 /opt/allure && \
+    ln -s /opt/allure/bin/allure /usr/local/bin/allure && \
+    rm allure-2.24.1.tgz
+
+# Копирование необходимых файлов для установки пакета
+COPY README.md pyproject.toml ./
+COPY src/ /app/src/
+
+# Установка зависимостей (теперь src/ существует)
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -e ".[test]"
+
+# Копирование тестов
+COPY tests/ /app/tests/
+
+# Создание директорий для результатов Allure
+RUN mkdir -p /app/allure-results /app/allure-report
+
+# Команда по умолчанию (для интерактивного использования)
+CMD ["tail", "-f", "/dev/null"]
+

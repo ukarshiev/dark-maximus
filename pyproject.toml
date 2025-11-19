@@ -1,6 +1,6 @@
 [project]
 name = "dark-maximus"
-version = "4.10.7"
+version = "4.24.3"
 description = "Продвинутый Telegram-бот для автоматической продажи VLESS VPN с улучшенным веб-интерфейсом и аналитикой"
 authors = [
     {name = "Karshie Umid", email = "umid.t.karshiev@gmail.com"}
@@ -47,12 +47,22 @@ dependencies = [
 dev = [
     "pip-tools",
     "pylint",
-    "black"
+    "black",
+    "djlint"
 ]
 docs = [
     "mkdocs>=1.6",
     "mkdocs-material>=9.5",
     "mkdocs-awesome-nav>=3.0"
+]
+test = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-mock>=3.11.0",
+    "pytest-cov>=4.1.0",
+    "allure-pytest>=2.13.0",
+    "faker>=19.0.0",
+    "pyyaml>=6.0.0"
 ]
 
 [tool.setuptools.packages.find]

@@ -271,12 +271,14 @@ PANEL_DOMAIN="panel.${MAIN_DOMAIN}"
 DOCS_DOMAIN="docs.${MAIN_DOMAIN}"
 HELP_DOMAIN="help.${MAIN_DOMAIN}"
 APP_DOMAIN="app.${MAIN_DOMAIN}"
+ALLURE_DOMAIN="allure.${MAIN_DOMAIN}"
 
 echo -e "${GREEN}✔ Домены настроены:${NC}"
 echo -e "   - Панель: ${PANEL_DOMAIN}"
 echo -e "   - Документация: ${DOCS_DOMAIN}"
 echo -e "   - Админ-документация: ${HELP_DOMAIN}"
 echo -e "   - Личный кабинет: ${APP_DOMAIN}"
+echo -e "   - Allure: ${ALLURE_DOMAIN}"
 
 echo -e "\n${CYAN}Шаг 4: Генерация секретов...${NC}"
 
@@ -331,6 +333,7 @@ MAIN_DOMAIN=${MAIN_DOMAIN}
 DOCS_DOMAIN=${DOCS_DOMAIN}
 HELP_DOMAIN=${HELP_DOMAIN}
 APP_DOMAIN=${APP_DOMAIN}
+ALLURE_DOMAIN=${ALLURE_DOMAIN}
 EOF
 
 # Примечание: учетные данные панели хранятся в базе данных users.db
@@ -347,9 +350,10 @@ mkdir -p backups
 mkdir -p codex.docs/uploads
 mkdir -p codex.docs/db
 mkdir -p sessions
+mkdir -p sessions-docs
 
 # Устанавливаем правильные права доступа
-chmod 755 logs backups sessions
+chmod 755 logs backups sessions sessions-docs
 chmod 755 codex.docs/uploads codex.docs/db
 
 echo -e "${GREEN}✔ Необходимые директории созданы${NC}"
@@ -502,11 +506,127 @@ echo -e "${GREEN}✔ База данных готова${NC}"
 
 echo -e "\n${CYAN}Шаг 5: Создание docker-compose.yml...${NC}"
 
+# Функция определения формата docker-compose.yml
+detect_compose_format() {
+    if [ ! -f "docker-compose.yml" ]; then
+        echo "new"  # Новый формат
+        return
+    fi
+    
+    # Проверяем наличие старого формата (docs с портом, но без docs-proxy)
+    if grep -q "^  docs:" docker-compose.yml && \
+       grep -q "127.0.0.1:50001:80" docker-compose.yml && \
+       ! grep -q "^  docs-proxy:" docker-compose.yml; then
+        echo "old"  # Старый формат
+    else
+        echo "new"  # Новый формат или уже мигрирован
+    fi
+}
+
+# Функция миграции формата docker-compose.yml
+migrate_compose_format() {
+    local backup_file="docker-compose.yml.backup.$(date +%Y%m%d-%H%M%S)"
+    echo -e "${YELLOW}Создаем резервную копию: $backup_file${NC}"
+    cp docker-compose.yml "$backup_file"
+    
+    echo -e "${YELLOW}Выполняем миграцию формата...${NC}"
+    python3 << 'PYTHON_SCRIPT'
+import yaml
+import sys
+
+try:
+    with open('docker-compose.yml', 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f)
+    
+    if not config or 'services' not in config:
+        print("❌ Ошибка: некорректная структура docker-compose.yml", file=sys.stderr)
+        sys.exit(1)
+    
+    services = config.get('services', {})
+    
+    # Если есть старый docs с портом, мигрируем
+    if 'docs' in services and 'docs-proxy' not in services:
+        docs_service = services['docs']
+        
+        # Убираем порт из docs, добавляем expose
+        if 'ports' in docs_service:
+            docs_service.pop('ports')
+        docs_service['expose'] = ['80']
+        
+        # Создаем docs-proxy
+        services['docs-proxy'] = {
+            'build': {
+                'context': './apps/docs-proxy',
+                'dockerfile': 'Dockerfile'
+            },
+            'container_name': 'dark-maximus-docs-proxy',
+            'restart': 'unless-stopped',
+            'ports': ['127.0.0.1:50001:50001'],
+            'volumes': [
+                './sessions-docs:/app/sessions',
+                './users.db:/app/users.db',
+                './src:/app/src'
+            ],
+            'environment': [
+                'FLASK_SECRET_KEY=${FLASK_SECRET_KEY}',
+                'DOCS_BACKEND_URL=http://docs:80'
+            ],
+            'healthcheck': {
+                'test': ['CMD-SHELL', 'nc -z localhost 50001 || exit 1'],
+                'interval': '30s',
+                'timeout': '10s',
+                'retries': 3,
+                'start_period': '10s'
+            },
+            'networks': ['dark-maximus-network'],
+            'depends_on': ['docs']
+        }
+        
+        config['services'] = services
+        
+        with open('docker-compose.yml', 'w', encoding='utf-8') as f:
+            yaml.dump(config, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        
+        print('✓ Миграция выполнена успешно')
+    else:
+        print('✓ Формат уже актуален')
+        
+except Exception as e:
+    print(f'❌ Ошибка при миграции: {e}', file=sys.stderr)
+    sys.exit(1)
+PYTHON_SCRIPT
+    
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}❌ Ошибка при миграции, восстанавливаем из резервной копии${NC}"
+        cp "$backup_file" docker-compose.yml
+        exit 1
+    fi
+    
+    # Проверяем валидность после миграции
+    if ! ${DC[@]} config > /dev/null 2>&1; then
+        echo -e "${RED}❌ Ошибка валидации после миграции, восстанавливаем из резервной копии${NC}"
+        cp "$backup_file" docker-compose.yml
+        exit 1
+    fi
+    
+    echo -e "${GREEN}✔ Миграция завершена успешно${NC}"
+}
+
 # КРИТИЧНО: Защита существующей конфигурации docker-compose.yml
 # Если файл уже существует и содержит важные настройки (например, volume маппинги для исходного кода),
 # мы НЕ должны его перезаписывать, чтобы сохранить пользовательские конфигурации
 if [ -f "docker-compose.yml" ]; then
     echo -e "${GREEN}✔ Обнаружен существующий docker-compose.yml${NC}"
+    
+    # Проверяем формат и выполняем миграцию если нужно
+    COMPOSE_FORMAT=$(detect_compose_format)
+    
+    if [ "$COMPOSE_FORMAT" = "old" ]; then
+        echo -e "${YELLOW}⚠️  Обнаружен старый формат docker-compose.yml${NC}"
+        echo -e "${YELLOW}   Выполняем автоматическую миграцию...${NC}"
+        migrate_compose_format
+    fi
+    
     # Проверяем, содержит ли файл важные настройки (volume маппинги для src)
     if grep -q "src:/app/project/src" docker-compose.yml; then
         echo -e "${YELLOW}⚠️  Обнаружены пользовательские настройки в docker-compose.yml${NC}"
@@ -564,8 +684,9 @@ services:
       dockerfile: Dockerfile.docs
     container_name: dark-maximus-docs
     restart: unless-stopped
-    ports:
-      - '127.0.0.1:3001:80'
+    # Порт не публикуется наружу - доступен только через docs-proxy
+    expose:
+      - '80'
     healthcheck:
       test: ["CMD-SHELL", "nc -z localhost 80 || exit 1"]
       interval: 30s
@@ -575,6 +696,32 @@ services:
     networks:
       - dark-maximus-network
 
+  docs-proxy:
+    build:
+      context: ./apps/docs-proxy
+      dockerfile: Dockerfile
+    container_name: dark-maximus-docs-proxy
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:50001:50001'
+    volumes:
+      - ./sessions-docs:/app/sessions
+      - ./users.db:/app/users.db
+      - ./src:/app/src
+    environment:
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
+      - DOCS_BACKEND_URL=http://docs:80
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 50001 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - dark-maximus-network
+    depends_on:
+      - docs
+
   codex-docs:
     build:
       context: .
@@ -582,14 +729,14 @@ services:
     container_name: dark-maximus-codex-docs
     restart: unless-stopped
     ports:
-      - '127.0.0.1:3002:3000'
+      - '127.0.0.1:50002:50002'
     volumes:
       - ./codex.docs/uploads:/usr/src/app/uploads
       - ./codex.docs/db:/usr/src/app/db
     environment:
       - NODE_ENV=production
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 3000 || exit 1"]
+      test: ["CMD-SHELL", "nc -z localhost 50002 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -604,14 +751,14 @@ services:
     container_name: dark-maximus-user-cabinet
     restart: unless-stopped
     ports:
-      - '127.0.0.1:3003:3003'
+      - '127.0.0.1:50003:50003'
     volumes:
       - ./users.db:/app/project/users.db
       - ./src:/app/project/src
     environment:
       - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 3003 || exit 1"]
+      test: ["CMD-SHELL", "nc -z localhost 50003 || exit 1"]
       interval: 30s
       timeout: 3s
       retries: 3
@@ -702,17 +849,17 @@ upstream bot_backend {
 }
 
 upstream docs_backend {
-    server 127.0.0.1:3001;
+    server 127.0.0.1:50001;
     keepalive 32;
 }
 
 upstream codex_docs_backend {
-    server 127.0.0.1:3002;
+    server 127.0.0.1:50002;
     keepalive 32;
 }
 
 upstream user_cabinet_backend {
-    server 127.0.0.1:3003;
+    server 127.0.0.1:50003;
     keepalive 32;
 }
 
@@ -990,7 +1137,7 @@ ufw allow 80/tcp comment "HTTP"
 ufw allow 443/tcp comment "HTTPS"
 
 # НЕ открываем отладочные порты наружу!
-echo -e "${YELLOW}⚠️  Отладочные порты 50000/3001/3002 НЕ открыты наружу (безопасность)${NC}"
+echo -e "${YELLOW}⚠️  Отладочные порты 50000/50001/50002 НЕ открыты наружу (безопасность)${NC}"
 
 # Включаем UFW
 ufw --force enable
@@ -1077,24 +1224,24 @@ timeout 120 bash -c 'until nc -z 127.0.0.1 50000; do sleep 2; done' || {
     exit 1
 }
 
-# Ожидаем готовности docs сервиса
-echo -e "${YELLOW}Проверка готовности docs сервиса...${NC}"
-timeout 60 bash -c 'until nc -z 127.0.0.1 3001; do sleep 2; done' || {
-    echo -e "${RED}❌ Docs сервис не запустился в течение 1 минуты${NC}"
-    ${DC[@]} logs docs
+# Ожидаем готовности docs-proxy сервиса
+echo -e "${YELLOW}Проверка готовности docs-proxy сервиса...${NC}"
+timeout 60 bash -c 'until nc -z 127.0.0.1 50001; do sleep 2; done' || {
+    echo -e "${RED}❌ Docs-proxy сервис не запустился в течение 1 минуты${NC}"
+    ${DC[@]} logs docs-proxy
     exit 1
 }
 
 # Ожидаем готовности codex-docs сервиса
 echo -e "${YELLOW}Проверка готовности codex-docs сервиса...${NC}"
-timeout 60 bash -c 'until nc -z 127.0.0.1 3002; do sleep 2; done' || {
-    echo -e "${RED}❌ Контейнер codex-docs не готов на порту 3002${NC}"
+timeout 60 bash -c 'until nc -z 127.0.0.1 50002; do sleep 2; done' || {
+    echo -e "${RED}❌ Контейнер codex-docs не готов на порту 50002${NC}"
     exit 1
 }
 
 # Ожидаем готовности user-cabinet сервиса
 echo -e "${YELLOW}Проверка готовности user-cabinet сервиса...${NC}"
-timeout 60 bash -c 'until nc -z 127.0.0.1 3003; do sleep 2; done' || {
+timeout 60 bash -c 'until nc -z 127.0.0.1 50003; do sleep 2; done' || {
     echo -e "${RED}❌ User-cabinet сервис не запустился в течение 1 минуты${NC}"
     ${DC[@]} logs user-cabinet
     exit 1
@@ -1193,15 +1340,15 @@ else
     echo -e "${RED}❌ Bot сервис недоступен${NC}"
 fi
 
-# Проверяем docs сервис
-if nc -z 127.0.0.1 3001; then
-    echo -e "${GREEN}✅ Docs сервис доступен${NC}"
+# Проверяем docs-proxy сервис
+if nc -z 127.0.0.1 50001; then
+    echo -e "${GREEN}✅ Docs-proxy сервис доступен${NC}"
 else
-    echo -e "${RED}❌ Docs сервис недоступен${NC}"
+    echo -e "${RED}❌ Docs-proxy сервис недоступен${NC}"
 fi
 
 # Проверяем codex-docs сервис
-if nc -z 127.0.0.1 3002; then
+if nc -z 127.0.0.1 50002; then
     echo -e "${GREEN}✅ Codex-docs сервис доступен${NC}"
 else
     echo -e "${RED}❌ Codex-docs сервис недоступен${NC}"
@@ -1242,9 +1389,9 @@ echo -e "   - ${GREEN}http://${APP_DOMAIN}${NC}"
 
 echo -e "\n5. Прямые порты (только localhost):"
 echo -e "   - Бот: ${GREEN}http://localhost:50000${NC}"
-echo -e "   - Документация: ${GREEN}http://localhost:3001${NC}"
-echo -e "   - Админ-документация: ${GREEN}http://localhost:3002${NC}"
-echo -e "   - Личный кабинет: ${GREEN}http://localhost:3003${NC}"
+echo -e "   - Документация (docs-proxy): ${GREEN}http://localhost:50001${NC}"
+echo -e "   - Админ-документация: ${GREEN}http://localhost:50002${NC}"
+echo -e "   - Личный кабинет: ${GREEN}http://localhost:50003${NC}"
 
 echo -e "\n${BLUE}🔧 Следующие шаги:${NC}"
 echo -e "1. Настройте DNS A-записи для всех доменов на IP этого сервера"

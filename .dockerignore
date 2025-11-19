@@ -65,6 +65,12 @@ backups/
 .coverage
 htmlcov/
 .tox/
+# Allure reports (большие файлы, не нужны в образах)
+allure-reports/
+allure-results/*
+!allure-results/.gitkeep
+allure-report/*
+!allure-report/.gitkeep
 
 # Build artifacts
 *.egg

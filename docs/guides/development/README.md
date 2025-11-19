@@ -42,6 +42,7 @@ npm run test
 
 ## См. также
 
+- [Тестирование](../testing/) — автоматизированное тестирование, pytest, Allure
 - [Архитектура проекта](../../architecture/project-info.md)
 - [Техстек](../../reference/tech-stack.md)
 - [Решение проблем с кодировкой](../../troubleshooting/encoding-issues.md)

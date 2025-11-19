@@ -99,11 +99,11 @@ RUN echo "Проверка финальной структуры public/dist:" &
 # - /usr/src/app/db
 
 # Expose порт
-EXPOSE 3000
+EXPOSE 50002
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost:3000/ || exit 1
+    CMD wget --quiet --tries=1 --spider http://localhost:50002/ || exit 1
 
 # Команда запуска определена в базовом образе
 

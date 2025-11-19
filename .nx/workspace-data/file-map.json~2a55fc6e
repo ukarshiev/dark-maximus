@@ -1,0 +1,3345 @@
+{
+  "version": "6.0",
+  "nxVersion": "19.8.4",
+  "deps": {
+    "@nrwl/workspace": "^19.8.4",
+    "autoprefixer": "^10.4.20",
+    "nx": "^19.8.4",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.10",
+    "htmlhint": "^1.1.4",
+    "stylelint": "^16.0.0",
+    "stylelint-config-standard": "^36.0.0",
+    "eslint": "^8.57.0"
+  },
+  "pathMappings": {},
+  "nxJsonPlugins": [],
+  "fileMap": {
+    "nonProjectFiles": [
+      {
+        "file": ".cursor/plans/-06b49115.plan.md",
+        "hash": "3506168149954692763"
+      },
+      {
+        "file": ".cursor/plans/-226ceaca.plan.md",
+        "hash": "603333328817387459"
+      },
+      {
+        "file": ".cursor/plans/-235146f9.plan.md",
+        "hash": "5592415971648345001"
+      },
+      {
+        "file": ".cursor/plans/-289ab161.plan.md",
+        "hash": "13703386781324910530"
+      },
+      {
+        "file": ".cursor/plans/-3747461e.plan.md",
+        "hash": "18183449273792911151"
+      },
+      {
+        "file": ".cursor/plans/-47ceafa9.plan.md",
+        "hash": "8674773805078825891"
+      },
+      {
+        "file": ".cursor/plans/-4884fa66.plan.md",
+        "hash": "11073634608617209194"
+      },
+      {
+        "file": ".cursor/plans/-4f81a6c3.plan.md",
+        "hash": "9139222963165408251"
+      },
+      {
+        "file": ".cursor/plans/-51b8e3a5.plan.md",
+        "hash": "13933952614224997599"
+      },
+      {
+        "file": ".cursor/plans/-5a018811.plan.md",
+        "hash": "1758773806949560140"
+      },
+      {
+        "file": ".cursor/plans/-5d38c18d.plan.md",
+        "hash": "7254968692913000717"
+      },
+      {
+        "file": ".cursor/plans/-659709ad.plan.md",
+        "hash": "1994568036612795353"
+      },
+      {
+        "file": ".cursor/plans/-722a0f98.plan.md",
+        "hash": "4508553263836336504"
+      },
+      {
+        "file": ".cursor/plans/-78505a7b.plan.md",
+        "hash": "13831355605597338486"
+      },
+      {
+        "file": ".cursor/plans/-78774f2c.plan.md",
+        "hash": "15572917705011257163"
+      },
+      {
+        "file": ".cursor/plans/-7ba49632.plan.md",
+        "hash": "5071449383454544899"
+      },
+      {
+        "file": ".cursor/plans/-817e0ff6.plan.md",
+        "hash": "15676607088422663264"
+      },
+      {
+        "file": ".cursor/plans/-82202b79.plan.md",
+        "hash": "134127536453815235"
+      },
+      {
+        "file": ".cursor/plans/-839e465f.plan.md",
+        "hash": "17993615555792622971"
+      },
+      {
+        "file": ".cursor/plans/-8498c8cd.plan.md",
+        "hash": "17953743389896316485"
+      },
+      {
+        "file": ".cursor/plans/-89b5a609.plan.md",
+        "hash": "10590371770207770564"
+      },
+      {
+        "file": ".cursor/plans/-8e274721.plan.md",
+        "hash": "12619105707391474751"
+      },
+      {
+        "file": ".cursor/plans/-976d945b.plan.md",
+        "hash": "6235601377048619108"
+      },
+      {
+        "file": ".cursor/plans/-9bf025f6.plan.md",
+        "hash": "14899822743667698586"
+      },
+      {
+        "file": ".cursor/plans/-9d197e85.plan.md",
+        "hash": "15431588044754719034"
+      },
+      {
+        "file": ".cursor/plans/-a1d558fc.plan.md",
+        "hash": "4731652329031456660"
+      },
+      {
+        "file": ".cursor/plans/-a60b9463.plan.md",
+        "hash": "10957895087972369830"
+      },
+      {
+        "file": ".cursor/plans/-add90212.plan.md",
+        "hash": "13013662185157627781"
+      },
+      {
+        "file": ".cursor/plans/-bb4359e2.plan.md",
+        "hash": "10497779848190019903"
+      },
+      {
+        "file": ".cursor/plans/-bc5b175f.plan.md",
+        "hash": "12688373854048528379"
+      },
+      {
+        "file": ".cursor/plans/-c15cb0f9.plan.md",
+        "hash": "2199820312045522906"
+      },
+      {
+        "file": ".cursor/plans/-c464043e.plan.md",
+        "hash": "425751802996148542"
+      },
+      {
+        "file": ".cursor/plans/-c5ddfbf4.plan.md",
+        "hash": "6237757981161057764"
+      },
+      {
+        "file": ".cursor/plans/-c8c093be.plan.md",
+        "hash": "18164042978395793032"
+      },
+      {
+        "file": ".cursor/plans/-cd500700.plan.md",
+        "hash": "14873283564846375793"
+      },
+      {
+        "file": ".cursor/plans/-ce06af2e.plan.md",
+        "hash": "5234590576046109844"
+      },
+      {
+        "file": ".cursor/plans/-f31374f6.plan.md",
+        "hash": "3228324914149154859"
+      },
+      {
+        "file": ".cursor/plans/-f8a6d0ea.plan.md",
+        "hash": "2325906992558665050"
+      },
+      {
+        "file": ".cursor/plans/-fc0b6d12.plan.md",
+        "hash": "10343676156423568389"
+      },
+      {
+        "file": ".cursor/plans/-fe2e9669.plan.md",
+        "hash": "9681824782630642737"
+      },
+      {
+        "file": ".cursor/plans/1004e9-2d6e87a8.plan.md",
+        "hash": "14437800453089365220"
+      },
+      {
+        "file": ".cursor/plans/12-11-25_permanent-cabinet-token.plan.md",
+        "hash": "3861672770328933783"
+      },
+      {
+        "file": ".cursor/plans/13-1db06d-0ea9996d.plan.md",
+        "hash": "14076271618364431404"
+      },
+      {
+        "file": ".cursor/plans/13-39a6dc-bc1aacc4.plan.md",
+        "hash": "12311700761090445010"
+      },
+      {
+        "file": ".cursor/plans/13-452e21-4cbc2b9e.plan.md",
+        "hash": "8624427738467685187"
+      },
+      {
+        "file": ".cursor/plans/13-53771f-5a2bf0c4.plan.md",
+        "hash": "12757720744422283647"
+      },
+      {
+        "file": ".cursor/plans/13-5b7185f3.plan.md",
+        "hash": "12824508941334845775"
+      },
+      {
+        "file": ".cursor/plans/13-6f3bfa-e92196e2.plan.md",
+        "hash": "9760380047442401752"
+      },
+      {
+        "file": ".cursor/plans/3x-ui-99549cdd.plan.md",
+        "hash": "3208799692490141162"
+      },
+      {
+        "file": ".cursor/plans/79d6bf-38a53521.plan.md",
+        "hash": "12416923951641896909"
+      },
+      {
+        "file": ".cursor/plans/ad-hoc-15cfc937.plan.md",
+        "hash": "2826740323131878530"
+      },
+      {
+        "file": ".cursor/plans/allure-626b9a46.plan.md",
+        "hash": "11490773900797143470"
+      },
+      {
+        "file": ".cursor/plans/allure-763e979d.plan.md",
+        "hash": "788992833318178767"
+      },
+      {
+        "file": ".cursor/plans/allure-993e9f0c.plan.md",
+        "hash": "833975441307510152"
+      },
+      {
+        "file": ".cursor/plans/allure-b211b075.plan.md",
+        "hash": "2794799668045499098"
+      },
+      {
+        "file": ".cursor/plans/allure-docker-service-a1eceb91.plan.md",
+        "hash": "18160508568596019066"
+      },
+      {
+        "file": ".cursor/plans/allure-executor-environment-config-2476b090.plan.md",
+        "hash": "6899831997274142739"
+      },
+      {
+        "file": ".cursor/plans/allure-f8470f7a.plan.md",
+        "hash": "17898167692088637555"
+      },
+      {
+        "file": ".cursor/plans/allure-homepage-50fb7f97.plan.md",
+        "hash": "16869344120064946695"
+      },
+      {
+        "file": ".cursor/plans/allure-homepage-auth-d0b245fe.plan.md",
+        "hash": "4582008743779921070"
+      },
+      {
+        "file": ".cursor/plans/allure-reports-fabba771.plan.md",
+        "hash": "7062225289576755455"
+      },
+      {
+        "file": ".cursor/plans/allure-story-56cc0e3e.plan.md",
+        "hash": "15720863470475855096"
+      },
+      {
+        "file": ".cursor/plans/analysis-fb3ada3d.plan.md",
+        "hash": "13607249039332001329"
+      },
+      {
+        "file": ".cursor/plans/blockquote-edea39da.plan.md",
+        "hash": "12752938427489199731"
+      },
+      {
+        "file": ".cursor/plans/callback-3928fc1a.plan.md",
+        "hash": "14370523488078048121"
+      },
+      {
+        "file": ".cursor/plans/callback-queries-0d558598.plan.md",
+        "hash": "10284671407431651529"
+      },
+      {
+        "file": ".cursor/plans/changelog-md-b6339211.plan.md",
+        "hash": "9839155231126419103"
+      },
+      {
+        "file": ".cursor/plans/ci-cd-725d4ef1.plan.md",
+        "hash": "18397079434574113238"
+      },
+      {
+        "file": ".cursor/plans/code-error-check-86312534.plan.md",
+        "hash": "2304186192092847915"
+      },
+      {
+        "file": ".cursor/plans/context-214266f9.plan.md",
+        "hash": "15412794349620204971"
+      },
+      {
+        "file": ".cursor/plans/dark-maximus-0223f44d-eb265aa0.plan.md",
+        "hash": "4135180740615977561"
+      },
+      {
+        "file": ".cursor/plans/dark-maximus-0223f44d.plan.md",
+        "hash": "8359107161972398811"
+      },
+      {
+        "file": ".cursor/plans/docker-8ee9ead2.plan.md",
+        "hash": "17161128233500968510"
+      },
+      {
+        "file": ".cursor/plans/docs-3e4c46-2f7cf982.plan.md",
+        "hash": "7920889942482263754"
+      },
+      {
+        "file": ".cursor/plans/docs-proxy-283cd204.plan.md",
+        "hash": "13966249743919407158"
+      },
+      {
+        "file": ".cursor/plans/f-fe4abe19.plan.md",
+        "hash": "12998790238657906611"
+      },
+      {
+        "file": ".cursor/plans/fix-235a4feb.plan.md",
+        "hash": "17215771354694230601"
+      },
+      {
+        "file": ".cursor/plans/fix-allure-latest-report-json-response-d4679b8f.plan.md",
+        "hash": "1754930717411189598"
+      },
+      {
+        "file": ".cursor/plans/fix-allure-service-results-path-e4869568.plan.md",
+        "hash": "222924990210905515"
+      },
+      {
+        "file": ".cursor/plans/fix-balance-payment-test-patching-76b46125.plan.md",
+        "hash": "6984508635275756393"
+      },
+      {
+        "file": ".cursor/plans/fix-broken-cabinet-links-50b6bc42.plan.md",
+        "hash": "16013812617503779287"
+      },
+      {
+        "file": ".cursor/plans/fix-database-lock-07e98f99.plan.md",
+        "hash": "10703203641275497463"
+      },
+      {
+        "file": ".cursor/plans/fix-e2e-test-registration-and-add-allure-annotations-92dad780.plan.md",
+        "hash": "9108066737260378149"
+      },
+      {
+        "file": ".cursor/plans/fix-e2e-trial-flow-tests-9c1057d4.plan.md",
+        "hash": "7782847065089023217"
+      },
+      {
+        "file": ".cursor/plans/fix-group-code-update-bea3d51a.plan.md",
+        "hash": "4871248182109744728"
+      },
+      {
+        "file": ".cursor/plans/fix-key-numbering-3bcf414e.plan.md",
+        "hash": "12007792101794339202"
+      },
+      {
+        "file": ".cursor/plans/fix-pr-81541c68.plan.md",
+        "hash": "13091142082418324900"
+      },
+      {
+        "file": ".cursor/plans/fix-promo-code-validation-test-a5783da0.plan.md",
+        "hash": "13423736070509173478"
+      },
+      {
+        "file": ".cursor/plans/fix-show-key-handler-callback-data-parsing-ee1a0dfd.plan.md",
+        "hash": "12922779389630300694"
+      },
+      {
+        "file": ".cursor/plans/fix-test-admin-full-workflow-session-issue-1b2b50cf.plan.md",
+        "hash": "3031609201111234514"
+      },
+      {
+        "file": ".cursor/plans/fix-test-keys-count-migration-allure-7f5370b2.plan.md",
+        "hash": "17208589298477472485"
+      },
+      {
+        "file": ".cursor/plans/fix-test-update-user-balance-and-add-allure-annotations-d1395c92.plan.md",
+        "hash": "14770339012043840922"
+      },
+      {
+        "file": ".cursor/plans/fix-trial-flow-test-and-add-allure-annotations-5cda91da.plan.md",
+        "hash": "4960592155238283203"
+      },
+      {
+        "file": ".cursor/plans/fix-trial-flow-tests-4170bf75.plan.md",
+        "hash": "11075375913806318351"
+      },
+      {
+        "file": ".cursor/plans/fix-trial-tests-and-add-allure-annotations-eead2540.plan.md",
+        "hash": "10637028307895962065"
+      },
+      {
+        "file": ".cursor/plans/fix-y-4189d2-dc908c8c.plan.md",
+        "hash": "3405122193714305294"
+      },
+      {
+        "file": ".cursor/plans/fix-y-7433fa2a.plan.md",
+        "hash": "17323836079180281791"
+      },
+      {
+        "file": ".cursor/plans/flask-docs-allure-homepage-7b11ddbc.plan.md",
+        "hash": "4283362430195216230"
+      },
+      {
+        "file": ".cursor/plans/log-5741a1-ff71c00e.plan.md",
+        "hash": "15627871835849690094"
+      },
+      {
+        "file": ".cursor/plans/menu-91e37200.plan.md",
+        "hash": "13835615544285679805"
+      },
+      {
+        "file": ".cursor/plans/notifications-cef42b98.plan.md",
+        "hash": "2939949104332813798"
+      },
+      {
+        "file": ".cursor/plans/nx-c47289e6.plan.md",
+        "hash": "1368360418739861462"
+      },
+      {
+        "file": ".cursor/plans/panel-9ecb5841.plan.md",
+        "hash": "5111709304044534046"
+      },
+      {
+        "file": ".cursor/plans/payment-systems-width-502bbdb5.plan.md",
+        "hash": "4305211782127933547"
+      },
+      {
+        "file": ".cursor/plans/product-defects-506850b2.plan.md",
+        "hash": "17973390653939866367"
+      },
+      {
+        "file": ".cursor/plans/resourcewarning-sqlite-57ea2df1.plan.md",
+        "hash": "6810683381890623787"
+      },
+      {
+        "file": ".cursor/plans/sqlite-3f98abd6.plan.md",
+        "hash": "14819909316648198188"
+      },
+      {
+        "file": ".cursor/plans/sqlite-c42302c0-safety-addendum.md",
+        "hash": "4461562261411986807"
+      },
+      {
+        "file": ".cursor/plans/sqlite-c42302c0.plan.md",
+        "hash": "17786884975927870359"
+      },
+      {
+        "file": ".cursor/plans/ssl-aiogram-polling-29bd96c3.plan.md",
+        "hash": "3822006530880215681"
+      },
+      {
+        "file": ".cursor/plans/tar-11b0749c.plan.md",
+        "hash": "8422150854276393701"
+      },
+      {
+        "file": ".cursor/plans/test-admin-full-workflow-cacd4cc7.plan.md",
+        "hash": "7034470963965577376"
+      },
+      {
+        "file": ".cursor/plans/test-cabinet-key-data-display-b1519a06.plan.md",
+        "hash": "4066215714302778104"
+      },
+      {
+        "file": ".cursor/plans/test-full-cabinet-flow-ac8c4b47.plan.md",
+        "hash": "7371573716874299921"
+      },
+      {
+        "file": ".cursor/plans/test-index-with-valid-token-fa7a02d4.plan.md",
+        "hash": "74443686476320735"
+      },
+      {
+        "file": ".cursor/plans/testing-rules-allure-f32b299a.plan.md",
+        "hash": "7294200512271026425"
+      },
+      {
+        "file": ".cursor/plans/tests-ad-hoc-bde5a5be.plan.md",
+        "hash": "7691221734992052734"
+      },
+      {
+        "file": ".cursor/plans/timezone-e87488c5.plan.md",
+        "hash": "10593652434621398958"
+      },
+      {
+        "file": ".cursor/plans/update-payment-flow-texts-4d3c3a45.plan.md",
+        "hash": "11046123349669801526"
+      },
+      {
+        "file": ".cursor/plans/user-951515dc.plan.md",
+        "hash": "16197385647473428012"
+      },
+      {
+        "file": ".cursor/plans/user-cabinet-dcb7d0c2.plan.md",
+        "hash": "17041978226448482019"
+      },
+      {
+        "file": ".cursor/plans/vpn-42cddcd6.plan.md",
+        "hash": "8855042197596899689"
+      },
+      {
+        "file": ".cursor/plans/web-6d3b3d5a.plan.md",
+        "hash": "14358384997724717615"
+      },
+      {
+        "file": ".cursor/plans/y-c17d7700.plan.md",
+        "hash": "7263150676808453355"
+      },
+      {
+        "file": ".cursor/plans/yookassa-bded9906.plan.md",
+        "hash": "11122408653083344305"
+      },
+      {
+        "file": ".cursor/plans/yookassa-integration-fixes-54c2ae1c.plan.md",
+        "hash": "8462888415711775422"
+      },
+      {
+        "file": ".cursor/plans/yoomoney-904c9348.plan.md",
+        "hash": "15866864829102267198"
+      },
+      {
+        "file": ".cursor/plans/yoomoney-code-review-issues.plan.md",
+        "hash": "18365916405581573145"
+      },
+      {
+        "file": ".cursor/rules/.cursorrules",
+        "hash": "6834517955320413690"
+      },
+      {
+        "file": ".cursor/rules/changelog-rules.mdc",
+        "hash": "10567571217042511858"
+      },
+      {
+        "file": ".cursor/rules/docker-commands.mdc",
+        "hash": "15198432821437738555"
+      },
+      {
+        "file": ".cursor/rules/docker-multi-stage-build.mdc",
+        "hash": "5868536418660389674"
+      },
+      {
+        "file": ".cursor/rules/docs-rules.mdc",
+        "hash": "4199938803944554400"
+      },
+      {
+        "file": ".cursor/rules/nx-usage.mdc",
+        "hash": "5743485870455868653"
+      },
+      {
+        "file": ".cursor/rules/rights-rules.mdc",
+        "hash": "12597757257510266568"
+      },
+      {
+        "file": ".cursor/rules/stack-docs-sourse.mdc",
+        "hash": "3582972072890883267"
+      },
+      {
+        "file": ".cursor/rules/terminal-command.mdc",
+        "hash": "2200851980072810034"
+      },
+      {
+        "file": ".cursor/rules/testing-rules.mdc",
+        "hash": "13070679056825165250"
+      },
+      {
+        "file": ".cursor/rules/tooltip-guide-ui.mdc",
+        "hash": "504313635883526312"
+      },
+      {
+        "file": ".cursor/rules/ui-design-style.mdc",
+        "hash": "18365012925303979876"
+      },
+      {
+        "file": ".db_init.lock",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": ".env.example",
+        "hash": "13382883532120671041"
+      },
+      {
+        "file": ".eslintrc.json",
+        "hash": "6433629017332499954"
+      },
+      {
+        "file": ".github/CODE_OF_CONDUCT.md",
+        "hash": "14431577376517205954"
+      },
+      {
+        "file": ".github/FUNDING.yml",
+        "hash": "1599350635037776818"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE.md",
+        "hash": "857701851614043364"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/accessibility.md",
+        "hash": "13685069962426246672"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/allure-defect.md",
+        "hash": "12331641015620811886"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/bug_report.md",
+        "hash": "10348867939812732232"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/bug_template.md",
+        "hash": "9690505603862677564"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/config.yml",
+        "hash": "14163414099967899008"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/documentation.md",
+        "hash": "13514110517324411388"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/duplicate.md",
+        "hash": "6742897802011677191"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/feature_request.md",
+        "hash": "4067894259603679354"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/feature_template.md",
+        "hash": "8632029086680579465"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/good_first_issue.md",
+        "hash": "18271495659885090700"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/help_wanted.md",
+        "hash": "14345494401480356301"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/invalid.md",
+        "hash": "8903283906095729537"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_architecture_review.md",
+        "hash": "8278281975453001521"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_compatibility_review.md",
+        "hash": "14639013477872547857"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_design.md",
+        "hash": "7443634125532282985"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_dev_review.md",
+        "hash": "3047235996783131101"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_documentation.md",
+        "hash": "2934579472369210123"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_integration_review.md",
+        "hash": "12721368332612657940"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_investigation.md",
+        "hash": "3309113152791501760"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_more_info.md",
+        "hash": "10386060626597667729"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_optimization.md",
+        "hash": "8701873530944956835"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_performance_review.md",
+        "hash": "1863969812775196968"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_qa_review.md",
+        "hash": "3220536696771832068"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_refactoring.md",
+        "hash": "9902326711046460467"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_reproduction.md",
+        "hash": "3686709804011358025"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_review.md",
+        "hash": "3316695492238537731"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_security_review.md",
+        "hash": "13782955087902879285"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_testing.md",
+        "hash": "10093256571143626590"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_triage.md",
+        "hash": "16654082750760084453"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/needs_ux_review.md",
+        "hash": "2359737645648222350"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/performance.md",
+        "hash": "2489012924469245973"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/question.md",
+        "hash": "12153840966991291036"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/security_vulnerability.md",
+        "hash": "3483952942093616562"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/translation.md",
+        "hash": "18063317777683030285"
+      },
+      {
+        "file": ".github/ISSUE_TEMPLATE/wontfix.md",
+        "hash": "2693567502569004759"
+      },
+      {
+        "file": ".github/PULL_REQUEST_TEMPLATE.md",
+        "hash": "9006604960483397265"
+      },
+      {
+        "file": ".github/SECURITY.md",
+        "hash": "6990074075402428125"
+      },
+      {
+        "file": ".github/SUPPORT.md",
+        "hash": "1804850702371304726"
+      },
+      {
+        "file": ".github/workflows/ci.yml",
+        "hash": "8061992490105089458"
+      },
+      {
+        "file": ".github/workflows/docker.yml",
+        "hash": "1033890282009311396"
+      },
+      {
+        "file": ".github/workflows/test-scripts.yml",
+        "hash": "7282194558829110390"
+      },
+      {
+        "file": ".gitignore",
+        "hash": "8991890911161996659"
+      },
+      {
+        "file": ".htmlhintrc",
+        "hash": "7486554099553781122"
+      },
+      {
+        "file": ".pylintrc",
+        "hash": "10431075709054522159"
+      },
+      {
+        "file": ".stylelintignore",
+        "hash": "6719063625097108493"
+      },
+      {
+        "file": ".stylelintrc.json",
+        "hash": "15564356522941387830"
+      },
+      {
+        "file": "CHANGELOG.md",
+        "hash": "8914472031762933406"
+      },
+      {
+        "file": "CONTRIBUTING.md",
+        "hash": "5347063722667771825"
+      },
+      {
+        "file": "Dockerfile",
+        "hash": "3904135317918482971"
+      },
+      {
+        "file": "Dockerfile.codex-docs",
+        "hash": "11190287178130862127"
+      },
+      {
+        "file": "Dockerfile.docs",
+        "hash": "13371122911937066569"
+      },
+      {
+        "file": "Dockerfile.tests",
+        "hash": "14035278240645459248"
+      },
+      {
+        "file": "LICENSE",
+        "hash": "550515814021036392"
+      },
+      {
+        "file": "Makefile",
+        "hash": "16535631576567784146"
+      },
+      {
+        "file": "README.md",
+        "hash": "11567746284215003739"
+      },
+      {
+        "file": "SECURITY.md",
+        "hash": "561329048268368557"
+      },
+      {
+        "file": "allure-categories.json",
+        "hash": "11250746908455481329"
+      },
+      {
+        "file": "apps/allure-homepage/Dockerfile",
+        "hash": "14574751889525761927"
+      },
+      {
+        "file": "apps/allure-homepage/app.py",
+        "hash": "3354335643494439011"
+      },
+      {
+        "file": "apps/allure-homepage/requirements.txt",
+        "hash": "5848555308312591120"
+      },
+      {
+        "file": "apps/allure-homepage/templates/error.html",
+        "hash": "2769686489236071891"
+      },
+      {
+        "file": "apps/allure-homepage/templates/index.html",
+        "hash": "6865820636225754173"
+      },
+      {
+        "file": "apps/allure-homepage/templates/login.html",
+        "hash": "2098047383900649597"
+      },
+      {
+        "file": "apps/allure-homepage/templates/projects.html",
+        "hash": "10558342041739361477"
+      },
+      {
+        "file": "apps/docs-proxy/Dockerfile",
+        "hash": "2947061569610969135"
+      },
+      {
+        "file": "apps/docs-proxy/app.py",
+        "hash": "2466905616956302696"
+      },
+      {
+        "file": "apps/docs-proxy/requirements.txt",
+        "hash": "5848555308312591120"
+      },
+      {
+        "file": "apps/docs-proxy/templates/login.html",
+        "hash": "8597338857573803391"
+      },
+      {
+        "file": "apps/user-cabinet/Dockerfile",
+        "hash": "4315682699863645005"
+      },
+      {
+        "file": "apps/user-cabinet/app.py",
+        "hash": "1207132478154068148"
+      },
+      {
+        "file": "apps/user-cabinet/requirements.txt",
+        "hash": "14905507430218751480"
+      },
+      {
+        "file": "apps/user-cabinet/static/css/style.css",
+        "hash": "596816939356956613"
+      },
+      {
+        "file": "apps/user-cabinet/static/js/main.js",
+        "hash": "11513523714670832510"
+      },
+      {
+        "file": "apps/user-cabinet/static/js/theme.js",
+        "hash": "12166889666689162334"
+      },
+      {
+        "file": "apps/user-cabinet/static/svg/moon.svg",
+        "hash": "14658435328818588075"
+      },
+      {
+        "file": "apps/user-cabinet/static/svg/sun.svg",
+        "hash": "5833927737753240896"
+      },
+      {
+        "file": "apps/user-cabinet/templates/error.html",
+        "hash": "11280152330079371352"
+      },
+      {
+        "file": "apps/user-cabinet/templates/index.html",
+        "hash": "16451110121086859900"
+      },
+      {
+        "file": "codex.docs/.editorconfig",
+        "hash": "7552737609706192269"
+      },
+      {
+        "file": "codex.docs/.eslintignore",
+        "hash": "3352724958526382824"
+      },
+      {
+        "file": "codex.docs/.github/release-drafter.yml",
+        "hash": "12492114802152273381"
+      },
+      {
+        "file": "codex.docs/.github/workflows/build.yml",
+        "hash": "7843318746724448510"
+      },
+      {
+        "file": "codex.docs/.github/workflows/release-drafter.yml",
+        "hash": "3563494680109496873"
+      },
+      {
+        "file": "codex.docs/.gitignore",
+        "hash": "11881705819075819030"
+      },
+      {
+        "file": "codex.docs/.npmignore",
+        "hash": "14789017274250118342"
+      },
+      {
+        "file": "codex.docs/.nvmrc",
+        "hash": "4380310694088835021"
+      },
+      {
+        "file": "codex.docs/.postcssrc",
+        "hash": "6091231535507781994"
+      },
+      {
+        "file": "codex.docs/DEVELOPMENT.md",
+        "hash": "17423041340345177207"
+      },
+      {
+        "file": "codex.docs/LICENSE",
+        "hash": "8339574096716829119"
+      },
+      {
+        "file": "codex.docs/README.md",
+        "hash": "1052712237708609683"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/.eslintrc",
+        "hash": "4616835961381049194"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/.gitignore",
+        "hash": "1216449025761897388"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/.pnp.cjs",
+        "hash": "5691533691517151372"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/.pnp.loader.mjs",
+        "hash": "11653239853444995678"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/.yarn/install-state.gz",
+        "hash": "905656378808901137"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/.yarn/releases/yarn-3.2.3.cjs",
+        "hash": "11276196681167931448"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/.yarnrc.yml",
+        "hash": "939633790555701323"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/README.md",
+        "hash": "10551498779313419643"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/index.js",
+        "hash": "15409539811890653968"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/lib.js",
+        "hash": "5747326277895921336"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/package.json",
+        "hash": "15272188791237582126"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/program.js",
+        "hash": "10680196219644867944"
+      },
+      {
+        "file": "codex.docs/bin/db-converter/yarn.lock",
+        "hash": "6158598442574879494"
+      },
+      {
+        "file": "codex.docs/docker-compose.dev.yml",
+        "hash": "5355124941277105895"
+      },
+      {
+        "file": "codex.docs/docker-compose.yml",
+        "hash": "11363437079531518619"
+      },
+      {
+        "file": "codex.docs/docker/Dockerfile.prod",
+        "hash": "8752783234038618843"
+      },
+      {
+        "file": "codex.docs/docs-config.yaml",
+        "hash": "16656799822359254345"
+      },
+      {
+        "file": "codex.docs/docs/user-docs/admin/powershell-encoding-fix.md",
+        "hash": "1088532133182558511"
+      },
+      {
+        "file": "codex.docs/nodemon.json",
+        "hash": "15462953372045145423"
+      },
+      {
+        "file": "codex.docs/package.json",
+        "hash": "13592425611209791414"
+      },
+      {
+        "file": "codex.docs/public/favicon.png",
+        "hash": "14327443625038465655"
+      },
+      {
+        "file": "codex.docs/src/backend/.eslintrc",
+        "hash": "11117070871794718542"
+      },
+      {
+        "file": "codex.docs/src/backend/app.ts",
+        "hash": "7397933426714748726"
+      },
+      {
+        "file": "codex.docs/src/backend/build-static.ts",
+        "hash": "16052318670364628436"
+      },
+      {
+        "file": "codex.docs/src/backend/controllers/aliases.ts",
+        "hash": "1632966087724638225"
+      },
+      {
+        "file": "codex.docs/src/backend/controllers/pages.ts",
+        "hash": "17718189668849896268"
+      },
+      {
+        "file": "codex.docs/src/backend/controllers/pagesOrder.ts",
+        "hash": "261524271961561633"
+      },
+      {
+        "file": "codex.docs/src/backend/controllers/transport.ts",
+        "hash": "18135870678961450831"
+      },
+      {
+        "file": "codex.docs/src/backend/database/index.ts",
+        "hash": "16288209196169697837"
+      },
+      {
+        "file": "codex.docs/src/backend/database/local.ts",
+        "hash": "15727181497843319972"
+      },
+      {
+        "file": "codex.docs/src/backend/database/mongodb.ts",
+        "hash": "14209171455360112768"
+      },
+      {
+        "file": "codex.docs/src/backend/database/types.ts",
+        "hash": "1126379500124693078"
+      },
+      {
+        "file": "codex.docs/src/backend/exceptions/httpException.ts",
+        "hash": "15308185157742635605"
+      },
+      {
+        "file": "codex.docs/src/backend/models/alias.ts",
+        "hash": "12050351899294411669"
+      },
+      {
+        "file": "codex.docs/src/backend/models/file.ts",
+        "hash": "3430361337101120302"
+      },
+      {
+        "file": "codex.docs/src/backend/models/page.ts",
+        "hash": "5021991189047631116"
+      },
+      {
+        "file": "codex.docs/src/backend/models/pageOrder.ts",
+        "hash": "6952754128599812639"
+      },
+      {
+        "file": "codex.docs/src/backend/models/pagesFlatArray.ts",
+        "hash": "8348902720343534997"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/aliases.ts",
+        "hash": "4382331311532833117"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/api/index.ts",
+        "hash": "9549321467410427096"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/api/links.ts",
+        "hash": "11803943088087136084"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/api/pages.ts",
+        "hash": "3154260073908693060"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/api/transport.ts",
+        "hash": "15932804954004498141"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/auth.ts",
+        "hash": "7353166747014873472"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/home.ts",
+        "hash": "11512408211676095781"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/index.ts",
+        "hash": "15182905631930495285"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/middlewares/locals.ts",
+        "hash": "1179739047107519273"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/middlewares/pages.ts",
+        "hash": "2107814672950217388"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/middlewares/token.ts",
+        "hash": "294656108520558120"
+      },
+      {
+        "file": "codex.docs/src/backend/routes/pages.ts",
+        "hash": "13951954545143859187"
+      },
+      {
+        "file": "codex.docs/src/backend/server.ts",
+        "hash": "15995297778464918600"
+      },
+      {
+        "file": "codex.docs/src/backend/uploads/index.ts",
+        "hash": "13525340675733882507"
+      },
+      {
+        "file": "codex.docs/src/backend/uploads/local.ts",
+        "hash": "3751509775631855694"
+      },
+      {
+        "file": "codex.docs/src/backend/uploads/s3.ts",
+        "hash": "17980964476599312444"
+      },
+      {
+        "file": "codex.docs/src/backend/uploads/types.ts",
+        "hash": "1194412504895723480"
+      },
+      {
+        "file": "codex.docs/src/backend/utils/appConfig.ts",
+        "hash": "15631667688388482700"
+      },
+      {
+        "file": "codex.docs/src/backend/utils/asyncMiddleware.ts",
+        "hash": "8560162229576730200"
+      },
+      {
+        "file": "codex.docs/src/backend/utils/banner.ts",
+        "hash": "17588882888167831596"
+      },
+      {
+        "file": "codex.docs/src/backend/utils/crypto.ts",
+        "hash": "2703208784765091305"
+      },
+      {
+        "file": "codex.docs/src/backend/utils/downloadFavicon.ts",
+        "hash": "6864659876564107509"
+      },
+      {
+        "file": "codex.docs/src/backend/utils/menu.ts",
+        "hash": "14527658497406629003"
+      },
+      {
+        "file": "codex.docs/src/backend/utils/translation.ts",
+        "hash": "9768034293766291176"
+      },
+      {
+        "file": "codex.docs/src/backend/utils/twig.ts",
+        "hash": "17848831709163700873"
+      },
+      {
+        "file": "codex.docs/src/backend/utils/urlify.ts",
+        "hash": "12808942842297884141"
+      },
+      {
+        "file": "codex.docs/src/backend/views/auth.twig",
+        "hash": "11216601323123006809"
+      },
+      {
+        "file": "codex.docs/src/backend/views/components/button.twig",
+        "hash": "8142409275913956495"
+      },
+      {
+        "file": "codex.docs/src/backend/views/components/copy-button.twig",
+        "hash": "15308839303268346292"
+      },
+      {
+        "file": "codex.docs/src/backend/views/components/header.twig",
+        "hash": "8774961949068716765"
+      },
+      {
+        "file": "codex.docs/src/backend/views/components/navigator.twig",
+        "hash": "3241655826243105820"
+      },
+      {
+        "file": "codex.docs/src/backend/views/components/sidebar.twig",
+        "hash": "13914405352189600828"
+      },
+      {
+        "file": "codex.docs/src/backend/views/error.twig",
+        "hash": "17347293266606916875"
+      },
+      {
+        "file": "codex.docs/src/backend/views/layout.twig",
+        "hash": "1839661546849848813"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/checklist.twig",
+        "hash": "1358932128459244329"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/code.twig",
+        "hash": "2667080029781499966"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/delimiter.twig",
+        "hash": "12662392600118987133"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/embed.twig",
+        "hash": "18090290207404922567"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/header.twig",
+        "hash": "15488715739571745579"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/image.twig",
+        "hash": "7942769827466618716"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/linkTool.twig",
+        "hash": "1454387609276687191"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/list.twig",
+        "hash": "3563703248659393079"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/paragraph.twig",
+        "hash": "3008894448612333445"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/raw.twig",
+        "hash": "8192458535569191269"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/table.twig",
+        "hash": "6539272371032620365"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/blocks/warning.twig",
+        "hash": "15626038122374234571"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/form.twig",
+        "hash": "6915530717792538058"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/index.twig",
+        "hash": "12784557410249994726"
+      },
+      {
+        "file": "codex.docs/src/backend/views/pages/page.twig",
+        "hash": "1089031588645512488"
+      },
+      {
+        "file": "codex.docs/src/frontend/.eslintrc",
+        "hash": "5235422704294166598"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/app.js",
+        "hash": "14585339118515626625"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/classes/codeStyler.js",
+        "hash": "16438215488560558263"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/classes/editor.js",
+        "hash": "1070755761991386331"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/classes/sidebar-filter.js",
+        "hash": "14005607241082747508"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/classes/table-of-content.js",
+        "hash": "18405328206130574911"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/modules/extensions.js",
+        "hash": "12609885280606924309"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/modules/page.js",
+        "hash": "10635611205997270725"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/modules/sidebar.js",
+        "hash": "17503574616472449260"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/modules/writing.js",
+        "hash": "9914347935324465153"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/utils/copyToClipboard.js",
+        "hash": "12120547438936683119"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/utils/decorators.js",
+        "hash": "4918022356881119912"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/utils/dom.js",
+        "hash": "13673868585944118350"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/utils/storage.js",
+        "hash": "5297545604717861652"
+      },
+      {
+        "file": "codex.docs/src/frontend/js/utils/theme.js",
+        "hash": "15783111862118430454"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/carbon.pcss",
+        "hash": "4200355089358572000"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/auth.pcss",
+        "hash": "6317251712635652020"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/button.pcss",
+        "hash": "5593578029812435618"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/copy-button.pcss",
+        "hash": "228939500479055947"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/error.pcss",
+        "hash": "17249808958160011558"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/greeting.pcss",
+        "hash": "8802377609278066013"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/header.pcss",
+        "hash": "11504441275022609371"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/navigator.pcss",
+        "hash": "17405066150957760343"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/page.pcss",
+        "hash": "16126291822924510152"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/sidebar.pcss",
+        "hash": "3896620042142395321"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/table-of-content.pcss",
+        "hash": "11027997011454194262"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/theme-toggle.pcss",
+        "hash": "9111598151766153703"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/components/writing.pcss",
+        "hash": "9751610516396388561"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/diff.pcss",
+        "hash": "18385358226035483711"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/layout.pcss",
+        "hash": "6831707254734722048"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/main.pcss",
+        "hash": "8786151866936927972"
+      },
+      {
+        "file": "codex.docs/src/frontend/styles/vars.pcss",
+        "hash": "15615687566374449804"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/arrow-down.svg",
+        "hash": "12930542000483035425"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/arrow-left.svg",
+        "hash": "4657870779532712900"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/arrow-right.svg",
+        "hash": "15445448628592104343"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/arrow-up.svg",
+        "hash": "9537476648984493741"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/aside-logo.svg",
+        "hash": "1563856123635294244"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/check.svg",
+        "hash": "11296853668756754150"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/copy.svg",
+        "hash": "16752137833468050782"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/frog.svg",
+        "hash": "7946355079812040349"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/loader.svg",
+        "hash": "3706661127280597728"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/menu.svg",
+        "hash": "2220253298583214395"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/moon.svg",
+        "hash": "16848675879156070904"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/pencil.svg",
+        "hash": "9807981298434413334"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/plus.svg",
+        "hash": "6699214529302316654"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/search.svg",
+        "hash": "11206038294825860595"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/sun.svg",
+        "hash": "10429451293836373316"
+      },
+      {
+        "file": "codex.docs/src/frontend/svg/trash.svg",
+        "hash": "12019462609462650680"
+      },
+      {
+        "file": "codex.docs/src/test/database.ts",
+        "hash": "1349532886978832365"
+      },
+      {
+        "file": "codex.docs/src/test/express.ts",
+        "hash": "8511444528354168957"
+      },
+      {
+        "file": "codex.docs/src/test/models/alias.ts",
+        "hash": "6471222997582109534"
+      },
+      {
+        "file": "codex.docs/src/test/models/file.ts",
+        "hash": "13139868243907749390"
+      },
+      {
+        "file": "codex.docs/src/test/models/page.ts",
+        "hash": "11553999984167117019"
+      },
+      {
+        "file": "codex.docs/src/test/models/pageOrder.ts",
+        "hash": "3077055296296469489"
+      },
+      {
+        "file": "codex.docs/src/test/rest/aliases.ts",
+        "hash": "17713198290530952315"
+      },
+      {
+        "file": "codex.docs/src/test/rest/pages.ts",
+        "hash": "7763989057132318524"
+      },
+      {
+        "file": "codex.docs/src/test/rest/test_file.json",
+        "hash": "13405398715876953229"
+      },
+      {
+        "file": "codex.docs/src/test/rest/test_image.png",
+        "hash": "3523641443278117990"
+      },
+      {
+        "file": "codex.docs/src/test/rest/transport.ts",
+        "hash": "496534540730960873"
+      },
+      {
+        "file": "codex.docs/tsconfig.json",
+        "hash": "13260534014547532352"
+      },
+      {
+        "file": "codex.docs/webpack.config.js",
+        "hash": "5705242619152355888"
+      },
+      {
+        "file": "codex.docs/yarn.lock",
+        "hash": "5570074551536465865"
+      },
+      {
+        "file": "config/docs-config.yaml",
+        "hash": "4724715589670569380"
+      },
+      {
+        "file": "config/env.example",
+        "hash": "11258191990316885085"
+      },
+      {
+        "file": "cookies.txt",
+        "hash": "6121101436419504923"
+      },
+      {
+        "file": "deploy/nginx/dark-maximus.conf.tpl",
+        "hash": "13208671100408847942"
+      },
+      {
+        "file": "deploy/nginx/docs.conf",
+        "hash": "3085339023245699431"
+      },
+      {
+        "file": "djlint.toml",
+        "hash": "7841245083664858891"
+      },
+      {
+        "file": "docker-compose.yml",
+        "hash": "14463923408556507769"
+      },
+      {
+        "file": "docs/.nav.yml",
+        "hash": "14867201402189919710"
+      },
+      {
+        "file": "docs/.pages",
+        "hash": "6310273107040400495"
+      },
+      {
+        "file": "docs/README.md",
+        "hash": "16276187945441495935"
+      },
+      {
+        "file": "docs/analysis/README.md",
+        "hash": "7668195460557060893"
+      },
+      {
+        "file": "docs/analysis/yookassa-integration-analysis.md",
+        "hash": "11115185788075365760"
+      },
+      {
+        "file": "docs/architecture/README.md",
+        "hash": "2303000502236289996"
+      },
+      {
+        "file": "docs/architecture/agent-rules.md",
+        "hash": "1388883478360710266"
+      },
+      {
+        "file": "docs/architecture/architecture-rules.md",
+        "hash": "17406570941311013576"
+      },
+      {
+        "file": "docs/architecture/docker-architecture.md",
+        "hash": "8597021681666970082"
+      },
+      {
+        "file": "docs/architecture/documentation-structure.md",
+        "hash": "10481235849607735259"
+      },
+      {
+        "file": "docs/architecture/performance-optimization.md",
+        "hash": "333915245305544479"
+      },
+      {
+        "file": "docs/architecture/project-info.md",
+        "hash": "13988209894938197857"
+      },
+      {
+        "file": "docs/diagrams/README.md",
+        "hash": "14279082443127427997"
+      },
+      {
+        "file": "docs/diagrams/reference/menu-uml.md",
+        "hash": "16876742349075092096"
+      },
+      {
+        "file": "docs/documentation-inventory.md",
+        "hash": "12774381639192391016"
+      },
+      {
+        "file": "docs/guides/.pages",
+        "hash": "11097003593937060053"
+      },
+      {
+        "file": "docs/guides/README.md",
+        "hash": "1805319387322262859"
+      },
+      {
+        "file": "docs/guides/admin/README.md",
+        "hash": "17397245520358335715"
+      },
+      {
+        "file": "docs/guides/admin/admin-panel-guide.md",
+        "hash": "1098166917184834688"
+      },
+      {
+        "file": "docs/guides/admin/event-loop-alert.md",
+        "hash": "12995313710511732477"
+      },
+      {
+        "file": "docs/guides/admin/manual-notifications.md",
+        "hash": "9100024838430380270"
+      },
+      {
+        "file": "docs/guides/admin/message-templates-testing.md",
+        "hash": "17073992164160244791"
+      },
+      {
+        "file": "docs/guides/admin/monitoring-tabs.md",
+        "hash": "7081033602252762142"
+      },
+      {
+        "file": "docs/guides/admin/video-instructions-setup.md",
+        "hash": "5444015318454795101"
+      },
+      {
+        "file": "docs/guides/deployment/README.md",
+        "hash": "3749651188078284472"
+      },
+      {
+        "file": "docs/guides/deployment/advanced-setup.md",
+        "hash": "6061988713398561826"
+      },
+      {
+        "file": "docs/guides/deployment/auto-deploy.md",
+        "hash": "2456814828060074406"
+      },
+      {
+        "file": "docs/guides/deployment/deployment-checklist.md",
+        "hash": "10759223031429006097"
+      },
+      {
+        "file": "docs/guides/deployment/docker-deployment.md",
+        "hash": "15319294836979302951"
+      },
+      {
+        "file": "docs/guides/deployment/ssl-setup.md",
+        "hash": "1150526885735194946"
+      },
+      {
+        "file": "docs/guides/deployment/timezone-rollout-checklist.md",
+        "hash": "11304949002234636868"
+      },
+      {
+        "file": "docs/guides/deployment/timezone-testing-summary.md",
+        "hash": "18346941028999823212"
+      },
+      {
+        "file": "docs/guides/deployment/wiki-deployment.md",
+        "hash": "14314359107917229383"
+      },
+      {
+        "file": "docs/guides/development/README.md",
+        "hash": "18441378058220028414"
+      },
+      {
+        "file": "docs/guides/development/powershell-utf8-quickstart.md",
+        "hash": "13861311694517909391"
+      },
+      {
+        "file": "docs/guides/development/powershell-utf8-setup.md",
+        "hash": "5111293703992401504"
+      },
+      {
+        "file": "docs/guides/development/web-grid-refactor.md",
+        "hash": "7005177397096503714"
+      },
+      {
+        "file": "docs/guides/development/webhook-regression-checks.md",
+        "hash": "866176430320061884"
+      },
+      {
+        "file": "docs/guides/development/yookassa-local.md",
+        "hash": "10978819821618149776"
+      },
+      {
+        "file": "docs/guides/testing/README.md",
+        "hash": "687011654229992963"
+      },
+      {
+        "file": "docs/guides/testing/allure-defects-management.md",
+        "hash": "4089833111745234331"
+      },
+      {
+        "file": "docs/guides/testing/allure-discrepancy-analysis.md",
+        "hash": "7963929126581400773"
+      },
+      {
+        "file": "docs/guides/testing/allure-reporting.md",
+        "hash": "17302010659602435566"
+      },
+      {
+        "file": "docs/guides/testing/allure-test-description-template.md",
+        "hash": "7080579911026014459"
+      },
+      {
+        "file": "docs/guides/testing/best-practices.md",
+        "hash": "6930803112778296368"
+      },
+      {
+        "file": "docs/guides/testing/create-github-issues.md",
+        "hash": "13395564059483730502"
+      },
+      {
+        "file": "docs/guides/testing/html-validation-tests.md",
+        "hash": "2121859367823333560"
+      },
+      {
+        "file": "docs/guides/testing/running-tests.md",
+        "hash": "4933017995060780662"
+      },
+      {
+        "file": "docs/guides/testing/template-validation.md",
+        "hash": "3940872452810992502"
+      },
+      {
+        "file": "docs/guides/testing/test-auto-renewal-process-disabled-analysis.md",
+        "hash": "6636565597572585188"
+      },
+      {
+        "file": "docs/guides/testing/test-auto-renewal-process-plan-unavailable.md",
+        "hash": "2034058454589324669"
+      },
+      {
+        "file": "docs/guides/testing/test-cabinet-provision-mode-cabinet.md",
+        "hash": "14547339814979513842"
+      },
+      {
+        "file": "docs/guides/testing/test-cabinet-with-subscription-link.md",
+        "hash": "9341554482909911084"
+      },
+      {
+        "file": "docs/guides/testing/test-index-with-deleted-key.md",
+        "hash": "1589250361747790769"
+      },
+      {
+        "file": "docs/guides/testing/test-index-with-invalid-token.md",
+        "hash": "2579633734474135137"
+      },
+      {
+        "file": "docs/guides/testing/test-notification-buttons-flow.md",
+        "hash": "31833889876324918"
+      },
+      {
+        "file": "docs/guides/testing/test-plan-display-mode.md",
+        "hash": "13173867430986585405"
+      },
+      {
+        "file": "docs/guides/testing/testing-structure.md",
+        "hash": "11675903817645839365"
+      },
+      {
+        "file": "docs/guides/user/README.md",
+        "hash": "2783633642183260180"
+      },
+      {
+        "file": "docs/guides/user/faq.md",
+        "hash": "8179264036373259187"
+      },
+      {
+        "file": "docs/guides/user/getting-started.md",
+        "hash": "2206658178917810130"
+      },
+      {
+        "file": "docs/guides/user/payment.md",
+        "hash": "8403357755411719141"
+      },
+      {
+        "file": "docs/health.md",
+        "hash": "16325327414099468607"
+      },
+      {
+        "file": "docs/integrations/stars.md",
+        "hash": "12090765255099966331"
+      },
+      {
+        "file": "docs/integrations/yookassa-webhook-setup.md",
+        "hash": "3460870439532169887"
+      },
+      {
+        "file": "docs/integrations/yookassa.md",
+        "hash": "9218655471938191369"
+      },
+      {
+        "file": "docs/internal/README.md",
+        "hash": "14866069062875974405"
+      },
+      {
+        "file": "docs/internal/admin-docs-summary.md",
+        "hash": "7259341614042025337"
+      },
+      {
+        "file": "docs/internal/documentation-summary.md",
+        "hash": "2047788641852244050"
+      },
+      {
+        "file": "docs/internal/nx-guide.md",
+        "hash": "17117355322245565144"
+      },
+      {
+        "file": "docs/internal/nx-test-report.md",
+        "hash": "17343452324832610193"
+      },
+      {
+        "file": "docs/internal/plans/fix-days-hours-all-methods-report.md",
+        "hash": "15604936606053790798"
+      },
+      {
+        "file": "docs/internal/plans/fix-days-hours-report.md",
+        "hash": "9591848074318387606"
+      },
+      {
+        "file": "docs/internal/plans/yookassa-integration-completion-summary.md",
+        "hash": "15856064231360923244"
+      },
+      {
+        "file": "docs/internal/prompts.md",
+        "hash": "17165704524569087793"
+      },
+      {
+        "file": "docs/internal/quick-commands.md",
+        "hash": "18065214441588324082"
+      },
+      {
+        "file": "docs/internal/roadmap-main.md",
+        "hash": "13767771774105203368"
+      },
+      {
+        "file": "docs/internal/roadmap-readme.md",
+        "hash": "13022053045054118575"
+      },
+      {
+        "file": "docs/internal/roadmap.md",
+        "hash": "6098059295094435430"
+      },
+      {
+        "file": "docs/internal/wiki/docsify-overview.md",
+        "hash": "7148486739936756021"
+      },
+      {
+        "file": "docs/internal/wiki/public/.gitkeep",
+        "hash": "12724836385602680334"
+      },
+      {
+        "file": "docs/internal/wiki/sidebar-template.md",
+        "hash": "17574984071631855635"
+      },
+      {
+        "file": "docs/internal/wiki/user-portal-overview.md",
+        "hash": "11012484935938813802"
+      },
+      {
+        "file": "docs/migration/README.md",
+        "hash": "17101263195002262797"
+      },
+      {
+        "file": "docs/migration/migration-completed.md",
+        "hash": "6995523797373433432"
+      },
+      {
+        "file": "docs/migration/migration-plan.md",
+        "hash": "3604895629523044386"
+      },
+      {
+        "file": "docs/migration/test-cases-plan-unavailable.md",
+        "hash": "8253012441676783578"
+      },
+      {
+        "file": "docs/reference/README.md",
+        "hash": "2050426078000006917"
+      },
+      {
+        "file": "docs/reference/admin-panel/README.md",
+        "hash": "15280397942034771035"
+      },
+      {
+        "file": "docs/reference/admin-panel/api-overview.md",
+        "hash": "6616571376769209891"
+      },
+      {
+        "file": "docs/reference/admin-panel/menus-reference.md",
+        "hash": "18102512504277826462"
+      },
+      {
+        "file": "docs/reference/admin-panel/message-templates-reference.md",
+        "hash": "17460897754153751542"
+      },
+      {
+        "file": "docs/reference/api/README.md",
+        "hash": "4924451005755625463"
+      },
+      {
+        "file": "docs/reference/api/create-notification.md",
+        "hash": "14172765311609226079"
+      },
+      {
+        "file": "docs/reference/api/keys.md",
+        "hash": "11119724427908902556"
+      },
+      {
+        "file": "docs/reference/api/promo-codes.md",
+        "hash": "9176836171193810976"
+      },
+      {
+        "file": "docs/reference/api/resend-notification.md",
+        "hash": "2647939182713469202"
+      },
+      {
+        "file": "docs/reference/api/search-users.md",
+        "hash": "11355216202165379050"
+      },
+      {
+        "file": "docs/reference/api/topup-balance.md",
+        "hash": "2543198078570786960"
+      },
+      {
+        "file": "docs/reference/api/transaction-details.md",
+        "hash": "773131973372191563"
+      },
+      {
+        "file": "docs/reference/database.md",
+        "hash": "12617614307707004372"
+      },
+      {
+        "file": "docs/reference/dialog-api.md",
+        "hash": "1092330297383509108"
+      },
+      {
+        "file": "docs/reference/features-subscriptions.md",
+        "hash": "8043480499070332776"
+      },
+      {
+        "file": "docs/reference/features.md",
+        "hash": "16941817807811510109"
+      },
+      {
+        "file": "docs/reference/generic-cqrs-typing.md",
+        "hash": "13434294001020094262"
+      },
+      {
+        "file": "docs/reference/modules.md",
+        "hash": "7190168275577124020"
+      },
+      {
+        "file": "docs/reference/referral-program.md",
+        "hash": "531185063738452535"
+      },
+      {
+        "file": "docs/reference/tech-stack.md",
+        "hash": "13833981264177277654"
+      },
+      {
+        "file": "docs/reference/testing-reference.md",
+        "hash": "3522262927652898559"
+      },
+      {
+        "file": "docs/reports/KAR-29-AUTOTEST-IMPLEMENTATION-PLAN.md",
+        "hash": "13517170327978442946"
+      },
+      {
+        "file": "docs/reports/KAR-29-COMPLETION-COMMENT.md",
+        "hash": "3202451989842146224"
+      },
+      {
+        "file": "docs/reports/KAR-30-STAGE-6-7-TESTING-DEPLOYMENT.md",
+        "hash": "8958447029032272114"
+      },
+      {
+        "file": "docs/reports/allure-defects-report.md",
+        "hash": "8202779855244851988"
+      },
+      {
+        "file": "docs/reports/code-analysis-bug-fixes-report.md",
+        "hash": "5643669882675726322"
+      },
+      {
+        "file": "docs/reports/linear-task-description.md",
+        "hash": "16117553083841703609"
+      },
+      {
+        "file": "docs/reports/proof_yookassa_fix.md",
+        "hash": "9722615719272145103"
+      },
+      {
+        "file": "docs/reports/tests-without-allure-decorators.md",
+        "hash": "12751240558679310240"
+      },
+      {
+        "file": "docs/reports/yookassa-docker-testing-report.md",
+        "hash": "11506822442275755761"
+      },
+      {
+        "file": "docs/security/README.md",
+        "hash": "6678313371297332059"
+      },
+      {
+        "file": "docs/security/docker-socket-risks.md",
+        "hash": "18206912213124727618"
+      },
+      {
+        "file": "docs/security/security-checklist.md",
+        "hash": "2290615136551275812"
+      },
+      {
+        "file": "docs/security/security-improvements.md",
+        "hash": "4869203047924640084"
+      },
+      {
+        "file": "docs/security/security.md",
+        "hash": "8921652086579751442"
+      },
+      {
+        "file": "docs/setup-scripts/README.md",
+        "hash": "15077972713944007751"
+      },
+      {
+        "file": "docs/troubleshooting/ENCODING-FIX-SUMMARY.md",
+        "hash": "16085897647315228721"
+      },
+      {
+        "file": "docs/troubleshooting/encoding-issues.md",
+        "hash": "13016564522079352566"
+      },
+      {
+        "file": "docs/troubleshooting/git-encoding-issues.md",
+        "hash": "11851333388099966655"
+      },
+      {
+        "file": "docs/troubleshooting/yookassa-stuck-payments.md",
+        "hash": "16190979506859878379"
+      },
+      {
+        "file": "docs/tutorials/README.md",
+        "hash": "11243670159439105284"
+      },
+      {
+        "file": "docs/tutorials/admin-quickstart.md",
+        "hash": "3492252142581074186"
+      },
+      {
+        "file": "docs/tutorials/admin/installation.md",
+        "hash": "7171895004662288737"
+      },
+      {
+        "file": "docs/tutorials/video-instructions.md",
+        "hash": "11677930704117654848"
+      },
+      {
+        "file": "install-autotest.sh",
+        "hash": "15507368395460417207"
+      },
+      {
+        "file": "install.sh",
+        "hash": "6645907129100884782"
+      },
+      {
+        "file": "instructions/android.md",
+        "hash": "2269518309170323512"
+      },
+      {
+        "file": "instructions/ios.md",
+        "hash": "3084452835476081157"
+      },
+      {
+        "file": "instructions/linux.md",
+        "hash": "9343474896066243263"
+      },
+      {
+        "file": "instructions/macos.md",
+        "hash": "3979209296077729315"
+      },
+      {
+        "file": "instructions/windows.md",
+        "hash": "9982151382301015315"
+      },
+      {
+        "file": "mkdocs.yml",
+        "hash": "15155990568749675924"
+      },
+      {
+        "file": "nginx/nginx-ssl.conf",
+        "hash": "17574012060277880057"
+      },
+      {
+        "file": "nginx/nginx.conf",
+        "hash": "11495359169123071852"
+      },
+      {
+        "file": "nx.json",
+        "hash": "6511971159565679990"
+      },
+      {
+        "file": "package-lock.json",
+        "hash": "3088122669849193594"
+      },
+      {
+        "file": "package.json",
+        "hash": "18149942714560659072"
+      },
+      {
+        "file": "postcss.config.js",
+        "hash": "10302733817258008319"
+      },
+      {
+        "file": "pyproject.toml",
+        "hash": "3043725621830275022"
+      },
+      {
+        "file": "pyrightconfig.json",
+        "hash": "14749455654818832681"
+      },
+      {
+        "file": "scripts/check.ps1",
+        "hash": "651272899348831546"
+      },
+      {
+        "file": "scripts/lint.ps1",
+        "hash": "13532305711656187797"
+      },
+      {
+        "file": "scripts/lint.sh",
+        "hash": "15423246352297220363"
+      },
+      {
+        "file": "scripts/validate-scripts.sh",
+        "hash": "93035719722877603"
+      },
+      {
+        "file": "sessions-allure/.gitkeep",
+        "hash": "10236160634615817015"
+      },
+      {
+        "file": "sessions-allure/1bdf38023cc2d9258f8074d3a64d1390",
+        "hash": "4370546474068466657"
+      },
+      {
+        "file": "sessions-allure/2029240f6d1128be89ddc32729463129",
+        "hash": "12877371699406561786"
+      },
+      {
+        "file": "sessions-allure/2a39e53a8b373c4bf2521f427d6b850c",
+        "hash": "15405085383298167126"
+      },
+      {
+        "file": "sessions-allure/2ae22109ae11c8cfccac7d1144b98525",
+        "hash": "17894917188536988346"
+      },
+      {
+        "file": "sessions-allure/4b91648ef842c6e3c033763f5c1c1bd4",
+        "hash": "6528552497640016636"
+      },
+      {
+        "file": "sessions-allure/9aa951a147e45c1483426dde44101d08",
+        "hash": "180550495972299191"
+      },
+      {
+        "file": "sessions-allure/be8f22d19b04f6a1bc77d7e9f09ea4ef",
+        "hash": "15742059856144302219"
+      },
+      {
+        "file": "sessions-allure/becfa0440aa2f7706f8d3cde12394bf7",
+        "hash": "3535335831411504654"
+      },
+      {
+        "file": "sessions-allure/c7e679d49726c7ae12f0ac55481829ee",
+        "hash": "2946812083938820738"
+      },
+      {
+        "file": "sessions-allure/ebfd58d13ba1af69cdcdb33b80ce7fe0",
+        "hash": "142062309579148700"
+      },
+      {
+        "file": "sessions-allure/f08179e9cd0974eb2ac3fe7b76a624a9",
+        "hash": "1188868823455042281"
+      },
+      {
+        "file": "sessions-docs/.gitkeep",
+        "hash": "10371609857680306681"
+      },
+      {
+        "file": "sessions-docs/2029240f6d1128be89ddc32729463129",
+        "hash": "935049240298692639"
+      },
+      {
+        "file": "sessions-docs/266389c690061718d013e1ef96b16386",
+        "hash": "2297098680007928617"
+      },
+      {
+        "file": "sessions-docs/43fc20171af2040ca696d44b717aeb89",
+        "hash": "2275515059427388683"
+      },
+      {
+        "file": "sessions-docs/9932a2441babc797b5243962f52b858c",
+        "hash": "5030999660742752680"
+      },
+      {
+        "file": "sessions-docs/c9b64acae92278d5bda043813f5eed0a",
+        "hash": "5035841444154758287"
+      },
+      {
+        "file": "sessions-docs/d5765a78717c64df09dae09711746ceb",
+        "hash": "9065721175349499145"
+      },
+      {
+        "file": "sessions/.gitkeep",
+        "hash": "2794038460100433178"
+      },
+      {
+        "file": "sessions/2029240f6d1128be89ddc32729463129",
+        "hash": "13446402106178289447"
+      },
+      {
+        "file": "sessions/3b785081fd0526fdace996389001699b",
+        "hash": "10572944009699525416"
+      },
+      {
+        "file": "sessions/4fdb891915e96c6b0bff2170048599f8",
+        "hash": "446335689567206936"
+      },
+      {
+        "file": "sessions/568cf9d8a315d2f8744791732dfc46f3",
+        "hash": "13168402462536154759"
+      },
+      {
+        "file": "sessions/820b418d10ad89a27572e3328779f635",
+        "hash": "10841535941701762635"
+      },
+      {
+        "file": "sessions/84704fcf47abeba3ed839ce2fd459230",
+        "hash": "3335867179047016343"
+      },
+      {
+        "file": "sessions/8f54a8768da3530aa2436de1b7732db8",
+        "hash": "4466770273471082203"
+      },
+      {
+        "file": "sessions/9951ecbc592f97637c7eebb3610be7ee",
+        "hash": "16460977156661807245"
+      },
+      {
+        "file": "sessions/a264deeeac911f105b4fd6b8343bc143",
+        "hash": "10810360888080960712"
+      },
+      {
+        "file": "sessions/af45d3b2800e723d56746908bd1bc8fa",
+        "hash": "1091704949020967431"
+      },
+      {
+        "file": "sessions/b94633aebe8a41fc427f7c4f72ec53f8",
+        "hash": "3169049122804548560"
+      },
+      {
+        "file": "sessions/bd17a6709e3e0bc049a00771bc2be79f",
+        "hash": "10721748642495091894"
+      },
+      {
+        "file": "sessions/c9041c10fc71819b3c8d198fb9ca8aef",
+        "hash": "5887045654501283335"
+      },
+      {
+        "file": "sessions/cac991907f657e53a5426fee8528a9f4",
+        "hash": "2065429211978462840"
+      },
+      {
+        "file": "sessions/cf2202e6151c8e0bf3d86cf05e8a5f01",
+        "hash": "2904359919445068924"
+      },
+      {
+        "file": "sessions/dbd6f5674458b4cce4eb824434e836df",
+        "hash": "2178522227540112736"
+      },
+      {
+        "file": "sessions/f0cc35022ea2ff367434a67f7966d642",
+        "hash": "14768855069401492540"
+      },
+      {
+        "file": "src/shop_bot/__init__.py",
+        "hash": "5968116748145454641"
+      },
+      {
+        "file": "src/shop_bot/__main__.py",
+        "hash": "10324786438996416038"
+      },
+      {
+        "file": "src/shop_bot/bot/__init__.py",
+        "hash": "3124795028084160874"
+      },
+      {
+        "file": "src/shop_bot/bot/handlers.py",
+        "hash": "4006908889943485628"
+      },
+      {
+        "file": "src/shop_bot/bot/keyboards.py",
+        "hash": "12840847681773322198"
+      },
+      {
+        "file": "src/shop_bot/bot/middlewares.py",
+        "hash": "9753433883631779930"
+      },
+      {
+        "file": "src/shop_bot/bot/optimized_handlers.py",
+        "hash": "18348807364471272272"
+      },
+      {
+        "file": "src/shop_bot/bot/support_handlers.py",
+        "hash": "14067498207985975248"
+      },
+      {
+        "file": "src/shop_bot/bot_controller.py",
+        "hash": "15027939498343516108"
+      },
+      {
+        "file": "src/shop_bot/config.py",
+        "hash": "2776381027616955098"
+      },
+      {
+        "file": "src/shop_bot/data/__init__.py",
+        "hash": "8371883516127376483"
+      },
+      {
+        "file": "src/shop_bot/data/timezones.py",
+        "hash": "5791653254341692100"
+      },
+      {
+        "file": "src/shop_bot/data_manager/__init__.py",
+        "hash": "7500583692753786381"
+      },
+      {
+        "file": "src/shop_bot/data_manager/async_database.py",
+        "hash": "11873753455297744631"
+      },
+      {
+        "file": "src/shop_bot/data_manager/backup.py",
+        "hash": "8539142962690035940"
+      },
+      {
+        "file": "src/shop_bot/data_manager/database.py",
+        "hash": "10604674043239945849"
+      },
+      {
+        "file": "src/shop_bot/data_manager/scheduler.py",
+        "hash": "9114451371632490510"
+      },
+      {
+        "file": "src/shop_bot/modules/__init__.py",
+        "hash": "9028582591306394727"
+      },
+      {
+        "file": "src/shop_bot/modules/xui_api.py",
+        "hash": "12323566875699253861"
+      },
+      {
+        "file": "src/shop_bot/security/__init__.py",
+        "hash": "6172935627204150808"
+      },
+      {
+        "file": "src/shop_bot/security/rate_limiter.py",
+        "hash": "3292684580117918277"
+      },
+      {
+        "file": "src/shop_bot/security/validators.py",
+        "hash": "2894387993807735334"
+      },
+      {
+        "file": "src/shop_bot/ton_monitor.py",
+        "hash": "9138897010966017934"
+      },
+      {
+        "file": "src/shop_bot/utils/__init__.py",
+        "hash": "16520538122960232479"
+      },
+      {
+        "file": "src/shop_bot/utils/datetime_utils.py",
+        "hash": "8456835858458128737"
+      },
+      {
+        "file": "src/shop_bot/utils/deeplink.py",
+        "hash": "4946150732013330691"
+      },
+      {
+        "file": "src/shop_bot/utils/error_handler.py",
+        "hash": "17472107909477193942"
+      },
+      {
+        "file": "src/shop_bot/utils/logger.py",
+        "hash": "12127174999211581145"
+      },
+      {
+        "file": "src/shop_bot/utils/performance_monitor.py",
+        "hash": "15163575933886109028"
+      },
+      {
+        "file": "src/shop_bot/utils/telegram_logger.py",
+        "hash": "10465831286994141666"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/__init__.py",
+        "hash": "10228386416212150195"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/app.py",
+        "hash": "12809629955043372497"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/auth_utils.py",
+        "hash": "5047158372090899366"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/.well-known/tonconnect-manifest.json",
+        "hash": "17793405223260690606"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/css/style.css",
+        "hash": "16578829506203527312"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/css/tailwind.input.css",
+        "hash": "4208481858689243200"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/css/tw.css",
+        "hash": "7277483471344622010"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/favicon.ico",
+        "hash": "7523365006937991406"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/icons/ton_icon_1758808860.png",
+        "hash": "3299726572473181501"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/icons/ton_icon_1758809072.png",
+        "hash": "3299726572473181501"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/icons/ton_icon_1761342493.png",
+        "hash": "3117837362840112376"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/img/burger.png",
+        "hash": "7495720081620737300"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/js/script.js",
+        "hash": "1549412213814505556"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/logo.png",
+        "hash": "482004776479995458"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/static/logo.svg",
+        "hash": "13666467087305316925"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/base.html",
+        "hash": "13291863306382289989"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/check_payment.html",
+        "hash": "10024299292617276399"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/dashboard.html",
+        "hash": "9867258347541023103"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/debug.html",
+        "hash": "7228863771365501647"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/debug_settings.html",
+        "hash": "14675132248081927251"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/demo.html",
+        "hash": "18023151995639168736"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/dev_page.html",
+        "hash": "12630336012822686899"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/edit_privacy.html",
+        "hash": "804834966860139994"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/edit_terms.html",
+        "hash": "16982746532986744086"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/instructions.html",
+        "hash": "2647058601905203468"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/key_drawer.html",
+        "hash": "194455155616494872"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/keys.html",
+        "hash": "16057345338456635095"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/login.html",
+        "hash": "8797317344539565818"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/notifications.html",
+        "hash": "12078561556376671511"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/orphan_deletions_log.html",
+        "hash": "1283588862419341130"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/performance.html",
+        "hash": "12568885596007591983"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/privacy.html",
+        "hash": "4620218214214666089"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/promo_codes.html",
+        "hash": "17064669285814875789"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/settings.html",
+        "hash": "869146348184307352"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/terms.html",
+        "hash": "8863890266046486750"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/transactions.html",
+        "hash": "13207775085877441189"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/users.html",
+        "hash": "12861046788003337825"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/versions.html",
+        "hash": "10853698764603023947"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/video_drawer.html",
+        "hash": "11702572034940520930"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/video_embed.html",
+        "hash": "9045388766465105413"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/video_player.html",
+        "hash": "3353195099553490403"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/wiki_editor.html",
+        "hash": "14093145353418622080"
+      },
+      {
+        "file": "src/shop_bot/webhook_server/templates/wiki_editor_edit.html",
+        "hash": "11201705390408564669"
+      },
+      {
+        "file": "ssl-install.sh",
+        "hash": "4677585402117742969"
+      },
+      {
+        "file": "tailwind.config.js",
+        "hash": "8029604509427784966"
+      },
+      {
+        "file": "tests/__init__.py",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "tests/ad-hoc/__init__.py",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "tests/ad-hoc/analyze_allure_defects.py",
+        "hash": "1345746010194460486"
+      },
+      {
+        "file": "tests/ad-hoc/analyze_allure_discrepancy.ps1",
+        "hash": "2705153531605512399"
+      },
+      {
+        "file": "tests/ad-hoc/clear_allure_results.ps1",
+        "hash": "3241593750137380636"
+      },
+      {
+        "file": "tests/ad-hoc/create_github_issues.py",
+        "hash": "15121665681840681089"
+      },
+      {
+        "file": "tests/ad-hoc/export_allure_defects.py",
+        "hash": "117254000612788379"
+      },
+      {
+        "file": "tests/ad-hoc/utils/__init__.py",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "tests/ad-hoc/utils/create_demo_transaction.py",
+        "hash": "14815498264570028365"
+      },
+      {
+        "file": "tests/ad-hoc/utils/generate_test_link.py",
+        "hash": "11737361144184692052"
+      },
+      {
+        "file": "tests/ad-hoc/utils/get_credentials.py",
+        "hash": "18370030573217277716"
+      },
+      {
+        "file": "tests/ad-hoc/utils/show_transactions.py",
+        "hash": "18218351944000429549"
+      },
+      {
+        "file": "tests/ad-hoc/utils/simulate_new_user.py",
+        "hash": "3420839500865680625"
+      },
+      {
+        "file": "tests/ad-hoc/utils/simulate_yookassa_webhook.py",
+        "hash": "6682050249854586882"
+      },
+      {
+        "file": "tests/ad-hoc/utils/test_utils.py",
+        "hash": "4154935750820671117"
+      },
+      {
+        "file": "tests/ad-hoc/utils/verify_logging_setup.py",
+        "hash": "11614158428739871561"
+      },
+      {
+        "file": "tests/conftest.py",
+        "hash": "1989605657763444730"
+      },
+      {
+        "file": "tests/e2e/__init__.py",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "tests/e2e/test_admin_scenarios/__init__.py",
+        "hash": "7093319809866496859"
+      },
+      {
+        "file": "tests/e2e/test_admin_scenarios/test_admin_key_management.py",
+        "hash": "2098250055244050606"
+      },
+      {
+        "file": "tests/e2e/test_admin_scenarios/test_admin_promo_management.py",
+        "hash": "3581189426200373723"
+      },
+      {
+        "file": "tests/e2e/test_admin_scenarios/test_admin_user_management.py",
+        "hash": "2301623518536856607"
+      },
+      {
+        "file": "tests/e2e/test_key_auto_renewal_e2e.py",
+        "hash": "9037576143402099862"
+      },
+      {
+        "file": "tests/e2e/test_user_scenarios/__init__.py",
+        "hash": "17577958110849602395"
+      },
+      {
+        "file": "tests/e2e/test_user_scenarios/test_new_user_purchase.py",
+        "hash": "2704716391826238145"
+      },
+      {
+        "file": "tests/e2e/test_user_scenarios/test_user_key_extension.py",
+        "hash": "6919957471826830869"
+      },
+      {
+        "file": "tests/e2e/test_user_scenarios/test_user_trial_flow.py",
+        "hash": "3938122542936496906"
+      },
+      {
+        "file": "tests/e2e/test_user_scenarios/test_user_with_referral.py",
+        "hash": "16558026887932543627"
+      },
+      {
+        "file": "tests/integration/__init__.py",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "tests/integration/test_auto_renewal/__init__.py",
+        "hash": "2948060445913340001"
+      },
+      {
+        "file": "tests/integration/test_auto_renewal/test_auto_renewal_conditions.py",
+        "hash": "2618217425879549217"
+      },
+      {
+        "file": "tests/integration/test_auto_renewal/test_auto_renewal_process.py",
+        "hash": "3870289162697510722"
+      },
+      {
+        "file": "tests/integration/test_auto_renewal/test_key_auto_renewal_integration.py",
+        "hash": "2473634696964823334"
+      },
+      {
+        "file": "tests/integration/test_auto_renewal/test_notification_buttons_flow.py",
+        "hash": "15718303715055725297"
+      },
+      {
+        "file": "tests/integration/test_auto_renewal/test_toggle_auto_renewal_show_key_flow.py",
+        "hash": "2139582068664334045"
+      },
+      {
+        "file": "tests/integration/test_deeplink_flow.py",
+        "hash": "3770585519765212749"
+      },
+      {
+        "file": "tests/integration/test_deeplink_integration.py",
+        "hash": "10767968467082125901"
+      },
+      {
+        "file": "tests/integration/test_payments/__init__.py",
+        "hash": "9447213286763862967"
+      },
+      {
+        "file": "tests/integration/test_payments/test_balance_flow.py",
+        "hash": "8853095276965060945"
+      },
+      {
+        "file": "tests/integration/test_payments/test_cryptobot_flow.py",
+        "hash": "12247759873075221013"
+      },
+      {
+        "file": "tests/integration/test_payments/test_heleket_flow.py",
+        "hash": "12474620643459861279"
+      },
+      {
+        "file": "tests/integration/test_payments/test_stars_flow.py",
+        "hash": "13446291422521073128"
+      },
+      {
+        "file": "tests/integration/test_payments/test_ton_connect_flow.py",
+        "hash": "16091833272819249682"
+      },
+      {
+        "file": "tests/integration/test_payments/test_webhook_handling.py",
+        "hash": "17288492560694586439"
+      },
+      {
+        "file": "tests/integration/test_payments/test_yookassa_flow.py",
+        "hash": "12091239606763888125"
+      },
+      {
+        "file": "tests/integration/test_referral/__init__.py",
+        "hash": "18227642149882480687"
+      },
+      {
+        "file": "tests/integration/test_referral/test_referral_flow.py",
+        "hash": "11009422492272519416"
+      },
+      {
+        "file": "tests/integration/test_timezone_integration.py",
+        "hash": "6975035045533828286"
+      },
+      {
+        "file": "tests/integration/test_trial/__init__.py",
+        "hash": "8599474888781032282"
+      },
+      {
+        "file": "tests/integration/test_trial/test_trial_flow.py",
+        "hash": "5245877761718244347"
+      },
+      {
+        "file": "tests/integration/test_user_cabinet/__init__.py",
+        "hash": "15576829483331818420"
+      },
+      {
+        "file": "tests/integration/test_user_cabinet/test_cabinet_flow.py",
+        "hash": "9655321184245309428"
+      },
+      {
+        "file": "tests/integration/test_vpn_purchase/__init__.py",
+        "hash": "15307343215435724877"
+      },
+      {
+        "file": "tests/integration/test_vpn_purchase/test_full_purchase_flow.py",
+        "hash": "7226608172579213740"
+      },
+      {
+        "file": "tests/integration/test_vpn_purchase/test_key_creation_flow.py",
+        "hash": "913124837131269943"
+      },
+      {
+        "file": "tests/integration/test_vpn_purchase/test_key_extension_flow.py",
+        "hash": "15310044853536545685"
+      },
+      {
+        "file": "tests/integration/test_vpn_purchase/test_promo_code_application.py",
+        "hash": "13473908280816496085"
+      },
+      {
+        "file": "tests/integration/test_web_panel/__init__.py",
+        "hash": "8373130878018063790"
+      },
+      {
+        "file": "tests/integration/test_web_panel/test_admin_workflow.py",
+        "hash": "14025009176340687241"
+      },
+      {
+        "file": "tests/pytest.ini",
+        "hash": "3688475574104061647"
+      },
+      {
+        "file": "tests/run_tests.ps1",
+        "hash": "3822918944091638021"
+      },
+      {
+        "file": "tests/run_tests.sh",
+        "hash": "321884657772227434"
+      },
+      {
+        "file": "tests/scripts/__init__.py",
+        "hash": "15321507704990705045"
+      },
+      {
+        "file": "tests/scripts/conftest.py",
+        "hash": "2483881255021891956"
+      },
+      {
+        "file": "tests/scripts/test_autotest_validation.py",
+        "hash": "2073292642190605326"
+      },
+      {
+        "file": "tests/scripts/test_docker_compose.py",
+        "hash": "16444534104962862367"
+      },
+      {
+        "file": "tests/scripts/test_install_validation.py",
+        "hash": "6507464533914198891"
+      },
+      {
+        "file": "tests/scripts/test_ssl_validation.py",
+        "hash": "17662009410611846183"
+      },
+      {
+        "file": "tests/unit/__init__.py",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "tests/unit/test_allure_homepage/__init__.py",
+        "hash": "12885937591126563396"
+      },
+      {
+        "file": "tests/unit/test_allure_homepage/test_auth.py",
+        "hash": "57024382520050905"
+      },
+      {
+        "file": "tests/unit/test_bot/__init__.py",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "tests/unit/test_bot/test_handlers.py",
+        "hash": "13928329744926220144"
+      },
+      {
+        "file": "tests/unit/test_bot/test_keyboard_generation.py",
+        "hash": "12366073526285764897"
+      },
+      {
+        "file": "tests/unit/test_bot/test_manage_keys_handler.py",
+        "hash": "14453823034035327057"
+      },
+      {
+        "file": "tests/unit/test_bot/test_payment_handlers.py",
+        "hash": "12756061907118142790"
+      },
+      {
+        "file": "tests/unit/test_bot/test_promo_code_logic.py",
+        "hash": "2835408911086125535"
+      },
+      {
+        "file": "tests/unit/test_bot/test_router_error_handler.py",
+        "hash": "14140262301751554392"
+      },
+      {
+        "file": "tests/unit/test_bot/test_toggle_key_auto_renewal_handler.py",
+        "hash": "9019121339388179171"
+      },
+      {
+        "file": "tests/unit/test_database/__init__.py",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "tests/unit/test_database/test_auto_renewal.py",
+        "hash": "9702367877318782014"
+      },
+      {
+        "file": "tests/unit/test_database/test_cabinet_links.py",
+        "hash": "12684006195296877497"
+      },
+      {
+        "file": "tests/unit/test_database/test_database_indexes.py",
+        "hash": "9996307332367483501"
+      },
+      {
+        "file": "tests/unit/test_database/test_host_operations.py",
+        "hash": "14910698689676210403"
+      },
+      {
+        "file": "tests/unit/test_database/test_key_auto_renewal.py",
+        "hash": "16895563994964110594"
+      },
+      {
+        "file": "tests/unit/test_database/test_key_numbering.py",
+        "hash": "5809692759704701331"
+      },
+      {
+        "file": "tests/unit/test_database/test_key_operations.py",
+        "hash": "14387809808560832614"
+      },
+      {
+        "file": "tests/unit/test_database/test_locks.py",
+        "hash": "9250639327745974219"
+      },
+      {
+        "file": "tests/unit/test_database/test_notifications.py",
+        "hash": "4521237862828782428"
+      },
+      {
+        "file": "tests/unit/test_database/test_plan_display_mode.py",
+        "hash": "2572190100738022078"
+      },
+      {
+        "file": "tests/unit/test_database/test_promo_code_operations.py",
+        "hash": "4040243843549382694"
+      },
+      {
+        "file": "tests/unit/test_database/test_referral_operations.py",
+        "hash": "622985187083382754"
+      },
+      {
+        "file": "tests/unit/test_database/test_timezone_operations.py",
+        "hash": "10376011488237698155"
+      },
+      {
+        "file": "tests/unit/test_database/test_transaction_operations.py",
+        "hash": "1794422126545344064"
+      },
+      {
+        "file": "tests/unit/test_database/test_trial_operations.py",
+        "hash": "8796905175650829318"
+      },
+      {
+        "file": "tests/unit/test_database/test_user_operations.py",
+        "hash": "9406397347531959405"
+      },
+      {
+        "file": "tests/unit/test_docs_proxy/__init__.py",
+        "hash": "14279966870615990139"
+      },
+      {
+        "file": "tests/unit/test_docs_proxy/test_auth.py",
+        "hash": "16844447598570633912"
+      },
+      {
+        "file": "tests/unit/test_modules/__init__.py",
+        "hash": "14557113814033429598"
+      },
+      {
+        "file": "tests/unit/test_modules/test_xui_api.py",
+        "hash": "11791836560494872911"
+      },
+      {
+        "file": "tests/unit/test_security/__init__.py",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "tests/unit/test_security/test_validators.py",
+        "hash": "3319349620302040027"
+      },
+      {
+        "file": "tests/unit/test_user_cabinet/__init__.py",
+        "hash": "14961917098876932728"
+      },
+      {
+        "file": "tests/unit/test_user_cabinet/test_cabinet.py",
+        "hash": "8132539008755465473"
+      },
+      {
+        "file": "tests/unit/test_utils/__init__.py",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "tests/unit/test_utils/test_deeplink.py",
+        "hash": "12653188412717080024"
+      },
+      {
+        "file": "tests/unit/test_utils/test_message_templates.py",
+        "hash": "7297535209701802740"
+      },
+      {
+        "file": "tests/unit/test_utils/test_template_validation.py",
+        "hash": "7933269612923565235"
+      },
+      {
+        "file": "tests/unit/test_utils/test_timezone_utils.py",
+        "hash": "325690294093357889"
+      },
+      {
+        "file": "tests/unit/test_webhook_server/__init__.py",
+        "hash": "6091181923451875985"
+      },
+      {
+        "file": "tests/unit/test_webhook_server/test_auth.py",
+        "hash": "18362656283815663548"
+      },
+      {
+        "file": "tests/unit/test_webhook_server/test_auth_utils.py",
+        "hash": "8924655427588480144"
+      },
+      {
+        "file": "tests/unit/test_webhook_server/test_dashboard.py",
+        "hash": "11655928980396521981"
+      },
+      {
+        "file": "tests/unit/test_webhook_server/test_documents.py",
+        "hash": "726035029802822780"
+      },
+      {
+        "file": "tests/unit/test_webhook_server/test_filters.py",
+        "hash": "5189753312152845561"
+      },
+      {
+        "file": "tests/unit/test_webhook_server/test_instructions.py",
+        "hash": "2521082979151389102"
+      },
+      {
+        "file": "tests/unit/test_webhook_server/test_keys.py",
+        "hash": "17682796106050471689"
+      },
+      {
+        "file": "tests/unit/test_webhook_server/test_monitoring.py",
+        "hash": "14742477733518064026"
+      },
+      {
+        "file": "tests/unit/test_webhook_server/test_notifications.py",
+        "hash": "16331799841922380559"
+      },
+      {
+        "file": "tests/unit/test_webhook_server/test_promo_codes.py",
+        "hash": "12137814378349956270"
+      },
+      {
+        "file": "tests/unit/test_webhook_server/test_settings.py",
+        "hash": "2539285457780489376"
+      },
+      {
+        "file": "tests/unit/test_webhook_server/test_support.py",
+        "hash": "9457180119215754773"
+      },
+      {
+        "file": "tests/unit/test_webhook_server/test_ton_connect.py",
+        "hash": "696411198801916582"
+      },
+      {
+        "file": "tests/unit/test_webhook_server/test_transactions.py",
+        "hash": "15719819126082991615"
+      },
+      {
+        "file": "tests/unit/test_webhook_server/test_users.py",
+        "hash": "10871745965901439660"
+      },
+      {
+        "file": "tests/unit/test_webhook_server/test_wiki.py",
+        "hash": "3786445920158304870"
+      },
+      {
+        "file": "tools/check_templates.py",
+        "hash": "18218508107967171723"
+      },
+      {
+        "file": "tools/nginx/certs/localhost.cer",
+        "hash": "3878487340261225380"
+      },
+      {
+        "file": "tools/nginx/certs/localhost.pfx",
+        "hash": "14658114077440710658"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2.zip",
+        "hash": "16412356609191712103"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/CODE_OF_CONDUCT.md",
+        "hash": "12904381679107319841"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/CONTRIBUTING.md",
+        "hash": "4957105706415514571"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/SECURITY.md",
+        "hash": "1407739157040547152"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/conf/fastcgi.conf",
+        "hash": "8915779929498894318"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/conf/fastcgi_params",
+        "hash": "11459898854519598113"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/conf/https-local.conf",
+        "hash": "14889401877116683702"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/conf/koi-utf",
+        "hash": "10268387872646891965"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/conf/koi-win",
+        "hash": "16275438699681110085"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/conf/mime.types",
+        "hash": "9913229576426242086"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/conf/nginx.conf",
+        "hash": "15025781879541685176"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/conf/scgi_params",
+        "hash": "15699833554453940156"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/conf/uwsgi_params",
+        "hash": "11652987695990454310"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/conf/win-utf",
+        "hash": "10491300807309293319"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/contrib/README",
+        "hash": "9494423734704430825"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/contrib/geo2nginx.pl",
+        "hash": "7098072353329997334"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/contrib/unicode2nginx/koi-utf",
+        "hash": "17237183908566708071"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/contrib/unicode2nginx/unicode-to-nginx.pl",
+        "hash": "14234196084818907859"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/contrib/unicode2nginx/win-utf",
+        "hash": "4238391516738705174"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/contrib/vim/ftdetect/nginx.vim",
+        "hash": "15326886571756183917"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/contrib/vim/ftplugin/nginx.vim",
+        "hash": "7679501460572371273"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/contrib/vim/indent/nginx.vim",
+        "hash": "9677896608782913567"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/contrib/vim/syntax/nginx.vim",
+        "hash": "3585076533933555488"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/docs/CHANGES",
+        "hash": "11752589358276214448"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/docs/CHANGES.ru",
+        "hash": "2880858813794269396"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/docs/LICENSE",
+        "hash": "9554075622896507831"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/docs/OpenSSL.LICENSE",
+        "hash": "9661906125895756345"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/docs/PCRE.LICENCE",
+        "hash": "1896153545492105096"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/docs/README.md",
+        "hash": "1470827877128252868"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/docs/zlib.LICENSE",
+        "hash": "18187333041653440453"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/html/50x.html",
+        "hash": "15238449086918155942"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/html/index.html",
+        "hash": "8536499373355110562"
+      },
+      {
+        "file": "tools/nginx/nginx-1.27.2/nginx.exe",
+        "hash": "8249646451938436361"
+      },
+      {
+        "file": "video_instructions/README.md",
+        "hash": "9183526299222989681"
+      },
+      {
+        "file": "video_instructions/posters/.gitkeep",
+        "hash": "3244421341483603138"
+      },
+      {
+        "file": "video_instructions/videos/.gitkeep",
+        "hash": "3244421341483603138"
+      }
+    ],
+    "projectFileMap": {
+      "web-interface": [
+        {
+          "file": "apps/web-interface/project.json",
+          "hash": "9565461021941652903"
+        },
+        {
+          "file": "apps/web-interface/server.js",
+          "hash": "9289942024164007531"
+        },
+        {
+          "file": "apps/web-interface/src/index.html",
+          "hash": "4390189315769392795"
+        }
+      ],
+      "shared-utils": [
+        {
+          "file": "libs/shared-utils/project.json",
+          "hash": "18133462376884655814"
+        }
+      ],
+      "admin-docs": [
+        {
+          "file": "apps/admin-docs/project.json",
+          "hash": "6731179136645926906"
+        }
+      ],
+      "bot": [
+        {
+          "file": "apps/bot/project.json",
+          "hash": "10076012873780615813"
+        }
+      ],
+      "user-docs": [
+        {
+          "file": "apps/user-docs/project.json",
+          "hash": "13555242358502357324"
+        }
+      ]
+    }
+  }
+}

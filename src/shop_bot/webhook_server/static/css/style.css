@@ -521,6 +521,32 @@ h4 {
 	background-color: #138496;
 }
 
+/* Стили для ссылок-кнопок сервисов */
+a.button {
+	text-decoration: none;
+	color: #fff;
+}
+
+a.button:hover {
+	text-decoration: none;
+	color: #fff;
+}
+
+.button-service {
+	background-color: #333;
+	border: 1px solid #555;
+}
+
+.button-service:hover {
+	background-color: #3a3a3a;
+	border-color: var(--primary-color);
+	color: var(--primary-color);
+}
+
+.button-service:hover i {
+	color: var(--primary-color);
+}
+
 .button-disabled {
     background-color: var(--muted);
 	cursor: not-allowed;

@@ -34,8 +34,10 @@ class AsyncDatabaseManager:
         self.db_path = db_path or str(DB_FILE)
         self.max_connections = max_connections
         self._connection_pool = asyncio.Queue(maxsize=max_connections)
+        self._all_connections = set()  # Отслеживаем все созданные соединения
         self._initialized = False
         self._lock = asyncio.Lock()
+        self._closing = False  # Флаг для предотвращения новых соединений при закрытии
     
     async def initialize(self):
         """Инициализация connection pool"""
@@ -49,26 +51,74 @@ class AsyncDatabaseManager:
             # Создаем соединения для пула
             for _ in range(self.max_connections):
                 conn = await aiosqlite.connect(self.db_path)
-                await conn.execute("PRAGMA journal_mode=WAL")
+                await conn.execute("PRAGMA journal_mode=DELETE")
                 await conn.execute("PRAGMA synchronous=NORMAL")
                 await conn.execute("PRAGMA cache_size=10000")
                 await conn.execute("PRAGMA temp_store=MEMORY")
+                self._all_connections.add(conn)
                 await self._connection_pool.put(conn)
             
             self._initialized = True
             logger.info(f"AsyncDatabaseManager initialized with {self.max_connections} connections")
     
     async def close(self):
-        """Закрытие всех соединений"""
+        """Закрытие всех соединений (включая занятые)"""
+        if self._closing:
+            return
+            
+        self._closing = True
+        
+        # Закрываем все свободные соединения из очереди
         while not self._connection_pool.empty():
-            conn = await self._connection_pool.get()
-            await conn.close()
+            try:
+                conn = await self._connection_pool.get_nowait()
+                if conn in self._all_connections:
+                    await conn.close()
+                    self._all_connections.discard(conn)
+            except asyncio.QueueEmpty:
+                break
+            except Exception as e:
+                logger.warning(f"Error closing connection from pool: {e}")
+        
+        # Ждем освобождения занятых соединений и закрываем их
+        # Даем время на завершение текущих операций (максимум 5 секунд)
+        max_wait_time = 5.0
+        start_time = asyncio.get_event_loop().time()
+        
+        while self._all_connections and (asyncio.get_event_loop().time() - start_time) < max_wait_time:
+            # Пытаемся получить соединения, которые вернулись в пул
+            try:
+                conn = await asyncio.wait_for(self._connection_pool.get(), timeout=0.5)
+                if conn in self._all_connections:
+                    await conn.close()
+                    self._all_connections.discard(conn)
+            except (asyncio.TimeoutError, asyncio.QueueEmpty):
+                # Нет доступных соединений, ждем немного
+                await asyncio.sleep(0.1)
+            except Exception as e:
+                logger.warning(f"Error closing connection: {e}")
+        
+        # Принудительно закрываем оставшиеся соединения
+        remaining = list(self._all_connections)
+        for conn in remaining:
+            try:
+                await conn.close()
+                self._all_connections.discard(conn)
+            except Exception as e:
+                logger.warning(f"Error force-closing connection: {e}")
+        
+        if self._all_connections:
+            logger.warning(f"Some connections were not properly closed: {len(self._all_connections)}")
+        
         self._initialized = False
         logger.info("AsyncDatabaseManager closed")
     
     @asynccontextmanager
     async def get_connection(self):
         """Получение соединения из пула"""
+        if self._closing:
+            raise RuntimeError("Database manager is closing, cannot get new connections")
+            
         if not self._initialized:
             await self.initialize()
             
@@ -76,7 +126,8 @@ class AsyncDatabaseManager:
         try:
             yield conn
         finally:
-            await self._connection_pool.put(conn)
+            if not self._closing:
+                await self._connection_pool.put(conn)
     
     async def execute(self, query: str, params: tuple = ()) -> int:
         """Выполнение запроса с возвратом количества затронутых строк"""

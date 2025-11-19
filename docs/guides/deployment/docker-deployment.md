@@ -32,13 +32,13 @@ services:
   docs:
     build:
       dockerfile: Dockerfile.docs
-    ports: ['3001:8080']
+    ports: ['50001:80']
     healthcheck: ✓
     
   codex-docs:
     build:
       dockerfile: Dockerfile.codex-docs
-    ports: ['3002:3000']
+    ports: ['50002:50002']
     healthcheck: ✓
 ```
 
@@ -59,7 +59,7 @@ server {
 server {
     server_name docs.your-domain.com;
     location / {
-        proxy_pass http://127.0.0.1:3001;
+        proxy_pass http://127.0.0.1:50001;
     }
 }
 
@@ -67,7 +67,7 @@ server {
 server {
     server_name admin-docs.your-domain.com;
     location / {
-        proxy_pass http://127.0.0.1:3002;
+        proxy_pass http://127.0.0.1:50002;
         # WebSocket поддержка
     }
 }
@@ -103,13 +103,13 @@ server {
                                       │
                         ┌─────────────▼─────────────┐
                         │  Пользовательская док-я   │
-                        │  :3001 (внутр. 8080)      │
+                        │  :50001 (внутр. 8080)      │
                         │  (Nginx + статика)        │
                         └───────────────────────────┘
                                       │
                         ┌─────────────▼─────────────┐
                         │  Админская документация   │
-                        │  :3002                    │
+                        │  :50002                    │
                         │  (Codex.docs)             │
                         └───────────────────────────┘
 ```
@@ -265,7 +265,7 @@ docker compose config
 
 ```bash
 # Проверка занятых портов
-netstat -tulpn | grep -E '50000|3001|3002'
+netstat -tulpn | grep -E '50000|50001|50002'
 ```
 
 ### Пересборка без кэша

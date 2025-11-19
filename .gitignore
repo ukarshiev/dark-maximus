@@ -185,3 +185,10 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Allure test reports (results and generated reports)
+allure-reports/
+allure-results/*
+!allure-results/.gitkeep
+allure-report/*
+!allure-report/.gitkeep

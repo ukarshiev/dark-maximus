@@ -12,6 +12,7 @@ import hashlib
 import json
 import base64
 import asyncio
+import sqlite3
 
 from urllib.parse import urlencode
 from hmac import compare_digest
@@ -29,7 +30,7 @@ from pytonconnect.exceptions import UserRejectsError
 from aiogram import Bot, Router, F, types, html
 from aiogram.filters import Command, CommandObject, CommandStart, StateFilter
 from aiogram.types import BufferedInputFile, InlineKeyboardMarkup, InlineKeyboardButton, ErrorEvent
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramNetworkError
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.enums import ChatMemberStatus, ParseMode
@@ -65,6 +66,16 @@ CRYPTO_BOT_TOKEN = get_setting("cryptobot_token")
 logger = logging.getLogger(__name__)
 admin_router = Router()
 user_router = Router()
+
+# Экспорт функций-обработчиков для тестирования
+create_yookassa_payment_handler = None
+create_cryptobot_invoice_handler = None
+create_ton_invoice_handler = None
+create_stars_invoice_handler = None
+create_heleket_invoice_handler = None
+pay_with_internal_balance = None
+pre_checkout_handler = None
+trial_period_callback_handler = None
 
 
 def _get_user_timezone_context(user_id: int) -> Tuple[bool, str | None]:
@@ -3031,7 +3042,16 @@ def get_user_router() -> Router:
     @registration_required
     @measure_performance("manage_keys")
     async def manage_keys_handler(callback: types.CallbackQuery):
-        await callback.answer()
+        try:
+            await callback.answer()
+        except TelegramBadRequest as e:
+            error_msg = str(e).lower()
+            # Если callback query устарел, просто пропускаем answer и продолжаем
+            if "query is too old" in error_msg or "response timeout expired" in error_msg or "query id is invalid" in error_msg:
+                logger.debug(f"Callback query expired in manage_keys_handler for user {callback.from_user.id}, continuing without answer")
+            else:
+                raise
+        
         user_id = callback.from_user.id
         user_keys = get_user_keys(user_id)
         user_db_data = get_user(user_id)
@@ -3208,6 +3228,11 @@ def get_user_router() -> Router:
             new_expiry_date = datetime.fromtimestamp(result['expiry_timestamp_ms'] / 1000)
             subscription_link = result.get('subscription_link')
             feature_enabled, user_timezone = _get_user_timezone_context(user_id)
+            
+            # Получаем данные для информации о тарифе (триал)
+            plan_name = "TRIAL"
+            plan_price = 0.0
+            
             final_text = get_purchase_success_text(
                 "готов",
                 get_next_key_number(user_id) - 1,
@@ -3220,6 +3245,10 @@ def get_user_router() -> Router:
                 is_trial=True,
                 user_id=user_id,
                 key_id=new_key_id,
+                host_name=host_name,
+                plan_name=plan_name,
+                price=plan_price,
+                status=None,  # Для триала статус еще не определен
             )
             
             # Проверяем, что new_key_id не None перед созданием клавиатуры
@@ -3348,6 +3377,11 @@ def get_user_router() -> Router:
             new_expiry_date = datetime.fromtimestamp(result['expiry_timestamp_ms'] / 1000)
             subscription_link = result.get('subscription_link')
             feature_enabled, user_timezone = _get_user_timezone_context(user_id)
+            
+            # Получаем данные для информации о тарифе (триал)
+            plan_name = "TRIAL"
+            plan_price = 0.0
+            
             final_text = get_purchase_success_text(
                 "готов",
                 get_next_key_number(user_id) - 1,
@@ -3360,6 +3394,10 @@ def get_user_router() -> Router:
                 is_trial=True,
                 user_id=user_id,
                 key_id=new_key_id,
+                host_name=host_name,
+                plan_name=plan_name,
+                price=plan_price,
+                status=None,  # Для триала статус еще не определен
             )
             
             # Проверяем, что new_key_id не None перед созданием клавиатуры
@@ -3383,7 +3421,15 @@ def get_user_router() -> Router:
     @registration_required
     @measure_performance("show_key")
     async def show_key_handler(callback: types.CallbackQuery):
-        key_id_to_show = int(callback.data.split("_")[2])
+        # Извлекаем key_id из разных форматов callback data
+        parts = callback.data.split("_")
+        if callback.data.startswith("show_key_"):
+            key_id_to_show = int(parts[2])
+        elif callback.data.startswith("toggle_key_auto_renewal_"):
+            key_id_to_show = int(parts[-1])  # последний элемент
+        else:
+            # Fallback: пытаемся извлечь из последнего элемента
+            key_id_to_show = int(parts[-1])
         await callback.message.edit_text("Загружаю информацию о ключе...")
         user_id = callback.from_user.id
         key_data = get_key_by_id(key_id_to_show)
@@ -3420,6 +3466,13 @@ def get_user_router() -> Router:
             
             feature_enabled, user_timezone = _get_user_timezone_context(user_id)
             is_trial = key_data.get('is_trial') == 1
+            host_name = key_data.get('host_name')
+            plan_name = key_data.get('plan_name')
+            price = key_data.get('price')
+            
+            # Получаем статус автопродления ключа
+            from shop_bot.data_manager.database import get_key_auto_renewal_enabled
+            key_auto_renewal_enabled = get_key_auto_renewal_enabled(key_id_to_show)
 
             final_text = get_key_info_text(
                 key_number,
@@ -3434,13 +3487,32 @@ def get_user_router() -> Router:
                 is_trial=is_trial,
                 user_id=user_id,
                 key_id=key_id_to_show,
+                host_name=host_name,
+                plan_name=plan_name,
+                price=price,
+                key_auto_renewal_enabled=key_auto_renewal_enabled,
             )
             
-            await callback.message.edit_text(
-                text=final_text,
-                reply_markup=keyboards.create_key_info_keyboard(key_id_to_show, subscription_link),
-                parse_mode=ParseMode.HTML
-            )
+            try:
+                await callback.message.edit_text(
+                    text=final_text,
+                    reply_markup=keyboards.create_key_info_keyboard(key_id_to_show, subscription_link, key_auto_renewal_enabled),
+                    parse_mode=ParseMode.HTML
+                )
+            except TelegramBadRequest as e:
+                error_msg = str(e)
+                if "can't parse entities" in error_msg or "unsupported start tag" in error_msg:
+                    # Пытаемся отправить без HTML-форматирования
+                    logger.warning(f"HTML parsing error for key {key_id_to_show}, sending without HTML: {e}")
+                    # Удаляем HTML-теги из текста для отправки без форматирования
+                    plain_text = re.sub(r'<[^>]+>', '', final_text)
+                    plain_text = plain_text.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
+                    await callback.message.edit_text(
+                        text=plain_text,
+                        reply_markup=keyboards.create_key_info_keyboard(key_id_to_show, subscription_link, key_auto_renewal_enabled)
+                    )
+                else:
+                    raise
         except Exception as e:
             logger.error(f"Error showing key {key_id_to_show}: {e}")
             await callback.message.edit_text("❌ Произошла ошибка при получении данных ключа.")
@@ -3505,6 +3577,44 @@ def get_user_router() -> Router:
             )
         except Exception as e:
             logger.error(f"Error showing QR for key {key_id}: {e}")
+
+    @user_router.callback_query(F.data.startswith("toggle_key_auto_renewal_"))
+    @registration_required
+    @measure_performance("toggle_key_auto_renewal")
+    async def toggle_key_auto_renewal_handler(callback: types.CallbackQuery):
+        """Обработчик переключения автопродления для конкретного ключа"""
+        try:
+            await callback.answer()
+        except TelegramBadRequest as e:
+            error_msg = str(e).lower()
+            if "query is too old" in error_msg or "response timeout expired" in error_msg or "query id is invalid" in error_msg:
+                logger.debug(f"Callback query expired in toggle_key_auto_renewal_handler for user {callback.from_user.id}, continuing without answer")
+            else:
+                raise
+        
+        user_id = callback.from_user.id
+        key_id = int(callback.data.split("_")[-1])
+        
+        # Проверяем, что ключ принадлежит пользователю
+        key_data = get_key_by_id(key_id)
+        if not key_data or key_data['user_id'] != user_id:
+            await callback.answer("❌ Ошибка: ключ не найден.", show_alert=True)
+            return
+        
+        # Получаем текущий статус и переключаем
+        from shop_bot.data_manager.database import get_key_auto_renewal_enabled, set_key_auto_renewal_enabled
+        current_status = get_key_auto_renewal_enabled(key_id)
+        new_status = not current_status
+        
+        # Устанавливаем новый статус
+        if set_key_auto_renewal_enabled(key_id, new_status):
+            status_text = "включено" if new_status else "отключено"
+            await callback.answer(f"✅ Автопродление для ключа {status_text}", show_alert=True)
+            
+            # Обновляем сообщение с информацией о ключе
+            await show_key_handler(callback)
+        else:
+            await callback.answer("❌ Ошибка при изменении статуса автопродления.", show_alert=True)
 
     @user_router.callback_query(F.data.startswith("howto_vless_"))
     @registration_required
@@ -3722,7 +3832,7 @@ def get_user_router() -> Router:
             await callback.message.edit_text(f"❌ Для сервера \"{host_name}\" не настроены доступные тарифы.")
             return
         await callback.message.edit_text(
-            "Выберите тариф для нового ключа:", 
+            f"Вы выбрали:\n\n✅ {host_name}\n\n➡️ Теперь выберите тариф для нового ключа:", 
             reply_markup=keyboards.create_plans_keyboard(plans, action="new", host_name=host_name)
         )
 
@@ -3810,24 +3920,81 @@ def get_user_router() -> Router:
                 logger.info(f"DEBUG plan_selection: Calculated final_price={final_price} from promo_data")
         
         await state.update_data(
-            action=action, key_id=key_id, plan_id=plan_id, host_name=host_name, host_code=_resolve_host_code(host_name),
+            action=action,
+            key_id=key_id,
+            plan_id=plan_id,
+            host_name=host_name,
+            host_code=_resolve_host_code(host_name),
             # Сохраняем промокод и финальную цену, если они были применены ранее
             promo_code=current_data.get('promo_code'),
             final_price=final_price,
             promo_usage_id=current_data.get('promo_usage_id'),
-            promo_data=current_data.get('promo_data')
+            promo_data=current_data.get('promo_data'),
+            customer_email=None,
         )
-        
-        await callback.message.edit_text(
-            "📧 Пожалуйста, введите ваш email.\n\n"
-            "Если вы не хотите указывать почту, нажмите кнопку ниже.",
-            reply_markup=keyboards.create_skip_email_keyboard()
-        )
-        await state.set_state(PaymentProcess.waiting_for_email)
 
-    @user_router.callback_query(PaymentProcess.waiting_for_email, F.data == "back_to_plans")
+        message_text, reply_markup = await _build_payment_method_prompt(state, callback.from_user.id)
+        await callback.message.edit_text(message_text, reply_markup=reply_markup)
+        await state.set_state(PaymentProcess.waiting_for_payment_method)
+
+
+    async def _build_payment_method_prompt(state: FSMContext, user_id: int) -> tuple[str, InlineKeyboardMarkup]:
+        """
+        Собирает текст и клавиатуру для выбора способа оплаты на основе текущего состояния.
+        """
+        data = await state.get_data()
+        from shop_bot.data_manager.database import get_user_balance, get_plan_by_id
+
+        user_balance = get_user_balance(user_id)
+        plan_id = data.get('plan_id')
+        host_name = data.get('host_name')
+        plan_info = get_plan_by_id(plan_id) if plan_id else None
+
+        if plan_info:
+            final_price = data.get('final_price')
+            promo_code = data.get('promo_code')
+            promo_data = data.get('promo_data')
+
+            if final_price is not None:
+                price_to_show = float(final_price)
+                original_price = float(plan_info.get('price', 0))
+            elif promo_data:
+                base_price = float(plan_info.get('price', 0))
+                price_to_show = base_price
+                if promo_data.get('discount_amount', 0) > 0:
+                    price_to_show = max(0, base_price - float(promo_data['discount_amount']))
+                if promo_data.get('discount_percent', 0) > 0:
+                    discount_amount = base_price * float(promo_data['discount_percent']) / 100
+                    price_to_show = max(0, base_price - discount_amount)
+                original_price = base_price
+            else:
+                price_to_show = float(plan_info.get('price', 0))
+                original_price = None
+
+            message_text = get_payment_method_message_with_plan(
+                host_name=host_name,
+                plan_name=plan_info.get('plan_name', 'Неизвестный тариф'),
+                price=price_to_show,
+                original_price=original_price,
+                promo_code=promo_code,
+            )
+        else:
+            message_text = CHOOSE_PAYMENT_METHOD_MESSAGE
+
+        reply_markup = keyboards.create_payment_method_keyboard(
+            payment_methods=PAYMENT_METHODS,
+            action=data.get('action'),
+            key_id=data.get('key_id'),
+            user_balance=float(user_balance or 0),
+        )
+
+        return message_text, reply_markup
+
+    @user_router.callback_query(StateFilter(PaymentProcess.waiting_for_email, PaymentProcess.waiting_for_payment_method), F.data == "back_to_plans")
     @measure_performance("back_to_plans")
     async def back_to_plans_handler(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        current_state = await state.get_state()
         data = await state.get_data()
         action = data.get('action')
         host_name = data.get('host_name')
@@ -3836,6 +4003,9 @@ def get_user_router() -> Router:
             host_code = _resolve_host_code(host_name)
         key_id = data.get('key_id', 0)
         user_id = callback.from_user.id
+
+        if current_state == PaymentProcess.waiting_for_payment_method.state:
+            await _cleanup_promo_usage_if_needed(callback.from_user.id, data)
 
         # Очищаем состояние, но сохраняем selected_host и промокод для возможности дальнейшего возврата
         selected_host = data.get('selected_host')
@@ -3872,7 +4042,7 @@ def get_user_router() -> Router:
                 return
             
             await callback.message.edit_text(
-                "Выберите тариф для нового ключа:", 
+                f"Вы выбрали:\n\n✅ {host_name}\n\n➡️ Теперь выберите тариф для нового ключа:", 
                 reply_markup=keyboards.create_plans_keyboard(plans, action="new", host_name=host_name)
             )
         elif action == 'extend' and key_id:
@@ -3882,6 +4052,41 @@ def get_user_router() -> Router:
         else:
             await back_to_main_menu_handler(callback)
 
+    async def _cleanup_promo_usage_if_needed(user_id: int, data: dict) -> None:
+        promo_code = data.get('promo_code')
+        if not promo_code:
+            return
+
+        try:
+            from shop_bot.data_manager.database import (
+                get_promo_code_by_code,
+                get_user_promo_codes,
+                remove_user_promo_code_usage,
+            )
+
+            promo_data = get_promo_code_by_code(promo_code, "shop")
+            if not promo_data:
+                return
+
+            user_promo_codes = get_user_promo_codes(user_id, "shop")
+            usage_id = None
+            for promo in user_promo_codes:
+                if promo['promo_id'] == promo_data['promo_id']:
+                    usage_id = promo['usage_id']
+                    break
+
+            if usage_id:
+                success = remove_user_promo_code_usage(user_id=user_id, usage_id=usage_id, bot="shop")
+                if success:
+                    logger.info(f"Removed promo code usage for cancelled purchase: {promo_code} for user {user_id}")
+                else:
+                    logger.error(f"Failed to remove promo code usage for cancelled purchase: {promo_code} for user {user_id}")
+            else:
+                logger.warning(f"Usage ID not found for promo code {promo_code} and user {user_id}")
+        except Exception as e:
+            logger.error(f"Error removing promo code usage for cancelled purchase: {e}", exc_info=True)
+
+
     @user_router.message(PaymentProcess.waiting_for_email)
     @measure_performance("process_email")
     async def process_email_handler(message: types.Message, state: FSMContext):
@@ -3889,44 +4094,8 @@ def get_user_router() -> Router:
             await state.update_data(customer_email=message.text)
             await message.answer(f"✅ Email принят: {message.text}")
 
-            data = await state.get_data()
-            from shop_bot.data_manager.database import get_user_balance, get_plan_by_id
-            user_balance = get_user_balance(message.chat.id)
-            
-            # Получаем информацию о выбранном тарифе
-            plan_id = data.get('plan_id')
-            host_name = data.get('host_name')
-            plan_info = get_plan_by_id(plan_id) if plan_id else None
-            
-            if plan_info:
-                # Используем final_price из state, если он есть (применена скидка)
-                final_price = data.get('final_price')
-                if final_price is not None:
-                    price_to_show = float(final_price)
-                    original_price = float(plan_info.get('price', 0))
-                else:
-                    price_to_show = float(plan_info.get('price', 0))
-                    original_price = None
-                
-                message_text = get_payment_method_message_with_plan(
-                    host_name=host_name,
-                    plan_name=plan_info.get('plan_name', 'Неизвестный тариф'),
-                    price=price_to_show,
-                    original_price=original_price,
-                    promo_code=data.get('promo_code')
-                )
-            else:
-                message_text = CHOOSE_PAYMENT_METHOD_MESSAGE
-            
-            await message.answer(
-                message_text,
-                reply_markup=keyboards.create_payment_method_keyboard(
-                    payment_methods=PAYMENT_METHODS,
-                    action=data.get('action'),
-                    key_id=data.get('key_id'),
-                    user_balance=float(user_balance or 0)
-                )
-            )
+            message_text, reply_markup = await _build_payment_method_prompt(state, message.chat.id)
+            await message.answer(message_text, reply_markup=reply_markup)
             await state.set_state(PaymentProcess.waiting_for_payment_method)
             logger.info(f"User {message.chat.id}: State set to waiting_for_payment_method")
         else:
@@ -3938,44 +4107,8 @@ def get_user_router() -> Router:
         await callback.answer()
         await state.update_data(customer_email=None)
 
-        data = await state.get_data()
-        from shop_bot.data_manager.database import get_user_balance, get_plan_by_id
-        user_balance = get_user_balance(callback.from_user.id)
-        
-        # Получаем информацию о выбранном тарифе
-        plan_id = data.get('plan_id')
-        host_name = data.get('host_name')
-        plan_info = get_plan_by_id(plan_id) if plan_id else None
-        
-        if plan_info:
-            # Используем final_price из state, если он есть (применена скидка)
-            final_price = data.get('final_price')
-            if final_price is not None:
-                price_to_show = float(final_price)
-                original_price = float(plan_info.get('price', 0))
-            else:
-                price_to_show = float(plan_info.get('price', 0))
-                original_price = None
-            
-            message_text = get_payment_method_message_with_plan(
-                host_name=host_name,
-                plan_name=plan_info.get('plan_name', 'Неизвестный тариф'),
-                price=price_to_show,
-                original_price=original_price,
-                promo_code=data.get('promo_code')
-            )
-        else:
-            message_text = CHOOSE_PAYMENT_METHOD_MESSAGE
-        
-        await callback.message.edit_text(
-            message_text,
-            reply_markup=keyboards.create_payment_method_keyboard(
-                payment_methods=PAYMENT_METHODS,
-                action=data.get('action'),
-                key_id=data.get('key_id'),
-                user_balance=float(user_balance or 0)
-            )
-        )
+        message_text, reply_markup = await _build_payment_method_prompt(state, callback.from_user.id)
+        await callback.message.edit_text(message_text, reply_markup=reply_markup)
         await state.set_state(PaymentProcess.waiting_for_payment_method)
         logger.info(f"User {callback.from_user.id}: State set to waiting_for_payment_method")
 
@@ -4575,43 +4708,7 @@ def get_user_router() -> Router:
     @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "back_to_email_prompt")
     @measure_performance("back_to_email_prompt")
     async def back_to_email_prompt_handler(callback: types.CallbackQuery, state: FSMContext):
-        # Удаляем применённый промокод при отмене покупки
-        data = await state.get_data()
-        promo_code = data.get('promo_code')
-        if promo_code:
-            try:
-                from shop_bot.data_manager.database import get_promo_code_by_code, get_user_promo_codes, remove_user_promo_code_usage
-                promo_data = get_promo_code_by_code(promo_code, "shop")
-                if promo_data:
-                    # Находим usage_id для этого промокода
-                    user_promo_codes = get_user_promo_codes(callback.from_user.id, "shop")
-                    usage_id = None
-                    for promo in user_promo_codes:
-                        if promo['promo_id'] == promo_data['promo_id']:
-                            usage_id = promo['usage_id']
-                            break
-                    
-                    if usage_id:
-                        success = remove_user_promo_code_usage(
-                            user_id=callback.from_user.id,
-                            usage_id=usage_id,
-                            bot="shop"
-                        )
-                        if success:
-                            logger.info(f"Removed promo code usage for cancelled purchase: {promo_code} for user {callback.from_user.id}")
-                        else:
-                            logger.error(f"Failed to remove promo code usage for cancelled purchase: {promo_code} for user {callback.from_user.id}")
-                    else:
-                        logger.warning(f"Usage ID not found for promo code {promo_code} and user {callback.from_user.id}")
-            except Exception as e:
-                logger.error(f"Error removing promo code usage for cancelled purchase: {e}", exc_info=True)
-        
-        await callback.message.edit_text(
-            "📧 Пожалуйста, введите ваш email.\n\n"
-            "Если вы не хотите указывать почту, нажмите кнопку ниже.",
-            reply_markup=keyboards.create_skip_email_keyboard()
-        )
-        await state.set_state(PaymentProcess.waiting_for_email)
+        await back_to_plans_handler(callback, state)
 
 
 
@@ -4843,6 +4940,11 @@ def get_user_router() -> Router:
                         provision_mode = 'key'
 
                 feature_enabled, user_timezone = _get_user_timezone_context(user_id)
+                
+                # Получаем данные для информации о тарифе
+                plan_name = plan.get('plan_name') if plan else None
+                plan_price = plan.get('price') if plan else None
+                is_trial_key = False  # Бесплатный ключ не является триалом
 
                 final_text = get_purchase_success_text(
                     action="создан" if action == "new" else "продлен",
@@ -4855,6 +4957,11 @@ def get_user_router() -> Router:
                     feature_enabled=feature_enabled,
                     user_id=user_id,
                     key_id=key_id,
+                    host_name=host_name,
+                    plan_name=plan_name,
+                    price=plan_price,
+                    status=None,  # Для нового ключа статус еще не определен
+                    is_trial=is_trial_key,
                 )
                 
                 # Проверяем, что key_id не None перед созданием клавиатуры
@@ -4989,8 +5096,22 @@ def get_user_router() -> Router:
             
             await state.clear()
             
+            # Формируем текст с информацией о выбранных параметрах
+            plan_name = plan.get('plan_name', 'Неизвестный тариф')
+            price_text = f"{float(price_rub):.2f} RUB"
+            payment_method_text = "СБП / Банковская карта" if get_setting("sbp_enabled") == "true" else "Банковская карта"
+            
+            payment_text = (
+                "Вы выбрали:\n\n"
+                f"✅ Хост: {host_name}\n"
+                f"✅ Тариф: {plan_name}\n"
+                f"✅ Стоимость: {price_text}\n"
+                f"✅ Способ оплаты: {payment_method_text}\n\n"
+                "➡️ Для оплаты нажмите на кнопку:"
+            )
+            
             await callback.message.edit_text(
-                "Нажмите на кнопку ниже для оплаты:",
+                payment_text,
                 reply_markup=keyboards.create_payment_keyboard(payment.confirmation.confirmation_url)
             )
         except Exception as e:
@@ -5337,6 +5458,11 @@ def get_user_router() -> Router:
                         provision_mode = 'key'
 
                 feature_enabled, user_timezone = _get_user_timezone_context(user_id)
+                
+                # Получаем данные для информации о тарифе
+                plan_name = plan.get('plan_name') if plan else None
+                plan_price = plan.get('price') if plan else None
+                is_trial_key = False  # Бесплатный ключ не является триалом
 
                 final_text = get_purchase_success_text(
                     action="создан" if action == "new" else "продлен",
@@ -5349,6 +5475,11 @@ def get_user_router() -> Router:
                     feature_enabled=feature_enabled,
                     user_id=user_id,
                     key_id=key_id,
+                    host_name=host_name,
+                    plan_name=plan_name,
+                    price=plan_price,
+                    status=None,  # Для нового ключа статус еще не определен
+                    is_trial=is_trial_key,
                 )
                 
                 # Проверяем, что key_id не None перед созданием клавиатуры
@@ -5427,16 +5558,27 @@ def get_user_router() -> Router:
             qr_file = BufferedInputFile(bio.getvalue(), "ton_qr.png")
 
             await callback.message.delete()
+            
+            # Формируем текст с информацией о выбранных параметрах
+            plan_name = plan.get('plan_name', 'Неизвестный тариф')
+            host_name = data.get('host_name', 'Неизвестный хост')
+            price_text = f"{price_ton} TON"
+            
+            caption_text = (
+                "Вы выбрали:\n\n"
+                f"✅ Хост: {host_name}\n"
+                f"✅ Тариф: {plan_name}\n"
+                f"✅ Стоимость: {price_text}\n"
+                f"✅ Способ оплаты: 💎 TON Connect\n\n"
+                "➡️ Для оплаты нажмите на кнопку или отсканируйте QR-код:\n\n"
+                "💰 Способ 1 (на телефоне): Нажмите кнопку 'Открыть кошелек' ниже.\n\n"
+                "📱 Способ 2 (на компьютере): Отсканируйте QR-код кошельком.\n\n"
+                "После подключения кошелька подтвердите транзакцию."
+            )
+            
             await callback.message.answer_photo(
                 photo=qr_file,
-                caption=(
-                    f"💎 **Оплата через TON Connect**\n\n"
-                    f"Сумма к оплате: `{price_ton}` **TON**\n\n"
-                    f"✅ **Способ 1 (на телефоне):** Нажмите кнопку **'Открыть кошелек'** ниже.\n"
-                    f"✅ **Способ 2 (на компьютере):** Отсканируйте QR-код кошельком.\n\n"
-                    f"После подключения кошелька подтвердите транзакцию."
-                ),
-                parse_mode="Markdown",
+                caption=caption_text,
                 reply_markup=keyboards.create_ton_connect_keyboard(connect_url)
             )
             await state.clear()
@@ -5533,15 +5675,21 @@ def get_user_router() -> Router:
             from src.shop_bot.bot.keyboards import create_stars_payment_keyboard
             keyboard = create_stars_payment_keyboard(amount_stars, is_topup=False)
             
+            # Формируем текст с информацией о выбранных параметрах
+            plan_name = plan.get('plan_name', 'Неизвестный тариф')
+            host_name = data.get('host_name', 'Неизвестный хост')
+            price_text = f"{amount_stars} ⭐️"
+            
             text = (
-                f"💳 **Оплата тарифа через Telegram Stars**\n\n"
-                f"📦 Тариф: {plan.get('plan_name', 'Тариф')}\n"
-                f"💰 Сумма: {price_rub} RUB\n"
-                f"⭐ К оплате: {amount_stars} звезд\n\n"
-                f"Нажмите кнопку ниже для создания счета на оплату."
+                "Вы выбрали:\n\n"
+                f"✅ Хост: {host_name}\n"
+                f"✅ Тариф: {plan_name}\n"
+                f"✅ Стоимость: {price_text}\n"
+                f"✅ Способ оплаты: ⭐️ Telegram Stars\n\n"
+                "➡️ Для оплаты нажмите на кнопку:"
             )
             
-            await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+            await callback.message.edit_text(text, reply_markup=keyboard)
         except Exception as e:
             logger.error(f"Failed to create Stars purchase invoice: {e}", exc_info=True)
             try:
@@ -5703,6 +5851,18 @@ def get_user_router() -> Router:
                 )
                 return
 
+            # Формируем текст с информацией о выбранных параметрах перед списанием
+            plan_name = plan.get('plan_name', 'Неизвестный тариф') if plan else 'Неизвестный тариф'
+            price_text = f"{price:.2f} RUB"
+            
+            payment_info_text = (
+                "Вы выбрали:\n\n"
+                f"✅ Хост: {host_name}\n"
+                f"✅ Тариф: {plan_name}\n"
+                f"✅ Стоимость: {price_text}\n"
+                f"✅ Способ оплаты: С баланса\n\n"
+            )
+            
             # Списываем средства
             add_to_user_balance(user_id, -price)
 
@@ -5745,7 +5905,8 @@ def get_user_router() -> Router:
 
             # Сообщаем пользователю о списании с баланса
             try:
-                await callback.message.answer(f"✅ С баланса списано {price:.2f} RUB")
+                final_message = payment_info_text + f"✅ С баланса списано {price:.2f} RUB"
+                await callback.message.answer(final_message)
             except Exception:
                 pass
 
@@ -6137,8 +6298,30 @@ def get_user_router() -> Router:
 
     @user_router.error()
     @measure_performance("user_router_error")
-    async def user_router_error_handler(event: ErrorEvent):
+    async def user_router_error_handler(event: ErrorEvent, bot: Bot):
         """Глобальный обработчик ошибок для user_router"""
+        # Пропускаем сетевые ошибки - они обрабатываются автоматически aiogram
+        if isinstance(event.exception, TelegramNetworkError):
+            logger.warning(
+                f"Network error in user router (will retry automatically): {event.exception}"
+            )
+            return
+        
+        # Проверяем, не является ли это устаревшим callback query
+        # Такие ошибки обрабатываются в самих handlers и не должны логироваться как CRITICAL
+        if isinstance(event.exception, TelegramBadRequest):
+            error_msg = str(event.exception).lower()
+            if "query is too old" in error_msg or "response timeout expired" in error_msg or "query id is invalid" in error_msg:
+                # Устаревшие callback queries обрабатываются в handlers, логируем как debug
+                user_id = 'unknown'
+                if event.update.callback_query and hasattr(event.update.callback_query, 'from_user'):
+                    user_id = getattr(event.update.callback_query.from_user, 'id', 'unknown')
+                logger.debug(
+                    f"Expired callback query in user router for user {user_id}: {event.exception}"
+                )
+                # Не логируем как CRITICAL и не отправляем уведомления - handler уже обработал это
+                return
+        
         logger.critical(
             "Critical error in user router caused by %s", 
             event.exception, 
@@ -6158,12 +6341,47 @@ def get_user_router() -> Router:
                 )
             elif update.callback_query:
                 user_id = update.callback_query.from_user.id
-                await update.callback_query.answer(
-                    "⚠️ Произошла ошибка. Попробуйте позже или обратитесь в поддержку.",
-                    show_alert=True
-                )
+                try:
+                    # Пытаемся ответить на callback query
+                    await update.callback_query.answer(
+                        "⚠️ Произошла ошибка. Попробуйте позже или обратитесь в поддержку.",
+                        show_alert=True
+                    )
+                except TelegramBadRequest as e:
+                    error_msg = str(e).lower()
+                    # Если callback query устарел, отправляем обычное сообщение
+                    if "query is too old" in error_msg or "response timeout expired" in error_msg or "query id is invalid" in error_msg:
+                        logger.debug(
+                            f"Callback query expired for user {user_id}, sending regular message instead"
+                        )
+                        try:
+                            await bot.send_message(
+                                chat_id=user_id,
+                                text="⚠️ Произошла ошибка при обработке вашего запроса.\n"
+                                     "Попробуйте позже или обратитесь в поддержку."
+                            )
+                        except Exception as send_error:
+                            logger.error(
+                                f"Failed to send error notification message to user {user_id}: {send_error}"
+                            )
+                    else:
+                        # Другие ошибки TelegramBadRequest просто логируем
+                        logger.error(
+                            f"Failed to answer callback query for user {user_id}: {e}"
+                        )
         except Exception as notification_error:
             logger.error(f"Failed to send error notification to user {user_id}: {notification_error}")
+
+    # Экспортируем функции для тестирования
+    # Получаем функции из локальной области видимости и присваиваем глобальным переменным
+    local_funcs = locals()
+    globals_dict = globals()
+    for func_name in ['create_yookassa_payment_handler', 'create_cryptobot_invoice_handler', 
+                      'create_ton_invoice_handler', 'create_stars_invoice_handler', 
+                      'create_heleket_invoice_handler', 'pay_with_internal_balance', 
+                      'pre_checkout_handler', 'trial_period_callback_handler']:
+        if func_name in local_funcs:
+            globals_dict[func_name] = local_funcs[func_name]
 
     return user_router
 
@@ -6725,13 +6943,22 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
             )
             if result:
                 
-                # Сохраняем ключ в базу данных
-                key_id = add_new_key(
+                # Атомарно создаем ключ и обновляем все связанные данные в одной транзакции БД
+                payment_id = metadata.get('payment_id')
+                promo_usage_id = metadata.get('promo_usage_id')
+                
+                from shop_bot.data_manager.database import create_key_with_stats_atomic
+                key_id = create_key_with_stats_atomic(
                     user_id=user_id,
                     host_name=host_name,
                     xui_client_uuid=result['client_uuid'],
                     key_email=result['email'],
                     expiry_timestamp_ms=result['expiry_timestamp_ms'],
+                    amount_spent=price,
+                    months_purchased=months,
+                    payment_id=payment_id,
+                    promo_usage_id=promo_usage_id,
+                    plan_id=plan_id,
                     connection_string=result.get('connection_string') or "",
                     plan_name=plan.get('plan_name') if plan else None,
                     price=price,
@@ -6739,31 +6966,38 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
                     telegram_chat_id=telegram_chat_id,
                     comment=f"Ключ для пользователя {fullname or username or user_id}"
                 )
+                
+                # Если атомарная функция вернула None (ключ уже существует), пытаемся найти существующий
                 if not key_id:
                     try:
                         key_data_fallback = get_key_by_email(result['email'])
                         if key_data_fallback:
                             key_id = key_data_fallback.get('key_id')
+                            # Если ключ уже существует, обновляем статистику отдельно
+                            update_user_stats(user_id, price, months)
+                            if payment_id:
+                                from shop_bot.data_manager.database import update_yookassa_transaction
+                                update_yookassa_transaction(
+                                    payment_id, 'paid', price,
+                                    yookassa_payment_id, rrn, authorization_code, payment_type,
+                                    metadata
+                                )
+                            if promo_usage_id:
+                                from shop_bot.data_manager.database import update_promo_usage_status
+                                update_promo_usage_status(promo_usage_id, plan_id)
                     except Exception:
                         key_id = None
+                
                 if key_id:
-                    # Обновляем статистику пользователя
-                    update_user_stats(user_id, price, months)
-                    
-                    # Обновляем транзакцию с данными YooKassa
-                    payment_id = metadata.get('payment_id')
+                    # Обновляем транзакцию YooKassa с дополнительными данными (если не обновлено атомарно)
                     if payment_id:
+                        from shop_bot.data_manager.database import update_yookassa_transaction
+                        # Обновляем только дополнительные поля YooKassa (статус уже обновлен атомарно)
                         update_yookassa_transaction(
                             payment_id, 'paid', price,
                             yookassa_payment_id, rrn, authorization_code, payment_type,
                             metadata
                         )
-                    
-                    # Обновляем статус промокода на 'used' если он был применен
-                    promo_usage_id = metadata.get('promo_usage_id')
-                    if promo_usage_id:
-                        from shop_bot.data_manager.database import update_promo_usage_status
-                        update_promo_usage_status(promo_usage_id, plan_id)
 
                     feature_enabled, user_timezone = _get_user_timezone_context(user_id)
                     connection_string = result.get('connection_string')
@@ -6787,6 +7021,11 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
                         except Exception as metadata_update_error:
                             logger.warning(f"[PAYMENT_PROCESSING] Failed to save connection_string to metadata: {metadata_update_error}")
 
+                    # Получаем данные для информации о тарифе
+                    plan_name = plan.get('plan_name') if plan else None
+                    plan_price = price if price else None
+                    is_trial_key = False  # Платный ключ не является триалом
+
                     final_text = get_purchase_success_text(
                         action="создан",
                         key_number=key_number,
@@ -6798,6 +7037,11 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
                         feature_enabled=feature_enabled,
                         user_id=user_id,
                         key_id=key_id,
+                        host_name=host_name,
+                        plan_name=plan_name,
+                        price=plan_price,
+                        status=None,  # Для нового ключа статус еще не определен
+                        is_trial=is_trial_key,
                     )
 
                     try:
@@ -6875,6 +7119,22 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
                     from shop_bot.data_manager.database import update_promo_usage_status
                     update_promo_usage_status(promo_usage_id, plan_id)
                 
+                # Получаем данные для информации о тарифе
+                plan_name = plan.get('plan_name') if plan else None
+                plan_price = price if price else None
+                is_trial_key = False  # Платный ключ не является триалом
+                
+                # Получаем данные ключа для статуса
+                key_data = get_key_by_id(key_id) if key_id else None
+                key_status = None
+                if key_data:
+                    # Получаем статус из деталей ключа
+                    try:
+                        details = await xui_api.get_key_details_from_host(key_data)
+                        key_status = details.get('status') if details else None
+                    except Exception:
+                        pass
+
                 final_text = get_purchase_success_text(
                     action="продлен",
                     key_number=key_number,
@@ -6886,6 +7146,11 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
                     feature_enabled=feature_enabled,
                     user_id=user_id,
                     key_id=key_id,
+                    host_name=host_name,
+                    plan_name=plan_name,
+                    price=plan_price,
+                    status=key_status,
+                    is_trial=is_trial_key,
                 )
                 
                 try:
@@ -6981,6 +7246,20 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
         except Exception as e:
             logger.error(f"Failed to process topup for user {user_id}: {e}", exc_info=True)
         return
+    
+    # Списание средств с баланса при оплате с баланса (если еще не списано)
+    if payment_method_normalized in ('balance', 'из баланса') and operation != 'topup':
+        try:
+            from shop_bot.data_manager.database import get_user_balance, add_to_user_balance
+            current_balance = get_user_balance(user_id)
+            # Проверяем, что средства еще не списаны (если баланс >= цены, значит еще не списали)
+            # Если баланс меньше цены, значит уже списали или недостаточно средств
+            if current_balance >= price:
+                # Списываем средства с баланса
+                add_to_user_balance(user_id, -price)
+                logger.info(f"Process successful payment: Deducted {price} RUB from balance for user {user_id}. New balance: {current_balance - price}")
+        except Exception as e:
+            logger.error(f"Failed to deduct balance for user {user_id}: {e}", exc_info=True)
 
     if chat_id_to_delete and message_id_to_delete:
         try:
@@ -7081,33 +7360,154 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
             )
             return
 
+        price = float(metadata.get('price') or 0)
+        payment_id = metadata.get('payment_id')
+        promo_usage_id = metadata.get('promo_usage_id')
+        
         if action == "new":
+            logger.info(
+                f"[PAYMENT_PROCESSING] Atomically creating key: user_id={user_id}, "
+                f"email={result.get('email')}, key_number={key_number}, "
+                f"host_name={host_name}"
+            )
             
-            key_id = add_new_key(
-                user_id, 
-                host_name, 
-                result['client_uuid'], 
-                result['email'], 
-                result['expiry_timestamp_ms'],
+            # Атомарно создаем ключ и обновляем все связанные данные
+            from shop_bot.data_manager.database import create_key_with_stats_atomic
+            key_id = create_key_with_stats_atomic(
+                user_id=user_id,
+                host_name=host_name,
+                xui_client_uuid=result['client_uuid'],
+                key_email=result['email'],
+                expiry_timestamp_ms=result['expiry_timestamp_ms'],
+                amount_spent=price,
+                months_purchased=months,
+                payment_id=payment_id,
+                promo_usage_id=promo_usage_id,
+                plan_id=plan_id,
                 connection_string=result.get('connection_string') or "",
                 plan_name=(metadata.get('plan_name') or (plan.get('plan_name') if plan else None) or ""),
-                price=float(metadata.get('price') or 0),
+                price=price,
                 subscription=subscription,
                 subscription_link=result.get('subscription_link'),
                 telegram_chat_id=telegram_chat_id,
                 comment=f"Ключ для пользователя {fullname or username or user_id}"
             )
-            if not key_id:
+            
+            if key_id:
+                logger.info(f"[PAYMENT_PROCESSING] Successfully atomically created key: key_id={key_id}, email={result.get('email')}, user_id={user_id}")
+            else:
+                logger.warning(f"[PAYMENT_PROCESSING] create_key_with_stats_atomic returned None for email={result.get('email')}, user_id={user_id}")
                 try:
                     key_data_fallback = get_key_by_email(result['email'])
                     if key_data_fallback:
                         key_id = key_data_fallback.get('key_id')
-                except Exception:
+                        logger.info(f"[PAYMENT_PROCESSING] Found existing key via fallback: key_id={key_id}, email={result.get('email')}")
+                        # Если ключ уже существует, обновляем статистику отдельно
+                        update_user_stats(user_id, price, months)
+                        if payment_id:
+                            from shop_bot.data_manager.database import update_transaction_on_payment
+                            update_transaction_on_payment(payment_id, 'paid', price, tx_hash=tx_hash or "", metadata=metadata)
+                        if promo_usage_id:
+                            from shop_bot.data_manager.database import update_promo_usage_status
+                            update_promo_usage_status(promo_usage_id, plan_id)
+                except Exception as e:
+                    logger.error(f"[PAYMENT_PROCESSING] Fallback failed to find key by email: {e}")
                     key_id = None
         elif action == "extend":
-            update_key_info(key_id, result['client_uuid'], result['expiry_timestamp_ms'], result.get('subscription_link'))
-        
-        price = float(metadata.get('price') or 0) 
+            # Для продления используем транзакцию для атомарности
+            try:
+                from shop_bot.data_manager.database import DB_FILE
+                with sqlite3.connect(DB_FILE, timeout=30) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("PRAGMA busy_timeout=30000")
+                    cursor.execute("BEGIN IMMEDIATE")
+                    
+                    try:
+                        # Обновляем ключ
+                        from shop_bot.utils.datetime_utils import timestamp_to_utc_datetime, calculate_remaining_seconds
+                        expiry_date = timestamp_to_utc_datetime(result['expiry_timestamp_ms'])
+                        remaining_seconds = calculate_remaining_seconds(result['expiry_timestamp_ms'])
+                        
+                        # Получаем текущий ключ для проверки is_trial
+                        cursor.execute("SELECT is_trial FROM vpn_keys WHERE key_id = ?", (key_id,))
+                        key_row = cursor.fetchone()
+                        current_is_trial = key_row[0] if key_row and key_row[0] is not None else 0
+                        
+                        # Если price > 0 и текущий ключ был триалом, устанавливаем is_trial = 0
+                        is_trial_value = current_is_trial
+                        if price > 0 and current_is_trial == 1:
+                            is_trial_value = 0
+                            logger.info(f"[PAYMENT_PROCESSING] Converting trial key {key_id} to paid key after payment extension")
+                        
+                        # Пересчитываем status на основе is_trial_value и remaining_seconds
+                        if is_trial_value and remaining_seconds > 0:
+                            status_value = 'trial-active'
+                        elif is_trial_value and remaining_seconds <= 0:
+                            status_value = 'trial-ended'
+                        elif not is_trial_value and remaining_seconds > 0:
+                            status_value = 'pay-active'
+                        else:
+                            status_value = 'pay-ended'
+                        
+                        if result.get('subscription_link'):
+                            cursor.execute(
+                                "UPDATE vpn_keys SET xui_client_uuid = ?, expiry_date = ?, remaining_seconds = ?, subscription_link = ?, is_trial = ?, status = ? WHERE key_id = ?",
+                                (result['client_uuid'], expiry_date, remaining_seconds, result.get('subscription_link'), is_trial_value, status_value, key_id)
+                            )
+                        else:
+                            cursor.execute(
+                                "UPDATE vpn_keys SET xui_client_uuid = ?, expiry_date = ?, remaining_seconds = ?, is_trial = ?, status = ? WHERE key_id = ?",
+                                (result['client_uuid'], expiry_date, remaining_seconds, is_trial_value, status_value, key_id)
+                            )
+                        
+                        # Обновляем статистику пользователя
+                        cursor.execute(
+                            "UPDATE users SET total_spent = total_spent + ?, total_months = total_months + ? WHERE telegram_id = ?",
+                            (price, months, user_id)
+                        )
+                        
+                        # Обновляем транзакцию
+                        if payment_id:
+                            cursor.execute(
+                                "UPDATE transactions SET status = 'paid', amount_rub = ? WHERE payment_id = ? AND status = 'pending'",
+                                (price, payment_id)
+                            )
+                        
+                        # Обновляем промокод
+                        if promo_usage_id and plan_id:
+                            cursor.execute(
+                                """UPDATE promo_code_usage 
+                                SET status = 'used', plan_id = ?, used_at = CURRENT_TIMESTAMP 
+                                WHERE usage_id = ? AND status = 'applied'""",
+                                (plan_id, promo_usage_id)
+                            )
+                        
+                        cursor.execute("COMMIT")
+                        logger.info(f"[PAYMENT_PROCESSING] Atomically extended key_id={key_id} for user_id={user_id}")
+                    except sqlite3.Error as e:
+                        cursor.execute("ROLLBACK")
+                        logger.error(f"[PAYMENT_PROCESSING] Failed to atomically extend key: {e}", exc_info=True)
+                        raise
+            except Exception as e:
+                logger.error(f"[PAYMENT_PROCESSING] Error in atomic extend: {e}", exc_info=True)
+                # Fallback на старый метод
+                update_key_info(key_id, result['client_uuid'], result['expiry_timestamp_ms'], result.get('subscription_link'))
+                
+                # Если price > 0, обновляем is_trial и status (для триальных ключей, которые были продлены с оплатой)
+                if price > 0:
+                    key_data = get_key_by_id(key_id)
+                    if key_data and key_data.get('is_trial') == 1:
+                        from shop_bot.data_manager.database import update_key_trial_status
+                        update_key_trial_status(key_id, is_trial=0)
+                        logger.info(f"[PAYMENT_PROCESSING] Converted trial key {key_id} to paid key in fallback method")
+                
+                update_user_stats(user_id, price, months)
+                if payment_id:
+                    from shop_bot.data_manager.database import update_transaction_on_payment
+                    update_transaction_on_payment(payment_id, 'paid', price, tx_hash=tx_hash or "", metadata=metadata)
+                if promo_usage_id:
+                    from shop_bot.data_manager.database import update_promo_usage_status
+                    update_promo_usage_status(promo_usage_id, plan_id)
 
         user_data = get_user(user_id)
         referrer_id = user_data.get('referred_by')
@@ -7183,8 +7583,16 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
         connection_string = result['connection_string']
         new_expiry_date = datetime.fromtimestamp(result['expiry_timestamp_ms'] / 1000)
         
-        all_user_keys = get_user_keys(user_id)
-        key_number = next((i + 1 for i, key in enumerate(all_user_keys) if key['key_id'] == key_id), len(all_user_keys))
+        # Используем номер ключа, который был использован при создании (для action == "new")
+        # Для action == "extend" вычисляем номер из существующих ключей
+        if action == "new" and key_number is not None:
+            # Используем сохраненный номер ключа
+            logger.info(f"[PAYMENT_PROCESSING] Using saved key_number={key_number} for key_id={key_id}")
+        else:
+            # Для extend или если key_number не был установлен, вычисляем из БД
+            all_user_keys = get_user_keys(user_id)
+            key_number = next((i + 1 for i, key in enumerate(all_user_keys) if key['key_id'] == key_id), len(all_user_keys))
+            logger.info(f"[PAYMENT_PROCESSING] Computed key_number={key_number} for key_id={key_id} from database")
 
         # Получаем provision_mode из тарифа
         provision_mode = 'key'  # по умолчанию
@@ -7193,6 +7601,22 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
             provision_mode = plan.get('key_provision_mode', 'key')
         
         feature_enabled, user_timezone = _get_user_timezone_context(user_id)
+        
+        # Получаем данные для информации о тарифе
+        plan_name = plan.get('plan_name') if plan else None
+        plan_price = price if price else None
+        is_trial_key = False  # Платный ключ не является триалом
+        
+        # Получаем данные ключа для статуса (если ключ уже существует)
+        key_status = None
+        if key_id:
+            key_data = get_key_by_id(key_id)
+            if key_data:
+                try:
+                    details = await xui_api.get_key_details_from_host(key_data)
+                    key_status = details.get('status') if details else None
+                except Exception:
+                    pass
 
         final_text = get_purchase_success_text(
             action="создан" if action == "new" else "продлен",
@@ -7205,6 +7629,11 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
             feature_enabled=feature_enabled,
             user_id=user_id,
             key_id=key_id,
+            host_name=host_name,
+            plan_name=plan_name,
+            price=plan_price,
+            status=key_status,
+            is_trial=is_trial_key,
         )
         
         # Добавляем информацию о транзакции, если есть
@@ -7362,3 +7791,12 @@ async def show_subscription_screen(message: types.Message, state: FSMContext):
     await state.set_state(Onboarding.waiting_for_subscription)
 
 # Функция process_successful_onboarding_v2 удалена - используется основная process_successful_onboarding
+
+# Инициализируем роутер для экспорта функций-обработчиков для тестирования
+# Это нужно только для тестов, в production роутер инициализируется через bot_controller
+if __name__ != "__main__":
+    try:
+        _ = get_user_router()
+    except Exception:
+        # Игнорируем ошибки инициализации при импорте (например, если БД еще не готова)
+        pass

@@ -36,7 +36,7 @@ docker compose logs -f bot
 ### 2. **docs** - Пользовательская документация
 
 **Dockerfile**: `Dockerfile.docs`  
-**Порт**: 3001 (внутренний 8080)  
+**Порт**: 50001 (внутренний 80)  
 **Описание**: Статичная пользовательская документация на Nginx.
 
 **Особенности**:
@@ -62,7 +62,7 @@ docker compose logs -f docs
 ### 3. **codex-docs** - Админская документация
 
 **Dockerfile**: `Dockerfile.codex-docs`  
-**Порт**: 3002  
+**Порт**: 50002  
 **Описание**: Интерактивная админская документация на базе Codex.docs.
 
 **Особенности**:
@@ -136,7 +136,7 @@ services:
       context: .
       dockerfile: Dockerfile.docs
     ports:
-      - '3001:8080'
+      - '50001:80'
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
 
@@ -145,7 +145,7 @@ services:
       context: .
       dockerfile: Dockerfile.codex-docs
     ports:
-      - '3002:3000'
+      - '50002:50002'
     volumes:
       - codex_uploads:/usr/src/app/uploads
       - codex_db:/usr/src/app/db
@@ -360,7 +360,7 @@ docker compose build --no-cache bot
 
 ```bash
 # Проверка занятых портов
-netstat -tulpn | grep -E '50000|3001|3002'
+netstat -tulpn | grep -E '50000|50001|50002'
 
 # Освобождение портов
 sudo lsof -ti:50000 | xargs kill -9

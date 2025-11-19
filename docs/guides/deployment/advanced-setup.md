@@ -31,7 +31,7 @@ Dark Maximus состоит из трех основных Docker контейн
            │                    │                    │
            ▼                    ▼                    ▼
 ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│ localhost:3001  │  │ localhost:3002  │  │ localhost:50000 │
+│ localhost:50001  │  │ localhost:50002  │  │ localhost:50000 │
 │   docs:80       │  │ codex-docs:3000 │  │    bot:50000    │
 │   (nginx)       │  │   (Express)     │  │   (Python)      │
 └─────────────────┘  └─────────────────┘  └─────────────────┘
@@ -116,7 +116,7 @@ docker-compose up -d
 
 #### Добавление админской документации
 
-1. Откройте Codex Docs: `http://localhost:3002`
+1. Откройте Codex Docs: `http://localhost:50002`
 2. Создайте новую секцию "📖 Админская документация"
 3. Добавьте подстраницы:
    - ⚡ Быстрый старт
@@ -229,7 +229,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/docs.your-domain.com/privkey.pem;
     
     location / {
-        proxy_pass http://127.0.0.1:3001;
+        proxy_pass http://127.0.0.1:50001;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -246,7 +246,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/help.your-domain.com/privkey.pem;
     
     location / {
-        proxy_pass http://127.0.0.1:3002;
+        proxy_pass http://127.0.0.1:50002;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

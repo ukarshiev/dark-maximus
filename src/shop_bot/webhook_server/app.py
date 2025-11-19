@@ -49,7 +49,7 @@ from shop_bot.data_manager.database import (
     create_host, delete_host, create_plan, delete_plan, get_user_count,
     get_total_keys_count, get_total_earned_sum, get_total_notifications_count, get_daily_stats_for_charts,
     get_recent_transactions, get_paginated_transactions, get_all_users, get_user_keys,
-    ban_user, unban_user, delete_user_keys, get_setting, get_global_domain, find_and_complete_ton_transaction, find_ton_transaction_by_amount,
+    ban_user, unban_user, delete_user_keys, get_setting, get_global_domain, find_and_complete_ton_transaction,
     get_paginated_keys, get_plan_by_id, update_plan, get_host, get_host_by_code, update_host, revoke_user_consent,
     search_users as db_search_users, add_to_user_balance, log_transaction, get_user, get_notification_by_id,
     verify_admin_credentials, hash_password, get_all_promo_codes, create_promo_code, update_promo_code,
@@ -81,8 +81,10 @@ from shop_bot.utils.datetime_utils import (
     DEFAULT_PANEL_TIMEZONE,
 )
 from shop_bot.data.timezones import TIMEZONES, DEFAULT_TIMEZONE, validate_timezone
+from shop_bot.webhook_server.auth_utils import init_flask_auth
 
 _bot_controller = None
+get_common_template_data = None  # Экспорт для тестирования
 
 ALL_SETTINGS_KEYS = [
     "panel_login", "panel_password", "about_text", "terms_url", "privacy_url", "bot_username",
@@ -269,29 +271,18 @@ def create_webhook_app(bot_controller_instance):
         static_folder='static'
     )
     
-    # Безопасное получение секретного ключа из переменных окружения
-    import secrets
-    flask_app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(32))
-    
     # Настройка для автоматической перезагрузки шаблонов
     flask_app.jinja_env.auto_reload = True
     flask_app.config['TEMPLATES_AUTO_RELOAD'] = True
     flask_app.config['DEBUG'] = True
     flask_app.jinja_env.cache = None
     
-    # Настройка постоянного хранения сессий в файловой системе
-    flask_app.config['SESSION_TYPE'] = 'filesystem'
-    flask_app.config['SESSION_FILE_DIR'] = '/app/sessions'
-    flask_app.config['SESSION_PERMANENT'] = True
-    flask_app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)  # Сессия на 30 дней
-    
     # CSRF защита отключена
     flask_app.config['WTF_CSRF_ENABLED'] = False
     
-    # Инициализация файловой сессии
-    from flask_session import Session
-    os.makedirs('/app/sessions', exist_ok=True)
-    Session(flask_app)
+    # Инициализация авторизации и сессий через единую функцию
+    # Это обеспечивает единообразную настройку сессий во всех сервисах
+    init_flask_auth(flask_app, session_dir='/app/sessions')
 
     @flask_app.context_processor
     def inject_current_year():
@@ -468,7 +459,7 @@ def create_webhook_app(bot_controller_instance):
             wiki_url = docs_domain
         else:
             # Если домен не настроен, используем localhost
-            wiki_url = 'http://localhost:3001'
+            wiki_url = 'http://localhost:50001'
         
         # URL для базы знаний (codex-docs)
         if codex_docs_domain:
@@ -483,10 +474,10 @@ def create_webhook_app(bot_controller_instance):
             global_domain = global_domain.rstrip('/')
             if not global_domain.startswith(('http://', 'https://')):
                 global_domain = f'https://{global_domain}'
-            knowledge_base_url = f'{global_domain}:3002'
+            knowledge_base_url = f'{global_domain}:50002'
         else:
             # Если домены не настроены, используем localhost
-            knowledge_base_url = 'http://localhost:3002'
+            knowledge_base_url = 'http://localhost:50002'
         
         return {
             "bot_status": bot_status, 
@@ -1178,17 +1169,7 @@ def create_webhook_app(bot_controller_instance):
         for key in payment_keys:
             update_setting(key, request.form.get(key, ''))
         
-        # КРИТИЧЕСКИ ВАЖНО: Принудительная синхронизация WAL после всех обновлений
-        # Это гарантирует, что все изменения видны в БД немедленно
-        try:
-            import sqlite3
-            with sqlite3.connect(DB_FILE) as conn:
-                cursor = conn.cursor()
-                cursor.execute("PRAGMA wal_checkpoint(FULL)")
-                conn.commit()
-                logger.info("WAL checkpoint выполнен после сохранения настроек платежей")
-        except Exception as e:
-            logger.error(f"Ошибка при выполнении WAL checkpoint: {e}", exc_info=True)
+        # Изменения сохраняются напрямую в основную базу (DELETE режим журналирования)
         
         # КРИТИЧЕСКИ ВАЖНО: Переинициализируем Configuration после сохранения настроек YooKassa
         try:
@@ -1267,7 +1248,7 @@ def create_webhook_app(bot_controller_instance):
     def api_support_check_config():
         """API для проверки конфигурации бота поддержки"""
         try:
-            if not bot_controller_instance.support_bot or not bot_controller_instance.support_is_running:
+            if not _bot_controller.support_bot or not _bot_controller.support_is_running:
                 return jsonify({
                     'success': False,
                     'message': '❌ Бот поддержки не запущен. Запустите его сначала.'
@@ -1290,7 +1271,7 @@ def create_webhook_app(bot_controller_instance):
             
             # Выполняем асинхронную проверку
             async def check_config():
-                bot = bot_controller_instance.support_bot
+                bot = _bot_controller.support_bot
                 try:
                     chat_info = await bot.get_chat(support_group_id)
                     result = f"✅ Группа найдена: {chat_info.title}\n"
@@ -1325,7 +1306,7 @@ def create_webhook_app(bot_controller_instance):
                     return error_msg
             
             import asyncio
-            loop = bot_controller_instance._loop
+            loop = _bot_controller._loop
             if loop and loop.is_running():
                 future = asyncio.run_coroutine_threadsafe(check_config(), loop)
                 check_result = future.result(timeout=30)
@@ -1569,28 +1550,48 @@ def create_webhook_app(bot_controller_instance):
     @login_required
     def start_shop_bot_route():
         result = _bot_controller.start_shop_bot()
-        flash(result.get('message', 'An error occurred.'), 'success' if result.get('status') == 'success' else 'danger')
+        # Обрабатываем случай, когда result может быть bool или dict
+        if isinstance(result, dict):
+            flash(result.get('message', 'An error occurred.'), 'success' if result.get('status') == 'success' else 'danger')
+        else:
+            # Если result - bool, используем стандартные сообщения
+            flash('Бот успешно запущен.' if result else 'Ошибка при запуске бота.', 'success' if result else 'danger')
         return redirect(request.referrer or url_for('dashboard_page'))
 
     @flask_app.route('/stop-shop-bot', methods=['POST'])
     @login_required
     def stop_shop_bot_route():
         result = _bot_controller.stop_shop_bot()
-        flash(result.get('message', 'An error occurred.'), 'success' if result.get('status') == 'success' else 'danger')
+        # Обрабатываем случай, когда result может быть bool или dict
+        if isinstance(result, dict):
+            flash(result.get('message', 'An error occurred.'), 'success' if result.get('status') == 'success' else 'danger')
+        else:
+            # Если result - bool, используем стандартные сообщения
+            flash('Бот успешно остановлен.' if result else 'Ошибка при остановке бота.', 'success' if result else 'danger')
         return redirect(request.referrer or url_for('dashboard_page'))
 
     @flask_app.route('/start-support-bot', methods=['POST'])
     @login_required
     def start_support_bot_route():
         result = _bot_controller.start_support_bot()
-        flash(result.get('message', 'An error occurred.'), 'success' if result.get('status') == 'success' else 'danger')
+        # Обрабатываем случай, когда result может быть bool или dict
+        if isinstance(result, dict):
+            flash(result.get('message', 'An error occurred.'), 'success' if result.get('status') == 'success' else 'danger')
+        else:
+            # Если result - bool, используем стандартные сообщения
+            flash('Бот успешно запущен.' if result else 'Ошибка при запуске бота.', 'success' if result else 'danger')
         return redirect(request.referrer or url_for('dashboard_page'))
 
     @flask_app.route('/stop-support-bot', methods=['POST'])
     @login_required
     def stop_support_bot_route():
         result = _bot_controller.stop_support_bot()
-        flash(result.get('message', 'An error occurred.'), 'success' if result.get('status') == 'success' else 'danger')
+        # Обрабатываем случай, когда result может быть bool или dict
+        if isinstance(result, dict):
+            flash(result.get('message', 'An error occurred.'), 'success' if result.get('status') == 'success' else 'danger')
+        else:
+            # Если result - bool, используем стандартные сообщения
+            flash('Бот успешно остановлен.' if result else 'Ошибка при остановке бота.', 'success' if result else 'danger')
         return redirect(request.referrer or url_for('dashboard_page'))
 
     @flask_app.route('/orphan-deletions-log')
@@ -2001,227 +2002,6 @@ def create_webhook_app(bot_controller_instance):
             show_in_bot=show_in_bot,
             **get_common_template_data()
         )
-
-    # ============================================
-    # Редактор Wiki (docs/user-docs/)
-    # ============================================
-    
-    @flask_app.route('/wiki-editor', methods=['GET'])
-    @login_required
-    def wiki_editor_page():
-        """Список всех Wiki страниц для редактирования"""
-        from pathlib import Path as _Path
-        import os
-        
-        wiki_dir = PROJECT_ROOT / 'docs' / 'user-docs'
-        
-        def scan_wiki_files(directory, base_path=''):
-            """Рекурсивное сканирование markdown файлов"""
-            files = []
-            try:
-                for item in sorted(directory.iterdir()):
-                    rel_path = os.path.join(base_path, item.name)
-                    
-                    if item.is_file() and item.suffix == '.md':
-                        # Пропускаем служебные файлы
-                        if item.name in ['WIKI-README.md', '_sidebar.md']:
-                            continue
-                        
-                        # Читаем первую строку для получения заголовка
-                        try:
-                            with open(item, 'r', encoding='utf-8') as f:
-                                first_line = f.readline().strip()
-                                title = first_line.lstrip('#').strip() if first_line.startswith('#') else item.stem
-                        except:
-                            title = item.stem
-                        
-                        files.append({
-                            'path': rel_path,
-                            'name': item.name,
-                            'title': title,
-                            'size': item.stat().st_size,
-                            'modified': datetime.fromtimestamp(item.stat().st_mtime).strftime('%d.%m.%Y %H:%M')
-                        })
-                    
-                    elif item.is_dir() and not item.name.startswith('.'):
-                        # Рекурсивно сканируем подпапки
-                        files.extend(scan_wiki_files(item, rel_path))
-            except Exception as e:
-                logger.error(f"Error scanning wiki directory: {e}")
-            
-            return files
-        
-        wiki_files = scan_wiki_files(wiki_dir)
-        
-        return render_template(
-            'wiki_editor.html',
-            wiki_files=wiki_files,
-            **get_common_template_data()
-        )
-    
-    @flask_app.route('/wiki-editor/edit', methods=['GET', 'POST'])
-    @login_required
-    def wiki_editor_edit():
-        """Редактирование конкретной Wiki страницы"""
-        from pathlib import Path as _Path
-        import os
-        
-        wiki_dir = PROJECT_ROOT / 'docs' / 'user-docs'
-        file_path_param = request.args.get('file', request.form.get('file', ''))
-        
-        if not file_path_param:
-            flash('Не указан файл для редактирования', 'danger')
-            return redirect(url_for('wiki_editor_page'))
-        
-        # Защита от path traversal
-        file_path_param = file_path_param.replace('..', '').strip('/')
-        full_path = wiki_dir / file_path_param
-        
-        # Проверяем что файл в пределах wiki_dir
-        try:
-            full_path = full_path.resolve()
-            wiki_dir_resolved = wiki_dir.resolve()
-            if not str(full_path).startswith(str(wiki_dir_resolved)):
-                flash('Недопустимый путь к файлу', 'danger')
-                return redirect(url_for('wiki_editor_page'))
-        except Exception as e:
-            logger.error(f"Path resolution error: {e}")
-            flash('Ошибка обработки пути', 'danger')
-            return redirect(url_for('wiki_editor_page'))
-        
-        if request.method == 'POST':
-            try:
-                new_content = request.form.get('content', '')
-                
-                # Сохраняем содержимое
-                with open(full_path, 'w', encoding='utf-8') as f:
-                    f.write(new_content)
-                
-                flash(f'Файл "{file_path_param}" успешно сохранён!', 'success')
-                return redirect(url_for('wiki_editor_page'))
-            except Exception as e:
-                logger.error(f"Failed to save wiki file: {e}")
-                flash('Не удалось сохранить изменения', 'danger')
-        
-        # GET: читаем содержимое файла
-        content = ''
-        if full_path.exists():
-            try:
-                with open(full_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-            except Exception as e:
-                logger.error(f"Failed to read wiki file: {e}")
-                flash('Не удалось прочитать файл', 'danger')
-                return redirect(url_for('wiki_editor_page'))
-        else:
-            flash('Файл не найден', 'danger')
-            return redirect(url_for('wiki_editor_page'))
-        
-        return render_template(
-            'wiki_editor_edit.html',
-            file_path=file_path_param,
-            file_name=os.path.basename(file_path_param),
-            content=content,
-            **get_common_template_data()
-        )
-    
-    @flask_app.route('/wiki-editor/create', methods=['POST'])
-    @login_required
-    def wiki_create_page():
-        """Создание новой Wiki страницы"""
-        import os
-        import re
-        
-        wiki_dir = PROJECT_ROOT / 'docs' / 'user-docs'
-        
-        try:
-            title = request.form.get('title', '').strip()
-            filename = request.form.get('filename', '').strip()
-            folder = request.form.get('folder', '').strip()
-            
-            if not title:
-                flash('Название страницы обязательно', 'danger')
-                return redirect(url_for('wiki_editor_page'))
-            
-            if not filename:
-                flash('Имя файла обязательно', 'danger')
-                return redirect(url_for('wiki_editor_page'))
-            
-            # Очистка и валидация имени файла
-            filename = re.sub(r'[^a-zA-Z0-9_-]', '', filename.replace('.md', ''))
-            if not filename:
-                flash('Некорректное имя файла', 'danger')
-                return redirect(url_for('wiki_editor_page'))
-            
-            filename = filename + '.md'
-            
-            # Определяем путь
-            if folder:
-                folder = folder.strip('/').replace('..', '')
-                target_dir = wiki_dir / folder
-                target_dir.mkdir(parents=True, exist_ok=True)
-                file_path = target_dir / filename
-                rel_path = os.path.join(folder, filename)
-            else:
-                file_path = wiki_dir / filename
-                rel_path = filename
-            
-            # Проверяем что файл не существует
-            if file_path.exists():
-                flash(f'Файл "{filename}" уже существует', 'warning')
-                return redirect(url_for('wiki_editor_page'))
-            
-            # Создаём файл с базовым содержимым
-            initial_content = f"# {title}\n\n"
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(initial_content)
-            
-            flash(f'Страница "{title}" успешно создана!', 'success')
-            return redirect(url_for('wiki_editor_edit', file=rel_path))
-            
-        except Exception as e:
-            logger.error(f"Failed to create wiki page: {e}")
-            flash('Не удалось создать страницу', 'danger')
-            return redirect(url_for('wiki_editor_page'))
-    
-    @flask_app.route('/wiki-editor/delete', methods=['POST'])
-    @login_required
-    def wiki_delete_page():
-        """Удаление Wiki страницы"""
-        import os
-        
-        wiki_dir = PROJECT_ROOT / 'docs' / 'user-docs'
-        file_path_param = request.form.get('file', '').replace('..', '').strip('/')
-        
-        if not file_path_param:
-            flash('Не указан файл для удаления', 'danger')
-            return redirect(url_for('wiki_editor_page'))
-        
-        full_path = wiki_dir / file_path_param
-        
-        try:
-            full_path = full_path.resolve()
-            wiki_dir_resolved = wiki_dir.resolve()
-            if not str(full_path).startswith(str(wiki_dir_resolved)):
-                flash('Недопустимый путь к файлу', 'danger')
-                return redirect(url_for('wiki_editor_page'))
-            
-            if full_path.exists():
-                # Запрещаем удаление важных файлов
-                if full_path.name in ['README.md', 'index.html', '_sidebar.md']:
-                    flash(f'Файл "{full_path.name}" нельзя удалить', 'warning')
-                    return redirect(url_for('wiki_editor_page'))
-                
-                os.remove(full_path)
-                flash(f'Файл "{file_path_param}" успешно удалён', 'success')
-            else:
-                flash('Файл не найден', 'warning')
-                
-        except Exception as e:
-            logger.error(f"Failed to delete wiki file: {e}")
-            flash('Не удалось удалить файл', 'danger')
-        
-        return redirect(url_for('wiki_editor_page'))
 
     # ============================================
     # API для работы с видеоинструкциями
@@ -2806,8 +2586,27 @@ def create_webhook_app(bot_controller_instance):
         # POST запрос для обработки webhook от YooKassa
         try:
             event_json = request.json
+            if not event_json:
+                logger.warning("[YOOKASSA_WEBHOOK] Received empty or invalid JSON payload")
+                return jsonify({'error': 'Invalid JSON payload'}), 400
+            
+            # Валидация обязательных полей структуры YooKassa
+            if not isinstance(event_json, dict):
+                logger.warning(f"[YOOKASSA_WEBHOOK] Invalid payload type: {type(event_json).__name__}")
+                return jsonify({'error': 'Invalid payload structure'}), 400
+            
             event_type = event_json.get("event")
             payment_object = event_json.get("object", {})
+            
+            # Проверяем, что есть обязательные поля
+            if not event_type:
+                logger.warning("[YOOKASSA_WEBHOOK] Missing 'event' field in payload")
+                return jsonify({'error': 'Missing required field: event'}), 400
+            
+            if not isinstance(payment_object, dict):
+                logger.warning(f"[YOOKASSA_WEBHOOK] Invalid 'object' field type: {type(payment_object).__name__}")
+                return jsonify({'error': 'Invalid object structure'}), 400
+            
             payment_id = payment_object.get("id")
             
             # Извлекаем поле test для проверки режима
@@ -2965,23 +2764,37 @@ def create_webhook_app(bot_controller_instance):
                             # Сериализуем webhook payload для сохранения в api_response
                             api_response_json = json.dumps(event_json, ensure_ascii=False)
                             
-                            # Обновляем транзакцию с api_response перед обработкой платежа
+                            # Атомарно обновляем транзакцию с api_response перед обработкой платежа
+                            # Это предотвращает race condition при одновременных webhook'ах
                             try:
-                                from shop_bot.data_manager.database import update_yookassa_transaction
+                                from shop_bot.data_manager.database import update_yookassa_transaction_atomic
                                 amount_value = payment_object.get('amount', {}).get('value')
                                 amount_rub = float(amount_value) if amount_value else 0.0
                                 
-                                update_yookassa_transaction(
-                                    payment_id, 'paid', amount_rub,
-                                    yookassa_payment_id, rrn, auth_code, payment_type,
-                                    metadata, api_response=api_response_json
-                                )
-                                logger.info(f"[YOOKASSA_WEBHOOK] Transaction updated with api_response for payment_id={payment_id}")
+                                # Определяем текущий статус транзакции для атомарного обновления
+                                current_status = existing_transaction.get('status') if existing_transaction else 'pending'
+                                
+                                # Атомарно обновляем только если статус еще не 'paid'
+                                if current_status != 'paid':
+                                    success = update_yookassa_transaction_atomic(
+                                        payment_id, current_status, 'paid', amount_rub,
+                                        yookassa_payment_id, rrn, auth_code, payment_type,
+                                        metadata, api_response=api_response_json
+                                    )
+                                    if success:
+                                        logger.info(f"[YOOKASSA_WEBHOOK] Atomically updated transaction to 'paid' for payment_id={payment_id}")
+                                    else:
+                                        logger.warning(f"[YOOKASSA_WEBHOOK] Failed to atomically update transaction (may be already processed) for payment_id={payment_id}")
+                                        return 'OK', 200  # Пропускаем обработку, если статус уже изменен
+                                else:
+                                    logger.info(f"[YOOKASSA_WEBHOOK] Transaction already paid, skipping duplicate webhook for payment_id={payment_id}")
+                                    return 'OK', 200
                             except Exception as update_error:
                                 logger.error(
-                                    f"[YOOKASSA_WEBHOOK] Failed to update transaction with api_response: {update_error}",
+                                    f"[YOOKASSA_WEBHOOK] Failed to atomically update transaction with api_response: {update_error}",
                                     exc_info=True
                                 )
+                                # Не прерываем обработку, но логируем ошибку
                             
                             future = asyncio.run_coroutine_threadsafe(payment_processor(bot, metadata), loop)
                             
@@ -3291,7 +3104,7 @@ def create_webhook_app(bot_controller_instance):
             return 'Error', 500
         
     @flask_app.route('/cryptobot-webhook', methods=['POST'])
-    @measure_performance("cryptobot_webhook")
+    @measure_performance_sync("cryptobot_webhook")
     def cryptobot_webhook_handler():
         try:
             request_data = request.json
@@ -3360,7 +3173,7 @@ def create_webhook_app(bot_controller_instance):
             return 'Error', 500
         
     @flask_app.route('/heleket-webhook', methods=['POST'])
-    @measure_performance("heleket_webhook")
+    @measure_performance_sync("heleket_webhook")
     def heleket_webhook_handler():
         try:
             data = request.json
@@ -3438,49 +3251,13 @@ def create_webhook_app(bot_controller_instance):
                                 
                                 logger.info(f"TON Transaction amount: {amount_ton} TON")
                                 
-                                # Ищем pending транзакции с похожей суммой
-                                logger.info(f"Searching for pending transaction with amount: {amount_ton} TON")
-                                metadata = find_ton_transaction_by_amount(amount_ton)
-                                if metadata:
-                                    logger.info(f"TON Payment found by amount: {amount_ton} TON, metadata: {metadata}")
-                                    
-                                    # Обновляем транзакцию с хешем и статусом
-                                    from shop_bot.data_manager.database import find_and_complete_ton_transaction
-                                    payment_id = metadata.get('payment_id')
-                                    if payment_id:
-                                        # Обновляем транзакцию с хешем
-                                        updated_metadata = find_and_complete_ton_transaction(payment_id, amount_ton, tx_hash)
-                                        if updated_metadata:
-                                            metadata = updated_metadata
-                                        else:
-                                            logger.error(f"Failed to complete transaction for payment_id: {payment_id}")
-                                            # Попробуем найти транзакцию по сумме как fallback
-                                            logger.info(f"Trying fallback search by amount: {amount_ton} TON")
-                                            fallback_metadata = find_ton_transaction_by_amount(amount_ton)
-                                            if fallback_metadata:
-                                                logger.info(f"Found transaction by fallback search, processing payment")
-                                                metadata = fallback_metadata
-                                                # Обновляем статус напрямую
-                                                from shop_bot.data_manager.database import update_transaction_status
-                                                update_transaction_status(fallback_metadata.get('payment_id'), 'paid', tx_hash)
-                                            else:
-                                                logger.error(f"No transaction found even with fallback search")
-                                                return 'OK', 200
-                                    else:
-                                        logger.error("No payment_id found in metadata")
-                                        return 'OK', 200
-                                    
-                                    bot = _bot_controller.get_bot_instance()
-                                    loop = current_app.config.get('EVENT_LOOP')
-                                    payment_processor = handlers.process_successful_payment
-
-                                    if bot and loop and loop.is_running():
-                                        logger.info(f"Processing payment for user {metadata.get('user_id')}")
-                                        asyncio.run_coroutine_threadsafe(payment_processor(bot, metadata, tx_hash), loop)
-                                    else:
-                                        logger.error("Bot or event loop not available for payment processing")
-                                else:
-                                    logger.warning(f"No pending transaction found for amount: {amount_ton} TON")
+                                # Безопасность: не используем поиск по сумме без payment_id
+                                # Это небезопасно, так как может найти транзакцию другого пользователя
+                                logger.warning(
+                                    f"[TON_WEBHOOK] Transaction without payment_id comment cannot be safely processed. "
+                                    f"Amount: {amount_ton} TON, tx_hash: {tx_hash}"
+                                )
+                                return 'OK', 200
                     except Exception as e:
                         logger.error(f"Failed to get transaction details: {e}")
             
@@ -4227,6 +4004,37 @@ def create_webhook_app(bot_controller_instance):
             logger.error(f"Error getting key {key_id}: {e}")
             return {'error': 'Ошибка получения данных ключа'}, 500
 
+    @flask_app.route('/api/key-details/<int:key_id>')
+    # @csrf.exempt
+    @login_required
+    def api_get_key_details(key_id):
+        """API для получения деталей ключа (упрощенная версия)"""
+        try:
+            from shop_bot.data_manager.database import get_key_by_id
+            
+            key = get_key_by_id(key_id)
+            
+            if not key:
+                return {'error': 'Ключ не найден'}, 404
+            
+            # Возвращаем основные поля ключа
+            return {
+                'key_id': key.get('key_id'),
+                'key_email': key.get('key_email'),
+                'user_id': key.get('user_id'),
+                'host_name': key.get('host_name'),
+                'plan_name': key.get('plan_name'),
+                'expiry_timestamp_ms': key.get('expiry_timestamp_ms'),
+                'expiry_date': to_panel_iso(key.get('expiry_date')) if key.get('expiry_date') else None,
+                'connection_string': key.get('connection_string'),
+                'status': key.get('status'),
+                'enabled': key.get('enabled'),
+            }
+                
+        except Exception as e:
+            logger.error(f"Error getting key details {key_id}: {e}")
+            return {'error': 'Ошибка получения данных ключа'}, 500
+
     @flask_app.route('/api/user-balance/<int:user_id>')
     # @csrf.exempt
     @login_required
@@ -4382,19 +4190,28 @@ def create_webhook_app(bot_controller_instance):
     def api_update_user(user_id):
         """API для обновления данных пользователя"""
         try:
-            data = request.get_json()
+            # Поддерживаем как JSON, так и form data
+            if request.is_json:
+                data = request.get_json()
+            else:
+                data = request.form.to_dict()
+            
             if not data:
                 return {'error': 'Нет данных для обновления'}, 400
             
             # Разрешенные поля для обновления
-            allowed_fields = ['fio', 'email', 'group_id']
+            allowed_fields = ['fio', 'email', 'group_id', 'balance', 'username', 'fullname']
             update_fields = {}
             
             for field in allowed_fields:
                 if field in data:
                     update_fields[field] = data[field]
             
-            if not update_fields:
+            # Обрабатываем reset_trial отдельно (специальная логика)
+            reset_trial_requested = data.get('reset_trial') is True
+            
+            # Если нет разрешенных полей для обновления и не запрошен reset_trial, возвращаем ошибку
+            if not update_fields and not reset_trial_requested:
                 return {'error': 'Нет разрешенных полей для обновления'}, 400
             
             with sqlite3.connect(DB_FILE) as conn:
@@ -4405,20 +4222,37 @@ def create_webhook_app(bot_controller_instance):
                 if not cursor.fetchone():
                     return {'error': 'Пользователь не найден'}, 404
                 
-                # Строим SQL запрос для обновления
-                set_clause = ', '.join([f"{field} = ?" for field in update_fields.keys()])
-                values = list(update_fields.values()) + [user_id]
+                # Обрабатываем reset_trial отдельно (специальная логика)
+                if reset_trial_requested:
+                    from shop_bot.data_manager.database import reset_trial_used
+                    reset_trial_used(user_id)
+                    logger.info(f"Trial reset for user {user_id}")
                 
-                query = f"UPDATE users SET {set_clause} WHERE telegram_id = ?"
-                cursor.execute(query, values)
+                # Обрабатываем balance отдельно (устанавливаем напрямую, а не добавляем)
+                if 'balance' in update_fields:
+                    try:
+                        balance_value = float(update_fields['balance'])
+                        cursor.execute("UPDATE users SET balance = ? WHERE telegram_id = ?", (balance_value, user_id))
+                        del update_fields['balance']  # Удаляем из update_fields, чтобы не обновлять дважды
+                    except (ValueError, TypeError) as e:
+                        logger.error(f"Invalid balance value for user {user_id}: {e}")
+                        return {'error': 'Некорректное значение баланса'}, 400
+                
+                # Обновляем остальные поля
+                if update_fields:
+                    set_clause = ', '.join([f"{field} = ?" for field in update_fields.keys()])
+                    values = list(update_fields.values()) + [user_id]
+                    
+                    query = f"UPDATE users SET {set_clause} WHERE telegram_id = ?"
+                    cursor.execute(query, values)
                 
                 conn.commit()
                 
-                logger.info(f"Updated user {user_id} fields: {list(update_fields.keys())}")
+                logger.info(f"Updated user {user_id} fields: {list(update_fields.keys()) + (['balance'] if 'balance' in data else [])}")
                 return {'message': 'Данные пользователя обновлены успешно'}
                 
         except Exception as e:
-            logger.error(f"Error updating user {user_id}: {e}")
+            logger.error(f"Error updating user {user_id}: {e}", exc_info=True)
             return {'error': 'Ошибка обновления данных пользователя'}, 500
 
 
@@ -6112,6 +5946,13 @@ def create_webhook_app(bot_controller_instance):
             if not template_key or not category or not template_text:
                 return jsonify({'success': False, 'error': 'Необходимы template_key, category и template_text'}), 400
             
+            # Валидация HTML-тегов перед сохранением
+            is_valid, errors = InputValidator.validate_html_tags(template_text)
+            if not is_valid:
+                error_message = "Ошибка валидации HTML-тегов: " + "; ".join(errors)
+                logger.warning(f"HTML validation failed for template {template_key}: {errors}")
+                return jsonify({'success': False, 'error': error_message}), 400
+            
             template_id = create_message_template(
                 template_key=template_key,
                 category=category,
@@ -6142,6 +5983,12 @@ def create_webhook_app(bot_controller_instance):
             
             if template_text is not None:
                 template_text = template_text.strip()
+                # Валидация HTML-тегов перед сохранением (только если template_text передан)
+                is_valid, errors = InputValidator.validate_html_tags(template_text)
+                if not is_valid:
+                    error_message = "Ошибка валидации HTML-тегов: " + "; ".join(errors)
+                    logger.warning(f"HTML validation failed for template {template_id}: {errors}")
+                    return jsonify({'success': False, 'error': error_message}), 400
             
             if description is not None:
                 description = description.strip()
@@ -6474,5 +6321,8 @@ def create_webhook_app(bot_controller_instance):
 
     # Запускаем мониторинг сразу
     start_ton_monitoring_task()
+
+    # Экспортируем функцию для тестирования
+    globals()['get_common_template_data'] = get_common_template_data
 
     return flask_app

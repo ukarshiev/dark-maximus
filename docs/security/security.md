@@ -112,6 +112,7 @@ app.config['WTF_CSRF_SSL_STRICT'] = False  # Для разработки
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_PERMANENT'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
+app.config['SESSION_COOKIE_MAX_AGE'] = 30 * 24 * 60 * 60  # Cookie на 30 дней (2592000 секунд)
 ```
 
 ## 🛠️ Рекомендации по развертыванию

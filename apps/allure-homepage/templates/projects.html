@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Проекты - Allure Docker Service</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --bg-card: #252525;
+            --text-primary: #e0e0e0;
+            --text-secondary: #b0b0b0;
+            --accent: #008771;
+            --accent-hover: #00a085;
+            --border: #404040;
+            --shadow: rgba(0, 0, 0, 0.3);
+            --success: #4caf50;
+            --error: #f44336;
+        }
+
+        html, body {
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow-x: auto;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            box-sizing: border-box;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            flex: 1;
+            min-width: 700px;
+        }
+
+        header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 1.5rem 0;
+            margin-bottom: 2rem;
+        }
+
+        header .container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .accent {
+            color: var(--accent);
+        }
+
+        .back-link {
+            color: var(--accent);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: var(--accent-hover);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+
+        .error {
+            background: var(--bg-card);
+            border: 1px solid var(--error);
+            border-radius: 8px;
+            padding: 2rem;
+            margin: 2rem 0;
+            color: var(--error);
+            text-align: center;
+        }
+
+        .projects-list {
+            display: block;
+            gap: 1.5rem;
+            margin-top: 2rem;
+            width: 100%;
+            padding: 0;
+        }
+
+        .project-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 1.5rem;
+        }
+
+        .project-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px var(--shadow);
+            border-color: var(--accent);
+        }
+
+        .project-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .project-title {
+            font-size: 1.5rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .project-icon {
+            font-size: 1.8rem;
+        }
+
+        .reports-count {
+            background: var(--bg-secondary);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .reports-list {
+            margin-top: 1rem;
+        }
+
+        .reports-list-title {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+            font-weight: 500;
+        }
+
+        .report-item {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: background 0.2s;
+        }
+
+        .report-item:hover {
+            background: var(--bg-primary);
+            border-color: var(--accent);
+        }
+
+        .report-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .report-id {
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .report-link {
+            color: var(--accent);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--accent);
+            border-radius: 4px;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .report-link:hover {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+
+        .latest-badge {
+            background: var(--success);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        footer {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            padding: 1.5rem 0;
+            margin-top: 3rem;
+            text-align: center;
+            color: var(--text-secondary);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            h1 {
+                font-size: 1.5rem;
+            }
+
+            .project-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .report-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div>
+                <h1>📁 <span class="accent">Проекты</span></h1>
+                <p style="color: var(--text-secondary); margin-top: 0.5rem;">Список всех проектов и их отчетов</p>
+            </div>
+            <a href="/allure-docker-service/" class="back-link">
+                ← На главную
+            </a>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="loading" class="loading">Загрузка проектов</div>
+        <div id="error" class="error" style="display: none;"></div>
+        <div id="projects" class="projects-list" style="display: none;"></div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 Dark Maximus. Allure Docker Service</p>
+        </div>
+    </footer>
+
+    <script>
+        async function loadProjects() {
+            const loadingEl = document.getElementById('loading');
+            const errorEl = document.getElementById('error');
+            const projectsEl = document.getElementById('projects');
+
+            try {
+                const response = await fetch('/allure-docker-service/projects', {
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                loadingEl.style.display = 'none';
+
+                // Структура данных: {"data": {"projects": {"default": {...}, ...}}}
+                if (!data || !data.data || !data.data.projects) {
+                    projectsEl.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📭</div>
+                            <h2>Проекты не найдены</h2>
+                            <p>В системе пока нет проектов с отчетами.</p>
+                        </div>
+                    `;
+                    projectsEl.style.display = 'block';
+                    return;
+                }
+
+                const projectsObj = data.data.projects;
+                const projectIds = Object.keys(projectsObj);
+
+                if (projectIds.length === 0) {
+                    projectsEl.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📭</div>
+                            <h2>Проекты не найдены</h2>
+                            <p>В системе пока нет проектов с отчетами.</p>
+                        </div>
+                    `;
+                    projectsEl.style.display = 'block';
+                    return;
+                }
+
+                // Загружаем детали каждого проекта
+                const projectPromises = projectIds.map(async (projectId) => {
+                    try {
+                        const projectResponse = await fetch(`/allure-docker-service/projects/${projectId}`, {
+                            headers: { 'Accept': 'application/json' }
+                        });
+                        if (projectResponse.ok) {
+                            const projectData = await projectResponse.json();
+                            return { id: projectId, data: projectData };
+                        }
+                    } catch (e) {
+                        console.error(`Ошибка загрузки проекта ${projectId}:`, e);
+                    }
+                    return { id: projectId, data: null };
+                });
+
+                const projectsWithData = await Promise.all(projectPromises);
+
+                projectsEl.innerHTML = projectsWithData.map(({ id, data: projectData }) => {
+                    let reports = [];
+                    if (projectData && projectData.data && projectData.data.project) {
+                        const project = projectData.data.project;
+                        reports = project.reports_id || project.reports || [];
+                    }
+
+                    const reportsList = reports.length > 0 
+                        ? reports.map((reportId, index) => {
+                            const isLatest = index === 0;
+                            return `
+                                <div class="report-item">
+                                    <div class="report-info">
+                                        <span class="report-id">Отчет #${reportId}</span>
+                                        ${isLatest ? '<span class="latest-badge">Последний</span>' : ''}
+                                    </div>
+                                    <a href="/allure-docker-service/projects/${id}/reports/${reportId}/index.html" 
+                                       class="report-link">
+                                        Открыть →
+                                    </a>
+                                </div>
+                            `;
+                        }).join('')
+                        : '<div class="empty-state" style="padding: 1rem;"><p>Отчеты не найдены</p></div>';
+
+                    return `
+                        <div class="project-card">
+                            <div class="project-header">
+                                <h2 class="project-title">
+                                    <span class="project-icon">📦</span>
+                                    ${id}
+                                </h2>
+                                <span class="reports-count">${reports.length} ${reports.length === 1 ? 'отчет' : reports.length < 5 ? 'отчета' : 'отчетов'}</span>
+                            </div>
+                            ${reports.length > 0 ? `
+                                <div class="reports-list">
+                                    <div class="reports-list-title">История отчетов:</div>
+                                    ${reportsList}
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                }).join('');
+
+                projectsEl.style.display = 'block';
+            } catch (error) {
+                loadingEl.style.display = 'none';
+                errorEl.textContent = `Ошибка при загрузке проектов: ${error.message}`;
+                errorEl.style.display = 'block';
+                console.error('Error loading projects:', error);
+            }
+        }
+
+        // Загружаем проекты при загрузке страницы
+        document.addEventListener('DOMContentLoaded', loadProjects);
+    </script>
+</body>
+</html>
+

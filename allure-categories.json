@@ -1,0 +1,20 @@
+[
+  {
+    "name": "Product defects",
+    "matchedStatuses": ["failed"],
+    "messageRegex": ".*AssertionError.*",
+    "traceRegex": ".*assert.*is not None.*|.*assert.*==.*|.*assert.*!=.*"
+  },
+  {
+    "name": "Test defects",
+    "matchedStatuses": ["broken", "failed"],
+    "messageRegex": ".*RuntimeError.*|.*TypeError.*|.*OperationalError.*|.*AttributeError.*|.*ValueError.*|.*KeyError.*|.*unexpected keyword argument.*|.*no such table.*|.*got an unexpected.*"
+  },
+  {
+    "name": "Critical failures",
+    "matchedStatuses": ["failed", "broken"],
+    "messageRegex": ".*",
+    "traceRegex": ".*"
+  }
+]
+

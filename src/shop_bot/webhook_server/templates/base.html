@@ -110,14 +110,6 @@
 						<span class="nav-icon">📙</span>
 						<span class="nav-text">Инструкции</span>
 					</a>
-				<a
-					href="{{ url_for('wiki_editor_page') }}"
-					class="nav-link {% if request.endpoint in ['wiki_editor_page', 'wiki_editor_edit'] %}active{% endif %}"
-					title="Wiki редактор"
-				>
-					<span class="nav-icon">📚</span>
-					<span class="nav-text">Wiki редактор</span>
-				</a>
 				
 				<!-- Настройки с вложенным меню -->
 				<div class="nav-item-group">
@@ -217,13 +209,6 @@
 						>
 							<span class="nav-icon">📙</span>
 						</a>
-					<a
-						href="{{ url_for('wiki_editor_page') }}"
-						class="nav-link {% if request.endpoint in ['wiki_editor_page', 'wiki_editor_edit'] %}active{% endif %}"
-						title="Wiki редактор"
-					>
-						<span class="nav-icon">📚</span>
-					</a>
 					
 					<!-- Настройки (в свернутом режиме показываем только иконку без подменю) -->
 					<a

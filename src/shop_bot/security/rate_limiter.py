@@ -144,6 +144,10 @@ def rate_limit(limit_type: str = 'per_minute', limit_value: Optional[int] = None
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
+            # Отключаем rate limiting в тестовом окружении
+            if current_app.config.get('TESTING', False):
+                return f(*args, **kwargs)
+            
             # Получаем IP адрес клиента
             ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
             if ip:
