@@ -95,7 +95,17 @@ class TestDocsProxyAuth:
             # Мокируем verify_admin_credentials, чтобы реальная функция verify_and_login выполнилась и установила сессию
             with patch('shop_bot.data_manager.database.verify_admin_credentials', return_value=True):
                 response = client.post('/login', data=admin_credentials, follow_redirects=True)
+                # Проверяем отсутствие ошибок 500 (Internal Server Error), которые могут быть связаны с AttributeError
+                assert response.status_code != 500, (
+                    f"Ошибка 500 при авторизации. Возможно, ошибка AttributeError не исправлена. "
+                    f"Ответ: {response.data.decode('utf-8')[:500]}"
+                )
                 assert response.status_code == 200
+                # Проверяем отсутствие упоминаний об ошибке AttributeError в ответе
+                response_text = response.data.decode('utf-8').lower()
+                assert 'attributerror' not in response_text and 'nonetype' not in response_text, (
+                    f"Обнаружена ошибка AttributeError в ответе: {response.data.decode('utf-8')[:500]}"
+                )
                 # Проверяем доступ к защищенной странице вместо прямого чтения сессии
                 # (для filesystem sessions session_transaction может работать некорректно)
                 response = client.get('/')

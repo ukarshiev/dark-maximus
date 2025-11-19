@@ -1400,9 +1400,23 @@ def get_user_router() -> Router:
         user_keys = get_user_keys(user_id)
         user_db_data = get_user(user_id)
         trial_used = user_db_data.get('trial_used', 1) if user_db_data else 1
+        
+        menu_text = """=== Мои ключи ===
+Условные обозначения:
+<blockquote>
+1. Статус иконка: ✅ для активных, ❌ для истёкших/деактивированных
+2. Порядковый номер ключа
+3. Страна сервера ключа
+4. Название тарифа
+5. Цена
+6. Дата окончания
+7. Автопродление ключа: 🟢 включено, 🔴 выключено
+</blockquote>""" if user_keys else "У вас пока нет ключей."
+        
         await message.answer(
-            "Ваши ключи:" if user_keys else "У вас пока нет ключей.",
-            reply_markup=keyboards.create_keys_management_keyboard(user_keys, trial_used)
+            menu_text,
+            reply_markup=keyboards.create_keys_management_keyboard(user_keys, trial_used),
+            parse_mode="HTML"
         )
 
     @user_router.callback_query(F.data == "trial_period")
@@ -3056,9 +3070,21 @@ def get_user_router() -> Router:
         user_keys = get_user_keys(user_id)
         user_db_data = get_user(user_id)
         trial_used = user_db_data.get('trial_used', 1) if user_db_data else 1
+        
+        menu_text = """=== Мои ключи ===
+Условные обозначения:<blockquote>1. Статус иконка: ✅ для активных, ❌ для истёкших/деактивированных
+2. Порядковый номер ключа
+3. Страна сервера ключа
+4. Название тарифа
+5. Цена
+6. Дата окончания
+7. Автопродление ключа: 🟢 включено, 🔴 выключено
+</blockquote>""" if user_keys else "У вас пока нет ключей."
+        
         await callback.message.edit_text(
-            "Ваши ключи:" if user_keys else "У вас пока нет ключей.",
-            reply_markup=keyboards.create_keys_management_keyboard(user_keys, trial_used)
+            menu_text,
+            reply_markup=keyboards.create_keys_management_keyboard(user_keys, trial_used),
+            parse_mode="HTML"
         )
 
     @user_router.callback_query(F.data == "get_trial")

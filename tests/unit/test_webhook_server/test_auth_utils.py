@@ -298,4 +298,97 @@ class TestAuthUtils:
         # Очистка
         import shutil
         shutil.rmtree(test_session_dir)
+    
+    @allure.story("Изоляция сессий: уникальные имена cookie")
+    @allure.title("Проверка уникальности имен cookie для разных сервисов")
+    @allure.description("""
+    Проверяет, что функция init_flask_auth() поддерживает установку уникальных имен cookie
+    для разных сервисов, что предотвращает конфликт сессий при использовании одинакового FLASK_SECRET_KEY.
+    
+    **Что проверяется:**
+    - Параметр cookie_name устанавливает уникальное имя cookie
+    - Дефолтное значение cookie_name = 'panel_session'
+    - Разные сервисы могут использовать разные имена cookie
+    - Имена cookie не конфликтуют между сервисами
+    
+    **Тестовые данные:**
+    - cookie_name='panel_session' (дефолт)
+    - cookie_name='docs_session'
+    - cookie_name='allure_session'
+    - cookie_name='cabinet_session'
+    
+    **Критичность:**
+    Конфликт cookie между сервисами приводит к потере сессии при переходах между сервисами.
+    Это критичная проблема безопасности и UX.
+    
+    **Ожидаемый результат:**
+    Каждый сервис использует уникальное имя cookie, сессии изолированы и не конфликтуют.
+    """)
+    @allure.severity(allure.severity_level.CRITICAL)
+    @allure.tag("auth", "session_isolation", "cookie_name", "webhook_server", "unit", "critical")
+    def test_cookie_name_isolation(self, temp_db):
+        """Тест изоляции сессий через уникальные имена cookie"""
+        from shop_bot.webhook_server.auth_utils import init_flask_auth
+        import tempfile
+        import shutil
+        
+        test_session_dir = tempfile.mkdtemp()
+        
+        # Ожидаемые имена cookie для каждого сервиса
+        expected_cookie_names = {
+            'panel_session': 'panel_session',  # Дефолт для веб-панели
+            'docs_session': 'docs_session',
+            'allure_session': 'allure_session',
+            'cabinet_session': 'cabinet_session',
+        }
+        
+        with allure.step("Подготовка тестового окружения"):
+            apps = {}
+            for cookie_name in expected_cookie_names.keys():
+                apps[cookie_name] = Flask(__name__)
+        
+        with allure.step("Инициализация авторизации с разными именами cookie"):
+            with patch.dict(os.environ, {'FLASK_SECRET_KEY': 'test-secret-key'}):
+                for cookie_name, app in apps.items():
+                    init_flask_auth(app, session_dir=test_session_dir, cookie_name=cookie_name)
+        
+        with allure.step("Проверка уникальности имен cookie"):
+            actual_cookie_names = {}
+            for cookie_name, app in apps.items():
+                actual_cookie_names[cookie_name] = app.config.get('SESSION_COOKIE_NAME')
+                assert app.config.get('SESSION_COOKIE_NAME') == expected_cookie_names[cookie_name], \
+                    f"Ожидалось SESSION_COOKIE_NAME='{expected_cookie_names[cookie_name]}', " \
+                    f"получено '{app.config.get('SESSION_COOKIE_NAME')}' для cookie_name='{cookie_name}'"
+            
+            # Проверяем, что все имена уникальны
+            unique_names = set(actual_cookie_names.values())
+            assert len(unique_names) == len(expected_cookie_names), \
+                f"Имена cookie должны быть уникальными. " \
+                f"Ожидалось {len(expected_cookie_names)} уникальных имен, получено {len(unique_names)}. " \
+                f"Имена: {actual_cookie_names}"
+            
+            import json
+            allure.attach(
+                json.dumps(actual_cookie_names, indent=2, ensure_ascii=False),
+                "Имена cookie для каждого сервиса",
+                allure.attachment_type.JSON
+            )
+        
+        with allure.step("Проверка дефолтного значения cookie_name"):
+            app_default = Flask(__name__)
+            with patch.dict(os.environ, {'FLASK_SECRET_KEY': 'test-secret-key'}):
+                init_flask_auth(app_default, session_dir=test_session_dir)
+            
+            assert app_default.config.get('SESSION_COOKIE_NAME') == 'panel_session', \
+                f"Дефолтное значение cookie_name должно быть 'panel_session', " \
+                f"получено '{app_default.config.get('SESSION_COOKIE_NAME')}'"
+            
+            allure.attach(
+                app_default.config.get('SESSION_COOKIE_NAME'),
+                "Дефолтное имя cookie",
+                allure.attachment_type.TEXT
+            )
+        
+        # Очистка
+        shutil.rmtree(test_session_dir)
 

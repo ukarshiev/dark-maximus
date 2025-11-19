@@ -728,3 +728,4 @@ def test_backward_compatibility(self):
 - [Правила тестирования](../../guides/testing/testing-rules.mdc)
 - [Allure отчеты](../../guides/testing/allure-reporting.md)
 
+

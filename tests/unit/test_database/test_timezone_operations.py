@@ -215,3 +215,4 @@ class TestTimezoneOperations:
             assert required_settings.issubset(found_settings), \
                 f"Отсутствуют настройки: {required_settings - found_settings}"
 
+

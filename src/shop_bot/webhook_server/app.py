@@ -16,7 +16,7 @@ from datetime import timezone
 from functools import wraps
 from math import ceil
 from typing import Optional, Tuple
-from flask import Flask, request, render_template, redirect, url_for, flash, session, current_app, jsonify, g
+from flask import Flask, request, render_template, redirect, url_for, flash, session, current_app, jsonify, g, make_response
 # CSRF отключен
 from pathlib import Path
 from yookassa import Payment, Configuration
@@ -81,7 +81,7 @@ from shop_bot.utils.datetime_utils import (
     DEFAULT_PANEL_TIMEZONE,
 )
 from shop_bot.data.timezones import TIMEZONES, DEFAULT_TIMEZONE, validate_timezone
-from shop_bot.webhook_server.auth_utils import init_flask_auth
+from shop_bot.webhook_server.auth_utils import init_flask_auth, login_required
 
 _bot_controller = None
 get_common_template_data = None  # Экспорт для тестирования
@@ -386,14 +386,6 @@ def create_webhook_app(bot_controller_instance):
         tz_name, _ = resolve_panel_timezone()
         return ensure_isoformat_for_timezone(dt_value, tz_name)
 
-    def login_required(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            if 'logged_in' not in session:
-                return redirect(url_for('login_page'))
-            return f(*args, **kwargs)
-        return decorated_function
-
     @flask_app.route('/.well-known/tonconnect-manifest.json')
     def tonconnect_manifest():
         """Возвращает манифест для TON Connect"""
@@ -411,9 +403,16 @@ def create_webhook_app(bot_controller_instance):
             password = request.form.get('password', '')
             
             if verify_admin_credentials(username, password):
+                # Устанавливаем данные сессии
                 session['logged_in'] = True
-                session.permanent = True  # Делаем сессию постоянной
-                return redirect(url_for('dashboard_page'))
+                session.permanent = True  # Делаем сессию постоянной (30 дней)
+                session.modified = True  # Помечаем сессию как измененную для гарантированного сохранения
+                
+                logger.info(f"[LOGIN] Успешная авторизация пользователя: {username}")
+                
+                # Flask-Session автоматически сохранит сессию в конце запроса через after_request
+                response = make_response(redirect(url_for('dashboard_page')))
+                return response
             else:
                 flash('Неверный логин или пароль', 'danger')
         return render_template('login.html', settings=settings)
@@ -496,6 +495,81 @@ def create_webhook_app(bot_controller_instance):
     def index():
         return redirect(url_for('dashboard_page'))
 
+    def get_latest_cabinet_link() -> str | None:
+        """
+        Получает последнюю ссылку на личный кабинет из базы данных.
+        Находит последний созданный ключ (по максимальному key_id) и формирует ссылку с токеном.
+        
+        Returns:
+            Ссылка на личный кабинет вида 'http://localhost:50003/auth/{token}' или None
+        """
+        try:
+            import sqlite3
+            from shop_bot.data_manager.database import DB_FILE
+            
+            # Получаем домен кабинета
+            cabinet_domain = get_user_cabinet_domain()
+            if not cabinet_domain:
+                # Fallback на localhost если домен не настроен
+                cabinet_domain = "http://localhost:50003"
+            
+            # Находим последний ключ (по максимальному key_id)
+            with sqlite3.connect(DB_FILE, timeout=30) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                cursor.execute(
+                    "SELECT key_id FROM vpn_keys ORDER BY key_id DESC LIMIT 1"
+                )
+                row = cursor.fetchone()
+                
+                if not row:
+                    # Нет ключей в базе
+                    return None
+                
+                latest_key_id = row['key_id']
+                
+                # Получаем токены для этого ключа
+                tokens = database.get_tokens_for_key(latest_key_id)
+                
+                if not tokens or len(tokens) == 0:
+                    # У ключа нет токена, пытаемся создать
+                    try:
+                        # Получаем user_id для ключа
+                        cursor.execute(
+                            "SELECT user_id FROM vpn_keys WHERE key_id = ? LIMIT 1",
+                            (latest_key_id,)
+                        )
+                        key_row = cursor.fetchone()
+                        if key_row:
+                            user_id = key_row['user_id']
+                            # Создаем токен если его нет
+                            database.get_or_create_permanent_token(user_id, latest_key_id)
+                            # Повторно получаем токены
+                            tokens = database.get_tokens_for_key(latest_key_id)
+                    except Exception as token_error:
+                        logger.error(f"Error creating token for key {latest_key_id}: {token_error}")
+                        return None
+                
+                if not tokens or len(tokens) == 0:
+                    # Не удалось получить токен
+                    return None
+                
+                # Берем первый токен (самый свежий, так как они отсортированы по created_at DESC)
+                first_token = tokens[0]
+                token_value = first_token.get('token')
+                
+                if not token_value:
+                    return None
+                
+                # Формируем ссылку
+                cabinet_link = f"{cabinet_domain.rstrip('/')}/auth/{token_value}"
+                return cabinet_link
+                
+        except Exception as e:
+            logger.error(f"Error getting latest cabinet link: {e}")
+            return None
+
     @flask_app.route('/dashboard')
     @login_required
     def dashboard_page():
@@ -519,10 +593,14 @@ def create_webhook_app(bot_controller_instance):
         chart_data = get_daily_stats_for_charts(days=30)
         common_data = get_common_template_data()
         
+        # Получаем последнюю ссылку на кабинет
+        latest_cabinet_link = get_latest_cabinet_link()
+        
         return render_template(
             'dashboard.html',
             stats=stats,
             chart_data=chart_data,
+            latest_cabinet_link=latest_cabinet_link,
             **common_data
         )
 
@@ -6318,6 +6396,13 @@ def create_webhook_app(bot_controller_instance):
         except Exception as e:
             logger.error(f"[DOCKER_API] rebuild failed: {e}")
             return jsonify({'success': False, 'message': str(e)}), 500
+
+    @flask_app.after_request
+    def after_request_func(response):
+        """Обработчик after_request - Flask-Session автоматически сохраняет сессию при session.modified=True"""
+        # Flask-Session автоматически сохраняет сессию через свой after_request handler
+        # Дополнительный вызов save_session не требуется
+        return response
 
     # Запускаем мониторинг сразу
     start_ton_monitoring_task()

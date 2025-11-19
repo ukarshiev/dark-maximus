@@ -15,13 +15,14 @@ from flask_session import Session
 from datetime import timedelta
 
 
-def init_flask_auth(app, session_dir='/app/sessions'):
+def init_flask_auth(app, session_dir='/app/sessions', cookie_name='panel_session'):
     """
     Инициализирует Flask sessions для авторизации
     
     Args:
         app: Flask приложение
         session_dir: Директория для хранения сессий (по умолчанию /app/sessions)
+        cookie_name: Имя cookie для сессии (по умолчанию 'panel_session')
     """
     # Безопасное получение секретного ключа из переменных окружения
     logger = logging.getLogger(__name__)
@@ -44,13 +45,31 @@ def init_flask_auth(app, session_dir='/app/sessions'):
     # 30 дней = 30 * 24 * 60 * 60 = 2592000 секунд
     app.config['SESSION_COOKIE_MAX_AGE'] = 30 * 24 * 60 * 60  # Cookie на 30 дней
     
+    # Обновление cookie при каждом запросе для предотвращения потери сессии
+    app.config['SESSION_REFRESH_EACH_REQUEST'] = True
+    
     # Безопасность сессий (best practices из Flask документации)
     app.config['SESSION_COOKIE_HTTPONLY'] = True  # Защита от XSS
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Защита от CSRF
     
-    # Для production (HTTPS) - устанавливается через переменные окружения
+    # Настройка SameSite для cookie
+    # ИСПРАВЛЕНИЕ: для работы сессий на localhost используем Lax вместо None
+    # SameSite=None требует Secure=True, но для localhost HTTP это вызывает проблемы
+    # Используем SameSite=Lax, который работает на всех портах localhost без Secure
     if os.getenv('FLASK_ENV') == 'production' or os.getenv('SESSION_COOKIE_SECURE', '').lower() == 'true':
         app.config['SESSION_COOKIE_SECURE'] = True
+        app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Для production с HTTPS
+    else:
+        # Для локальной разработки используем Lax (работает между портами localhost)
+        # Lax позволяет отправлять cookie при навигации между портами localhost
+        app.config['SESSION_COOKIE_SECURE'] = False  # Для HTTP (локально)
+        app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Работает между портами localhost без Secure
+        # Для localhost domain должен быть None или не установлен (по умолчанию)
+        # app.config['SESSION_COOKIE_DOMAIN'] = None  # По умолчанию - не устанавливаем domain
+    
+    # ИСПРАВЛЕНИЕ: Устанавливаем уникальное имя cookie для каждого приложения
+    # Это предотвращает конфликт cookie между сервисами
+    # при использовании одинакового FLASK_SECRET_KEY
+    app.config['SESSION_COOKIE_NAME'] = cookie_name
     
     # Создаем директорию для сессий, если её нет
     os.makedirs(session_dir, exist_ok=True)
@@ -74,6 +93,11 @@ def login_required(f):
     def decorated_function(*args, **kwargs):
         if 'logged_in' not in session:
             return redirect(url_for('login_page'))
+        
+        # Явно помечаем сессию как измененную для гарантированного обновления cookie
+        # Это важно для SESSION_REFRESH_EACH_REQUEST
+        session.modified = True
+        
         return f(*args, **kwargs)
     return decorated_function
 
@@ -97,19 +121,10 @@ def verify_and_login(username, password):
         # Явно помечаем сессию как измененную для гарантированного сохранения
         session.modified = True
         
-        # Явно сохраняем сессию на диск для предотвращения потери при перезапуске контейнера
-        # Flask-Session использует lazy saving, поэтому нужно явно вызвать сохранение
-        try:
-            # Проверяем, что мы в контексте запроса Flask
-            if hasattr(current_app, 'session_interface'):
-                session_interface = current_app.session_interface
-                if hasattr(session_interface, 'save_session'):
-                    # Сохраняем сессию немедленно
-                    session_interface.save_session(current_app, session, None)
-        except RuntimeError:
-            # Если мы не в контексте запроса, session.modified = True достаточно
-            # Flask-Session сохранит сессию в конце запроса
-            pass
+        # Flask-Session автоматически сохранит сессию в конце запроса,
+        # так как session.modified = True установлено выше
+        # Явный вызов save_session не требуется и вызывает ошибку,
+        # так как требует объект Response, который недоступен в этой функции
         
         return True
     return False

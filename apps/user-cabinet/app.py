@@ -54,6 +54,11 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
 
+# ИСПРАВЛЕНИЕ: Устанавливаем уникальное имя cookie для личного кабинета
+# Это предотвращает конфликт cookie между панелью и личным кабинетом
+# при использовании одинакового FLASK_SECRET_KEY
+app.config['SESSION_COOKIE_NAME'] = 'cabinet_session'
+
 
 def _build_knowledge_base_url(settings: dict) -> tuple[str, str]:
     """Определяем базовый URL базы знаний и ссылку на инструкции."""

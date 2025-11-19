@@ -46,6 +46,10 @@ app = Flask(__name__, template_folder='templates')
 # Инициализация авторизации
 init_flask_auth(app, session_dir='/app/sessions')
 
+# ИСПРАВЛЕНИЕ: Устанавливаем уникальное имя cookie для docs-proxy
+# Это предотвращает конфликт cookie между сервисами при использовании одинакового FLASK_SECRET_KEY
+app.config['SESSION_COOKIE_NAME'] = 'docs_session'
+
 # ProxyFix для правильной работы за reverse proxy
 app.wsgi_app = ProxyFix(
     app.wsgi_app,

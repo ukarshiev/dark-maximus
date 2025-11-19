@@ -387,6 +387,8 @@ def create_payment_keyboard(
     return builder.as_markup()
 
 def create_keys_management_keyboard(keys: list, trial_used: int = 1) -> InlineKeyboardMarkup:
+    from shop_bot.data_manager.database import get_key_auto_renewal_enabled
+    
     builder = InlineKeyboardBuilder()
     if keys:
         for i, key in enumerate(keys):
@@ -411,6 +413,10 @@ def create_keys_management_keyboard(keys: list, trial_used: int = 1) -> InlineKe
             
             # Формируем номер
             key_number = i + 1
+            
+            # Получаем статус автопродления
+            auto_renewal_status = get_key_auto_renewal_enabled(key['key_id'])
+            auto_renewal_icon = "🟢" if auto_renewal_status else "🔴"
             
             # Получаем флаг хоста
             host_name = key.get('host_name', '')
@@ -451,7 +457,8 @@ def create_keys_management_keyboard(keys: list, trial_used: int = 1) -> InlineKe
                 host_flag,
                 tariff_display,
                 price_display,
-                f"до {expiry_date_str}"
+                f"до {expiry_date_str}",
+                auto_renewal_icon
             ]
             
             # Убираем пустые компоненты и собираем через разделитель |

@@ -48,6 +48,10 @@ app = Flask(__name__, template_folder='templates')
 # Инициализация авторизации
 init_flask_auth(app, session_dir='/app/sessions')
 
+# ИСПРАВЛЕНИЕ: Устанавливаем уникальное имя cookie для allure-homepage
+# Это предотвращает конфликт cookie между сервисами при использовании одинакового FLASK_SECRET_KEY
+app.config['SESSION_COOKIE_NAME'] = 'allure_session'
+
 # URL allure-service (внутренний порт)
 ALLURE_SERVICE_URL = os.getenv('ALLURE_SERVICE_URL', 'http://allure-service:5050')
 
