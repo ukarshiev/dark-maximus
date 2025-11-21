@@ -235,7 +235,7 @@ server {
     proxy_hide_header X-Frame-Options;
     proxy_hide_header Content-Security-Policy;
     add_header X-Frame-Options "ALLOWALL" always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https: data:; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss: https:; frame-ancestors 'self' https://app.dark-maximus.com http://localhost:50003;" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https: data:; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss: https:; frame-ancestors 'self' https://${APP_DOMAIN} http://localhost:50003;" always;
 
     # Health check
     location /health {
@@ -287,7 +287,7 @@ server {
 
     # Разрешаем фреймы для встраивания help.dark-maximus.com и subscription links
     add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://api.2ip.ru; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.2ip.ru https://help.dark-maximus.com https://serv*.dark-maximus.com; frame-src 'self' https://help.dark-maximus.com https://serv*.dark-maximus.com; frame-ancestors 'self';" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://api.2ip.ru; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.2ip.ru https://${HELP_DOMAIN} https://serv*.${MAIN_DOMAIN}; frame-src 'self' https://${HELP_DOMAIN} https://serv*.${MAIN_DOMAIN}; frame-ancestors 'self';" always;
 
     # Health check
     location /health {
@@ -299,18 +299,18 @@ server {
 # HTTP редирект на HTTPS для tests поддомена (мониторинг)
 server {
     listen 80;
-    server_name tests.${MAIN_DOMAIN};
+    server_name ${TESTS_DOMAIN};
     return 301 https://$host$request_uri;
 }
 
 # HTTPS сервер для tests поддомена (Allure отчеты / мониторинг)
 server {
     listen 443 ssl http2;
-    server_name tests.${MAIN_DOMAIN};
+    server_name ${TESTS_DOMAIN};
 
     # SSL сертификаты
-    ssl_certificate /etc/letsencrypt/live/tests.${MAIN_DOMAIN}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/tests.${MAIN_DOMAIN}/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/${TESTS_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${TESTS_DOMAIN}/privkey.pem;
     include /etc/nginx/snippets/ssl-params.conf;
 
     # Ограничение размера загружаемых файлов

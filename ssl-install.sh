@@ -93,12 +93,90 @@ else
     fi
 fi
 
-# Генерируем поддомены
+# Функция чтения настройки из БД
+read_setting_from_db() {
+    local setting_key="$1"
+    local db_path="${PROJECT_DIR}/users.db"
+    
+    if [ ! -f "$db_path" ]; then
+        return 1
+    fi
+    
+    python3 -c "
+import sqlite3
+import sys
+try:
+    conn = sqlite3.connect('${db_path}')
+    cursor = conn.cursor()
+    cursor.execute('SELECT value FROM bot_settings WHERE key = ?', ('${setting_key}',))
+    result = cursor.fetchone()
+    if result and result[0]:
+        print(result[0].strip())
+    conn.close()
+except:
+    pass
+" 2>/dev/null
+}
+
+# Функция извлечения домена из URL (убирает протокол и путь)
+extract_domain_from_url() {
+    local url="$1"
+    if [ -z "$url" ]; then
+        return 1
+    fi
+    # Убираем протокол (http:// или https://)
+    url="${url#http://}"
+    url="${url#https://}"
+    # Убираем путь (всё после первого /)
+    url="${url%%/*}"
+    # Убираем порт (если есть)
+    url="${url%%:*}"
+    echo "$url"
+}
+
+# Читаем настройки доменов из БД (если БД существует)
+USER_CABINET_DOMAIN_FROM_DB=""
+CODEX_DOCS_DOMAIN_FROM_DB=""
+DOCS_DOMAIN_FROM_DB=""
+GLOBAL_DOMAIN_FROM_DB=""
+
+if [ -f "${PROJECT_DIR}/users.db" ]; then
+    echo -e "${YELLOW}Чтение настроек доменов из БД...${NC}"
+    USER_CABINET_DOMAIN_FROM_DB=$(read_setting_from_db "user_cabinet_domain")
+    CODEX_DOCS_DOMAIN_FROM_DB=$(read_setting_from_db "codex_docs_domain")
+    DOCS_DOMAIN_FROM_DB=$(read_setting_from_db "docs_domain")
+    GLOBAL_DOMAIN_FROM_DB=$(read_setting_from_db "global_domain")
+fi
+
+# Генерируем поддомены с учетом настроек из БД
 PANEL_DOMAIN="panel.${MAIN_DOMAIN}"
-DOCS_DOMAIN="docs.${MAIN_DOMAIN}"
-HELP_DOMAIN="help.${MAIN_DOMAIN}"
-APP_DOMAIN="app.${MAIN_DOMAIN}"
+
+# DOCS_DOMAIN: используем docs_domain из БД или дефолт
+if [ -n "$DOCS_DOMAIN_FROM_DB" ]; then
+    DOCS_DOMAIN=$(extract_domain_from_url "$DOCS_DOMAIN_FROM_DB")
+    echo -e "${GREEN}✔ DOCS_DOMAIN получен из БД: ${DOCS_DOMAIN}${NC}"
+else
+    DOCS_DOMAIN="docs.${MAIN_DOMAIN}"
+fi
+
+# HELP_DOMAIN: используем codex_docs_domain из БД или дефолт
+if [ -n "$CODEX_DOCS_DOMAIN_FROM_DB" ]; then
+    HELP_DOMAIN=$(extract_domain_from_url "$CODEX_DOCS_DOMAIN_FROM_DB")
+    echo -e "${GREEN}✔ HELP_DOMAIN получен из БД: ${HELP_DOMAIN}${NC}"
+else
+    HELP_DOMAIN="help.${MAIN_DOMAIN}"
+fi
+
+# APP_DOMAIN: используем user_cabinet_domain из БД или дефолт
+if [ -n "$USER_CABINET_DOMAIN_FROM_DB" ]; then
+    APP_DOMAIN=$(extract_domain_from_url "$USER_CABINET_DOMAIN_FROM_DB")
+    echo -e "${GREEN}✔ APP_DOMAIN получен из БД: ${APP_DOMAIN}${NC}"
+else
+    APP_DOMAIN="app.${MAIN_DOMAIN}"
+fi
+
 ALLURE_DOMAIN="allure.${MAIN_DOMAIN}"
+TESTS_DOMAIN="tests.${MAIN_DOMAIN}"
 
 echo -e "${GREEN}✔ Домены настроены:${NC}"
 echo -e "   - Основной домен: ${MAIN_DOMAIN}"
@@ -107,6 +185,7 @@ echo -e "   - Документация: ${DOCS_DOMAIN}"
 echo -e "   - Allure: ${ALLURE_DOMAIN}"
 echo -e "   - Админ-документация: ${HELP_DOMAIN}"
 echo -e "   - Личный кабинет: ${APP_DOMAIN}"
+echo -e "   - Tests: ${TESTS_DOMAIN}"
 
 # Устанавливаем email для Let's Encrypt
 EMAIL="admin@${MAIN_DOMAIN}"
@@ -316,7 +395,7 @@ check_dns() {
 }
 
 DNS_OK=true
-for check_domain in "$MAIN_DOMAIN" "$PANEL_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN" "$APP_DOMAIN"; do
+for check_domain in "$MAIN_DOMAIN" "$PANEL_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN" "$APP_DOMAIN" "$TESTS_DOMAIN"; do
     if ! check_dns "$check_domain"; then
         echo -e "${RED}❌ ОШИБКА: DNS для ${check_domain} не указывает на IP этого сервера!${NC}"
         DNS_OK=false
@@ -390,64 +469,152 @@ systemctl stop nginx
 
 echo -e "\n${CYAN}Шаг 5: Получение SSL-сертификатов...${NC}"
 
+# Функция для получения сертификата с проверкой успешности
+get_certificate() {
+    local domain="$1"
+    local cert_path="/etc/letsencrypt/live/${domain}/fullchain.pem"
+    local key_path="/etc/letsencrypt/live/${domain}/privkey.pem"
+    
+    echo -e "${YELLOW}Получение сертификата для ${domain}...${NC}"
+    
+    # Проверяем, существует ли уже сертификат
+    if [ -f "$cert_path" ] && [ -f "$key_path" ]; then
+        echo -e "${GREEN}✔ Сертификат для ${domain} уже существует${NC}"
+        return 0
+    fi
+    
+    # Получаем сертификат
+    if certbot certonly --standalone \
+        --email "$EMAIL" \
+        --agree-tos \
+        --no-eff-email \
+        --non-interactive \
+        -d "$domain" 2>&1; then
+        # Проверяем существование файлов сертификата
+        if [ -f "$cert_path" ] && [ -f "$key_path" ]; then
+            echo -e "${GREEN}✔ Сертификат для ${domain} успешно получен${NC}"
+            return 0
+        else
+            echo -e "${RED}❌ ОШИБКА: Сертификат для ${domain} не найден после получения${NC}"
+            echo -e "${RED}   Ожидаемые файлы:${NC}"
+            echo -e "${RED}   - ${cert_path}${NC}"
+            echo -e "${RED}   - ${key_path}${NC}"
+            return 1
+        fi
+    else
+        echo -e "${RED}❌ ОШИБКА: Не удалось получить сертификат для ${domain}${NC}"
+        return 1
+    fi
+}
+
 # Получаем сертификаты для всех доменов
-echo -e "${YELLOW}Получение сертификата для ${MAIN_DOMAIN}...${NC}"
-certbot certonly --standalone \
-    --email "$EMAIL" \
-    --agree-tos \
-    --no-eff-email \
-    --non-interactive \
-    -d "$MAIN_DOMAIN"
+CERT_ERRORS=false
 
-echo -e "${YELLOW}Получение сертификата для ${PANEL_DOMAIN}...${NC}"
-certbot certonly --standalone \
-    --email "$EMAIL" \
-    --agree-tos \
-    --no-eff-email \
-    --non-interactive \
-    -d "$PANEL_DOMAIN"
+if ! get_certificate "$MAIN_DOMAIN"; then
+    CERT_ERRORS=true
+fi
 
-echo -e "${YELLOW}Получение сертификата для ${DOCS_DOMAIN}...${NC}"
-certbot certonly --standalone \
-    --email "$EMAIL" \
-    --agree-tos \
-    --no-eff-email \
-    --non-interactive \
-    -d "$DOCS_DOMAIN"
+if ! get_certificate "$PANEL_DOMAIN"; then
+    CERT_ERRORS=true
+fi
 
-echo -e "${YELLOW}Получение сертификата для ${HELP_DOMAIN}...${NC}"
-certbot certonly --standalone \
-    --email "$EMAIL" \
-    --agree-tos \
-    --no-eff-email \
-    --non-interactive \
-    -d "$HELP_DOMAIN"
+if ! get_certificate "$DOCS_DOMAIN"; then
+    CERT_ERRORS=true
+fi
 
-echo -e "${YELLOW}Получение сертификата для ${APP_DOMAIN}...${NC}"
-certbot certonly --standalone \
-    --email "$EMAIL" \
-    --agree-tos \
-    --no-eff-email \
-    --non-interactive \
-    -d "$APP_DOMAIN"
+if ! get_certificate "$HELP_DOMAIN"; then
+    CERT_ERRORS=true
+fi
 
-echo -e "${YELLOW}Получение сертификата для ${ALLURE_DOMAIN}...${NC}"
-certbot certonly --standalone \
-    --email "$EMAIL" \
-    --agree-tos \
-    --no-eff-email \
-    --non-interactive \
-    -d "$ALLURE_DOMAIN"
+if ! get_certificate "$APP_DOMAIN"; then
+    CERT_ERRORS=true
+fi
+
+if ! get_certificate "$ALLURE_DOMAIN"; then
+    CERT_ERRORS=true
+fi
+
+if ! get_certificate "$TESTS_DOMAIN"; then
+    CERT_ERRORS=true
+fi
+
+if [ "$CERT_ERRORS" = true ]; then
+    echo -e "${RED}❌ КРИТИЧЕСКАЯ ОШИБКА: Не удалось получить один или несколько SSL-сертификатов${NC}"
+    echo -e "${YELLOW}Проверьте DNS записи и убедитесь, что все домены указывают на IP этого сервера${NC}"
+    exit 1
+fi
 
 echo -e "${GREEN}✔ Все SSL-сертификаты получены${NC}"
+
+# Проверка существования всех необходимых сертификатов перед разворачиванием nginx-конфига
+echo -e "\n${CYAN}Проверка существования всех SSL-сертификатов...${NC}"
+
+check_certificate() {
+    local domain="$1"
+    local cert_path="/etc/letsencrypt/live/${domain}/fullchain.pem"
+    local key_path="/etc/letsencrypt/live/${domain}/privkey.pem"
+    
+    if [ ! -f "$cert_path" ]; then
+        echo -e "${RED}❌ ОШИБКА: Сертификат не найден для ${domain}${NC}"
+        echo -e "${RED}   Ожидаемый файл: ${cert_path}${NC}"
+        return 1
+    fi
+    
+    if [ ! -f "$key_path" ]; then
+        echo -e "${RED}❌ ОШИБКА: Ключ сертификата не найден для ${domain}${NC}"
+        echo -e "${RED}   Ожидаемый файл: ${key_path}${NC}"
+        return 1
+    fi
+    
+    echo -e "${GREEN}✔ Сертификат для ${domain} найден${NC}"
+    return 0
+}
+
+CERT_CHECK_ERRORS=false
+
+if ! check_certificate "$MAIN_DOMAIN"; then
+    CERT_CHECK_ERRORS=true
+fi
+
+if ! check_certificate "$PANEL_DOMAIN"; then
+    CERT_CHECK_ERRORS=true
+fi
+
+if ! check_certificate "$DOCS_DOMAIN"; then
+    CERT_CHECK_ERRORS=true
+fi
+
+if ! check_certificate "$HELP_DOMAIN"; then
+    CERT_CHECK_ERRORS=true
+fi
+
+if ! check_certificate "$APP_DOMAIN"; then
+    CERT_CHECK_ERRORS=true
+fi
+
+if ! check_certificate "$ALLURE_DOMAIN"; then
+    CERT_CHECK_ERRORS=true
+fi
+
+if ! check_certificate "$TESTS_DOMAIN"; then
+    CERT_CHECK_ERRORS=true
+fi
+
+if [ "$CERT_CHECK_ERRORS" = true ]; then
+    echo -e "${RED}❌ КРИТИЧЕСКАЯ ОШИБКА: Один или несколько SSL-сертификатов отсутствуют${NC}"
+    echo -e "${YELLOW}Невозможно продолжить разворачивание nginx-конфига без всех необходимых сертификатов${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✔ Все SSL-сертификаты проверены и существуют${NC}"
 
 echo -e "\n${CYAN}Шаг 6: Разворачиваем nginx-конфиг из шаблона репозитория...${NC}"
 CONF_URL="https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/deploy/nginx/dark-maximus.conf.tpl"
 curl -f -sSL "$CONF_URL" -o /tmp/dark-maximus.conf.tpl
 
 # Подставляем домены ТОЛЬКО в ${...}, оставляя nginx $host/$scheme нетронутыми
-export MAIN_DOMAIN PANEL_DOMAIN DOCS_DOMAIN HELP_DOMAIN APP_DOMAIN ALLURE_DOMAIN
-envsubst '${MAIN_DOMAIN} ${PANEL_DOMAIN} ${DOCS_DOMAIN} ${HELP_DOMAIN} ${APP_DOMAIN} ${ALLURE_DOMAIN}' \
+export MAIN_DOMAIN PANEL_DOMAIN DOCS_DOMAIN HELP_DOMAIN APP_DOMAIN ALLURE_DOMAIN TESTS_DOMAIN
+envsubst '${MAIN_DOMAIN} ${PANEL_DOMAIN} ${DOCS_DOMAIN} ${HELP_DOMAIN} ${APP_DOMAIN} ${ALLURE_DOMAIN} ${TESTS_DOMAIN}' \
   < /tmp/dark-maximus.conf.tpl > /etc/nginx/sites-available/dark-maximus
 
 # Чистим посторонние активные файлы (во избежание дублей upstream/server)
