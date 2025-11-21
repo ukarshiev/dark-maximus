@@ -395,7 +395,7 @@ check_dns() {
 }
 
 DNS_OK=true
-for check_domain in "$MAIN_DOMAIN" "$PANEL_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN" "$APP_DOMAIN" "$TESTS_DOMAIN"; do
+for check_domain in "$MAIN_DOMAIN" "$PANEL_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN" "$APP_DOMAIN" "$ALLURE_DOMAIN" "$TESTS_DOMAIN"; do
     if ! check_dns "$check_domain"; then
         echo -e "${RED}❌ ОШИБКА: DNS для ${check_domain} не указывает на IP этого сервера!${NC}"
         DNS_OK=false
@@ -484,25 +484,65 @@ get_certificate() {
     fi
     
     # Получаем сертификат
-    if certbot certonly --standalone \
+    certbot_output=$(certbot certonly --standalone \
         --email "$EMAIL" \
         --agree-tos \
         --no-eff-email \
         --non-interactive \
-        -d "$domain" 2>&1; then
-        # Проверяем существование файлов сертификата
-        if [ -f "$cert_path" ] && [ -f "$key_path" ]; then
-            echo -e "${GREEN}✔ Сертификат для ${domain} успешно получен${NC}"
-            return 0
+        -d "$domain" 2>&1)
+    certbot_exit_code=$?
+    
+    # Проверяем существование файлов сертификата после вызова certbot
+    if [ -f "$cert_path" ] && [ -f "$key_path" ]; then
+        echo -e "${GREEN}✔ Сертификат для ${domain} успешно получен${NC}"
+        return 0
+    fi
+    
+    # Если certbot вернул код 0, но файлы не существуют
+    if [ $certbot_exit_code -eq 0 ]; then
+        # Проверяем, не говорит ли certbot "Certificate not yet due for renewal"
+        if echo "$certbot_output" | grep -q "Certificate not yet due for renewal"; then
+            # Certbot говорит, что сертификат не требует обновления, но файлы не найдены
+            # Это может означать, что сертификат существует для другого домена или в другом месте
+            # Пытаемся принудительно получить сертификат
+            echo -e "${YELLOW}⚠️  Certbot сообщил 'Certificate not yet due for renewal', но файлы не найдены. Пытаемся принудительно получить сертификат...${NC}"
+            if certbot certonly --standalone \
+                --email "$EMAIL" \
+                --agree-tos \
+                --no-eff-email \
+                --non-interactive \
+                --force-renewal \
+                -d "$domain" 2>&1; then
+                # Проверяем существование файлов после принудительного получения
+                if [ -f "$cert_path" ] && [ -f "$key_path" ]; then
+                    echo -e "${GREEN}✔ Сертификат для ${domain} успешно получен (принудительно)${NC}"
+                    return 0
+                else
+                    echo -e "${RED}❌ ОШИБКА: Сертификат для ${domain} не найден после принудительного получения${NC}"
+                    echo -e "${RED}   Ожидаемые файлы:${NC}"
+                    echo -e "${RED}   - ${cert_path}${NC}"
+                    echo -e "${RED}   - ${key_path}${NC}"
+                    return 1
+                fi
+            else
+                echo -e "${RED}❌ ОШИБКА: Не удалось принудительно получить сертификат для ${domain}${NC}"
+                return 1
+            fi
         else
-            echo -e "${RED}❌ ОШИБКА: Сертификат для ${domain} не найден после получения${NC}"
+            # Certbot вернул код 0, но файлы не найдены и нет сообщения о renewal
+            echo -e "${RED}❌ ОШИБКА: Certbot вернул код 0, но сертификат для ${domain} не найден${NC}"
             echo -e "${RED}   Ожидаемые файлы:${NC}"
             echo -e "${RED}   - ${cert_path}${NC}"
             echo -e "${RED}   - ${key_path}${NC}"
+            echo -e "${YELLOW}   Вывод certbot:${NC}"
+            echo "$certbot_output" | head -20
             return 1
         fi
     else
+        # Certbot вернул ненулевой код - ошибка
         echo -e "${RED}❌ ОШИБКА: Не удалось получить сертификат для ${domain}${NC}"
+        echo -e "${YELLOW}   Вывод certbot:${NC}"
+        echo "$certbot_output" | head -20
         return 1
     fi
 }
