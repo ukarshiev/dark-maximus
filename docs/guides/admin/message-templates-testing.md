@@ -136,7 +136,7 @@ allure serve allure-results
 
 **Доступ к веб-интерфейсу Allure:**
 - Локальный доступ: `http://localhost:50005/allure-docker-service/projects/default/reports/latest/index.html`
-- Внешний доступ (после SSL): `https://tests.dark-maximus.com/allure-docker-service/projects/default/reports/latest/index.html`
+- Внешний доступ (после SSL): `https://allure.dark-maximus.com/allure-docker-service/projects/default/reports/latest/index.html`
 
 ---
 
@@ -234,7 +234,7 @@ allure serve allure-results
 
 2. **Открыть веб-интерфейс Allure:**
    - Локальный доступ: `http://localhost:50005/allure-docker-service/projects/default/reports/latest/index.html`
-   - Внешний доступ: `https://tests.dark-maximus.com/allure-docker-service/projects/default/reports/latest/index.html`
+   - Внешний доступ: `https://allure.dark-maximus.com/allure-docker-service/projects/default/reports/latest/index.html`
 
 3. **Найти тесты:**
    - По тегу: `@allure.tag("purchase", "message")`

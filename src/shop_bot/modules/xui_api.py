@@ -16,7 +16,7 @@ import sqlite3
 
 from py3xui import Api, Client, Inbound
 
-from shop_bot.data_manager.database import get_host, get_host_by_code, get_key_by_email, DB_FILE
+from shop_bot.data_manager.database import get_host, get_host_by_code, get_key_by_email, DB_FILE, get_global_domain
 
 logger = logging.getLogger(__name__)
 
@@ -69,9 +69,19 @@ def _create_verified_panel_session(host_url: str) -> requests.Session:
     """
     session = requests.Session()
     session.verify = _resolve_tls_verify_option(host_url)
+    
+    # Получаем домен из настроек для User-Agent
+    global_domain = get_global_domain()
+    if global_domain:
+        # Нормализация домена (убираем протокол если есть)
+        domain_for_ua = global_domain.replace("https://", "").replace("http://", "").rstrip("/")
+    else:
+        # Fallback на дефолт (для обратной совместимости)
+        domain_for_ua = "dark-maximus.com"
+    
     session.headers.update(
         {
-            "User-Agent": "DarkMaximus-XUI/1.0 (+https://dark-maximus.com)",
+            "User-Agent": f"DarkMaximus-XUI/1.0 (+https://{domain_for_ua})",
             "Accept": "application/json, text/plain, */*",
         }
     )

@@ -354,8 +354,8 @@ allure generate allure-results -o allure-report
 - **API проектов:** `http://localhost:50005/allure-docker-service/projects`
 
 **Внешний доступ (после настройки SSL):**
-- `https://tests.dark-maximus.com/allure-docker-service/` — главная страница
-- `https://tests.dark-maximus.com/allure-docker-service/projects/default/reports/latest/index.html` — последний отчет
+- `https://allure.dark-maximus.com/allure-docker-service/` — главная страница
+- `https://allure.dark-maximus.com/allure-docker-service/projects/default/reports/latest/index.html` — последний отчет
 
 ### Функции веб-интерфейса
 
@@ -811,7 +811,7 @@ sudo ./ssl-install.sh domain.com
 ```
 
 Allure отчеты будут доступны по адресу:
-- `https://tests.dark-maximus.com/allure-docker-service/projects/default/reports/latest/index.html`
+- `https://allure.dark-maximus.com/allure-docker-service/projects/default/reports/latest/index.html`
 
 ## Управление контейнерами
 

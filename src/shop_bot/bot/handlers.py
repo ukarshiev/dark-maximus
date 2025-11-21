@@ -1206,14 +1206,14 @@ def get_user_router() -> Router:
         )
 
     @user_router.callback_query(F.data.in_(
-        {"topup_amount_179","topup_amount_300","topup_amount_500"}
+        {"topup_amount_150","topup_amount_300","topup_amount_500"}
     ))
     @registration_required
     @measure_performance("topup_select_preset")
     async def topup_select_preset_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         mapping = {
-            "topup_amount_179": 179,
+            "topup_amount_150": 150,
             "topup_amount_300": 300,
             "topup_amount_500": 500
         }

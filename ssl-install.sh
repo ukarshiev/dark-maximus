@@ -176,7 +176,6 @@ else
 fi
 
 ALLURE_DOMAIN="allure.${MAIN_DOMAIN}"
-TESTS_DOMAIN="tests.${MAIN_DOMAIN}"
 
 echo -e "${GREEN}✔ Домены настроены:${NC}"
 echo -e "   - Основной домен: ${MAIN_DOMAIN}"
@@ -185,7 +184,6 @@ echo -e "   - Документация: ${DOCS_DOMAIN}"
 echo -e "   - Allure: ${ALLURE_DOMAIN}"
 echo -e "   - Админ-документация: ${HELP_DOMAIN}"
 echo -e "   - Личный кабинет: ${APP_DOMAIN}"
-echo -e "   - Tests: ${TESTS_DOMAIN}"
 
 # Устанавливаем email для Let's Encrypt
 EMAIL="admin@${MAIN_DOMAIN}"
@@ -395,7 +393,7 @@ check_dns() {
 }
 
 DNS_OK=true
-for check_domain in "$MAIN_DOMAIN" "$PANEL_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN" "$APP_DOMAIN" "$ALLURE_DOMAIN" "$TESTS_DOMAIN"; do
+for check_domain in "$MAIN_DOMAIN" "$PANEL_DOMAIN" "$DOCS_DOMAIN" "$HELP_DOMAIN" "$APP_DOMAIN" "$ALLURE_DOMAIN"; do
     if ! check_dns "$check_domain"; then
         echo -e "${RED}❌ ОШИБКА: DNS для ${check_domain} не указывает на IP этого сервера!${NC}"
         DNS_OK=false
@@ -574,10 +572,6 @@ if ! get_certificate "$ALLURE_DOMAIN"; then
     CERT_ERRORS=true
 fi
 
-if ! get_certificate "$TESTS_DOMAIN"; then
-    CERT_ERRORS=true
-fi
-
 if [ "$CERT_ERRORS" = true ]; then
     echo -e "${RED}❌ КРИТИЧЕСКАЯ ОШИБКА: Не удалось получить один или несколько SSL-сертификатов${NC}"
     echo -e "${YELLOW}Проверьте DNS записи и убедитесь, что все домены указывают на IP этого сервера${NC}"
@@ -636,10 +630,6 @@ if ! check_certificate "$ALLURE_DOMAIN"; then
     CERT_CHECK_ERRORS=true
 fi
 
-if ! check_certificate "$TESTS_DOMAIN"; then
-    CERT_CHECK_ERRORS=true
-fi
-
 if [ "$CERT_CHECK_ERRORS" = true ]; then
     echo -e "${RED}❌ КРИТИЧЕСКАЯ ОШИБКА: Один или несколько SSL-сертификатов отсутствуют${NC}"
     echo -e "${YELLOW}Невозможно продолжить разворачивание nginx-конфига без всех необходимых сертификатов${NC}"
@@ -653,8 +643,8 @@ CONF_URL="https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/deploy/n
 curl -f -sSL "$CONF_URL" -o /tmp/dark-maximus.conf.tpl
 
 # Подставляем домены ТОЛЬКО в ${...}, оставляя nginx $host/$scheme нетронутыми
-export MAIN_DOMAIN PANEL_DOMAIN DOCS_DOMAIN HELP_DOMAIN APP_DOMAIN ALLURE_DOMAIN TESTS_DOMAIN
-envsubst '${MAIN_DOMAIN} ${PANEL_DOMAIN} ${DOCS_DOMAIN} ${HELP_DOMAIN} ${APP_DOMAIN} ${ALLURE_DOMAIN} ${TESTS_DOMAIN}' \
+export MAIN_DOMAIN PANEL_DOMAIN DOCS_DOMAIN HELP_DOMAIN APP_DOMAIN ALLURE_DOMAIN
+envsubst '${MAIN_DOMAIN} ${PANEL_DOMAIN} ${DOCS_DOMAIN} ${HELP_DOMAIN} ${APP_DOMAIN} ${ALLURE_DOMAIN}' \
   < /tmp/dark-maximus.conf.tpl > /etc/nginx/sites-available/dark-maximus
 
 # Чистим посторонние активные файлы (во избежание дублей upstream/server)

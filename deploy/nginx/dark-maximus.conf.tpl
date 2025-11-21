@@ -287,49 +287,12 @@ server {
 
     # Разрешаем фреймы для встраивания help.dark-maximus.com и subscription links
     add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://api.2ip.ru; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.2ip.ru https://${HELP_DOMAIN} https://serv*.${MAIN_DOMAIN}; frame-src 'self' https://${HELP_DOMAIN} https://serv*.${MAIN_DOMAIN}; frame-ancestors 'self';" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://api.2ip.ru; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.2ip.ru https://${HELP_DOMAIN} https://*.${MAIN_DOMAIN}; frame-src 'self' https://${HELP_DOMAIN} https://*.${MAIN_DOMAIN}; frame-ancestors 'self';" always;
 
     # Health check
     location /health {
         proxy_pass http://user_cabinet_backend/health;
         access_log off;
-    }
-}
-
-# HTTP редирект на HTTPS для tests поддомена (мониторинг)
-server {
-    listen 80;
-    server_name ${TESTS_DOMAIN};
-    return 301 https://$host$request_uri;
-}
-
-# HTTPS сервер для tests поддомена (Allure отчеты / мониторинг)
-server {
-    listen 443 ssl http2;
-    server_name ${TESTS_DOMAIN};
-
-    # SSL сертификаты
-    ssl_certificate /etc/letsencrypt/live/${TESTS_DOMAIN}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${TESTS_DOMAIN}/privkey.pem;
-    include /etc/nginx/snippets/ssl-params.conf;
-
-    # Ограничение размера загружаемых файлов
-    client_max_body_size 20m;
-
-    # Проксирование на allure-service
-    location / {
-        proxy_pass http://allure_backend;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-
-        # Таймауты для длительных операций
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
     }
 }
 

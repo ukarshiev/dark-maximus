@@ -784,6 +784,32 @@ def initialize_db():
                 cursor.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", ("panel_password", hashed_password))
                 logging.info("Created default panel_login and panel_password (credentials were missing)")
 
+            # Проверяем, есть ли уже настройка global_domain в БД перед формированием дефолтных значений для TON manifest
+            existing_global_domain = None
+            try:
+                cursor.execute("SELECT value FROM bot_settings WHERE key = ?", ("global_domain",))
+                result = cursor.fetchone()
+                if result and result[0]:
+                    existing_global_domain = result[0].strip()
+                # Если global_domain нет, проверяем старый параметр domain
+                if not existing_global_domain:
+                    cursor.execute("SELECT value FROM bot_settings WHERE key = ?", ("domain",))
+                    result = cursor.fetchone()
+                    if result and result[0]:
+                        existing_global_domain = result[0].strip()
+            except Exception:
+                pass  # Если БД еще не создана или ошибка - используем дефолт
+
+            # Формируем домен для TON manifest
+            if existing_global_domain:
+                # Нормализация домена (убираем протокол если есть, добавляем https)
+                panel_domain = existing_global_domain.strip().rstrip('/')
+                if not panel_domain.startswith(('http://', 'https://')):
+                    panel_domain = f"https://{panel_domain}"
+            else:
+                # Fallback на дефолт только если настройки нет
+                panel_domain = "https://panel.dark-maximus.com"
+
             default_settings = {
 
                 "about_content": None,
@@ -867,13 +893,13 @@ def initialize_db():
 
                 "ton_manifest_name": "Dark Maximus Shop Bot",
 
-                "ton_manifest_url": "https://panel.dark-maximus.com",
+                "ton_manifest_url": panel_domain,
 
-                "ton_manifest_icon_url": "https://panel.dark-maximus.com/static/logo.png",
+                "ton_manifest_icon_url": f"{panel_domain}/static/logo.png",
 
-                "ton_manifest_terms_url": "https://panel.dark-maximus.com/terms",
+                "ton_manifest_terms_url": f"{panel_domain}/terms",
 
-                "ton_manifest_privacy_url": "https://panel.dark-maximus.com/privacy",
+                "ton_manifest_privacy_url": f"{panel_domain}/privacy",
 
                 # Feature flags
                 "feature_timezone_enabled": "0",  # Поддержка timezone (0 = выключена, 1 = включена)

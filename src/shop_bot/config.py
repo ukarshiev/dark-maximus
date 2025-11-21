@@ -662,9 +662,17 @@ def get_user_cabinet_domain() -> str | None:
     # Нормализация домена
     domain = domain.strip().rstrip('/')
     
-    # Добавляем протокол если отсутствует
-    if not domain.startswith(('http://', 'https://')):
-        domain = f'https://{domain}'
+    # Убираем протокол если есть (для нормализации)
+    domain = domain.replace("https://", "").replace("http://", "")
+    
+    # Убираем путь (всё после первого /)
+    if "/" in domain:
+        domain = domain.split("/")[0]
+    
+    # Порт сохраняем (не удаляем)
+    
+    # Добавляем https:// протокол
+    domain = f'https://{domain}'
     
     return domain
 

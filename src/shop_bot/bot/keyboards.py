@@ -137,7 +137,7 @@ def create_help_center_keyboard() -> InlineKeyboardMarkup:
 
 def create_topup_amounts_keyboard() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.button(text="179 рублей", callback_data="topup_amount_179")
+    builder.button(text="150 рублей", callback_data="topup_amount_150")
     builder.button(text="300 рублей", callback_data="topup_amount_300")
     builder.button(text="500 рублей", callback_data="topup_amount_500")
     builder.button(text="Ввести другую сумму", callback_data="topup_amount_custom")
@@ -496,9 +496,21 @@ def create_key_info_keyboard(key_id: int, subscription_link: str | None = None, 
         subscription_link = key_data.get('subscription_link')
 
     # Кнопка настройки
+    # Получаем домен codex-docs из настроек
+    codex_docs_domain = get_setting("codex_docs_domain")
+    if codex_docs_domain:
+        # Нормализация домена (убираем протокол если есть, добавляем https)
+        codex_docs_domain = codex_docs_domain.strip().rstrip('/')
+        if not codex_docs_domain.startswith(('http://', 'https://')):
+            codex_docs_domain = f"https://{codex_docs_domain}"
+        setup_url = f"{codex_docs_domain}/setup"
+    else:
+        # Fallback на дефолт (для обратной совместимости)
+        setup_url = "https://help.dark-maximus.com/setup"
+
     builder.button(
         text="⚙️ Настройка",
-        web_app=WebAppInfo(url="https://help.dark-maximus.com/setup")
+        web_app=WebAppInfo(url=setup_url)
     )
 
     if subscription_link and _is_http_like_url(subscription_link):

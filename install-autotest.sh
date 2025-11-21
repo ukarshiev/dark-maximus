@@ -123,7 +123,7 @@ check_required_files() {
     fi
 }
 
-# Функция безопасного добавления сервисов в docker-compose.yml
+# Функция безопасного добавления и исправления сервисов в docker-compose.yml
 add_services_to_compose() {
     local backup_file="docker-compose.yml.backup.$(date +%Y%m%d-%H%M%S)"
     echo -e "${YELLOW}Создаем резервную копию: $backup_file${NC}"
@@ -135,15 +135,9 @@ add_services_to_compose() {
     ! service_exists "allure-service" && services_to_add+=("allure-service")
     ! service_exists "allure-homepage" && services_to_add+=("allure-homepage")
     
-    if [ ${#services_to_add[@]} -eq 0 ]; then
-        echo -e "${GREEN}✔ Все сервисы автотестов уже существуют в docker-compose.yml${NC}"
-        rm -f "$backup_file"
-        return 0
-    fi
+    echo -e "${YELLOW}Проверяем и исправляем конфигурацию сервисов...${NC}"
     
-    echo -e "${YELLOW}Добавляем сервисы: ${services_to_add[*]}${NC}"
-    
-    # Используем Python для безопасного добавления сервисов
+    # Используем Python для безопасного добавления и исправления сервисов
     python3 << 'PYTHON_SCRIPT'
 import yaml
 import sys
@@ -158,6 +152,7 @@ try:
     
     services = config.get('services', {})
     services_added = []
+    services_fixed = []
     
     # Добавляем autotest если его нет
     if 'autotest' not in services:
@@ -179,61 +174,145 @@ try:
         }
         services_added.append('autotest')
     
-    # Добавляем allure-service если его нет (должен быть перед allure-homepage)
-    if 'allure-service' not in services:
-        services['allure-service'] = {
-            'image': 'frankescobar/allure-docker-service:latest',
-            'container_name': 'dark-maximus-allure',
-            'expose': ['5050'],
-            'ports': ['127.0.0.1:50004:5050'],
-            'volumes': [
-                './allure-results:/app/allure-docker-api/static/projects/default/results',
-                './allure-report:/app/allure-report',
-                './allure-reports:/app/allure-docker-api/static/projects',
-                './allure-categories.json:/app/allure-categories.json'
-            ],
-            'environment': [
-                'CHECK_RESULTS_EVERY_SECONDS=3',
-                'KEEP_HISTORY=1',
-                'KEEP_HISTORY_LATEST=100',
-                'ALLURE_PUBLIC_URL=http://localhost:50005',
-                'URL_PREFIX=/allure-docker-service'
-            ],
-            'networks': ['dark-maximus-network']
-        }
-        services_added.append('allure-service')
+    # Добавляем или исправляем allure-service (должен быть перед allure-homepage)
+    allure_service_config = {
+        'image': 'frankescobar/allure-docker-service:latest',
+        'container_name': 'dark-maximus-allure',
+        'expose': ['5050'],
+        'ports': ['127.0.0.1:50004:5050'],
+        'volumes': [
+            './allure-results:/app/allure-docker-api/static/projects/default/results',
+            './allure-report:/app/allure-report',
+            './allure-reports:/app/allure-docker-api/static/projects',
+            './allure-categories.json:/app/allure-categories.json'
+        ],
+        'environment': [
+            'CHECK_RESULTS_EVERY_SECONDS=30',
+            'KEEP_HISTORY=1',
+            'KEEP_HISTORY_LATEST=30',
+            'ALLURE_PUBLIC_URL=http://localhost:50005',
+            'URL_PREFIX=/allure-docker-service',
+            'CATEGORIES_FILE=/app/allure-categories.json'
+        ],
+        'networks': ['dark-maximus-network']
+    }
     
-    # Добавляем allure-homepage если его нет (после allure-service)
+    if 'allure-service' not in services:
+        services['allure-service'] = allure_service_config
+        services_added.append('allure-service')
+    else:
+        # Проверяем и исправляем конфигурацию существующего сервиса
+        existing = services['allure-service']
+        needs_fix = False
+        
+        # Проверяем обязательные параметры
+        if existing.get('environment') is None:
+            existing['environment'] = []
+            needs_fix = True
+        
+        env_dict = {}
+        for env in existing.get('environment', []):
+            if isinstance(env, str) and '=' in env:
+                key, value = env.split('=', 1)
+                env_dict[key] = value
+        
+        # Проверяем URL_PREFIX
+        if env_dict.get('URL_PREFIX') != '/allure-docker-service':
+            existing['environment'] = [e for e in existing['environment'] if not isinstance(e, str) or not e.startswith('URL_PREFIX=')]
+            existing['environment'].append('URL_PREFIX=/allure-docker-service')
+            needs_fix = True
+        
+        # Проверяем CATEGORIES_FILE
+        if env_dict.get('CATEGORIES_FILE') != '/app/allure-categories.json':
+            existing['environment'] = [e for e in existing['environment'] if not isinstance(e, str) or not e.startswith('CATEGORIES_FILE=')]
+            existing['environment'].append('CATEGORIES_FILE=/app/allure-categories.json')
+            needs_fix = True
+        
+        # Проверяем сеть
+        if existing.get('networks') != ['dark-maximus-network']:
+            existing['networks'] = ['dark-maximus-network']
+            needs_fix = True
+        
+        # Проверяем expose порт
+        if existing.get('expose') != ['5050']:
+            existing['expose'] = ['5050']
+            needs_fix = True
+        
+        if needs_fix:
+            services_fixed.append('allure-service')
+    
+    # Добавляем или исправляем allure-homepage (после allure-service)
+    allure_homepage_config = {
+        'build': {
+            'context': './apps/allure-homepage',
+            'dockerfile': 'Dockerfile'
+        },
+        'container_name': 'dark-maximus-allure-homepage',
+        'restart': 'unless-stopped',
+        'ports': ['127.0.0.1:50005:50005'],
+        'volumes': [
+            './sessions-allure:/app/sessions',
+            './users.db:/app/users.db',
+            './src:/app/src'
+        ],
+        'environment': [
+            'ALLURE_SERVICE_URL=http://allure-service:5050',
+            'PORT=50005',
+            'FLASK_SECRET_KEY=${FLASK_SECRET_KEY}'
+        ],
+        'healthcheck': {
+            'test': ['CMD-SHELL', 'nc -z localhost 50005 || exit 1'],
+            'interval': '30s',
+            'timeout': '10s',
+            'retries': 3,
+            'start_period': '10s'
+        },
+        'networks': ['dark-maximus-network'],
+        'depends_on': ['allure-service']
+    }
+    
     if 'allure-homepage' not in services:
-        services['allure-homepage'] = {
-            'build': {
-                'context': './apps/allure-homepage',
-                'dockerfile': 'Dockerfile'
-            },
-            'container_name': 'dark-maximus-allure-homepage',
-            'restart': 'unless-stopped',
-            'ports': ['127.0.0.1:50005:50005'],
-            'volumes': [
-                './sessions-allure:/app/sessions',
-                './users.db:/app/users.db',
-                './src:/app/src'
-            ],
-            'environment': [
-                'ALLURE_SERVICE_URL=http://allure-service:5050',
-                'PORT=50005',
-                'FLASK_SECRET_KEY=${FLASK_SECRET_KEY}'
-            ],
-            'healthcheck': {
-                'test': ['CMD-SHELL', 'nc -z localhost 50005 || exit 1'],
-                'interval': '30s',
-                'timeout': '10s',
-                'retries': 3,
-                'start_period': '10s'
-            },
-            'networks': ['dark-maximus-network'],
-            'depends_on': ['allure-service']
-        }
+        services['allure-homepage'] = allure_homepage_config
         services_added.append('allure-homepage')
+    else:
+        # Проверяем и исправляем конфигурацию существующего сервиса
+        existing = services['allure-homepage']
+        needs_fix = False
+        
+        # Проверяем обязательные параметры
+        if existing.get('environment') is None:
+            existing['environment'] = []
+            needs_fix = True
+        
+        env_dict = {}
+        for env in existing.get('environment', []):
+            if isinstance(env, str) and '=' in env:
+                key, value = env.split('=', 1)
+                env_dict[key] = value
+        
+        # Проверяем ALLURE_SERVICE_URL - критически важно!
+        if env_dict.get('ALLURE_SERVICE_URL') != 'http://allure-service:5050':
+            existing['environment'] = [e for e in existing['environment'] if not isinstance(e, str) or not e.startswith('ALLURE_SERVICE_URL=')]
+            existing['environment'].append('ALLURE_SERVICE_URL=http://allure-service:5050')
+            needs_fix = True
+        
+        # Проверяем сеть
+        if existing.get('networks') != ['dark-maximus-network']:
+            existing['networks'] = ['dark-maximus-network']
+            needs_fix = True
+        
+        # Проверяем depends_on
+        if existing.get('depends_on') != ['allure-service']:
+            existing['depends_on'] = ['allure-service']
+            needs_fix = True
+        
+        # Проверяем restart
+        if existing.get('restart') != 'unless-stopped':
+            existing['restart'] = 'unless-stopped'
+            needs_fix = True
+        
+        if needs_fix:
+            services_fixed.append('allure-homepage')
     
     config['services'] = services
     
@@ -242,8 +321,10 @@ try:
     
     if services_added:
         print(f'✓ Добавлены сервисы: {", ".join(services_added)}')
-    else:
-        print('✓ Все сервисы уже существуют')
+    if services_fixed:
+        print(f'✓ Исправлена конфигурация сервисов: {", ".join(services_fixed)}')
+    if not services_added and not services_fixed:
+        print('✓ Все сервисы уже существуют и настроены правильно')
         
 except Exception as e:
     print(f'❌ Ошибка при добавлении сервисов: {e}', file=sys.stderr)
@@ -251,20 +332,20 @@ except Exception as e:
 PYTHON_SCRIPT
     
     if [ $? -ne 0 ]; then
-        echo -e "${RED}❌ Ошибка при добавлении сервисов, восстанавливаем из резервной копии${NC}"
+        echo -e "${RED}❌ Ошибка при добавлении/исправлении сервисов, восстанавливаем из резервной копии${NC}"
         cp "$backup_file" docker-compose.yml
         exit 1
     fi
     
     # Проверяем валидность YAML после модификации
     if ! ${DC[@]} config > /dev/null 2>&1; then
-        echo -e "${RED}❌ Ошибка валидации docker-compose.yml после добавления сервисов${NC}"
+        echo -e "${RED}❌ Ошибка валидации docker-compose.yml после добавления/исправления сервисов${NC}"
         echo -e "${YELLOW}Восстанавливаем из резервной копии...${NC}"
         cp "$backup_file" docker-compose.yml
         exit 1
     fi
     
-    echo -e "${GREEN}✔ Сервисы успешно добавлены в docker-compose.yml${NC}"
+    echo -e "${GREEN}✔ Сервисы успешно добавлены/исправлены в docker-compose.yml${NC}"
 }
 
 echo -e "\n${CYAN}Шаг 1: Проверка необходимых файлов...${NC}"

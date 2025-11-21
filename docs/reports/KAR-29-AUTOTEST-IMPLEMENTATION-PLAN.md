@@ -206,12 +206,12 @@ tests/
 - Добавить сервисы в `docker-compose.yml` (tests, allure-service)
 - Настроить `pytest.ini` для Allure
 - Создать скрипт запуска тестов `tests/run_tests.sh`
-- Настроить Nginx конфигурацию для `tests.dark-maximus.com`
+- Настроить Nginx конфигурацию для `allure.dark-maximus.com`
 - **Время:** ~2-3 часа
 
 **Результат:**
 - Docker-контейнеры для тестов и Allure Service настроены
-- Доступ к результатам тестов через браузер на `tests.dark-maximus.com`
+- Доступ к результатам тестов через браузер на `allure.dark-maximus.com`
 - Автоматическое обновление отчетов при запуске тестов
 
 ---
@@ -298,7 +298,7 @@ tests/
 - Добавлены сервисы `monitoring` и `allure-service` в `docker-compose.yml`
 - Настроен `pytest.ini` для интеграции с Allure Framework
 - Созданы скрипты запуска тестов: `tests/run_tests.sh` и `tests/run_tests.ps1`
-- Настроена конфигурация Nginx для `tests.dark-maximus.com` (HTTP и HTTPS)
+- Настроена конфигурация Nginx для `allure.dark-maximus.com` (HTTP и HTTPS)
 - Обновлен шаблон `deploy/nginx/dark-maximus.conf.tpl` для поддержки тестового поддомена
 - Создан скрипт `install-autotest.sh` для установки инфраструктуры автотестов
 
@@ -323,7 +323,7 @@ tests/
 - Allure Reports: `http://localhost:50005/allure-docker-service/projects/default/reports/latest/index.html`
 
 **Внешний доступ (после настройки SSL):**
-- `https://tests.dark-maximus.com/allure-docker-service/projects/default/reports/latest/index.html`
+- `https://allure.dark-maximus.com/allure-docker-service/projects/default/reports/latest/index.html`
 
 ### Файлы проекта
 
@@ -339,7 +339,7 @@ tests/
 **Обновленные файлы:**
 - `docker-compose.yml` - добавлены сервисы `autotest` и `allure-service`
 - `pyproject.toml` - добавлены зависимости для тестирования (версия 4.18.1)
-- `nginx/nginx.conf` и `nginx/nginx-ssl.conf` - добавлена конфигурация для `tests.dark-maximus.com`
+- `nginx/nginx.conf` и `nginx/nginx-ssl.conf` - добавлена конфигурация для `allure.dark-maximus.com`
 - `deploy/nginx/dark-maximus.conf.tpl` - добавлена конфигурация для тестового поддомена
 - `.cursor/rules/rights-rules.mdc` - обновлены правила организации тестов
 
