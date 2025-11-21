@@ -336,6 +336,23 @@
 					<small class="text-muted">Если не указан, блок с личным кабинетом не будет отображаться в сообщениях</small>
 				</div>
 				<div class="form-group">
+					<label for="allure_domain">Домен Allure для тестирования:</label>
+					<div class="input-with-button">
+						<input
+							type="url"
+							id="allure_domain"
+							name="allure_domain"
+							value="{{ settings.allure_domain or '' }}"
+							placeholder="https://tests.dark-maximus.com"
+							title="Домен для Allure отчетов"
+						/>
+						<button type="button" class="button button-secondary button-sm" onclick="openDomain('allure_domain')" title="Открыть домен в новой вкладке">
+							<i class="fas fa-external-link-alt"></i>
+						</button>
+					</div>
+					<small class="text-muted">Если не указан, будет использоваться localhost:50005</small>
+				</div>
+				<div class="form-group">
 					<label for="admin_timezone">Часовой пояс панели:</label>
 					<select id="admin_timezone" name="admin_timezone" title="Часовой пояс для отображения времени в панели управления">
 						{% for tz_name, tz_label, _ in timezone_options %}

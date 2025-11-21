@@ -489,6 +489,19 @@ def create_webhook_app(bot_controller_instance):
             # Если домены не настроены, используем localhost
             knowledge_base_url = 'http://localhost:50002'
         
+        # URL для Allure (тестирование)
+        allure_domain = settings.get('allure_domain', '')
+        if allure_domain:
+            # Убираем слэш в конце если есть
+            allure_domain = allure_domain.rstrip('/')
+            # Проверяем, есть ли уже протокол
+            if not allure_domain.startswith(('http://', 'https://')):
+                allure_domain = f'https://{allure_domain}'
+            allure_url = allure_domain
+        else:
+            # Если домен не настроен, используем localhost
+            allure_url = 'http://localhost:50005'
+        
         return {
             "bot_status": bot_status, 
             "all_settings_ok": all_settings_ok, 
@@ -497,6 +510,7 @@ def create_webhook_app(bot_controller_instance):
             "global_settings": settings,
             "wiki_url": wiki_url,
             "knowledge_base_url": knowledge_base_url,
+            "allure_url": allure_url,
             "panel_timezone": tz_name,
             "panel_timezone_offset": tz_offset,
         }
@@ -1167,7 +1181,7 @@ def create_webhook_app(bot_controller_instance):
     @login_required
     def save_panel_settings():
         """Сохранение настроек панели - v2.1"""
-        panel_keys = ['panel_login', 'global_domain', 'docs_domain', 'codex_docs_domain', 'user_cabinet_domain', 'admin_timezone', 'monitoring_max_metrics', 'monitoring_slow_threshold', 'monitoring_cleanup_hours']
+        panel_keys = ['panel_login', 'global_domain', 'docs_domain', 'codex_docs_domain', 'user_cabinet_domain', 'allure_domain', 'admin_timezone', 'monitoring_max_metrics', 'monitoring_slow_threshold', 'monitoring_cleanup_hours']
         
         # Пароль отдельно, если указан
         if 'panel_password' in request.form and request.form.get('panel_password'):
