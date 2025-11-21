@@ -311,7 +311,10 @@ class TestKeyExtensionFlow:
         
         with allure.step("Продление триального ключа с оплатой"):
             # Патчим xui_api для продления ключа
-            with patch('shop_bot.modules.xui_api.create_or_update_key_on_host', new_callable=AsyncMock) as mock_create_key:
+            # Патчим create_or_update_key_on_host в handlers (где используется)
+            # И также патчим login_to_host, чтобы избежать реальных подключений
+            with patch('shop_bot.bot.handlers.xui_api.create_or_update_key_on_host', new_callable=AsyncMock) as mock_create_key, \
+                 patch('shop_bot.modules.xui_api.login_to_host', return_value=(MagicMock(), MagicMock())) as mock_login:
                 new_expiry_timestamp_ms = int((datetime.now(timezone.utc) + timedelta(days=33)).timestamp() * 1000)
                 mock_create_key.return_value = {
                     'client_uuid': str(uuid.uuid4()),

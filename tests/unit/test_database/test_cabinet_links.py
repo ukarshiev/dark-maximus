@@ -178,82 +178,110 @@ class TestCabinetLinks:
 
     @allure.title("Удаление токена при удалении ключа")
     @allure.description("""
-    Проверяет удаление токена при удалении ключа через delete_key_by_email.
+    Проверяет, что токен НЕ удаляется при удалении ключа через функцию delete_key_by_email.
+    Это позволяет validate_permanent_token корректно определять удаленный ключ через LEFT JOIN
+    и возвращать key_deleted=True, что обеспечивает правильную обработку в приложении user-cabinet
+    (возврат 404 "Ключ удален" вместо 403 "Ссылка недействительна").
     
     **Что проверяется:**
-    - Создание ключа и токена
+    - Создание ключа через add_new_key с автоматическим созданием токена
+    - Создание дополнительного токена через get_or_create_permanent_token
+    - Проверка наличия токена в БД перед удалением ключа
     - Удаление ключа через delete_key_by_email
-    - Удаление токена при удалении ключа
-    - Отсутствие токена в БД после удаления ключа
+    - Проверка сохранения токена в таблице user_tokens после удаления ключа
+    - Токен должен остаться в БД для корректной обработки удаленного ключа
     
     **Тестовые данные:**
     - user_id: 999997
-    - key_email: "test_{user_id}@test.com"
+    - host_name: 'test_host'
+    - key_email: "test_999997@test.com"
+    - xui_client_uuid: "test-uuid-789"
+    - plan_name: "Test Plan"
+    - price: 100.0
+    - protocol: 'vless'
+    
+    **Шаги теста:**
+    1. Создание тестового ключа через add_new_key
+    2. Создание токена через get_or_create_permanent_token
+    3. Проверка наличия токена в таблице user_tokens
+    4. Удаление ключа через delete_key_by_email
+    5. Проверка сохранения токена в таблице user_tokens
     
     **Ожидаемый результат:**
-    Токен успешно удален при удалении ключа, токен отсутствует в БД.
+    Токен НЕ удаляется из таблицы user_tokens при удалении ключа через delete_key_by_email.
+    Это позволяет validate_permanent_token определить, что ключ удален, и вернуть key_deleted=True.
     """)
     @allure.severity(allure.severity_level.NORMAL)
-    @allure.tag("cabinet_links", "token_deletion", "key_deletion", "database", "unit")
+    @allure.tag("cabinet_links", "token_preservation", "key_deletion", "database", "unit", "delete_key_by_email")
     def test_token_deletion_on_key_deletion(self, temp_db):
-        """Тест 3: Удаление токена при удалении ключа"""
+        """Тест 3: Токен НЕ удаляется при удалении ключа"""
         test_user_id = 999997
         test_key_id = None
         test_token = None
         
         try:
-            # Создаем ключ и токен
-            expiry_ms = int((datetime.now(timezone.utc) + timedelta(days=30)).timestamp() * 1000)
-            test_key_id = add_new_key(
-                user_id=test_user_id,
-                host_name="test_host",
-                xui_client_uuid="test-uuid-789",
-                key_email=f"test_{test_user_id}@test.com",
-                expiry_timestamp_ms=expiry_ms,
-                connection_string="vless://test",
-                plan_name="Test Plan",
-                price=100.0,
-                protocol='vless',
-                is_trial=0
-            )
+            with allure.step("Подготовка тестовых данных"):
+                expiry_ms = int((datetime.now(timezone.utc) + timedelta(days=30)).timestamp() * 1000)
+                allure.attach(str(test_user_id), "User ID", allure.attachment_type.TEXT)
+                allure.attach(str(expiry_ms), "Expiry timestamp (ms)", allure.attachment_type.TEXT)
             
-            assert test_key_id is not None, "Не удалось создать тестовый ключ"
+            with allure.step("Создание тестового ключа"):
+                test_key_id = add_new_key(
+                    user_id=test_user_id,
+                    host_name="test_host",
+                    xui_client_uuid="test-uuid-789",
+                    key_email=f"test_{test_user_id}@test.com",
+                    expiry_timestamp_ms=expiry_ms,
+                    connection_string="vless://test",
+                    plan_name="Test Plan",
+                    price=100.0,
+                    protocol='vless',
+                    is_trial=0
+                )
+                allure.attach(str(test_key_id), "Created Key ID", allure.attachment_type.TEXT)
+                assert test_key_id is not None, "Не удалось создать тестовый ключ"
             
-            test_token = get_or_create_permanent_token(test_user_id, test_key_id)
-            assert test_token is not None, "Не удалось создать токен"
+            with allure.step("Создание токена для ключа"):
+                test_token = get_or_create_permanent_token(test_user_id, test_key_id)
+                allure.attach(str(test_token), "Created Token", allure.attachment_type.TEXT)
+                assert test_token is not None, "Не удалось создать токен"
             
-            # Проверяем, что токен существует
-            with sqlite3.connect(str(temp_db), timeout=30) as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute("SELECT token FROM user_tokens WHERE key_id = ?", (test_key_id,))
-                token_row = cursor.fetchone()
+            with allure.step("Проверка наличия токена в БД перед удалением"):
+                with sqlite3.connect(str(temp_db), timeout=30) as conn:
+                    conn.row_factory = sqlite3.Row
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT token FROM user_tokens WHERE key_id = ?", (test_key_id,))
+                    token_row = cursor.fetchone()
+                
+                allure.attach(str(token_row is not None), "Token exists in DB", allure.attachment_type.TEXT)
+                assert token_row is not None, "Токен не найден в БД"
             
-            assert token_row is not None, "Токен не найден в БД"
+            with allure.step("Удаление ключа через delete_key_by_email"):
+                key_email = f"test_{test_user_id}@test.com"
+                allure.attach(key_email, "Key Email", allure.attachment_type.TEXT)
+                delete_key_by_email(key_email)
             
-            # Удаляем ключ через delete_key_by_email
-            delete_key_by_email(f"test_{test_user_id}@test.com")
-            
-            # Проверяем, что токен удален
-            with sqlite3.connect(str(temp_db), timeout=30) as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-                cursor.execute("SELECT token FROM user_tokens WHERE key_id = ?", (test_key_id,))
-                token_row = cursor.fetchone()
-            
-            assert token_row is None, "Токен не удален при удалении ключа"
+            with allure.step("Проверка сохранения токена в БД после удаления ключа"):
+                with sqlite3.connect(str(temp_db), timeout=30) as conn:
+                    conn.row_factory = sqlite3.Row
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT token FROM user_tokens WHERE key_id = ?", (test_key_id,))
+                    token_row = cursor.fetchone()
+                
+                allure.attach(str(token_row is not None), "Token preserved in DB", allure.attachment_type.TEXT)
+                assert token_row is not None, "Токен должен остаться в БД после удаления ключа для корректной обработки удаленного ключа"
             
         finally:
-            # Очистка
-            if test_key_id:
-                try:
-                    with sqlite3.connect(str(temp_db), timeout=30) as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("DELETE FROM vpn_keys WHERE key_id = ?", (test_key_id,))
-                        cursor.execute("DELETE FROM user_tokens WHERE key_id = ?", (test_key_id,))
-                        conn.commit()
-                except:
-                    pass
+            with allure.step("Очистка тестовых данных"):
+                if test_key_id:
+                    try:
+                        with sqlite3.connect(str(temp_db), timeout=30) as conn:
+                            cursor = conn.cursor()
+                            cursor.execute("DELETE FROM vpn_keys WHERE key_id = ?", (test_key_id,))
+                            cursor.execute("DELETE FROM user_tokens WHERE key_id = ?", (test_key_id,))
+                            conn.commit()
+                    except:
+                        pass
 
     @allure.title("Удаление токенов при удалении всех ключей пользователя")
     @allure.description("""

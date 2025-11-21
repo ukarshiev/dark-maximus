@@ -286,7 +286,7 @@ docker compose exec autotest pytest --lf
 
 ## Конфигурация pytest (pytest.ini)
 
-Основная конфигурация pytest находится в `tests/pytest.ini`:
+Основная конфигурация pytest находится в `pytest.ini`:
 
 ```ini
 [pytest]
@@ -382,7 +382,7 @@ docker compose restart autotest
 ls tests/unit/
 
 # Проверить конфигурацию pytest
-cat tests/pytest.ini
+cat pytest.ini
 
 # Запустить с вербозным выводом
 docker compose exec autotest pytest --collect-only -v

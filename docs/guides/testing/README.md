@@ -98,7 +98,7 @@ tests/
 ## Основные инструменты
 
 ### Pytest
-- **Конфигурация:** `tests/pytest.ini`
+- **Конфигурация:** `pytest.ini`
 - **Фикстуры:** `tests/conftest.py`
 - **Документация:** [pytest.org](https://docs.pytest.org/)
 

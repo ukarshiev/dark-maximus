@@ -10,7 +10,7 @@
 
 ### pytest.ini
 
-Основная конфигурация pytest находится в `tests/pytest.ini`:
+Основная конфигурация pytest находится в `pytest.ini`:
 
 ```ini
 [pytest]
@@ -449,7 +449,7 @@ pytest tests/unit/test_database/test_user_operations.py::TestUserOperations
 
 ### Конфигурация
 
-В `tests/pytest.ini` настроена интеграция с Allure:
+В `pytest.ini` настроена интеграция с Allure:
 
 ```ini
 [pytest]

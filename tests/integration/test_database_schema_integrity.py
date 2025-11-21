@@ -384,112 +384,264 @@ class TestDatabaseSchemaIntegrity:
     @allure.story("Проверка целостности схемы БД")
     @allure.title("Сравнение структуры продакшн БД с эталонной локальной БД")
     @allure.description("""
-    Проверяет, что структура продакшн БД полностью соответствует эталонной локальной БД.
+    Интеграционный тест для проверки целостности схемы базы данных на продакшне.
+    Сравнивает структуру продакшн БД с эталонной локальной БД, проверяя полное соответствие схемы.
     
     **Что проверяется:**
-    - Наличие всех таблиц
-    - Структура всех колонок (типы, ограничения, значения по умолчанию)
-    - Наличие всех индексов
-    - Важные PRAGMA настройки
+    - Наличие всех таблиц (отсутствующие и лишние таблицы)
+    - Структура всех колонок:
+      - Типы данных колонок
+      - Ограничения NOT NULL
+      - PRIMARY KEY статус
+      - Значения по умолчанию (DEFAULT)
+    - Наличие всех индексов (отсутствующие и лишние индексы)
+    - Важные PRAGMA настройки:
+      - journal_mode (режим журналирования)
+      - synchronous (синхронизация)
+      - foreign_keys (внешние ключи)
     
     **Настройки через .env:**
     - ENVIRONMENT=production - включить тест (development/test - отключить)
-    - Пути к БД определяются автоматически
+    - Пути к БД определяются автоматически:
+      - Эталонная БД: ищется в корне проекта (users.db) или создается из кода
+      - Продакшн БД: /app/project/users.db (Docker) или database.DB_FILE
     
     **Предусловия:**
     - Тест запускается только при ENVIRONMENT=production в .env
     - Обе БД должны существовать и быть доступны
+    - Продакшн БД должна быть доступна по стандартному пути
+    
+    **Шаги теста:**
+    1. Проверка наличия обеих БД (эталонной и продакшн)
+    2. Извлечение полной схемы эталонной БД (таблицы, колонки, индексы, PRAGMA)
+    3. Извлечение полной схемы продакшн БД
+    4. Сравнение схем с детальным анализом различий
+    5. Формирование отчета о различиях (критические и предупреждения)
     
     **Ожидаемый результат:**
     Структура продакшн БД полностью соответствует эталонной локальной БД.
+    Все таблицы, колонки, индексы и PRAGMA настройки идентичны.
+    
+    **Критичность:**
+    Тест критичен для обеспечения целостности схемы БД на продакшне.
+    Различия в схеме могут привести к ошибкам при работе приложения.
     """)
     @allure.severity(allure.severity_level.CRITICAL)
-    @allure.tag("database", "schema", "integrity", "production", "critical")
+    @allure.tag("database", "schema", "integrity", "production", "critical", "integration", "database-schema")
     def test_production_db_schema_matches_reference(self, reference_db_path):
-        """Проверяет, что структура продакшн БД соответствует эталонной"""
+        """
+        Проверяет, что структура продакшн БД полностью соответствует эталонной локальной БД.
+        
+        Тест сравнивает:
+        - Список таблиц и их структуру
+        - Колонки (типы, ограничения, значения по умолчанию)
+        - Индексы
+        - PRAGMA настройки
+        
+        Все различия фиксируются в отчете Allure с разделением на критические и предупреждения.
+        """
         # Получаем путь к продакшн БД (автоматическое определение)
         production_db_path = get_production_db_path()
         
         with allure.step("Проверка наличия БД"):
+            # Проверяем существование эталонной БД
             assert reference_db_path.exists(), \
                 f"Эталонная БД не найдена: {reference_db_path}"
+            
+            # Проверяем существование продакшн БД
             assert production_db_path.exists(), \
                 f"Продакшн БД не найдена: {production_db_path}"
             
             # Определяем источник эталонной БД
             ref_source = "локальная users.db из корня проекта" if (project_root / "users.db").exists() else \
-                        "создана из кода"
+                        "создана из кода (только структура, без данных)"
             
+            # Определяем источник продакшн БД
             prod_source = "стандартный путь (/app/project/users.db)" if production_db_path == Path("/app/project/users.db") else \
                          f"database.DB_FILE ({production_db_path})"
             
+            # Получаем размеры БД для информации
+            ref_size = reference_db_path.stat().st_size if reference_db_path.exists() else 0
+            prod_size = production_db_path.stat().st_size if production_db_path.exists() else 0
+            
+            # Формируем детальную информацию о конфигурации
+            config_info = f"""Конфигурация теста проверки целостности схемы БД
+
+Эталонная БД:
+  Путь: {reference_db_path}
+  Источник: {ref_source}
+  Размер: {ref_size:,} байт ({ref_size / 1024 / 1024:.2f} МБ)
+  Существует: {'Да' if reference_db_path.exists() else 'Нет'}
+
+Продакшн БД:
+  Путь: {production_db_path}
+  Источник: {prod_source}
+  Размер: {prod_size:,} байт ({prod_size / 1024 / 1024:.2f} МБ)
+  Существует: {'Да' if production_db_path.exists() else 'Нет'}
+
+Окружение:
+  ENVIRONMENT: {os.getenv('ENVIRONMENT', 'не установлен')}
+  Проект: {project_root}
+"""
+            
             allure.attach(
-                f"Эталонная БД: {reference_db_path}\n"
-                f"Источник: {ref_source}\n"
-                f"Продакшн БД: {production_db_path}\n"
-                f"Источник: {prod_source}\n"
-                f"ENVIRONMENT: {os.getenv('ENVIRONMENT', 'не установлен')}",
+                config_info,
                 "Конфигурация теста",
                 allure.attachment_type.TEXT
             )
         
         with allure.step("Извлечение схемы эталонной БД"):
             reference_schema = get_database_schema(reference_db_path)
+            
+            # Подсчитываем общее количество колонок
+            total_columns = sum(len(table["columns"]) for table in reference_schema["tables"].values())
+            
+            # Формируем детальную информацию о схеме
+            schema_summary = {
+                "tables_count": len(reference_schema["tables"]),
+                "total_columns": total_columns,
+                "indexes_count": len(reference_schema["indexes"]),
+                "tables": list(reference_schema["tables"].keys()),
+                "pragmas": reference_schema["pragmas"]
+            }
+            
+            # Детальная информация по каждой таблице
+            tables_details = {}
+            for table_name, table_info in reference_schema["tables"].items():
+                tables_details[table_name] = {
+                    "columns_count": len(table_info["columns"]),
+                    "columns": [col["name"] for col in table_info["columns"]],
+                    "primary_keys": [col["name"] for col in table_info["columns"] if col["primary_key"]],
+                    "not_null_columns": [col["name"] for col in table_info["columns"] if col["notnull"]]
+                }
+            
             allure.attach(
-                json.dumps({
-                    "tables_count": len(reference_schema["tables"]),
-                    "indexes_count": len(reference_schema["indexes"]),
-                    "tables": list(reference_schema["tables"].keys())
-                }, indent=2, ensure_ascii=False),
-                "Схема эталонной БД",
+                json.dumps(schema_summary, indent=2, ensure_ascii=False),
+                "Сводка схемы эталонной БД",
+                allure.attachment_type.JSON
+            )
+            
+            allure.attach(
+                json.dumps(tables_details, indent=2, ensure_ascii=False),
+                "Детальная структура таблиц эталонной БД",
                 allure.attachment_type.JSON
             )
         
         with allure.step("Извлечение схемы продакшн БД"):
             production_schema = get_database_schema(production_db_path)
+            
+            # Подсчитываем общее количество колонок
+            total_columns = sum(len(table["columns"]) for table in production_schema["tables"].values())
+            
+            # Формируем детальную информацию о схеме
+            schema_summary = {
+                "tables_count": len(production_schema["tables"]),
+                "total_columns": total_columns,
+                "indexes_count": len(production_schema["indexes"]),
+                "tables": list(production_schema["tables"].keys()),
+                "pragmas": production_schema["pragmas"]
+            }
+            
+            # Детальная информация по каждой таблице
+            tables_details = {}
+            for table_name, table_info in production_schema["tables"].items():
+                tables_details[table_name] = {
+                    "columns_count": len(table_info["columns"]),
+                    "columns": [col["name"] for col in table_info["columns"]],
+                    "primary_keys": [col["name"] for col in table_info["columns"] if col["primary_key"]],
+                    "not_null_columns": [col["name"] for col in table_info["columns"] if col["notnull"]]
+                }
+            
             allure.attach(
-                json.dumps({
-                    "tables_count": len(production_schema["tables"]),
-                    "indexes_count": len(production_schema["indexes"]),
-                    "tables": list(production_schema["tables"].keys())
-                }, indent=2, ensure_ascii=False),
-                "Схема продакшн БД",
+                json.dumps(schema_summary, indent=2, ensure_ascii=False),
+                "Сводка схемы продакшн БД",
+                allure.attachment_type.JSON
+            )
+            
+            allure.attach(
+                json.dumps(tables_details, indent=2, ensure_ascii=False),
+                "Детальная структура таблиц продакшн БД",
                 allure.attachment_type.JSON
             )
         
         with allure.step("Сравнение схем БД"):
             is_match, differences = compare_schemas(reference_schema, production_schema)
             
+            # Формируем статистику сравнения
+            comparison_stats = {
+                "is_match": is_match,
+                "total_differences": len(differences),
+                "reference_tables": len(reference_schema["tables"]),
+                "production_tables": len(production_schema["tables"]),
+                "reference_indexes": len(reference_schema["indexes"]),
+                "production_indexes": len(production_schema["indexes"])
+            }
+            
+            # Разделяем критические и некритические различия
+            critical_diffs = [d for d in differences if d.startswith("❌")]
+            warnings = [d for d in differences if d.startswith("⚠️")]
+            
+            comparison_stats["critical_differences"] = len(critical_diffs)
+            comparison_stats["warnings"] = len(warnings)
+            
+            allure.attach(
+                json.dumps(comparison_stats, indent=2, ensure_ascii=False),
+                "Статистика сравнения схем",
+                allure.attachment_type.JSON
+            )
+            
             if differences:
+                # Полный список всех различий
                 differences_text = "\n".join(differences)
                 allure.attach(
                     differences_text,
-                    "Различия в схемах БД",
+                    "Все различия в схемах БД",
                     allure.attachment_type.TEXT
                 )
                 
-                # Разделяем критические и некритические различия
-                critical_diffs = [d for d in differences if d.startswith("❌")]
-                warnings = [d for d in differences if d.startswith("⚠️")]
-                
+                # Критические различия (отсутствующие таблицы/колонки, несоответствие PRIMARY KEY)
                 if critical_diffs:
+                    critical_text = f"КРИТИЧЕСКИЕ РАЗЛИЧИЯ ({len(critical_diffs)}):\n\n" + "\n".join(critical_diffs)
                     allure.attach(
-                        "\n".join(critical_diffs),
+                        critical_text,
                         "Критические различия",
                         allure.attachment_type.TEXT
                     )
                 
+                # Предупреждения (лишние таблицы/колонки, различия в типах, DEFAULT значениях)
                 if warnings:
+                    warnings_text = f"ПРЕДУПРЕЖДЕНИЯ ({len(warnings)}):\n\n" + "\n".join(warnings)
                     allure.attach(
-                        "\n".join(warnings),
+                        warnings_text,
                         "Предупреждения",
                         allure.attachment_type.TEXT
                     )
+            else:
+                # Если различий нет, прикрепляем информацию об успешном сравнении
+                success_info = f"""✅ Схемы БД полностью идентичны!
+
+Эталонная БД:
+  - Таблиц: {len(reference_schema["tables"])}
+  - Индексов: {len(reference_schema["indexes"])}
+
+Продакшн БД:
+  - Таблиц: {len(production_schema["tables"])}
+  - Индексов: {len(production_schema["indexes"])}
+
+Все таблицы, колонки, индексы и PRAGMA настройки совпадают.
+"""
+                allure.attach(
+                    success_info,
+                    "Результат сравнения",
+                    allure.attachment_type.TEXT
+                )
             
             # Проверяем результат
             assert is_match, (
                 f"Структура продакшн БД не соответствует эталонной!\n\n"
-                f"Найдено различий: {len(differences)}\n\n"
+                f"Найдено различий: {len(differences)}\n"
+                f"Критических: {len(critical_diffs)}\n"
+                f"Предупреждений: {len(warnings)}\n\n"
                 f"Различия:\n" + "\n".join(differences)
             )
 

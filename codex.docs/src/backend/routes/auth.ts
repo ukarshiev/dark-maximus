@@ -21,8 +21,11 @@ router.get('/auth', csrfProtection, function (req: Request, res: Response) {
  * Process given password
  */
 router.post('/auth', parseForm, csrfProtection, async (req: Request, res: Response) => {
+  const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
+  
   try {
     if (!appConfig.auth.password) {
+      console.warn(`[AUTH] [codex-docs] Login failed: password not set, ip=${clientIp}`);
       res.render('auth', {
         title: 'Login page',
         header: 'Password not set',
@@ -33,6 +36,7 @@ router.post('/auth', parseForm, csrfProtection, async (req: Request, res: Respon
     }
 
     if (req.body.password !== appConfig.auth.password) {
+      console.warn(`[AUTH] [codex-docs] Login failed: wrong password, ip=${clientIp}`);
       res.render('auth', {
         title: 'Login page',
         header: 'Wrong password',
@@ -42,10 +46,11 @@ router.post('/auth', parseForm, csrfProtection, async (req: Request, res: Respon
       return;
     }
 
+    const tokenIat = Date.now();
     const token = jwt.sign({
       iss: 'Codex Team',
       sub: 'auth',
-      iat: Date.now(),
+      iat: tokenIat,
     }, appConfig.auth.password + appConfig.auth.secret);
 
     res.cookie('authToken', token, {
@@ -53,8 +58,10 @@ router.post('/auth', parseForm, csrfProtection, async (req: Request, res: Respon
       expires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
     });
 
+    console.info(`[AUTH] [codex-docs] Login successful: ip=${clientIp}, token_iat=${tokenIat}`);
     res.redirect('/');
   } catch (err) {
+    console.error(`[AUTH] [codex-docs] Login error: ip=${clientIp}, error=${err}`);
     res.render('auth', {
       title: 'Login page',
       header: 'Password not set',

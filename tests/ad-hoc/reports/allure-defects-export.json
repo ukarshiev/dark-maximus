@@ -1,0 +1,503 @@
+{
+  "export_date": "2025-11-20T14:27:43.457198",
+  "summary": {
+    "product_defects": 24,
+    "test_defects": 2,
+    "total": 26,
+    "critical_count": 0
+  },
+  "defects": {
+    "Product defects": [
+      {
+        "name": "test_new_user_registers_and_buys_vpn",
+        "uid": "20850b7e1ea53787",
+        "full_name": "e2e.test_user_scenarios.test_new_user_purchase.TestNewUserPurchase#test_new_user_registers_and_buys_vpn",
+        "module": "e2e",
+        "tags": [
+          "asyncio",
+          "e2e"
+        ],
+        "status": "failed",
+        "error": "AssertionError: Пользователь должен быть зарегистрирован\nassert None is not None",
+        "trace": "E   AssertionError: Пользователь должен быть зарегистрирован\n    assert None is not None",
+        "duration_ms": 1,
+        "description": "Тест: новый пользователь регистрируется и покупает VPN",
+        "error_group": "AssertionError: Пользователь должен быть зарегистрирован\nassert None is not None",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_new_user_requests_trial_and_gets_key",
+        "uid": "29c66a0403e08a8f",
+        "full_name": "e2e.test_user_scenarios.test_user_trial_flow.TestUserTrialFlow#test_new_user_requests_trial_and_gets_key",
+        "module": "e2e",
+        "tags": [
+          "asyncio",
+          "e2e"
+        ],
+        "status": "failed",
+        "error": "AssertionError: Пользователь должен быть зарегистрирован\nassert None is not None",
+        "trace": "E   AssertionError: Пользователь должен быть зарегистрирован\n    assert None is not None",
+        "duration_ms": 1,
+        "description": "Тест: новый пользователь запрашивает пробный период и получает ключ",
+        "error_group": "AssertionError: Пользователь должен быть зарегистрирован\nassert None is not None",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_user_cannot_get_trial_with_active_trial_key",
+        "uid": "71490e969b3d186f",
+        "full_name": "e2e.test_user_scenarios.test_user_trial_flow.TestUserTrialFlow#test_user_cannot_get_trial_with_active_trial_key",
+        "module": "e2e",
+        "tags": [
+          "asyncio",
+          "e2e"
+        ],
+        "status": "failed",
+        "error": "AssertionError: Должно быть отправлено сообщение об отказе\nassert False\n +  where False = <AsyncMock name='mock.message.edit_text' id='139712560977488'>.called\n +    where <AsyncMock name='mock.message.edit_text' id='139712560977488'> = <MagicMock name='mock.message' spec='Message' id='139712560501904'>.edit_text\n +      where <MagicMock name='mock.message' spec='Message' id='139712560501904'> = <MagicMock spec='CallbackQuery' id='139712556045584'>.message",
+        "trace": "E   AssertionError: Должно быть отправлено сообщение об отказе\n    assert False\n     +  where False = <AsyncMock name='mock.message.edit_text' id='139712560977488'>.called\n     +    where <AsyncMock name='mock.message.edit_text' id='139712560977488'> = <MagicMock name='mock.message' spec='Message' id='139712560501904'>.edit_text\n     +      where <MagicMock name='mock.message' spec='Message' id='139712560501904'> = <MagicMock spec='CallbackQuery' id='139712556045584'>.message",
+        "duration_ms": 4,
+        "description": "Тест: пользователь не может получить триал, если у него есть активный триальный ключ",
+        "error_group": "AssertionError: Должно быть отправлено сообщение об отказе\nassert False\n +  where False = <AsyncMock name='mock.message.edit_text' id='139712560977488'>.called\n +    where <AsyncMock name='mock.message.edit_text' id='139712560977488'> = <MagicMock name='mock.message' spec='Message' id='139712560501904'>.edit_text\n +      where <MagicMock name='mock.message' spec='Message' id='139712560501904'> = <MagicMock spec='CallbackQuery' id='139712556045584'>.message",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_trial_reuse_flow",
+        "uid": "7d28f5257415ac33",
+        "full_name": "integration.test_trial.test_trial_flow.TestTrialFlow#test_trial_reuse_flow",
+        "module": "integration",
+        "tags": [
+          "asyncio",
+          "bot",
+          "integration"
+        ],
+        "status": "failed",
+        "error": "AssertionError: assert 2 == 1",
+        "trace": "E   assert 2 == 1",
+        "duration_ms": 97,
+        "description": "Тест повторного использования триала после сброса",
+        "error_group": "AssertionError: assert 2 == 1",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_trial_revocation_flow",
+        "uid": "606b9a01b17fa54c",
+        "full_name": "integration.test_trial.test_trial_flow.TestTrialFlow#test_trial_revocation_flow",
+        "module": "integration",
+        "tags": [
+          "asyncio",
+          "bot",
+          "integration"
+        ],
+        "status": "failed",
+        "error": "AssertionError: assert False\n +  where False = <AsyncMock name='mock.delete_client_by_uuid' id='139712553393104'>.called\n +    where <AsyncMock name='mock.delete_client_by_uuid' id='139712553393104'> = <MagicMock id='139712551598416'>.delete_client_by_uuid",
+        "trace": "E   AssertionError: assert False\n     +  where False = <AsyncMock name='mock.delete_client_by_uuid' id='139712553393104'>.called\n     +    where <AsyncMock name='mock.delete_client_by_uuid' id='139712553393104'> = <MagicMock id='139712551598416'>.delete_client_by_uuid",
+        "duration_ms": 38,
+        "description": "Тест отзыва триального ключа",
+        "error_group": "AssertionError: assert False\n +  where False = <AsyncMock name='mock.delete_client_by_uuid' id='139712553393104'>.called\n +    where <AsyncMock name='mock.delete_client_by_uuid' id='139712553393104'> = <MagicMock id='139712551598416'>.delete_client_by_uuid",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_login_rate_limit",
+        "uid": "7ee51d8a0503264b",
+        "full_name": "unit.test_webhook_server.test_auth.TestWebhookServerAuth#test_login_rate_limit",
+        "module": "unit.test_webhook_server",
+        "tags": [
+          "unit"
+        ],
+        "status": "failed",
+        "error": "AssertionError: assert 429 == 200\n +  where 429 = <WrapperTestResponse streamed [429 TOO MANY REQUESTS]>.status_code",
+        "trace": "E   assert 429 == 200\n     +  where 429 = <WrapperTestResponse streamed [429 TOO MANY REQUESTS]>.status_code",
+        "duration_ms": 70,
+        "description": "Тест ограничения попыток входа (10 в минуту)",
+        "error_group": "AssertionError: assert 429 == 200\n +  where 429 = <WrapperTestResponse streamed [429 TOO MANY REQUESTS]>.status_code",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_logout",
+        "uid": "ea6a9b06d22e9965",
+        "full_name": "unit.test_webhook_server.test_auth.TestWebhookServerAuth#test_logout",
+        "module": "unit.test_webhook_server",
+        "tags": [
+          "unit"
+        ],
+        "status": "failed",
+        "error": "AssertionError: assert 429 == 200\n +  where 429 = <WrapperTestResponse streamed [429 TOO MANY REQUESTS]>.status_code",
+        "trace": "E   assert 429 == 200\n     +  where 429 = <WrapperTestResponse streamed [429 TOO MANY REQUESTS]>.status_code",
+        "duration_ms": 32,
+        "description": "Тест выхода из системы",
+        "error_group": "AssertionError: assert 429 == 200\n +  where 429 = <WrapperTestResponse streamed [429 TOO MANY REQUESTS]>.status_code",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_session_persistence",
+        "uid": "89bead8f62d02c06",
+        "full_name": "unit.test_webhook_server.test_auth.TestWebhookServerAuth#test_session_persistence",
+        "module": "unit.test_webhook_server",
+        "tags": [
+          "unit"
+        ],
+        "status": "failed",
+        "error": "AssertionError: assert 429 == 200\n +  where 429 = <WrapperTestResponse streamed [429 TOO MANY REQUESTS]>.status_code",
+        "trace": "E   assert 429 == 200\n     +  where 429 = <WrapperTestResponse streamed [429 TOO MANY REQUESTS]>.status_code",
+        "duration_ms": 129,
+        "description": "Тест сохранения сессии на 30 дней",
+        "error_group": "AssertionError: assert 429 == 200\n +  where 429 = <WrapperTestResponse streamed [429 TOO MANY REQUESTS]>.status_code",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_login_required_decorator",
+        "uid": "1ad06a288304ffe4",
+        "full_name": "unit.test_webhook_server.test_auth.TestWebhookServerAuth#test_login_required_decorator",
+        "module": "unit.test_webhook_server",
+        "tags": [
+          "unit"
+        ],
+        "status": "failed",
+        "error": "AssertionError: assert 302 == 200\n +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "trace": "E   assert 302 == 200\n     +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "duration_ms": 33,
+        "description": "Тест проверки декоратора @login_required",
+        "error_group": "AssertionError: assert 302 == 200\n +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_dashboard_page",
+        "uid": "d052c85fa4fb26e7",
+        "full_name": "unit.test_webhook_server.test_dashboard.TestWebhookServerDashboard#test_dashboard_page",
+        "module": "unit.test_webhook_server",
+        "tags": [
+          "unit"
+        ],
+        "status": "failed",
+        "error": "AssertionError: assert 302 == 200\n +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "trace": "E   assert 302 == 200\n     +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "duration_ms": 63,
+        "description": "Тест главной панели (/)",
+        "error_group": "AssertionError: assert 302 == 200\n +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_performance_page",
+        "uid": "193abebf7cac3a02",
+        "full_name": "unit.test_webhook_server.test_dashboard.TestWebhookServerDashboard#test_performance_page",
+        "module": "unit.test_webhook_server",
+        "tags": [
+          "unit"
+        ],
+        "status": "failed",
+        "error": "AssertionError: assert 302 == 200\n +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "trace": "E   assert 302 == 200\n     +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "duration_ms": 60,
+        "description": "Тест страницы производительности (/performance)",
+        "error_group": "AssertionError: assert 302 == 200\n +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_keys_page",
+        "uid": "e854e90c40a73ab0",
+        "full_name": "unit.test_webhook_server.test_keys.TestWebhookServerKeys#test_keys_page",
+        "module": "unit.test_webhook_server",
+        "tags": [
+          "unit"
+        ],
+        "status": "failed",
+        "error": "AssertionError: assert 302 == 200\n +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "trace": "E   assert 302 == 200\n     +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "duration_ms": 94,
+        "description": "Тест страницы списка ключей (/keys)",
+        "error_group": "AssertionError: assert 302 == 200\n +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_get_key_details",
+        "uid": "bb568233bb82637",
+        "full_name": "unit.test_webhook_server.test_keys.TestWebhookServerKeys#test_get_key_details",
+        "module": "unit.test_webhook_server",
+        "tags": [
+          "unit"
+        ],
+        "status": "failed",
+        "error": "AssertionError: assert 302 == 200\n +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "trace": "E   assert 302 == 200\n     +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "duration_ms": 203,
+        "description": "Тест получения деталей ключа (API)",
+        "error_group": "AssertionError: assert 302 == 200\n +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_users_page",
+        "uid": "fe26765d95fa99bd",
+        "full_name": "unit.test_webhook_server.test_users.TestWebhookServerUsers#test_users_page",
+        "module": "unit.test_webhook_server",
+        "tags": [
+          "unit"
+        ],
+        "status": "failed",
+        "error": "AssertionError: assert 302 == 200\n +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "trace": "E   assert 302 == 200\n     +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "duration_ms": 72,
+        "description": "Тест страницы списка пользователей (/users)",
+        "error_group": "AssertionError: assert 302 == 200\n +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_get_user_details",
+        "uid": "5e6fa9477265672b",
+        "full_name": "unit.test_webhook_server.test_users.TestWebhookServerUsers#test_get_user_details",
+        "module": "unit.test_webhook_server",
+        "tags": [
+          "unit"
+        ],
+        "status": "failed",
+        "error": "AssertionError: assert 302 == 200\n +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "trace": "E   assert 302 == 200\n     +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "duration_ms": 70,
+        "description": "Тест получения деталей пользователя (API /api/user-details/<user_id>)",
+        "error_group": "AssertionError: assert 302 == 200\n +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_update_user",
+        "uid": "9b8b55a04bc634de",
+        "full_name": "unit.test_webhook_server.test_users.TestWebhookServerUsers#test_update_user",
+        "module": "unit.test_webhook_server",
+        "tags": [
+          "unit"
+        ],
+        "status": "failed",
+        "error": "AssertionError: assert 302 == 200\n +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "trace": "E   assert 302 == 200\n     +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "duration_ms": 71,
+        "description": "Тест обновления данных пользователя (API /api/update-user/<user_id>)",
+        "error_group": "AssertionError: assert 302 == 200\n +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_reset_user_trial",
+        "uid": "b047a785e92011ce",
+        "full_name": "unit.test_webhook_server.test_users.TestWebhookServerUsers#test_reset_user_trial",
+        "module": "unit.test_webhook_server",
+        "tags": [
+          "unit"
+        ],
+        "status": "failed",
+        "error": "AssertionError: assert 302 == 200\n +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "trace": "E   assert 302 == 200\n     +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "duration_ms": 77,
+        "description": "Тест сброса триала пользователя",
+        "error_group": "AssertionError: assert 302 == 200\n +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_wiki_editor_edit",
+        "uid": "80fa03464b7e61db",
+        "full_name": "unit.test_webhook_server.test_wiki.TestWiki#test_wiki_editor_edit",
+        "module": "unit.test_webhook_server",
+        "tags": [
+          "unit"
+        ],
+        "status": "failed",
+        "error": "AssertionError: assert 302 == 200\n +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "trace": "E   assert 302 == 200\n     +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "duration_ms": 2,
+        "description": "Тест редактирования страницы",
+        "error_group": "AssertionError: assert 302 == 200\n +  where 302 = <WrapperTestResponse streamed [302 FOUND]>.status_code",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_sync_key_with_xui",
+        "uid": "509bcf192797323c",
+        "full_name": "unit.test_webhook_server.test_keys.TestWebhookServerKeys#test_sync_key_with_xui",
+        "module": "unit.test_webhook_server",
+        "tags": [
+          "unit"
+        ],
+        "status": "failed",
+        "error": "AssertionError: assert 404 == 200\n +  where 404 = <WrapperTestResponse streamed [404 NOT FOUND]>.status_code",
+        "trace": "E   assert 404 == 200\n     +  where 404 = <WrapperTestResponse streamed [404 NOT FOUND]>.status_code",
+        "duration_ms": 91,
+        "description": "Тест синхронизации ключа с 3X-UI",
+        "error_group": "AssertionError: assert 404 == 200\n +  where 404 = <WrapperTestResponse streamed [404 NOT FOUND]>.status_code",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_enable_disable_key",
+        "uid": "f26919487a27183f",
+        "full_name": "unit.test_webhook_server.test_keys.TestWebhookServerKeys#test_enable_disable_key",
+        "module": "unit.test_webhook_server",
+        "tags": [
+          "unit"
+        ],
+        "status": "failed",
+        "error": "AssertionError: assert 404 == 200\n +  where 404 = <WrapperTestResponse streamed [404 NOT FOUND]>.status_code",
+        "trace": "E   assert 404 == 200\n     +  where 404 = <WrapperTestResponse streamed [404 NOT FOUND]>.status_code",
+        "duration_ms": 91,
+        "description": "Тест включения/отключения ключа",
+        "error_group": "AssertionError: assert 404 == 200\n +  where 404 = <WrapperTestResponse streamed [404 NOT FOUND]>.status_code",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_delete_key",
+        "uid": "1299930990a09335",
+        "full_name": "unit.test_webhook_server.test_keys.TestWebhookServerKeys#test_delete_key",
+        "module": "unit.test_webhook_server",
+        "tags": [
+          "unit"
+        ],
+        "status": "failed",
+        "error": "AssertionError: assert 404 in [200, 302]\n +  where 404 = <WrapperTestResponse streamed [404 NOT FOUND]>.status_code",
+        "trace": "E   assert 404 in [200, 302]\n     +  where 404 = <WrapperTestResponse streamed [404 NOT FOUND]>.status_code",
+        "duration_ms": 92,
+        "description": "Тест удаления ключа",
+        "error_group": "AssertionError: assert 404 in [200, 302]\n +  where 404 = <WrapperTestResponse streamed [404 NOT FOUND]>.status_code",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_delete_user_keys",
+        "uid": "e2e50144ed1a33eb",
+        "full_name": "unit.test_webhook_server.test_users.TestWebhookServerUsers#test_delete_user_keys",
+        "module": "unit.test_webhook_server",
+        "tags": [
+          "unit"
+        ],
+        "status": "failed",
+        "error": "AssertionError: assert 404 in [200, 302]\n +  where 404 = <WrapperTestResponse streamed [404 NOT FOUND]>.status_code",
+        "trace": "E   assert 404 in [200, 302]\n     +  where 404 = <WrapperTestResponse streamed [404 NOT FOUND]>.status_code",
+        "duration_ms": 88,
+        "description": "Тест удаления ключей пользователя",
+        "error_group": "AssertionError: assert 404 in [200, 302]\n +  where 404 = <WrapperTestResponse streamed [404 NOT FOUND]>.status_code",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_support_check_config",
+        "uid": "b6d3f1ade6bc6af3",
+        "full_name": "unit.test_webhook_server.test_support.TestSupport#test_support_check_config",
+        "module": "unit.test_webhook_server",
+        "tags": [
+          "unit"
+        ],
+        "status": "failed",
+        "error": "AssertionError: assert 500 in [200, 400]\n +  where 500 = <WrapperTestResponse streamed [500 INTERNAL SERVER ERROR]>.status_code",
+        "trace": "E   assert 500 in [200, 400]\n     +  where 500 = <WrapperTestResponse streamed [500 INTERNAL SERVER ERROR]>.status_code",
+        "duration_ms": 30001,
+        "description": "Тест проверки конфигурации",
+        "error_group": "AssertionError: assert 500 in [200, 400]\n +  where 500 = <WrapperTestResponse streamed [500 INTERNAL SERVER ERROR]>.status_code",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "test_webhook_list",
+        "uid": "7f2225c29a2efe07",
+        "full_name": "unit.test_webhook_server.test_transactions.TestTransactions#test_webhook_list",
+        "module": "unit.test_webhook_server",
+        "tags": [
+          "unit"
+        ],
+        "status": "failed",
+        "error": "AssertionError: API должен вернуть 200\nassert 500 == 200\n +  where 500 = <WrapperTestResponse streamed [500 INTERNAL SERVER ERROR]>.status_code",
+        "trace": "E   AssertionError: API должен вернуть 200\n    assert 500 == 200\n     +  where 500 = <WrapperTestResponse streamed [500 INTERNAL SERVER ERROR]>.status_code",
+        "duration_ms": 2,
+        "description": "Тест списка webhook'ов (/api/webhooks)",
+        "error_group": "AssertionError: API должен вернуть 200\nassert 500 == 200\n +  where 500 = <WrapperTestResponse streamed [500 INTERNAL SERVER ERROR]>.status_code",
+        "defect_type": "Product defects",
+        "critical_operation": null,
+        "is_critical": false
+      }
+    ],
+    "Test defects": [
+      {
+        "name": "Проверка подписи webhook CryptoBot",
+        "uid": "73881587e3e2f8f2",
+        "full_name": "integration.test_payments.test_webhook_handling.TestWebhookHandling#test_webhook_cryptobot_verification",
+        "module": "integration",
+        "tags": [
+          "hmac",
+          "critical",
+          "payments",
+          "verification",
+          "integration",
+          "webhook",
+          "cryptobot",
+          "integration"
+        ],
+        "status": "broken",
+        "error": "RuntimeError: Install Flask with the 'async' extra in order to use async views.",
+        "trace": "tests/integration/test_payments/test_webhook_handling.py:210: in test_webhook_cryptobot_verification\n    response = flask_app.post(\n/usr/local/lib/python3.11/site-packages/werkzeug/test.py:1167: in post\n    return self.open(*args, **kw)\n           ^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/flask/testing.py:235: in open\n    response = super().open(\n/usr/local/lib/python3.11/site-packages/werkzeug/test.py:1116: in open\n    response_parts = self.run_wsgi_app(request.environ, buffered=buffered)\n                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/werkzeug/test.py:988: in run_wsgi_app\n    rv = run_wsgi_app(self.application, environ, buffered=buffered)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/werkzeug/test.py:1264: in run_wsgi_app\n    app_rv = app(environ, start_response)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/flask/app.py:1536: in __call__\n    return self.wsgi_app(environ, start_response)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/flask/app.py:1514: in wsgi_app\n    response = self.handle_exception(e)\n               ^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/flask/app.py:1511: in wsgi_app\n    response = self.full_dispatch_request()\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/flask/app.py:919: in full_dispatch_request\n    rv = self.handle_user_exception(e)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/flask/app.py:917: in full_dispatch_request\n    rv = self.dispatch_request()\n         ^^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/flask/app.py:902: in dispatch_request\n    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/flask/app.py:976: in ensure_sync\n    return self.async_to_sync(func)\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/flask/app.py:997: in async_to_sync\n    raise RuntimeError(\nE   RuntimeError: Install Flask with the 'async' extra in order to use async views.",
+        "duration_ms": 7,
+        "description": "\n    Проверяет проверку HMAC подписи webhook от CryptoBot от создания подписи до валидации:\n    \n    **Что проверяется:**\n    - Создание HMAC подписи для webhook от CryptoBot\n    - Проверка подписи через заголовок X-Crypto-Pay-Hmac-Sha256\n    - Валидация данных webhook\n    - Обработка webhook с правильной HMAC подписью\n    \n    **Тестовые данные:**\n    - temp_db: временная БД для изоляции теста\n    - flask_app: Flask test client\n    - payload: JSON данные webhook ({'update_id': 1, 'update_type': 'invoice_paid'})\n    - secret: 'test_secret' (секретный ключ для HMAC)\n    - signature: HMAC-SHA256 подпись (генерируется в тесте)\n    - X-Crypto-Pay-Hmac-Sha256: HMAC подпись (HTTP заголовок)\n    - Эндпоинт: POST /cryptobot-webhook\n    \n    **Шаги теста:**\n    1. **Подготовка payload**\n       - Метод: создание JSON payload\n       - Параметры: {'update_id': 1, 'update_type': 'invoice_paid'}\n       - Ожидаемый результат: payload создан в формате JSON\n       - Проверка: payload валидный JSON\n       - Проверяемые поля: update_id=1, update_type='invoice_paid'\n    \n    2. **Создание HMAC подписи**\n       - Метод: hmac.new() с SHA256\n       - Параметры: secret='test_secret', payload.encode(), hashlib.sha256\n       - Ожидаемый результат: HMAC подпись создана\n       - Проверка: signature is not None\n       - Проверка: signature имеет правильный формат (hex digest)\n       - Проверяемые поля: signature длина, формат\n    \n    3. **Отправка webhook запроса с HMAC подписью**\n       - Метод: flask_app.post()\n       - Параметры: url='/cryptobot-webhook', data=payload, content_type='application/json', headers={'X-Crypto-Pay-Hmac-Sha256': signature}\n       - Ожидаемый результат: запрос отправлен с HMAC подписью\n       - Проверка: запрос отправлен с правильным заголовком подписи\n       - Проверяемые поля: заголовок X-Crypto-Pay-Hmac-Sha256\n    \n    4. **Проверка подписи**\n       - Метод: проверка HMAC подписи в обработчике webhook\n       - Параметры: заголовок X-Crypto-Pay-Hmac-Sha256, payload, secret\n       - Ожидаемый результат: подпись проверена\n       - Проверка: обработчик проверил HMAC подпись\n       - Проверка: response.status_code в [200, 400, 401, 500]\n    \n    **Предусловия:**\n    - Используется временная БД (temp_db)\n    - Flask приложение настроено в тестовом режиме (TESTING = True)\n    - CSRF защита отключена для тестов (WTF_CSRF_ENABLED = False)\n    - flask_app создан через фикстуру\n    \n    **Используемые моки и фикстуры:**\n    - temp_db: временная SQLite БД с полной структурой таблиц (users, vpn_keys, transactions, plans, xui_hosts)\n    - flask_app: Flask test client с настроенным приложением (create_webhook_app)\n    - mock_bot_controller: мок контроллера бота с методом get_status\n    \n    **Проверяемые граничные случаи:**\n    - Создание HMAC подписи с правильным секретом\n    - Проверка подписи через заголовок X-Crypto-Pay-Hmac-Sha256\n    - Обработка webhook с правильной HMAC подписью\n    - Обработка webhook с неправильной HMAC подписью (400, 401)\n    \n    **Ожидаемый результат:**\n    HMAC подпись должна быть создана с использованием secret и payload.\n    Webhook запрос должен быть отправлен с правильным заголовком X-Crypto-Pay-Hmac-Sha256.\n    Подпись должна быть проверена в обработчике webhook.\n    Ответ должен иметь статус код 200 (успех), 400 (неверный запрос), 401 (неверная подпись) или 500 (ошибка сервера).\n    ",
+        "error_group": "RuntimeError: Install Flask with the 'async' extra in order to use async views.",
+        "defect_type": "Test defects",
+        "critical_operation": null,
+        "is_critical": false
+      },
+      {
+        "name": "Проверка подписи webhook Heleket",
+        "uid": "b9759aabcb1af303",
+        "full_name": "integration.test_payments.test_webhook_handling.TestWebhookHandling#test_webhook_heleket_verification",
+        "module": "integration",
+        "tags": [
+          "heleket",
+          "normal",
+          "payments",
+          "verification",
+          "integration",
+          "webhook",
+          "integration"
+        ],
+        "status": "broken",
+        "error": "RuntimeError: Install Flask with the 'async' extra in order to use async views.",
+        "trace": "tests/integration/test_payments/test_webhook_handling.py:287: in test_webhook_heleket_verification\n    response = flask_app.post(\n/usr/local/lib/python3.11/site-packages/werkzeug/test.py:1167: in post\n    return self.open(*args, **kw)\n           ^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/flask/testing.py:235: in open\n    response = super().open(\n/usr/local/lib/python3.11/site-packages/werkzeug/test.py:1116: in open\n    response_parts = self.run_wsgi_app(request.environ, buffered=buffered)\n                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/werkzeug/test.py:988: in run_wsgi_app\n    rv = run_wsgi_app(self.application, environ, buffered=buffered)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/werkzeug/test.py:1264: in run_wsgi_app\n    app_rv = app(environ, start_response)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/flask/app.py:1536: in __call__\n    return self.wsgi_app(environ, start_response)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/flask/app.py:1514: in wsgi_app\n    response = self.handle_exception(e)\n               ^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/flask/app.py:1511: in wsgi_app\n    response = self.full_dispatch_request()\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/flask/app.py:919: in full_dispatch_request\n    rv = self.handle_user_exception(e)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/flask/app.py:917: in full_dispatch_request\n    rv = self.dispatch_request()\n         ^^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/flask/app.py:902: in dispatch_request\n    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/flask/app.py:976: in ensure_sync\n    return self.async_to_sync(func)\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n/usr/local/lib/python3.11/site-packages/flask/app.py:997: in async_to_sync\n    raise RuntimeError(\nE   RuntimeError: Install Flask with the 'async' extra in order to use async views.",
+        "duration_ms": 4,
+        "description": "\n    Проверяет проверку подписи webhook от Heleket от получения запроса до валидации:\n    \n    **Что проверяется:**\n    - Получение webhook запроса от Heleket\n    - Проверка подписи webhook (если требуется)\n    - Валидация данных webhook\n    - Обработка webhook с правильной подписью\n    \n    **Тестовые данные:**\n    - temp_db: временная БД для изоляции теста\n    - flask_app: Flask test client\n    - payload: JSON данные webhook ({'status': 'paid', 'transaction_id': 'test'})\n    - Эндпоинт: POST /heleket-webhook\n    \n    **Шаги теста:**\n    1. **Подготовка payload**\n       - Метод: создание JSON payload\n       - Параметры: {'status': 'paid', 'transaction_id': 'test'}\n       - Ожидаемый результат: payload создан в формате JSON\n       - Проверка: payload валидный JSON\n       - Проверяемые поля: status='paid', transaction_id='test'\n    \n    2. **Отправка webhook запроса**\n       - Метод: flask_app.post()\n       - Параметры: url='/heleket-webhook', data=payload, content_type='application/json'\n       - Ожидаемый результат: запрос отправлен\n       - Проверка: запрос отправлен с правильным content_type\n       - Проверяемые поля: content_type='application/json'\n    \n    3. **Проверка подписи**\n       - Метод: проверка подписи в обработчике webhook\n       - Параметры: payload, заголовки (если требуется)\n       - Ожидаемый результат: подпись проверена (если требуется)\n       - Проверка: обработчик проверил подпись\n       - Проверка: response.status_code в [200, 400, 401, 500]\n    \n    **Предусловия:**\n    - Используется временная БД (temp_db)\n    - Flask приложение настроено в тестовом режиме (TESTING = True)\n    - CSRF защита отключена для тестов (WTF_CSRF_ENABLED = False)\n    - flask_app создан через фикстуру\n    \n    **Используемые моки и фикстуры:**\n    - temp_db: временная SQLite БД с полной структурой таблиц (users, vpn_keys, transactions, plans, xui_hosts)\n    - flask_app: Flask test client с настроенным приложением (create_webhook_app)\n    - mock_bot_controller: мок контроллера бота с методом get_status\n    \n    **Проверяемые граничные случаи:**\n    - Проверка подписи webhook от Heleket\n    - Обработка webhook с правильной подписью\n    - Обработка webhook с неправильной подписью (400, 401)\n    \n    **Ожидаемый результат:**\n    Webhook запрос должен быть отправлен с правильными данными.\n    Подпись должна быть проверена в обработчике webhook (если требуется).\n    Ответ должен иметь статус код 200 (успех), 400 (неверный запрос), 401 (неверная подпись) или 500 (ошибка сервера).\n    ",
+        "error_group": "RuntimeError: Install Flask with the 'async' extra in order to use async views.",
+        "defect_type": "Test defects",
+        "critical_operation": null,
+        "is_critical": false
+      }
+    ]
+  }
+}

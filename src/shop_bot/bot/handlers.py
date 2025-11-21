@@ -6926,6 +6926,7 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
                     logger.warning(f"Failed to get host_code from key {key_id}: {e}")
         
         # Учитываем дополнительные дни и трафик
+        from shop_bot.data_manager.database import get_plan_by_id
         plan = get_plan_by_id(plan_id)
         
         # Используем days/hours из metadata (если есть), иначе из плана (fallback для старых платежей)
@@ -7334,6 +7335,7 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
                     logger.warning(f"Failed to get host_code from key {key_id}: {e}")
         
         # Учитываем дополнительные дни и трафик
+        from shop_bot.data_manager.database import get_plan_by_id
         plan = get_plan_by_id(plan_id)
         
         # Используем days/hours из metadata (если есть), иначе из плана (fallback для старых платежей)

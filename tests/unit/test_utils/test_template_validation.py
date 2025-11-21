@@ -153,61 +153,32 @@ class TestTemplateValidation:
         from shop_bot.data_manager import database
         
         with allure.step("Подготовка: подключение к тестовой БД"):
-            pass
+            # Очищаем кэш шаблонов перед началом теста
+            from shop_bot.data_manager.database import _template_cache
+            _template_cache.clear()
+            
+            # Проверяем, что используется правильный DB_FILE
+            db_file_info = (
+                f"📁 Информация о БД:\n"
+                f"   temp_db (фикстура): {temp_db}\n"
+                f"   database.DB_FILE: {database.DB_FILE}\n"
+                f"   Совпадают: {str(temp_db) == str(database.DB_FILE)}"
+            )
+            allure.attach(db_file_info, "Информация о БД", allure.attachment_type.TEXT)
         
-        with allure.step("Шаг 1: Получение статистики шаблонов и создание тестовых данных"):
-            # Сначала проверяем, есть ли шаблоны (используем правильные ключи)
+        with allure.step("Шаг 1: Получение статистики шаблонов"):
+            # Очищаем кэш перед получением статистики
+            from shop_bot.data_manager.database import _template_cache
+            _template_cache.clear()
+            
+            # Получаем статистику шаблонов
             stats = get_message_template_statistics()
             total = stats.get('total_templates', stats.get('total', 0))
             active = stats.get('active_templates', stats.get('active', 0))
             categories = stats.get('categories_count', stats.get('categories', 0))
             
-            # Если в БД нет шаблонов, создаем тестовые шаблоны для проверки
-            if total == 0:
-                with allure.step("Создание тестовых шаблонов для проверки"):
-                    import sqlite3
-                    conn = sqlite3.connect(str(temp_db))
-                    cursor = conn.cursor()
-                    
-                    # Создаем несколько тестовых шаблонов (корректных)
-                    test_templates = [
-                        ('purchase_success_key', 'purchase', 'key', 
-                         '🎉 <b>Ваш ключ #{key_number} готов!</b>\n\n⏳ <b>Он будет действовать до:</b> {expiry_formatted}\n\n⬇️ <b>НИЖЕ ВАШ КЛЮЧ</b> ⬇️\n------------------------------------------------------------------------\n<code>{connection_string}</code>\n------------------------------------------------------------------------',
-                         'Тестовый шаблон для режима key', '[]', 1),
-                        ('purchase_success_subscription', 'purchase', 'subscription',
-                         '🎉 <b>Ваш ключ #{key_number} готов!</b>\n\n⏳ <b>Он будет действовать до:</b> {expiry_formatted}\n\n⬇️ <b>ВАША ПОДПИСКА</b> ⬇️\n------------------------------------------------------------------------\n{subscription_link}\n------------------------------------------------------------------------',
-                         'Тестовый шаблон для режима subscription', '[]', 1),
-                    ]
-                    
-                    for template_data in test_templates:
-                        try:
-                            cursor.execute('''
-                                INSERT INTO message_templates 
-                                (template_key, category, provision_mode, template_text, description, variables, is_active)
-                                VALUES (?, ?, ?, ?, ?, ?, ?)
-                            ''', template_data)
-                        except sqlite3.IntegrityError:
-                            # Шаблон уже существует, пропускаем
-                            pass
-                    
-                    conn.commit()
-                    conn.close()
-                    
-                    # Очищаем кэш шаблонов перед обновлением статистики
-                    from shop_bot.data_manager.database import _template_cache
-                    _template_cache.clear()
-                    
-                    # Обновляем статистику (используем правильные ключи)
-                    stats = get_message_template_statistics()
-                    total = stats.get('total_templates', stats.get('total', 0))
-                    active = stats.get('active_templates', stats.get('active', 0))
-                    categories = stats.get('categories_count', stats.get('categories', 0))
-                    
-                    allure.attach(
-                        f"Создано {total} тестовых шаблонов (активных: {active})",
-                        "Тестовые шаблоны созданы",
-                        allure.attachment_type.TEXT
-                    )
+            # Проверяем наличие шаблонов в БД
+            # Если шаблонов нет, это означает проблему с подключением к правильной БД
             
             stats_text = (
                 f"📊 Статистика шаблонов:\n"
@@ -227,6 +198,11 @@ class TestTemplateValidation:
                 pytest.skip("В БД нет активных шаблонов для проверки")
         
         with allure.step("Шаг 2: Получение всех шаблонов из БД"):
+            # Очищаем кэш перед получением шаблонов
+            from shop_bot.data_manager.database import _template_cache
+            _template_cache.clear()
+            
+            # Получаем все шаблоны
             templates = get_all_message_templates()
             active_templates = [t for t in templates if t.get('is_active', 0)]
             inactive_templates = [t for t in templates if not t.get('is_active', 0)]
@@ -480,6 +456,20 @@ class TestTemplateValidation:
         from shop_bot.data_manager import database
         
         with allure.step("Шаг 1: Загрузка всех активных шаблонов"):
+            # Очищаем кэш перед получением шаблонов
+            from shop_bot.data_manager.database import _template_cache
+            _template_cache.clear()
+            
+            # Проверяем, что используется правильный DB_FILE
+            db_file_info = (
+                f"📁 Информация о БД:\n"
+                f"   temp_db (фикстура): {temp_db}\n"
+                f"   database.DB_FILE: {database.DB_FILE}\n"
+                f"   Совпадают: {str(temp_db) == str(database.DB_FILE)}"
+            )
+            allure.attach(db_file_info, "Информация о БД", allure.attachment_type.TEXT)
+            
+            # Получаем все шаблоны
             templates = get_all_message_templates()
             active_templates = [t for t in templates if t.get('is_active', 0)]
             
@@ -614,6 +604,20 @@ class TestTemplateValidation:
         from shop_bot.data_manager import database
         
         with allure.step("Шаг 1: Загрузка всех активных шаблонов"):
+            # Очищаем кэш перед получением шаблонов
+            from shop_bot.data_manager.database import _template_cache
+            _template_cache.clear()
+            
+            # Проверяем, что используется правильный DB_FILE
+            db_file_info = (
+                f"📁 Информация о БД:\n"
+                f"   temp_db (фикстура): {temp_db}\n"
+                f"   database.DB_FILE: {database.DB_FILE}\n"
+                f"   Совпадают: {str(temp_db) == str(database.DB_FILE)}"
+            )
+            allure.attach(db_file_info, "Информация о БД", allure.attachment_type.TEXT)
+            
+            # Получаем все шаблоны
             templates = get_all_message_templates()
             active_templates = [t for t in templates if t.get('is_active', 0)]
             

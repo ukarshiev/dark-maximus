@@ -10,7 +10,7 @@ import os
 import secrets
 import logging
 from functools import wraps
-from flask import session, redirect, url_for, current_app
+from flask import session, redirect, url_for, current_app, request
 from flask_session import Session
 from datetime import timedelta
 
@@ -91,8 +91,31 @@ def login_required(f):
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        logger = logging.getLogger(__name__)
+        service_name = current_app.config.get('SESSION_COOKIE_NAME', 'panel_session').replace('_session', '')
+        
+        # Получаем информацию о сессии
+        session_id = session.get('_id', 'unknown')
+        is_logged_in = session.get('logged_in', False)
+        client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
+        if client_ip:
+            client_ip = client_ip.split(',')[0].strip()
+        
         if 'logged_in' not in session:
+            logger.warning(
+                f"[AUTH] [{service_name}] Unauthorized access attempt: "
+                f"path={request.path}, method={request.method}, "
+                f"ip={client_ip}, session_id={session_id}"
+            )
             return redirect(url_for('login_page'))
+        
+        # Логируем успешную проверку сессии (только для важных операций)
+        if request.method in ['POST', 'PUT', 'DELETE']:
+            logger.info(
+                f"[AUTH] [{service_name}] Session validated: "
+                f"path={request.path}, method={request.method}, "
+                f"ip={client_ip}, session_id={session_id}"
+            )
         
         # Явно помечаем сессию как измененную для гарантированного обновления cookie
         # Это важно для SESSION_REFRESH_EACH_REQUEST
@@ -115,11 +138,25 @@ def verify_and_login(username, password):
     """
     from shop_bot.data_manager.database import verify_admin_credentials
     
+    logger = logging.getLogger(__name__)
+    service_name = current_app.config.get('SESSION_COOKIE_NAME', 'panel_session').replace('_session', '')
+    client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
+    if client_ip:
+        client_ip = client_ip.split(',')[0].strip()
+    
     if verify_admin_credentials(username, password):
         session['logged_in'] = True
         session.permanent = True  # Делаем сессию постоянной
         # Явно помечаем сессию как измененную для гарантированного сохранения
         session.modified = True
+        
+        # Получаем ID сессии после создания
+        session_id = session.get('_id', 'unknown')
+        
+        logger.info(
+            f"[AUTH] [{service_name}] Login successful: "
+            f"username={username}, ip={client_ip}, session_id={session_id}"
+        )
         
         # Flask-Session автоматически сохранит сессию в конце запроса,
         # так как session.modified = True установлено выше
@@ -127,5 +164,10 @@ def verify_and_login(username, password):
         # так как требует объект Response, который недоступен в этой функции
         
         return True
+    
+    logger.warning(
+        f"[AUTH] [{service_name}] Login failed: "
+        f"username={username}, ip={client_ip}"
+    )
     return False
 

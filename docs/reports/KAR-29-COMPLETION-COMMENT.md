@@ -85,7 +85,7 @@
 - `Dockerfile.tests` - Dockerfile для контейнера автотестов
 - `install-autotest.sh` - скрипт установки инфраструктуры автотестов
 - `tests/conftest.py` - общие фикстуры pytest
-- `tests/pytest.ini` - конфигурация pytest с Allure
+- `pytest.ini` - конфигурация pytest с Allure
 - `tests/run_tests.sh` - скрипт запуска тестов (bash)
 - `tests/run_tests.ps1` - скрипт запуска тестов (PowerShell)
 - Множество новых тестовых файлов в структурированных каталогах

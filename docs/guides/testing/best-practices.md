@@ -216,7 +216,7 @@ def test_full_user_scenario(temp_db):
 
 ### Доступные маркеры
 
-Из `tests/pytest.ini`:
+Из `pytest.ini`:
 
 - **`@pytest.mark.unit`** — Unit-тесты (70% покрытия)
 - **`@pytest.mark.integration`** — Интеграционные тесты (20% покрытия)

@@ -126,3 +126,4 @@ class TestDatabaseIndexes:
             assert len(indexes) >= 0, "Индексы должны быть созданы"
 
 
+

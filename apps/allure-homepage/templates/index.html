@@ -95,6 +95,15 @@
             border-color: var(--accent);
         }
 
+        #latest-report-card {
+            display: flex;
+            flex-direction: column;
+        }
+
+        #latest-report-card > a {
+            flex: 1;
+        }
+
         .card-icon {
             font-size: 3rem;
             margin-bottom: 1rem;
@@ -173,6 +182,59 @@
             text-decoration: underline;
         }
 
+        .report-status {
+            margin-top: 1rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .report-status.generating {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .report-status.created {
+            color: #4caf50;
+            border-color: #4caf50;
+        }
+
+        .report-status.no-reports {
+            color: var(--text-secondary);
+        }
+
+        .report-status .status-label {
+            font-weight: 600;
+            margin-right: 0.5rem;
+        }
+
+        .report-status .status-time {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-left: 0.5rem;
+        }
+
+        .report-status .status-line {
+            display: block;
+            margin: 0.25rem 0;
+        }
+
+        .report-status .status-line:first-child {
+            margin-top: 0;
+        }
+
+        .report-status .status-line:last-child {
+            margin-bottom: 0;
+        }
+
+        .report-status .status-separator {
+            color: var(--text-secondary);
+            margin: 0 0.5rem;
+        }
+
         footer {
             background: var(--bg-secondary);
             border-top: 1px solid var(--border);
@@ -214,14 +276,19 @@
 
     <div class="container">
         <div class="cards">
-            <a href="/allure-docker-service/projects/default/reports/latest/index.html" class="card">
-                <span class="card-icon">📊</span>
-                <h2 class="card-title">Последний отчет</h2>
-                <p class="card-description">
-                    Просмотр последнего сгенерированного отчета Allure с результатами тестирования, графиками и статистикой.
-                </p>
-                <span class="card-link">Открыть отчет →</span>
-            </a>
+            <div class="card" id="latest-report-card">
+                <a href="/allure-docker-service/projects/default/reports/latest/index.html" style="text-decoration: none; color: inherit; display: block;">
+                    <span class="card-icon">📊</span>
+                    <h2 class="card-title">Последний отчет</h2>
+                    <p class="card-description">
+                        Просмотр последнего сгенерированного отчета Allure с результатами тестирования, графиками и статистикой.
+                    </p>
+                    <span class="card-link">Открыть отчет →</span>
+                </a>
+                <div class="report-status no-reports" id="report-status">
+                    <span class="status-label">Загрузка статуса...</span>
+                </div>
+            </div>
 
             <a href="/allure-docker-service/swagger" class="card">
                 <span class="card-icon">📚</span>
@@ -268,6 +335,85 @@
             <p>&copy; 2025 Dark Maximus. Allure Docker Service</p>
         </div>
     </footer>
+
+    <script>
+        async function loadReportStatus() {
+            try {
+                const response = await fetch('/allure-docker-service/api/report-status');
+                const data = await response.json();
+                
+                const statusEl = document.getElementById('report-status');
+                if (!statusEl) return;
+                
+                if (data.status === 'created' && data.report_id) {
+                    statusEl.className = 'report-status created';
+                    
+                    // Формируем многострочный блок с расширенной информацией
+                    let html = `<span class="status-line"><span class="status-label">✅ Создан ID: ${data.report_id || 'latest'}</span></span>`;
+                    
+                    // Проверяем наличие расширенных данных
+                    const hasExtendedData = (data.test_count !== null && data.test_count !== undefined) ||
+                                          (data.report_date !== null && data.report_date !== undefined) ||
+                                          (data.execution_start !== null && data.execution_start !== undefined);
+                    
+                    if (hasExtendedData) {
+                        // Добавляем информацию о количестве тестов и проценте успешных
+                        if (data.test_count !== null && data.test_count !== undefined) {
+                            const percentage = data.success_percentage !== null && data.success_percentage !== undefined 
+                                ? ` (${data.success_percentage}%)` 
+                                : '';
+                            html += `<span class="status-line">Тестовых сценариев: ${data.test_count}${percentage}</span>`;
+                        }
+                        
+                        // Добавляем дату отчета
+                        if (data.report_date) {
+                            html += `<span class="status-line">Дата: ${data.report_date}</span>`;
+                        }
+                        
+                        // Добавляем время выполнения
+                        if (data.execution_start && data.execution_end && data.execution_duration) {
+                            html += `<span class="status-line">Время: ${data.execution_start} - ${data.execution_end} (${data.execution_duration})</span>`;
+                        } else if (data.execution_start && data.execution_end) {
+                            html += `<span class="status-line">Время: ${data.execution_start} - ${data.execution_end}</span>`;
+                        }
+                    } else {
+                        // Если расширенные данные недоступны, показываем базовую информацию
+                        if (data.created_at) {
+                            const date = new Date(data.created_at);
+                            const formattedDate = date.toLocaleString('ru-RU', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            });
+                            html += `<span class="status-line"><span class="status-time">${formattedDate}</span></span>`;
+                        }
+                    }
+                    
+                    statusEl.innerHTML = html;
+                } else if (data.status === 'generating') {
+                    statusEl.className = 'report-status generating';
+                    statusEl.innerHTML = '<span class="status-label">⏳ Отчет создается...</span>';
+                    // Автообновление каждые 3 секунды
+                    setTimeout(loadReportStatus, 3000);
+                } else {
+                    statusEl.className = 'report-status no-reports';
+                    statusEl.innerHTML = '<span class="status-label">ℹ️ Отчеты отсутствуют</span>';
+                }
+            } catch (error) {
+                console.error('Ошибка при загрузке статуса отчета:', error);
+                const statusEl = document.getElementById('report-status');
+                if (statusEl) {
+                    statusEl.className = 'report-status no-reports';
+                    statusEl.innerHTML = '<span class="status-label">⚠️ Не удалось загрузить статус</span>';
+                }
+            }
+        }
+        
+        // Загружаем статус при загрузке страницы
+        document.addEventListener('DOMContentLoaded', loadReportStatus);
+    </script>
 </body>
 </html>
 

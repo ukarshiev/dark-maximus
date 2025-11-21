@@ -14,6 +14,7 @@ import requests
 from flask import Flask, render_template, request, Response, abort, redirect, session, flash, url_for
 from urllib.parse import urljoin
 from pathlib import Path
+from datetime import datetime, timezone, timedelta
 
 # Добавляем путь к src для импорта модулей
 # В контейнере src маппится в /app/src, в локальной разработке - в корень проекта
@@ -118,6 +119,388 @@ def get_latest_report_id(project='default'):
         logger.error(f"Неожиданная ошибка при получении последнего отчета: {e}")
         return None
 
+def get_report_statistics(report_id, project='default'):
+    """
+    Получает статистику тестов из JSON файла отчета.
+    
+    Args:
+        report_id: ID отчета
+        project: Название проекта (по умолчанию 'default')
+    
+    Returns:
+        dict: {'test_count': int, 'success_percentage': float} или None
+    """
+    try:
+        # Формируем URL для получения widgets/summary.json
+        summary_url = f"{ALLURE_SERVICE_URL}/allure-docker-service/projects/{project}/reports/{report_id}/widgets/summary.json"
+        logger.info(f"Запрос статистики отчета через API: {summary_url}")
+        
+        response = requests.get(
+            summary_url,
+            headers={'Accept': 'application/json', 'User-Agent': 'Allure-Homepage-Proxy/1.0'},
+            timeout=10
+        )
+        
+        if response.status_code != 200:
+            logger.warning(f"API вернул статус {response.status_code} для получения статистики отчета")
+            return None
+        
+        data = response.json()
+        
+        # Извлекаем статистику из структуры JSON
+        # Структура: {"statistic": {"total": 482, "passed": 459, "failed": 10, ...}}
+        if 'statistic' in data:
+            statistic = data['statistic']
+            total = statistic.get('total', 0)
+            passed = statistic.get('passed', 0)
+            
+            if total > 0:
+                success_percentage = (passed / total) * 100
+                return {
+                    'test_count': total,
+                    'success_percentage': round(success_percentage, 1)
+                }
+        
+        return None
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Ошибка при запросе к API для получения статистики отчета: {e}")
+        return None
+    except (json.JSONDecodeError, KeyError) as e:
+        logger.error(f"Ошибка при парсинге JSON статистики отчета: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Неожиданная ошибка при получении статистики отчета: {e}")
+        return None
+
+def get_report_execution_time(report_id, project='default'):
+    """
+    Получает время выполнения тестов из JSON файла отчета.
+    
+    Args:
+        report_id: ID отчета
+        project: Название проекта (по умолчанию 'default')
+    
+    Returns:
+        dict: {'execution_start': str, 'execution_end': str, 'execution_duration': str, 'report_date': str} или None
+        Формат времени: HH:MM:SS
+        Формат даты: DD.MM.YYYY
+        Формат длительности: "Xm Ys"
+    """
+    try:
+        # Пробуем получить данные из widgets/summary.json (может содержать время выполнения)
+        summary_url = f"{ALLURE_SERVICE_URL}/allure-docker-service/projects/{project}/reports/{report_id}/widgets/summary.json"
+        logger.info(f"Запрос времени выполнения через API: {summary_url}")
+        
+        response = requests.get(
+            summary_url,
+            headers={'Accept': 'application/json', 'User-Agent': 'Allure-Homepage-Proxy/1.0'},
+            timeout=10
+        )
+        
+        if response.status_code != 200:
+            logger.warning(f"API вернул статус {response.status_code} для получения времени выполнения")
+            return None
+        
+        data = response.json()
+        
+        # Ищем время выполнения в структуре JSON
+        # Может быть в разных местах: time, start, stop, duration и т.д.
+        execution_start = None
+        execution_end = None
+        report_date = None
+        
+        # Пробуем получить из summary.json
+        if 'time' in data:
+            time_data = data['time']
+            if isinstance(time_data, dict):
+                execution_start = time_data.get('start')
+                execution_end = time_data.get('stop')
+            elif isinstance(time_data, (int, float)):
+                # Если это timestamp
+                execution_start = time_data
+                execution_end = time_data
+        
+        # Если не нашли, пробуем получить из data/test-cases.json
+        if not execution_start or not execution_end:
+            test_cases_url = f"{ALLURE_SERVICE_URL}/allure-docker-service/projects/{project}/reports/{report_id}/data/test-cases.json"
+            try:
+                test_cases_response = requests.get(
+                    test_cases_url,
+                    headers={'Accept': 'application/json', 'User-Agent': 'Allure-Homepage-Proxy/1.0'},
+                    timeout=10
+                )
+                
+                if test_cases_response.status_code == 200:
+                    test_cases_data = test_cases_response.json()
+                    if isinstance(test_cases_data, list) and len(test_cases_data) > 0:
+                        # Находим минимальное и максимальное время из всех тестов
+                        start_times = []
+                        stop_times = []
+                        
+                        for test_case in test_cases_data:
+                            if 'time' in test_case:
+                                time_info = test_case['time']
+                                if isinstance(time_info, dict):
+                                    if 'start' in time_info:
+                                        start_times.append(time_info['start'])
+                                    if 'stop' in time_info:
+                                        stop_times.append(time_info['stop'])
+                                elif isinstance(time_info, (int, float)):
+                                    start_times.append(time_info)
+                                    stop_times.append(time_info)
+                        
+                        if start_times:
+                            execution_start = min(start_times)
+                        if stop_times:
+                            execution_end = max(stop_times)
+            except Exception as e:
+                logger.warning(f"Не удалось получить время из test-cases.json: {e}")
+        
+        # Если все еще нет данных, используем текущее время как fallback
+        if not execution_start:
+            execution_start = datetime.now(timezone.utc).timestamp() * 1000
+        if not execution_end:
+            execution_end = execution_start
+        
+        # Конвертируем timestamp в datetime (может быть в миллисекундах или секундах)
+        if execution_start > 1e12:  # Миллисекунды
+            start_dt = datetime.fromtimestamp(execution_start / 1000, tz=timezone.utc)
+            end_dt = datetime.fromtimestamp(execution_end / 1000, tz=timezone.utc)
+        else:  # Секунды
+            start_dt = datetime.fromtimestamp(execution_start, tz=timezone.utc)
+            end_dt = datetime.fromtimestamp(execution_end, tz=timezone.utc)
+        
+        # Конвертируем в UTC+3 (Moscow timezone)
+        moscow_tz = timezone(timedelta(hours=3))
+        start_dt_moscow = start_dt.astimezone(moscow_tz)
+        end_dt_moscow = end_dt.astimezone(moscow_tz)
+        
+        # Форматируем время
+        execution_start_str = start_dt_moscow.strftime('%H:%M:%S')
+        execution_end_str = end_dt_moscow.strftime('%H:%M:%S')
+        report_date_str = start_dt_moscow.strftime('%d.%m.%Y')
+        
+        # Вычисляем длительность
+        duration = end_dt_moscow - start_dt_moscow
+        total_seconds = int(duration.total_seconds())
+        minutes = total_seconds // 60
+        seconds = total_seconds % 60
+        execution_duration_str = f"{minutes}m {seconds}s"
+        
+        return {
+            'execution_start': execution_start_str,
+            'execution_end': execution_end_str,
+            'execution_duration': execution_duration_str,
+            'report_date': report_date_str
+        }
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Ошибка при запросе к API для получения времени выполнения: {e}")
+        return None
+    except (json.JSONDecodeError, KeyError) as e:
+        logger.error(f"Ошибка при парсинге JSON времени выполнения: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Неожиданная ошибка при получении времени выполнения: {e}")
+        return None
+
+def get_latest_report_info(project='default'):
+    """
+    Получает информацию о последнем отчете через API Allure Docker Service.
+    
+    Args:
+        project: Название проекта (по умолчанию 'default')
+    
+    Returns:
+        dict: Расширенная информация об отчете:
+        {
+            'report_id': str,
+            'created_at': str,
+            'status': str,  # 'created', 'generating', 'no_reports'
+            'test_count': int,  # количество тестов
+            'success_percentage': float,  # процент успешных тестов
+            'report_date': str,  # дата отчета (DD.MM.YYYY)
+            'execution_start': str,  # время начала (HH:MM:SS)
+            'execution_end': str,  # время окончания (HH:MM:SS)
+            'execution_duration': str  # длительность (Xm Ys)
+        } или None
+    """
+    try:
+        api_url = f"{ALLURE_SERVICE_URL}/allure-docker-service/projects/{project}"
+        logger.info(f"Запрос информации о последнем отчете через API: {api_url}")
+        
+        response = requests.get(
+            api_url,
+            headers={'Accept': 'application/json', 'User-Agent': 'Allure-Homepage-Proxy/1.0'},
+            timeout=10
+        )
+        
+        if response.status_code != 200:
+            logger.warning(f"API вернул статус {response.status_code} для получения информации об отчете")
+            return None
+        
+        data = response.json()
+        
+        # Извлекаем информацию о последнем отчете
+        if 'data' in data and 'project' in data['data']:
+            project_data = data['data']['project']
+            
+            # Получаем список отчетов
+            reports_id = None
+            latest_id = None
+            
+            if 'reports_id' in project_data and isinstance(project_data['reports_id'], list):
+                reports_id = project_data['reports_id']
+            elif 'reports' in project_data and isinstance(project_data['reports'], list) and len(project_data['reports']) > 0:
+                # Извлекаем ID из первого URL
+                first_report_url = project_data['reports'][0]
+                match = re.search(r'/reports/(\d+)/', first_report_url)
+                if match:
+                    latest_id = match.group(1)
+            
+            if reports_id and len(reports_id) > 0:
+                # Пропускаем "latest" и берем первый реальный ID отчета
+                for rid in reports_id:
+                    if rid != 'latest' and rid.isdigit():
+                        latest_id = rid
+                        break
+                # Если не нашли цифровой ID, используем первый элемент
+                if not latest_id or latest_id == 'latest':
+                    latest_id = reports_id[0] if reports_id else None
+            
+            if latest_id and latest_id != 'latest':
+                # Получаем базовую информацию
+                created_at = None
+                if 'last_execution' in project_data:
+                    created_at = project_data['last_execution']
+                elif 'execution_blocks' in project_data and len(project_data['execution_blocks']) > 0:
+                    first_block = project_data['execution_blocks'][0]
+                    if 'time' in first_block:
+                        created_at = first_block['time']
+                elif 'last_report_time' in project_data:
+                    created_at = project_data['last_report_time']
+                
+                # Получаем расширенную информацию из JSON файлов отчета
+                statistics = get_report_statistics(latest_id, project)
+                execution_time = get_report_execution_time(latest_id, project)
+                
+                result = {
+                    'report_id': latest_id,
+                    'created_at': created_at,
+                    'status': 'created'
+                }
+                
+                # Добавляем статистику тестов
+                if statistics:
+                    result['test_count'] = statistics.get('test_count')
+                    result['success_percentage'] = statistics.get('success_percentage')
+                else:
+                    result['test_count'] = None
+                    result['success_percentage'] = None
+                
+                # Добавляем информацию о времени выполнения
+                if execution_time:
+                    result['report_date'] = execution_time.get('report_date')
+                    result['execution_start'] = execution_time.get('execution_start')
+                    result['execution_end'] = execution_time.get('execution_end')
+                    result['execution_duration'] = execution_time.get('execution_duration')
+                else:
+                    result['report_date'] = None
+                    result['execution_start'] = None
+                    result['execution_end'] = None
+                    result['execution_duration'] = None
+                
+                return result
+        
+        # Если отчетов нет, возможно идет генерация
+        # Проверяем наличие результатов тестов
+        return {'report_id': None, 'created_at': None, 'status': 'no_reports'}
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Ошибка при запросе к API для получения информации об отчете: {e}")
+        return None
+    except (json.JSONDecodeError, KeyError) as e:
+        logger.error(f"Ошибка при парсинге JSON ответа API: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Неожиданная ошибка при получении информации об отчете: {e}")
+        return None
+
+def get_reports_with_dates(project='default'):
+    """
+    Получает информацию о всех отчетах с датами создания.
+    
+    Args:
+        project: Название проекта (по умолчанию 'default')
+    
+    Returns:
+        list: Список словарей с информацией об отчетах:
+        [{'report_id': str, 'created_at': str, 'execution_name': str}, ...]
+    """
+    try:
+        api_url = f"{ALLURE_SERVICE_URL}/allure-docker-service/projects/{project}"
+        logger.info(f"Запрос информации о всех отчетах через API: {api_url}")
+        
+        response = requests.get(
+            api_url,
+            headers={'Accept': 'application/json', 'User-Agent': 'Allure-Homepage-Proxy/1.0'},
+            timeout=10
+        )
+        
+        if response.status_code != 200:
+            logger.warning(f"API вернул статус {response.status_code} для получения информации об отчетах")
+            return []
+        
+        data = response.json()
+        reports_info = []
+        
+        # Извлекаем информацию об отчетах
+        if 'data' in data and 'project' in data['data']:
+            project_data = data['data']['project']
+            
+            # Получаем список отчетов
+            reports_id = None
+            if 'reports_id' in project_data and isinstance(project_data['reports_id'], list):
+                reports_id = project_data['reports_id']
+            elif 'reports' in project_data and isinstance(project_data['reports'], list):
+                # Извлекаем ID из URL
+                reports_id = []
+                for report_url in project_data['reports']:
+                    match = re.search(r'/reports/(\d+)/', report_url)
+                    if match:
+                        reports_id.append(match.group(1))
+            
+            if reports_id and len(reports_id) > 0:
+                # Получаем информацию о времени создания из execution_blocks, если доступно
+                execution_blocks = project_data.get('execution_blocks', [])
+                execution_times = {}
+                if execution_blocks:
+                    for block in execution_blocks:
+                        if 'report_id' in block and 'time' in block:
+                            execution_times[block['report_id']] = block['time']
+                
+                # Формируем список отчетов с датами
+                for report_id in reports_id:
+                    created_at = execution_times.get(report_id) or project_data.get('last_execution') or project_data.get('last_report_time')
+                    reports_info.append({
+                        'report_id': report_id,
+                        'created_at': created_at,
+                        'execution_name': None  # Имя выполнения может быть недоступно через этот API
+                    })
+        
+        return reports_info
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Ошибка при запросе к API для получения информации об отчетах: {e}")
+        return []
+    except (json.JSONDecodeError, KeyError) as e:
+        logger.error(f"Ошибка при парсинге JSON ответа API: {e}")
+        return []
+    except Exception as e:
+        logger.error(f"Неожиданная ошибка при получении информации об отчетах: {e}")
+        return []
+
 def extract_redirect_url_from_html(html_content: str) -> str | None:
     """
     Извлекает URL из HTML-страницы "Redirecting..." от allure-service.
@@ -127,6 +510,7 @@ def extract_redirect_url_from_html(html_content: str) -> str | None:
         
     Returns:
         str: Путь без базового URL или None, если URL не найден
+        Возвращает 'projects/default' или 'projects/default/', если редирект ведет на /projects/default
     """
     patterns = [
         r'target URL: <a href="([^"]+)"',  # target URL: <a href="...">
@@ -144,6 +528,11 @@ def extract_redirect_url_from_html(html_content: str) -> str | None:
             url = url.replace('http://allure-service:5050/allure-docker-service/', '')
             if url.startswith('/'):
                 url = url[1:]
+            
+            # Нормализуем путь для /projects/default
+            if url == 'projects/default' or url == 'projects/default/':
+                return 'projects/default'
+            
             return url
     
     return None
@@ -167,9 +556,47 @@ def login_page():
 @login_required
 def logout_page():
     """Выход из системы"""
+    service_name = 'allure-homepage'
+    session_id = session.get('_id', 'unknown')
+    client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
+    if client_ip:
+        client_ip = client_ip.split(',')[0].strip()
+    
+    logger.info(
+        f"[AUTH] [{service_name}] Logout: "
+        f"ip={client_ip}, session_id={session_id}"
+    )
+    
     session.pop('logged_in', None)
     flash('Вы успешно вышли.', 'success')
     return redirect(url_for('login_page'))
+
+@app.route('/allure-docker-service/api/report-status')
+@login_required
+def report_status():
+    """API эндпоинт для получения статуса последнего отчета с расширенной информацией"""
+    report_info = get_latest_report_info('default')
+    if report_info:
+        return json.dumps(report_info, ensure_ascii=False), 200, {'Content-Type': 'application/json; charset=utf-8'}
+    return json.dumps({
+        'status': 'no_reports',
+        'report_id': None,
+        'created_at': None,
+        'test_count': None,
+        'success_percentage': None,
+        'report_date': None,
+        'execution_start': None,
+        'execution_end': None,
+        'execution_duration': None
+    }, ensure_ascii=False), 200, {'Content-Type': 'application/json; charset=utf-8'}
+
+@app.route('/allure-docker-service/api/reports-with-dates')
+@login_required
+def reports_with_dates():
+    """API эндпоинт для получения списка отчетов с датами"""
+    project = request.args.get('project', 'default')
+    reports_info = get_reports_with_dates(project)
+    return json.dumps({'reports': reports_info}, ensure_ascii=False), 200, {'Content-Type': 'application/json; charset=utf-8'}
 
 @app.route('/allure-docker-service/')
 @login_required
@@ -409,6 +836,31 @@ def proxy(path):
                     
                     redirect_handled = True
             
+            # Специальная обработка для редиректа на /projects/default при запросе /latest/index.html
+            if not redirect_handled:
+                # Проверяем, был ли исходный запрос к /latest/index.html
+                is_latest_request = (path == 'projects/default/reports/latest/index.html' or 
+                                   path.endswith('/projects/default/reports/latest/index.html'))
+                
+                # Проверяем, ведет ли редирект на /projects/default
+                is_projects_default_redirect = (
+                    '/projects/default' in location or 
+                    location.endswith('/projects/default') or
+                    location.endswith('/projects/default/')
+                )
+                
+                if is_latest_request and is_projects_default_redirect:
+                    logger.info("Редирект на /projects/default при запросе /latest/index.html, получаю последний отчет через API")
+                    # Получаем ID последнего отчета через API
+                    latest_report_id = get_latest_report_id('default')
+                    if latest_report_id:
+                        # Делаем редирект на конкретный отчет
+                        redirect_url = f"/allure-docker-service/projects/default/reports/{latest_report_id}/index.html"
+                        logger.info(f"Редирект на последний отчет: {redirect_url}")
+                        return redirect(redirect_url, code=302)
+                    else:
+                        logger.warning("Не удалось получить ID последнего отчета при обработке редиректа")
+            
             # Для других редиректов логируем предупреждение
             # Для безопасности не следуем редиректам автоматически
             if not redirect_handled:
@@ -455,6 +907,25 @@ def proxy(path):
                     logger.info("Обнаружена HTML-страница 'Redirecting...', извлекаю URL")
                     redirect_url = extract_redirect_url_from_html(content_str)
                     if redirect_url:
+                        # Специальная обработка для редиректа на /projects/default при запросе /latest/index.html
+                        is_latest_request = (path == 'projects/default/reports/latest/index.html' or 
+                                           path.endswith('/projects/default/reports/latest/index.html'))
+                        
+                        is_projects_default = (redirect_url == 'projects/default' or 
+                                             redirect_url.startswith('projects/default/'))
+                        
+                        if is_latest_request and is_projects_default:
+                            logger.info("Редирект на /projects/default при запросе /latest/index.html, получаю последний отчет через API")
+                            # Получаем ID последнего отчета через API
+                            latest_report_id = get_latest_report_id('default')
+                            if latest_report_id:
+                                # Делаем редирект на конкретный отчет
+                                final_redirect_url = f"/allure-docker-service/projects/default/reports/{latest_report_id}/index.html"
+                                logger.info(f"Редирект на последний отчет: {final_redirect_url}")
+                                return redirect(final_redirect_url, code=302)
+                            else:
+                                logger.warning("Не удалось получить ID последнего отчета при обработке HTML 'Redirecting...'")
+                        
                         logger.info(f"Извлечен URL из HTML: {redirect_url}, делаю внутренний запрос")
                         # Делаем внутренний запрос к allure-service на новый путь
                         new_target_url = urljoin(ALLURE_SERVICE_URL + '/allure-docker-service/', redirect_url)
@@ -482,9 +953,21 @@ def proxy(path):
             except Exception as e:
                 logger.warning(f"Ошибка при проверке HTML контента на страницу логина: {e}")
         
-        # Специальная обработка для /latest/index.html: если получен JSON вместо HTML,
+        # Специальная обработка для /latest/index.html: если получен JSON или HTML с редиректом на /projects/default,
         # делаем редирект на последний доступный отчет через API
         if path == 'projects/default/reports/latest/index.html' or path.endswith('/projects/default/reports/latest/index.html'):
+            # Проверяем, если получен редирект на /projects/default (если не был обработан выше)
+            if response.status_code in (301, 302, 303, 307, 308):
+                location = response.headers.get('Location', '')
+                if '/projects/default' in location or location.endswith('/projects/default'):
+                    logger.info("Редирект на /projects/default для /latest/index.html, получаю последний отчет через API")
+                    latest_report_id = get_latest_report_id('default')
+                    if latest_report_id:
+                        redirect_url = f"/allure-docker-service/projects/default/reports/{latest_report_id}/index.html"
+                        logger.info(f"Редирект на последний отчет: {redirect_url}")
+                        return redirect(redirect_url, code=302)
+            
+            # Если получен JSON вместо HTML
             if content_type.startswith('application/json'):
                 logger.warning(f"Запрос к /latest/index.html вернул JSON вместо HTML. Перенаправляю на последний доступный отчет...")
                 # Получаем ID последнего отчета через API

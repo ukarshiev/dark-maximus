@@ -36,7 +36,7 @@
 
 ### 1. Настройка pytest для записи warnings
 
-Изменено в `tests/pytest.ini`:
+Изменено в `pytest.ini`:
 - Убрано: `--disable-warnings`
 - Добавлено: `-W default::Warning` (показывает warnings, но не останавливает выполнение)
 
@@ -96,7 +96,7 @@ powershell -ExecutionPolicy Bypass -File tests/ad-hoc/clear_allure_results.ps1
 
 ## Связанные файлы
 
-- `tests/pytest.ini` - конфигурация pytest
+- `pytest.ini` - конфигурация pytest
 - `docker-compose.yml` - настройки Allure Service
 - `allure-categories.json` - категории для группировки тестов
 - `tests/ad-hoc/clear_allure_results.ps1` - скрипт очистки результатов

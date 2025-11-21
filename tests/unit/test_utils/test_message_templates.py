@@ -321,10 +321,9 @@ class TestGetPurchaseSuccessText:
     def test_get_purchase_success_text_with_database_template(self, temp_db):
         """Тест использования шаблона из БД"""
         from shop_bot.data_manager import database
+        import sqlite3
         
         with allure.step("Подготовка тестового шаблона в БД"):
-            # Сохраняем оригинальный DB_FILE
-            
             # Создаем тестовый шаблон в БД
             test_template = {
                 'template_key': 'purchase_success_key',
@@ -336,10 +335,13 @@ class TestGetPurchaseSuccessText:
                 'is_active': 1
             }
             
-            # Вставляем шаблон напрямую в БД
-            import sqlite3
+            # Удаляем существующий шаблон, если он есть, и вставляем новый
             conn = sqlite3.connect(str(temp_db))
             cursor = conn.cursor()
+            # Удаляем существующий шаблон с таким ключом
+            cursor.execute('DELETE FROM message_templates WHERE template_key = ? AND provision_mode = ?', 
+                          (test_template['template_key'], test_template['provision_mode']))
+            # Вставляем новый шаблон
             cursor.execute('''
                 INSERT INTO message_templates 
                 (template_key, category, provision_mode, template_text, description, variables, is_active)
@@ -361,28 +363,57 @@ class TestGetPurchaseSuccessText:
         with allure.step("Вызов функции get_purchase_success_text с шаблоном из БД"):
             expiry_date = datetime.now(timezone.utc) + timedelta(days=30)
             
+            # Мокаем get_message_template чтобы он использовал temp_db
+            def mock_get_message_template(template_key: str, provision_mode: str = None):
+                conn = sqlite3.connect(str(temp_db))
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                if provision_mode:
+                    cursor.execute('''
+                        SELECT * FROM message_templates 
+                        WHERE template_key = ? AND (provision_mode = ? OR provision_mode IS NULL) AND is_active = 1
+                        ORDER BY provision_mode DESC
+                        LIMIT 1
+                    ''', (template_key, provision_mode))
+                else:
+                    cursor.execute('''
+                        SELECT * FROM message_templates 
+                        WHERE template_key = ? AND (provision_mode IS NULL) AND is_active = 1
+                        LIMIT 1
+                    ''', (template_key,))
+                
+                result = cursor.fetchone()
+                conn.close()
+                
+                if result:
+                    return dict(result)
+                return None
+            
             # Мок для get_or_create_permanent_token
             with patch('shop_bot.data_manager.database.get_or_create_permanent_token', return_value=None):
                 # Мок для get_user_cabinet_domain (через get_setting)
                 with patch('shop_bot.data_manager.database.get_setting', return_value=None):
-                    text = get_purchase_success_text(
-                        action="готов",
-                        key_number=1,
-                        expiry_date=expiry_date,
-                        connection_string="vless://test-key",
-                        subscription_link=None,
-                        provision_mode='key',
-                        user_id=None,
-                        key_id=None,
-                        user_timezone=None,
-                        feature_enabled=False,
-                        is_trial=False,
-                        host_name="Финляндия",
-                        plan_name="5. ЛК Подписка",
-                        price=1.0,
-                        status=None,
-                    )
-                    allure.attach(text, "Сгенерированное сообщение с шаблоном из БД", allure.attachment_type.HTML)
+                    # Мок для get_message_template
+                    with patch('shop_bot.data_manager.database.get_message_template', side_effect=mock_get_message_template):
+                        text = get_purchase_success_text(
+                            action="готов",
+                            key_number=1,
+                            expiry_date=expiry_date,
+                            connection_string="vless://test-key",
+                            subscription_link=None,
+                            provision_mode='key',
+                            user_id=None,
+                            key_id=None,
+                            user_timezone=None,
+                            feature_enabled=False,
+                            is_trial=False,
+                            host_name="Финляндия",
+                            plan_name="5. ЛК Подписка",
+                            price=1.0,
+                            status=None,
+                        )
+                        allure.attach(text, "Сгенерированное сообщение с шаблоном из БД", allure.attachment_type.HTML)
         
         with allure.step("Проверка использования шаблона из БД"):
             # Проверяем, что используется текст из шаблона БД, а не fallback
@@ -690,10 +721,9 @@ class TestHtmlTagReplacement:
         """Тест замены <br> тегов в get_message_text"""
         from shop_bot.config import get_message_text
         from shop_bot.data_manager import database
+        import sqlite3
         
         with allure.step("Подготовка тестового шаблона с <br> тегами"):
-            # Сохраняем оригинальный DB_FILE
-            
             # Создаем тестовый шаблон с различными вариантами <br>
             test_template = {
                 'template_key': 'key_info_key',
@@ -705,10 +735,13 @@ class TestHtmlTagReplacement:
                 'is_active': 1
             }
             
-            # Вставляем шаблон напрямую в БД
-            import sqlite3
+            # Удаляем существующий шаблон, если он есть, и вставляем новый
             conn = sqlite3.connect(str(temp_db))
             cursor = conn.cursor()
+            # Удаляем существующий шаблон с таким ключом
+            cursor.execute('DELETE FROM message_templates WHERE template_key = ? AND provision_mode = ?', 
+                          (test_template['template_key'], test_template['provision_mode']))
+            # Вставляем новый шаблон
             cursor.execute('''
                 INSERT INTO message_templates 
                 (template_key, category, provision_mode, template_text, description, variables, is_active)
@@ -727,14 +760,42 @@ class TestHtmlTagReplacement:
             
             allure.attach(str(test_template), "Тестовый шаблон с <br> тегами", allure.attachment_type.JSON)
         
-        with allure.step("Вызов функции get_message_text"):
-            result = get_message_text(
-                template_key='key_info_key',
-                variables={},
-                fallback_text='Fallback текст',
-                provision_mode='key'
-            )
-            allure.attach(result, "Результат после обработки", allure.attachment_type.HTML)
+        with allure.step("Вызов функции get_message_text с моком get_message_template"):
+            # Мокаем get_message_template чтобы он использовал temp_db
+            def mock_get_message_template(template_key: str, provision_mode: str = None):
+                conn = sqlite3.connect(str(temp_db))
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                if provision_mode:
+                    cursor.execute('''
+                        SELECT * FROM message_templates 
+                        WHERE template_key = ? AND (provision_mode = ? OR provision_mode IS NULL) AND is_active = 1
+                        ORDER BY provision_mode DESC
+                        LIMIT 1
+                    ''', (template_key, provision_mode))
+                else:
+                    cursor.execute('''
+                        SELECT * FROM message_templates 
+                        WHERE template_key = ? AND (provision_mode IS NULL) AND is_active = 1
+                        LIMIT 1
+                    ''', (template_key,))
+                
+                result = cursor.fetchone()
+                conn.close()
+                
+                if result:
+                    return dict(result)
+                return None
+            
+            with patch('shop_bot.data_manager.database.get_message_template', side_effect=mock_get_message_template):
+                result = get_message_text(
+                    template_key='key_info_key',
+                    variables={},
+                    fallback_text='Fallback текст',
+                    provision_mode='key'
+                )
+                allure.attach(result, "Результат после обработки", allure.attachment_type.HTML)
         
         with allure.step("Проверка замены <br> тегов"):
             # Проверяем, что все варианты <br> заменены на \n
@@ -791,9 +852,9 @@ class TestHtmlTagReplacement:
         """Тест замены <br> тегов с переменными"""
         from shop_bot.config import get_message_text
         from shop_bot.data_manager import database
+        import sqlite3
         
         with allure.step("Подготовка тестового шаблона с переменными и <br> тегами"):
-            
             test_template = {
                 'template_key': 'purchase_success_key',
                 'category': 'purchase',
@@ -804,9 +865,13 @@ class TestHtmlTagReplacement:
                 'is_active': 1
             }
             
-            import sqlite3
+            # Удаляем существующий шаблон, если он есть, и вставляем новый
             conn = sqlite3.connect(str(temp_db))
             cursor = conn.cursor()
+            # Удаляем существующий шаблон с таким ключом
+            cursor.execute('DELETE FROM message_templates WHERE template_key = ? AND provision_mode = ?', 
+                          (test_template['template_key'], test_template['provision_mode']))
+            # Вставляем новый шаблон
             cursor.execute('''
                 INSERT INTO message_templates 
                 (template_key, category, provision_mode, template_text, description, variables, is_active)
@@ -825,18 +890,46 @@ class TestHtmlTagReplacement:
             
             allure.attach(str(test_template), "Тестовый шаблон с переменными", allure.attachment_type.JSON)
         
-        with allure.step("Вызов функции get_message_text с переменными"):
-            result = get_message_text(
-                template_key='purchase_success_key',
-                variables={
-                    'key_number': '1',
-                    'expiry_formatted': '01.01.2025',
-                    'connection_string': 'vless://test-key'
-                },
-                fallback_text='Fallback',
-                provision_mode='key'
-            )
-            allure.attach(result, "Результат после обработки", allure.attachment_type.HTML)
+        with allure.step("Вызов функции get_message_text с переменными и моком get_message_template"):
+            # Мокаем get_message_template чтобы он использовал temp_db
+            def mock_get_message_template(template_key: str, provision_mode: str = None):
+                conn = sqlite3.connect(str(temp_db))
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                
+                if provision_mode:
+                    cursor.execute('''
+                        SELECT * FROM message_templates 
+                        WHERE template_key = ? AND (provision_mode = ? OR provision_mode IS NULL) AND is_active = 1
+                        ORDER BY provision_mode DESC
+                        LIMIT 1
+                    ''', (template_key, provision_mode))
+                else:
+                    cursor.execute('''
+                        SELECT * FROM message_templates 
+                        WHERE template_key = ? AND (provision_mode IS NULL) AND is_active = 1
+                        LIMIT 1
+                    ''', (template_key,))
+                
+                result = cursor.fetchone()
+                conn.close()
+                
+                if result:
+                    return dict(result)
+                return None
+            
+            with patch('shop_bot.data_manager.database.get_message_template', side_effect=mock_get_message_template):
+                result = get_message_text(
+                    template_key='purchase_success_key',
+                    variables={
+                        'key_number': '1',
+                        'expiry_formatted': '01.01.2025',
+                        'connection_string': 'vless://test-key'
+                    },
+                    fallback_text='Fallback',
+                    provision_mode='key'
+                )
+                allure.attach(result, "Результат после обработки", allure.attachment_type.HTML)
         
         with allure.step("Проверка результата"):
             # Проверяем замену <br>

@@ -6,7 +6,7 @@
 import pytest
 import allure
 from datetime import datetime, timezone, timedelta
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock, AsyncMock, patch, MagicMock
 
 from shop_bot.data_manager import database
 from shop_bot.data_manager.scheduler import perform_auto_renewals
@@ -69,10 +69,11 @@ class TestKeyAutoRenewalIntegration:
         with allure.step("Подготовка тестовых данных"):
             from shop_bot.data_manager.database import (
                 register_user_if_not_exists,
-                create_key_for_user,
+                add_new_key,
                 add_to_user_balance,
                 set_auto_renewal_enabled,
                 set_key_auto_renewal_enabled,
+                get_key_auto_renewal_enabled,
                 get_key_by_id,
             )
             
@@ -80,7 +81,7 @@ class TestKeyAutoRenewalIntegration:
             username = "test_user_key_autorenew"
             
             # Регистрируем пользователя
-            user = register_user_if_not_exists(user_id, username)
+            user = register_user_if_not_exists(user_id, username, referrer_id=None)
             assert user is not None
             
             # Устанавливаем баланс
@@ -93,7 +94,7 @@ class TestKeyAutoRenewalIntegration:
             from shop_bot.data_manager.database import create_host, create_plan
             host_name = "test_host_key_autorenew"
             create_host(host_name, "http://test.com", "user", "pass", 1, "code")
-            create_plan(host_name, "Test Plan", 1, 0, 0, 100.0)
+            create_plan(host_name, "Test Plan", 1, 100.0, 0, 0.0)
             
             # Создаем ключ с истекшим сроком
             expiry_date = datetime.now(timezone.utc) - timedelta(days=1)
@@ -189,7 +190,7 @@ class TestKeyAutoRenewalIntegration:
             user_id = 123501
             username = "test_user_mixed_autorenew"
             
-            user = register_user_if_not_exists(user_id, username)
+            user = register_user_if_not_exists(user_id, username, referrer_id=None)
             add_to_user_balance(user_id, 1000.0)
             
             # Включаем глобальное автопродление
@@ -198,7 +199,7 @@ class TestKeyAutoRenewalIntegration:
             from shop_bot.data_manager.database import create_host, create_plan
             host_name = "test_host_mixed_autorenew"
             create_host(host_name, "http://test.com", "user", "pass", 1, "code")
-            create_plan(host_name, "Test Plan", 1, 0, 0, 100.0)
+            create_plan(host_name, "Test Plan", 1, 100.0, 0, 0.0)
             
             expiry_date = datetime.now(timezone.utc) - timedelta(days=1)
             expiry_timestamp_ms = int(expiry_date.timestamp() * 1000)
@@ -281,13 +282,14 @@ class TestKeyAutoRenewalIntegration:
                 add_to_user_balance,
                 set_auto_renewal_enabled,
                 set_key_auto_renewal_enabled,
+                get_key_auto_renewal_enabled,
                 get_key_by_id,
             )
             
             user_id = 123502
             username = "test_user_both_enabled"
             
-            user = register_user_if_not_exists(user_id, username)
+            user = register_user_if_not_exists(user_id, username, referrer_id=None)
             add_to_user_balance(user_id, 1000.0)
             
             # Включаем оба автопродления
@@ -296,7 +298,7 @@ class TestKeyAutoRenewalIntegration:
             from shop_bot.data_manager.database import create_host, create_plan
             host_name = "test_host_both_enabled"
             create_host(host_name, "http://test.com", "user", "pass", 1, "code")
-            create_plan(host_name, "Test Plan", 1, 0, 0, 100.0)
+            create_plan(host_name, "Test Plan", 1, 100.0, 0, 0.0)
             
             expiry_date = datetime.now(timezone.utc) - timedelta(days=1)
             expiry_timestamp_ms = int(expiry_date.timestamp() * 1000)
@@ -316,9 +318,40 @@ class TestKeyAutoRenewalIntegration:
             
             old_key = get_key_by_id(key_id)
             old_expiry = datetime.fromisoformat(old_key['expiry_date'])
+            
+            # Настраиваем моки для 3X-UI API
+            new_expiry_date = old_expiry + timedelta(days=30)
+            new_expiry_ms = int(new_expiry_date.timestamp() * 1000)
+            mock_create_or_update = AsyncMock(return_value={
+                'client_uuid': 'test-uuid-both-enabled',
+                'email': f'test-both-enabled@{host_name}.com',
+                'expiry_timestamp_ms': new_expiry_ms,
+                'connection_string': 'vless://test-updated',
+            })
+            
+            mock_api = MagicMock()
+            mock_inbound = MagicMock()
+            mock_inbound.id = 1
+            mock_login_to_host = MagicMock(return_value=(mock_api, mock_inbound))
+            
+            from shop_bot.data_manager.database import get_plan_by_id, get_plans_for_host
+            plans = get_plans_for_host(host_name)
+            plan_id = plans[0]['plan_id'] if plans else 1
 
         with allure.step("Выполнение автопродления"):
-            await perform_auto_renewals(mock_bot)
+            # Мокируем функции xui_api для успешного продления ключа
+            with patch('shop_bot.modules.xui_api.create_or_update_key_on_host', mock_create_or_update):
+                with patch('shop_bot.modules.xui_api.login_to_host', mock_login_to_host):
+                    with patch('shop_bot.data_manager.database.get_plan_by_id', return_value={
+                        'plan_id': plan_id,
+                        'plan_name': 'Test Plan',
+                        'months': 1,
+                        'days': 0,
+                        'hours': 0,
+                        'price': 100.0,
+                        'traffic_gb': 0,
+                    }):
+                        await perform_auto_renewals(mock_bot)
 
         with allure.step("Проверка результата"):
             updated_key = get_key_by_id(key_id)

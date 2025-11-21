@@ -24,6 +24,7 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
 
 # Копирование тестов
 COPY tests/ /app/tests/
+COPY pytest.ini /app/pytest.ini
 
 # Создание директорий для результатов Allure
 RUN mkdir -p /app/allure-results /app/allure-report

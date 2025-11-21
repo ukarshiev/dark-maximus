@@ -19,8 +19,13 @@ sys.path.insert(0, str(project_root / "src"))
 @allure.label("package", "src.shop_bot.webhook_server")
 class TestSupport:
     @pytest.fixture
-    def flask_app(self):
+    def flask_app(self, temp_db, monkeypatch):
+        from shop_bot.webhook_server import app as webhook_app_module
         from shop_bot.webhook_server.app import create_webhook_app
+        
+        # КРИТИЧЕСКИ ВАЖНО: Патчим DB_FILE в app.py, так как эндпоинты используют его напрямую
+        monkeypatch.setattr(webhook_app_module, 'DB_FILE', temp_db)
+        
         mock_bot_controller = MagicMock()
         mock_bot_controller.get_status.return_value = {'shop_bot': 'running'}
         mock_bot_controller.support_bot = MagicMock()

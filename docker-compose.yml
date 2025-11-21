@@ -133,6 +133,12 @@ services:
       - ./allure-report:/app/allure-report
       - ./.env:/app/.env:ro  # Маппинг .env файла для загрузки переменных окружения в тестах
       - ./users.db:/app/users.db:ro  # Эталонная БД для тестов целостности схемы (только чтение)
+      - ./pytest.ini:/app/pytest.ini:ro  # Конфигурация pytest доступна из контейнера
+      - ./install.sh:/app/install.sh:ro  # Маппинг install.sh для тестов валидации скрипта установки
+      - ./install-autotest.sh:/app/install-autotest.sh:ro  # Маппинг скрипта установки для тестов
+      - ./ssl-install.sh:/app/ssl-install.sh:ro  # Маппинг ssl-install.sh для тестов валидации SSL скрипта
+      - ./deploy:/app/deploy:ro  # Маппинг директории deploy для тестов валидации nginx конфигурации
+      - ./docker-compose.yml:/app/docker-compose.yml:ro  # Маппинг docker-compose.yml для тестов валидации конфигурации
     networks:
       - dark-maximus-network
 
@@ -150,11 +156,12 @@ services:
       - ./allure-reports:/app/allure-docker-api/static/projects
       - ./allure-categories.json:/app/allure-categories.json
     environment:
-      - CHECK_RESULTS_EVERY_SECONDS=3
+      - CHECK_RESULTS_EVERY_SECONDS=30
       - KEEP_HISTORY=1
-      - KEEP_HISTORY_LATEST=100
+      - KEEP_HISTORY_LATEST=30
       - ALLURE_PUBLIC_URL=http://localhost:50005
       - URL_PREFIX=/allure-docker-service
+      - CATEGORIES_FILE=/app/allure-categories.json
     networks:
       - dark-maximus-network
 

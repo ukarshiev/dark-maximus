@@ -424,44 +424,86 @@ class TestWebhookServerUsers:
     
     **Что проверяется:**
     - Отправка POST запроса на /users/revoke-consent/<user_id>
-    - Обновление статуса согласия в БД
+    - Обновление статуса согласия в БД (agreed_to_documents = 0)
     - Корректный статус ответа (200 или 302)
     
     **Тестовые данные:**
     - user_id: 123485
+    - username: "test_user6"
+    
+    **Предусловия:**
+    - Используется временная БД (temp_db)
+    - Пользователь зарегистрирован в системе
+    - Пользователь имеет согласие (agreed_to_documents = 1)
+    - Администратор авторизован в веб-панели
+    
+    **Шаги теста:**
+    1. Регистрация тестового пользователя
+    2. Установка agreed_to_documents = 1
+    3. Авторизация администратора
+    4. Отправка POST запроса на /users/revoke-consent/<user_id>
+    5. Проверка статуса ответа (200 или 302)
+    6. Проверка изменения agreed_to_documents в БД (должно быть 0)
     
     **Ожидаемый результат:**
-    Согласие пользователя успешно отозвано, статус обновлен в БД.
+    Согласие пользователя успешно отозвано, agreed_to_documents установлен в 0, API возвращает статус 200 или 302.
     """)
     @allure.severity(allure.severity_level.NORMAL)
     @allure.tag("users", "consent", "revoke", "webhook_server", "unit")
-    def test_revoke_user_consent(self, temp_db):
+    def test_revoke_user_consent(self, temp_db, admin_credentials):
         """Тест отзыва согласия (/users/revoke-consent/<user_id>)"""
         from src.shop_bot.webhook_server.app import create_webhook_app
         from unittest.mock import MagicMock
+        import sqlite3
         
-        mock_bot_controller = MagicMock()
-        app = create_webhook_app(mock_bot_controller)
-        from shop_bot.data_manager.database import (
-            register_user_if_not_exists,
-            get_user,
-        )
+        with allure.step("Подготовка тестового окружения"):
+            mock_bot_controller = MagicMock()
+            app = create_webhook_app(mock_bot_controller)
+            app.config['TESTING'] = True  # Отключаем rate limiting
+            from shop_bot.data_manager.database import (
+                register_user_if_not_exists,
+                get_user,
+            )
+            allure.attach(str(temp_db), "Путь к временной БД", allure.attachment_type.TEXT)
         
-        # Настройка БД
-        user_id = 123485
-        register_user_if_not_exists(user_id, "test_user6", referrer_id=None)
-        with app.test_client() as client:
-            # Входим
-            with patch('src.shop_bot.webhook_server.app.verify_admin_credentials', return_value=True):
-                client.post('/login', data=admin_credentials)
+        with allure.step("Настройка БД: регистрация пользователя и установка согласия"):
+            user_id = 123485
+            register_user_if_not_exists(user_id, "test_user6", referrer_id=None)
+            allure.attach(str(user_id), "User ID", allure.attachment_type.TEXT)
             
-            # Отзываем согласие
-            response = client.post(f'/users/revoke-consent/{user_id}')
-            assert response.status_code in [200, 302]  # Может быть редирект
+            # Устанавливаем согласие пользователя (agreed_to_documents = 1)
+            with sqlite3.connect(temp_db) as conn:
+                cursor = conn.cursor()
+                cursor.execute("UPDATE users SET agreed_to_documents = 1 WHERE telegram_id = ?", (user_id,))
+                conn.commit()
             
-            # Проверяем отзыв согласия
-            user = get_user(user_id)
-            assert user is not None
+            # Проверяем начальное состояние
+            initial_user = get_user(user_id)
+            initial_consent = initial_user.get('agreed_to_documents', 0) if initial_user else 0
+            allure.attach(str(initial_consent), "Начальное значение agreed_to_documents", allure.attachment_type.TEXT)
+            assert initial_consent == 1, "agreed_to_documents должен быть установлен в 1 перед отзывом"
+        
+        # Патчим DB_FILE для использования временной БД
+        with patch('src.shop_bot.webhook_server.app.DB_FILE', temp_db):
+            with app.test_client() as client:
+                with allure.step("Авторизация администратора"):
+                    with patch('src.shop_bot.webhook_server.app.verify_admin_credentials', return_value=True):
+                        login_response = client.post('/login', data=admin_credentials)
+                        allure.attach(str(login_response.status_code), "Статус авторизации", allure.attachment_type.TEXT)
+                        assert login_response.status_code in [200, 302], "Авторизация должна быть успешной"
+                
+                with allure.step("Отзыв согласия через /users/revoke-consent/<user_id>"):
+                    response = client.post(f'/users/revoke-consent/{user_id}', follow_redirects=True)
+                    allure.attach(str(response.status_code), "Статус ответа", allure.attachment_type.TEXT)
+                    
+                    with allure.step("Проверка статуса ответа и изменения agreed_to_documents"):
+                        assert response.status_code in [200, 302], f"Ожидался статус 200 или 302, получен {response.status_code}"
+                        
+                        user = get_user(user_id)
+                        assert user is not None, "Пользователь должен существовать в БД"
+                        agreed_to_documents_after_revoke = user.get('agreed_to_documents', 0)
+                        allure.attach(str(agreed_to_documents_after_revoke), "Значение agreed_to_documents после отзыва", allure.attachment_type.TEXT)
+                        assert agreed_to_documents_after_revoke == 0, f"Ожидалось agreed_to_documents=0, получено {agreed_to_documents_after_revoke}"
 
     @allure.story("Управление пользователями: сброс пробного периода")
     @allure.title("Сброс триала пользователя")

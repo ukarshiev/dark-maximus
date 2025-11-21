@@ -18,6 +18,22 @@ from dotenv import load_dotenv
 # Определяем путь к корню проекта для загрузки .env файла
 project_root = Path(__file__).parent.parent
 
+# Настройка пути к allure-results
+def pytest_configure(config):
+    """Настройка pytest перед запуском тестов"""
+    allure_results_dir = project_root / "allure-results"
+    allure_results_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Устанавливаем alluredir
+    config.option.alluredir = str(allure_results_dir)
+    
+    # Создаем файл environment.properties для Allure отчетов
+    environment_file = allure_results_dir / "environment.properties"
+    with open(environment_file, "w", encoding="utf-8") as f:
+        f.write(f"ENVIRONMENT={os.getenv('ENVIRONMENT', 'development')}\n")
+        f.write(f"PYTHON_VERSION={sys.version.split()[0]}\n")
+        f.write(f"PYTEST_VERSION={pytest.__version__}\n")
+
 # Загружаем переменные окружения из .env файла
 # Явно указываем путь к .env файлу в корне проекта
 env_path = project_root / ".env"
@@ -352,6 +368,18 @@ def temp_db(test_db_session, monkeypatch):
             else:
                 logger.error(f"❌ Ошибка при инициализации БД: {e}")
                 raise
+    
+    # Копируем шаблоны из production БД в тестовую БД
+    # Это необходимо для тестов валидации шаблонов
+    try:
+        copied_count = copy_templates_from_production_db(TEST_DB_PATH)
+        if copied_count > 0:
+            logger.debug(f"✅ Скопировано {copied_count} шаблонов из production БД в тестовую")
+        else:
+            logger.debug(f"ℹ️ Шаблоны не скопированы (production БД не найдена или пуста)")
+    except Exception as e:
+        logger.warning(f"⚠️ Не удалось скопировать шаблоны из production БД: {e}")
+        # Продолжаем выполнение - тесты могут создать свои тестовые шаблоны
     
     yield TEST_DB_PATH
     

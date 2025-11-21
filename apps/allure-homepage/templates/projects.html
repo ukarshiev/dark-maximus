@@ -235,6 +235,18 @@
             margin-left: 0.5rem;
         }
 
+        .report-date {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-top: 0.25rem;
+        }
+
+        .report-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
         .empty-state {
             text-align: center;
             padding: 3rem;
@@ -368,21 +380,95 @@
 
                 const projectsWithData = await Promise.all(projectPromises);
 
-                projectsEl.innerHTML = projectsWithData.map(({ id, data: projectData }) => {
-                    let reports = [];
-                    if (projectData && projectData.data && projectData.data.project) {
-                        const project = projectData.data.project;
-                        reports = project.reports_id || project.reports || [];
-                    }
+                // Загружаем информацию о датах отчетов для каждого проекта
+                const projectsWithDates = await Promise.all(
+                    projectsWithData.map(async ({ id, data: projectData }) => {
+                        let reports = [];
+                        if (projectData && projectData.data && projectData.data.project) {
+                            const project = projectData.data.project;
+                            reports = project.reports_id || project.reports || [];
+                        }
 
-                    const reportsList = reports.length > 0 
-                        ? reports.map((reportId, index) => {
+                        // Загружаем даты отчетов через API
+                        let reportsWithDates = [];
+                        if (reports.length > 0) {
+                            try {
+                                const datesResponse = await fetch(`/allure-docker-service/api/reports-with-dates?project=${id}`, {
+                                    headers: { 'Accept': 'application/json' }
+                                });
+                                if (datesResponse.ok) {
+                                    const datesData = await datesResponse.json();
+                                    // Создаем словарь report_id -> created_at
+                                    const datesMap = {};
+                                    if (datesData.reports && Array.isArray(datesData.reports)) {
+                                        datesData.reports.forEach(report => {
+                                            if (report.report_id) {
+                                                datesMap[report.report_id] = report.created_at;
+                                            }
+                                        });
+                                    }
+                                    // Формируем список отчетов с датами
+                                    reportsWithDates = reports.map(reportId => ({
+                                        id: reportId,
+                                        created_at: datesMap[reportId] || null
+                                    }));
+                                } else {
+                                    // Если не удалось получить даты, создаем список без дат
+                                    reportsWithDates = reports.map(reportId => ({
+                                        id: reportId,
+                                        created_at: null
+                                    }));
+                                }
+                            } catch (e) {
+                                console.error(`Ошибка загрузки дат отчетов для проекта ${id}:`, e);
+                                // Если ошибка, создаем список без дат
+                                reportsWithDates = reports.map(reportId => ({
+                                    id: reportId,
+                                    created_at: null
+                                }));
+                            }
+                        }
+
+                        return { id, data: projectData, reportsWithDates };
+                    })
+                );
+
+                projectsEl.innerHTML = projectsWithDates.map(({ id, data: projectData, reportsWithDates }) => {
+                    const reportsList = reportsWithDates.length > 0 
+                        ? reportsWithDates.map((report, index) => {
                             const isLatest = index === 0;
+                            const reportId = report.id;
+                            const created_at = report.created_at;
+                            
+                            // Форматируем дату, если доступна
+                            let dateHtml = '';
+                            if (created_at) {
+                                try {
+                                    const date = new Date(created_at);
+                                    const formattedDate = date.toLocaleString('ru-RU', {
+                                        day: '2-digit',
+                                        month: '2-digit',
+                                        year: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                    });
+                                    dateHtml = `<div class="report-date">${formattedDate}</div>`;
+                                } catch (e) {
+                                    // Если не удалось распарсить дату, показываем исходную строку
+                                    dateHtml = `<div class="report-date">${created_at}</div>`;
+                                }
+                            }
+                            
                             return `
                                 <div class="report-item">
                                     <div class="report-info">
-                                        <span class="report-id">Отчет #${reportId}</span>
-                                        ${isLatest ? '<span class="latest-badge">Последний</span>' : ''}
+                                        <div class="report-meta">
+                                            <div>
+                                                <span class="report-id">Отчет #${reportId}</span>
+                                                ${isLatest ? '<span class="latest-badge">Последний</span>' : ''}
+                                            </div>
+                                            ${dateHtml}
+                                        </div>
                                     </div>
                                     <a href="/allure-docker-service/projects/${id}/reports/${reportId}/index.html" 
                                        class="report-link">
@@ -392,7 +478,7 @@
                             `;
                         }).join('')
                         : '<div class="empty-state" style="padding: 1rem;"><p>Отчеты не найдены</p></div>';
-
+                    
                     return `
                         <div class="project-card">
                             <div class="project-header">
@@ -400,9 +486,9 @@
                                     <span class="project-icon">📦</span>
                                     ${id}
                                 </h2>
-                                <span class="reports-count">${reports.length} ${reports.length === 1 ? 'отчет' : reports.length < 5 ? 'отчета' : 'отчетов'}</span>
+                                <span class="reports-count">${reportsWithDates.length} ${reportsWithDates.length === 1 ? 'отчет' : reportsWithDates.length < 5 ? 'отчета' : 'отчетов'}</span>
                             </div>
-                            ${reports.length > 0 ? `
+                            ${reportsWithDates.length > 0 ? `
                                 <div class="reports-list">
                                     <div class="reports-list-title">История отчетов:</div>
                                     ${reportsList}

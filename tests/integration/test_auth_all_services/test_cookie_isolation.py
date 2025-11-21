@@ -259,3 +259,4 @@ class TestCookieIsolation:
                 allure.attachment_type.TEXT
             )
 
+

@@ -420,6 +420,17 @@ def create_webhook_app(bot_controller_instance):
     @flask_app.route('/logout', methods=['POST'])
     @login_required
     def logout_page():
+        service_name = 'panel'
+        session_id = session.get('_id', 'unknown')
+        client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
+        if client_ip:
+            client_ip = client_ip.split(',')[0].strip()
+        
+        logger.info(
+            f"[AUTH] [{service_name}] Logout: "
+            f"ip={client_ip}, session_id={session_id}"
+        )
+        
         session.pop('logged_in', None)
         flash('Вы успешно вышли.', 'success')
         return redirect(url_for('login_page'))

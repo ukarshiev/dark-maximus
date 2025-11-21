@@ -11,13 +11,11 @@ Integration тесты для полной поддержки timezone
 """
 
 import sys
-import unittest
+import pytest
+import allure
 import sqlite3
-import tempfile
-import shutil
 from datetime import datetime, timedelta, timezone as dt_timezone
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 # Добавляем путь к модулям проекта
 project_root = Path(__file__).parent.parent.parent
@@ -34,500 +32,603 @@ from shop_bot.utils.datetime_utils import (
 )
 
 
-class TestTimezoneIntegration(unittest.TestCase):
-    """Интеграционные тесты для timezone support"""
+def init_test_database(temp_db):
+    """Инициализирует тестовую БД с нужной структурой"""
+    from shop_bot.data_manager import database
+    conn = sqlite3.connect(str(temp_db))
+    cursor = conn.cursor()
     
-    @classmethod
-    def setUpClass(cls):
-        """Подготовка тестовой среды"""
-        # Используем фикстуру temp_db из conftest.py
-        print(f"\n[SETUP] Используется тестовая БД из фикстуры temp_db")
+    # Создаем таблицу настроек (vpn_keys уже создана через database.initialize_db())
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS bot_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    """)
     
-    @classmethod
-    def tearDownClass(cls):
-        """Очистка после тестов"""
-        # Фикстура temp_db сама управляет очисткой
-        print(f"[TEARDOWN] Тестовая БД будет очищена фикстурой")
+    # Добавляем feature flag (по умолчанию выключен)
+    cursor.execute("""
+        INSERT OR REPLACE INTO bot_settings (key, value)
+        VALUES ('feature_timezone_enabled', '0')
+    """)
     
-    def setUp(self):
-        """Подготовка перед каждым тестом"""
-        # Используем database.DB_FILE (уже заменен через monkeypatch в фикстуре temp_db)
-        from shop_bot.data_manager import database
-        
-        # Инициализируем тестовую БД
-        self._init_test_database()
-    
-    def tearDown(self):
-        """Очистка после каждого теста"""
-        pass  # Фикстура temp_db сама управляет очисткой
-    
-    def _init_test_database(self):
-        """Инициализирует тестовую БД с нужной структурой"""
-        from shop_bot.data_manager import database
-        # Используем database.DB_FILE (который патчится через monkeypatch в фикстуре temp_db)
-        # В unittest.TestCase фикстура temp_db применяется через monkeypatch к database.DB_FILE
-        conn = sqlite3.connect(str(database.DB_FILE))
-        cursor = conn.cursor()
-        
-        # Создаем таблицу users с поддержкой timezone
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                user_id INTEGER PRIMARY KEY,
-                username TEXT,
-                key TEXT,
-                expiry_date TEXT,
-                timezone TEXT DEFAULT 'Europe/Moscow',
-                balance REAL DEFAULT 0.0,
-                auto_renewal INTEGER DEFAULT 0,
-                created_at TEXT,
-                updated_at TEXT
-            )
-        """)
-        
-        # Создаем таблицу настроек
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS bot_settings (
-                key TEXT PRIMARY KEY,
-                value TEXT,
-                updated_at TEXT
-            )
-        """)
-        
-        # Добавляем feature flag (по умолчанию выключен)
-        cursor.execute("""
-            INSERT OR REPLACE INTO bot_settings (key, value, updated_at)
-            VALUES ('feature_timezone_enabled', '0', ?)
-        """, (datetime.now(UTC).isoformat(),))
-        
-        conn.commit()
-        conn.close()
-        
-        print(f"[INIT] Инициализирована тестовая БД")
-    
-    def _get_user_from_db(self, user_id: int):
-        """Получает пользователя из БД"""
-        from shop_bot.data_manager import database
-        # Используем database.DB_FILE (который патчится через monkeypatch в фикстуре temp_db)
-        # В unittest.TestCase фикстура temp_db применяется через monkeypatch к database.DB_FILE
-        conn = sqlite3.connect(str(database.DB_FILE))
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
-        result = cursor.fetchone()
-        conn.close()
-        return result
-    
-    def _set_feature_flag(self, enabled: bool):
-        """Устанавливает feature flag"""
-        from shop_bot.data_manager import database
-        # Используем database.DB_FILE (который патчится через monkeypatch в фикстуре temp_db)
-        # В unittest.TestCase фикстура temp_db применяется через monkeypatch к database.DB_FILE
-        conn = sqlite3.connect(str(database.DB_FILE))
-        cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE bot_settings 
-            SET value = ?, updated_at = ?
-            WHERE key = 'feature_timezone_enabled'
-        """, ('1' if enabled else '0', datetime.now(UTC).isoformat()))
-        conn.commit()
-        conn.close()
-        
-        print(f"[FLAG] Feature flag установлен: {enabled}")
+    conn.commit()
+    conn.close()
 
 
-class TestKeyCreationStoresUTC(TestTimezoneIntegration):
+def get_key_from_db(temp_db, key_id: int):
+    """Получает ключ из БД"""
+    conn = sqlite3.connect(str(temp_db))
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM vpn_keys WHERE key_id = ?", (key_id,))
+    result = cursor.fetchone()
+    conn.close()
+    return result
+
+
+def set_feature_flag(temp_db, enabled: bool):
+    """Устанавливает feature flag"""
+    conn = sqlite3.connect(str(temp_db))
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE bot_settings 
+        SET value = ?
+        WHERE key = 'feature_timezone_enabled'
+    """, ('1' if enabled else '0',))
+    conn.commit()
+    conn.close()
+
+
+@pytest.mark.integration
+@pytest.mark.database
+@allure.epic("Интеграционные тесты")
+@allure.feature("Timezone")
+@allure.label("package", "tests.integration.test_timezone_integration")
+class TestKeyCreationStoresUTC:
     """Тесты: создание ключа сохраняет дату в UTC"""
     
-    def test_new_key_expiry_date_is_utc_naive(self):
-        """
-        Тест 1: Создание нового ключа сохраняет expiry_date в UTC без tzinfo
-        """
-        print("\n[TEST] Создание ключа -> проверка UTC в БД")
+    @allure.story("Создание ключа сохраняет дату в UTC")
+    @allure.title("Создание нового ключа сохраняет expiry_date в UTC без tzinfo")
+    @allure.description("""
+    Проверяет, что при создании нового ключа expiry_date сохраняется в UTC без tzinfo.
+    
+    **Что проверяется:**
+    - Создание ключа с expiry_date
+    - Сохранение в БД в формате UTC (naive)
+    - Корректность чтения из БД
+    - Отсутствие tzinfo в сохраненной дате
+    
+    **Тестовые данные:**
+    - user_id: 12345
+    - username: "test_user"
+    - expiry_date: текущее время + 30 дней
+    
+    **Предусловия:**
+    - Используется временная БД (temp_db)
+    - БД инициализирована с нужной структурой
+    
+    **Шаги теста:**
+    1. Создание тестового пользователя с ключом
+    2. Конвертация timestamp в naive UTC
+    3. Сохранение в БД
+    4. Чтение из БД и проверка формата
+    
+    **Ожидаемый результат:**
+    expiry_date в БД должен быть naive (без tzinfo) и в формате UTC.
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("timezone", "integration", "key_creation", "utc", "database")
+    def test_new_key_expiry_date_is_utc_naive(self, temp_db):
+        """Тест создания нового ключа с сохранением expiry_date в UTC"""
+        init_test_database(temp_db)
         
-        # 1. Создаем тестового пользователя с ключом
-        user_id = 12345
-        username = "test_user"
+        with allure.step("Подготовка тестовых данных"):
+            user_id = 12345
+            username = "test_user"
+            now_utc = datetime.now(UTC)
+            future_utc = now_utc + timedelta(days=30)
+            expiry_timestamp_ms = int(future_utc.timestamp() * 1000)
+            expiry_date = timestamp_to_utc_datetime(expiry_timestamp_ms)
+            allure.attach(str(expiry_date), "expiry_date", allure.attachment_type.TEXT)
         
-        # Симулируем timestamp из API (срок через 30 дней)
-        now_utc = datetime.now(UTC)
-        future_utc = now_utc + timedelta(days=30)
-        expiry_timestamp_ms = int(future_utc.timestamp() * 1000)
+        with allure.step("Сохранение ключа в БД"):
+            conn = sqlite3.connect(str(temp_db))
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO vpn_keys (user_id, host_name, xui_client_uuid, key_email, expiry_date, created_date)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                user_id,
+                "test-host",
+                "test-uuid-12345",
+                "test-key-12345@example.com",
+                expiry_date.isoformat(),
+                now_utc.isoformat()
+            ))
+            key_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            allure.attach(str(key_id), "ID созданного ключа", allure.attachment_type.TEXT)
         
-        # 2. Конвертируем timestamp в naive UTC (как это делает наш код)
-        expiry_date = timestamp_to_utc_datetime(expiry_timestamp_ms)
-        
-        # 3. Сохраняем в БД
-        from shop_bot.data_manager import database
-        # Используем database.DB_FILE (который патчится через monkeypatch в фикстуре temp_db)
-        # В unittest.TestCase фикстура temp_db применяется через monkeypatch к database.DB_FILE
-        conn = sqlite3.connect(str(database.DB_FILE))
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO users (user_id, username, key, expiry_date, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            user_id,
-            username,
-            "test-key-12345",
-            expiry_date.isoformat(),
-            now_utc.isoformat(),
-            now_utc.isoformat()
-        ))
-        conn.commit()
-        conn.close()
-        
-        # 4. Читаем из БД и проверяем
-        user = self._get_user_from_db(user_id)
-        self.assertIsNotNone(user, "Пользователь должен быть создан")
-        
-        # Парсим expiry_date из БД
-        expiry_str = user[3]  # expiry_date
-        expiry_from_db = datetime.fromisoformat(expiry_str)
-        
-        # Проверяем, что дата naive (без tzinfo)
-        self.assertIsNone(
-            expiry_from_db.tzinfo,
-            "expiry_date в БД должен быть naive (без tzinfo)"
-        )
-        
-        # Проверяем, что дата правильная (±1 секунда)
-        diff = abs((expiry_from_db - expiry_date).total_seconds())
-        self.assertLess(diff, 1, "Дата должна совпадать с ожидаемой")
-        
-        print(f"[+] Дата сохранена в UTC (naive): {expiry_from_db.isoformat()}")
+        with allure.step("Проверка данных из БД"):
+            key = get_key_from_db(temp_db, key_id)
+            assert key is not None, "Ключ должен быть создан"
+            
+            expiry_str = key[5]  # expiry_date (колонка 5 в vpn_keys)
+            expiry_from_db = datetime.fromisoformat(expiry_str)
+            allure.attach(str(expiry_from_db), "expiry_from_db", allure.attachment_type.TEXT)
+            
+            assert expiry_from_db.tzinfo is None, "expiry_date в БД должен быть naive (без tzinfo)"
+            
+            diff = abs((expiry_from_db - expiry_date).total_seconds())
+            assert diff < 1, f"Дата должна совпадать с ожидаемой (разница: {diff} сек)"
 
 
-class TestNotificationTiming(TestTimezoneIntegration):
+@pytest.mark.integration
+@pytest.mark.database
+@allure.epic("Интеграционные тесты")
+@allure.feature("Timezone")
+@allure.label("package", "tests.integration.test_timezone_integration")
+class TestNotificationTiming:
     """Тесты: уведомления приходят вовремя"""
     
-    def test_notification_sent_at_correct_time(self):
-        """
-        Тест 2: Уведомление за 1 час должно прийти ровно за 1 час
-        """
-        print("\n[TEST] Уведомление -> проверка правильного времени")
+    @allure.story("Уведомления приходят в правильное время")
+    @allure.title("Уведомление за 1 час должно прийти ровно за 1 час")
+    @allure.description("""
+    Проверяет, что уведомление за 1 час до истечения ключа приходит в правильное время.
+    
+    **Что проверяется:**
+    - Создание ключа с истечением через 1 час
+    - Расчет оставшегося времени
+    - Корректность времени отправки уведомления
+    
+    **Тестовые данные:**
+    - user_id: 12346
+    - expiry_date: текущее время + 1 час
+    
+    **Предусловия:**
+    - Используется временная БД (temp_db)
+    - БД инициализирована с нужной структурой
+    
+    **Шаги теста:**
+    1. Создание ключа с истечением через 1 час
+    2. Вычисление оставшегося времени
+    3. Проверка корректности времени уведомления
+    
+    **Ожидаемый результат:**
+    Оставшееся время должно быть примерно 3600 секунд (1 час).
+    Уведомление должно отправиться примерно сейчас (за 1 час до истечения).
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("timezone", "integration", "notifications", "timing", "database")
+    def test_notification_sent_at_correct_time(self, temp_db):
+        """Тест правильного времени отправки уведомления"""
+        init_test_database(temp_db)
         
-        # 1. Создаем ключ с истечением через 1 час
-        user_id = 12346
-        now_utc = get_current_utc_naive()
-        expiry_date = now_utc + timedelta(hours=1)
+        with allure.step("Создание ключа с истечением через 1 час"):
+            user_id = 12346
+            now_utc = get_current_utc_naive()
+            expiry_date = now_utc + timedelta(hours=1)
+            allure.attach(str(expiry_date), "expiry_date", allure.attachment_type.TEXT)
+            
+            conn = sqlite3.connect(str(temp_db))
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO vpn_keys (user_id, host_name, xui_client_uuid, key_email, expiry_date, created_date)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                user_id,
+                "test-host",
+                "test-uuid-notify",
+                "test-key-notify@example.com",
+                expiry_date.isoformat(),
+                now_utc.isoformat()
+            ))
+            conn.commit()
+            conn.close()
         
-        from shop_bot.data_manager import database
-        # Используем database.DB_FILE (который патчится через monkeypatch в фикстуре temp_db)
-        # В unittest.TestCase фикстура temp_db применяется через monkeypatch к database.DB_FILE
-        conn = sqlite3.connect(str(database.DB_FILE))
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO users (user_id, username, key, expiry_date, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            user_id,
-            "test_user_notify",
-            "test-key-notify",
-            expiry_date.isoformat(),
-            now_utc.isoformat(),
-            now_utc.isoformat()
-        ))
-        conn.commit()
-        conn.close()
+        with allure.step("Вычисление оставшегося времени"):
+            expiry_timestamp_ms = int(expiry_date.replace(tzinfo=UTC).timestamp() * 1000)
+            remaining_seconds = calculate_remaining_seconds(expiry_timestamp_ms)
+            allure.attach(str(remaining_seconds), "remaining_seconds", allure.attachment_type.TEXT)
+            
+            expected_seconds = 3600
+            diff = abs(remaining_seconds - expected_seconds)
+            assert diff < 10, f"Оставшееся время должно быть ~3600 сек, получено: {remaining_seconds}"
         
-        # 2. Вычисляем оставшееся время
-        expiry_timestamp_ms = int(expiry_date.replace(tzinfo=UTC).timestamp() * 1000)
-        remaining_seconds = calculate_remaining_seconds(expiry_timestamp_ms)
-        
-        # 3. Проверяем, что remaining_seconds примерно 3600 (1 час)
-        expected_seconds = 3600
-        diff = abs(remaining_seconds - expected_seconds)
-        
-        self.assertLess(
-            diff,
-            10,
-            f"Оставшееся время должно быть ~3600 сек, получено: {remaining_seconds}"
-        )
-        
-        print(f"[+] Оставшееся время: {remaining_seconds} сек (ожидалось: ~3600 сек)")
-        
-        # 4. Проверяем, что уведомление должно прийти примерно через 1 час
-        # (В реальной системе это проверит scheduler)
-        notification_time = now_utc + timedelta(seconds=remaining_seconds) - timedelta(hours=1)
-        time_diff = abs((notification_time - now_utc).total_seconds())
-        
-        self.assertLess(
-            time_diff,
-            10,
-            "Уведомление должно отправиться примерно сейчас (за 1 час до истечения)"
-        )
-        
-        print(f"[+] Уведомление будет отправлено в правильное время")
+        with allure.step("Проверка времени отправки уведомления"):
+            notification_time = now_utc + timedelta(seconds=remaining_seconds) - timedelta(hours=1)
+            time_diff = abs((notification_time - now_utc).total_seconds())
+            assert time_diff < 10, "Уведомление должно отправиться примерно сейчас (за 1 час до истечения)"
 
 
-class TestTimezoneDisplay(TestTimezoneIntegration):
+@pytest.mark.integration
+@pytest.mark.database
+@allure.epic("Интеграционные тесты")
+@allure.feature("Timezone")
+@allure.label("package", "tests.integration.test_timezone_integration")
+class TestTimezoneDisplay:
     """Тесты: смена timezone корректно меняет отображение"""
     
-    def test_timezone_change_updates_display(self):
-        """
-        Тест 3: Смена timezone корректно изменяет отображаемое время
-        """
-        print("\n[TEST] Смена timezone -> проверка отображения")
-        
-        # 1. Создаем тестовую дату в UTC
-        dt_utc = datetime(2025, 1, 1, 12, 0, 0)  # 12:00 UTC
-        
-        # 2. Включаем feature flag
-        self._set_feature_flag(True)
-        
-        # 3. Проверяем отображение для Moscow (UTC+3)
-        moscow_display = format_datetime_for_user(
-            dt_utc,
-            user_timezone="Europe/Moscow",
-            feature_enabled=True
-        )
-        
-        self.assertIn("01.01.2025", moscow_display)
-        self.assertIn("15:00", moscow_display, "12:00 UTC = 15:00 MSK")
-        self.assertIn("UTC", moscow_display)
-        print(f"[+] Moscow: {moscow_display}")
-        
-        # 4. Проверяем отображение для Yekaterinburg (UTC+5)
-        yekaterinburg_display = format_datetime_for_user(
-            dt_utc,
-            user_timezone="Asia/Yekaterinburg",
-            feature_enabled=True
-        )
-        
-        self.assertIn("01.01.2025", yekaterinburg_display)
-        # На Windows может быть fallback на Moscow
-        # На Unix должно быть 17:00
-        self.assertNotIn("12:00", yekaterinburg_display, "Время должно быть конвертировано")
-        self.assertIn("UTC", yekaterinburg_display)
-        print(f"[+] Yekaterinburg: {yekaterinburg_display}")
-        
-        # 5. Проверяем отображение для UTC
-        utc_display = format_datetime_for_user(
-            dt_utc,
-            user_timezone="UTC",
-            feature_enabled=True
-        )
-        
-        self.assertIn("01.01.2025", utc_display)
-        # На Windows с fallback будет Moscow (15:00), на Unix - UTC (12:00)
-        # Проверяем, что хотя бы дата правильная
-        self.assertIn("2025", utc_display, "Дата должна быть правильной")
-        self.assertIn("UTC", utc_display)
-        print(f"[+] UTC: {utc_display}")
+    @allure.story("Смена timezone корректно изменяет отображаемое время")
+    @allure.title("Смена timezone корректно изменяет отображаемое время")
+    @allure.description("""
+    Проверяет, что смена timezone корректно изменяет отображаемое время для пользователя.
     
-    def test_feature_flag_disabled_uses_moscow(self):
-        """
-        Тест 4: При выключенном feature flag используется Moscow
-        """
-        print("\n[TEST] Feature flag выключен -> используется Moscow")
+    **Что проверяется:**
+    - Отображение времени для разных timezone (Moscow, Yekaterinburg, UTC)
+    - Корректность конвертации времени
+    - Работа feature flag
+    
+    **Тестовые данные:**
+    - dt_utc: 2025-01-01 12:00:00 UTC
+    - timezone: Europe/Moscow, Asia/Yekaterinburg, UTC
+    
+    **Предусловия:**
+    - Используется временная БД (temp_db)
+    - Feature flag включен
+    
+    **Шаги теста:**
+    1. Создание тестовой даты в UTC
+    2. Включение feature flag
+    3. Проверка отображения для разных timezone
+    
+    **Ожидаемый результат:**
+    Время должно корректно конвертироваться для каждого timezone.
+    Moscow: 12:00 UTC = 15:00 MSK
+    Yekaterinburg: 12:00 UTC = 17:00 YEKT (или fallback на Moscow на Windows)
+    UTC: 12:00 UTC = 12:00 UTC
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("timezone", "integration", "display", "formatting")
+    def test_timezone_change_updates_display(self, temp_db):
+        """Тест изменения отображения времени при смене timezone"""
+        init_test_database(temp_db)
+        set_feature_flag(temp_db, True)
         
-        dt_utc = datetime(2025, 1, 1, 12, 0, 0)
+        with allure.step("Подготовка тестовой даты"):
+            dt_utc = datetime(2025, 1, 1, 12, 0, 0)  # 12:00 UTC
+            allure.attach(str(dt_utc), "dt_utc", allure.attachment_type.TEXT)
         
-        # Feature flag выключен
-        result = format_datetime_for_user(
-            dt_utc,
-            user_timezone="Asia/Tokyo",  # Указываем Tokyo
-            feature_enabled=False  # Но flag выключен
-        )
+        with allure.step("Проверка отображения для Moscow (UTC+3)"):
+            moscow_display = format_datetime_for_user(
+                dt_utc,
+                user_timezone="Europe/Moscow",
+                feature_enabled=True
+            )
+            allure.attach(moscow_display, "moscow_display", allure.attachment_type.TEXT)
+            assert "01.01.2025" in moscow_display
+            assert "15:00" in moscow_display, "12:00 UTC = 15:00 MSK"
+            assert "UTC" in moscow_display
         
-        # Должно использоваться Moscow, а не Tokyo
-        self.assertIn("15:00", result, "При выключенном flag должно быть Moscow время")
-        self.assertIn("UTC+3", result)
-        print(f"[+] Используется Moscow: {result}")
+        with allure.step("Проверка отображения для Yekaterinburg (UTC+5)"):
+            yekaterinburg_display = format_datetime_for_user(
+                dt_utc,
+                user_timezone="Asia/Yekaterinburg",
+                feature_enabled=True
+            )
+            allure.attach(yekaterinburg_display, "yekaterinburg_display", allure.attachment_type.TEXT)
+            assert "01.01.2025" in yekaterinburg_display
+            assert "12:00" not in yekaterinburg_display, "Время должно быть конвертировано"
+            assert "UTC" in yekaterinburg_display
+        
+        with allure.step("Проверка отображения для UTC"):
+            utc_display = format_datetime_for_user(
+                dt_utc,
+                user_timezone="UTC",
+                feature_enabled=True
+            )
+            allure.attach(utc_display, "utc_display", allure.attachment_type.TEXT)
+            assert "01.01.2025" in utc_display
+            assert "2025" in utc_display, "Дата должна быть правильной"
+            assert "UTC" in utc_display
+    
+    @allure.story("При выключенном feature flag используется Moscow")
+    @allure.title("При выключенном feature flag используется Moscow")
+    @allure.description("""
+    Проверяет, что при выключенном feature flag используется Moscow timezone независимо от указанного timezone.
+    
+    **Что проверяется:**
+    - Поведение при выключенном feature flag
+    - Использование Moscow timezone по умолчанию
+    - Игнорирование указанного timezone
+    
+    **Тестовые данные:**
+    - dt_utc: 2025-01-01 12:00:00 UTC
+    - user_timezone: "Asia/Tokyo" (указывается, но игнорируется)
+    - feature_enabled: False
+    
+    **Предусловия:**
+    - Feature flag выключен
+    
+    **Шаги теста:**
+    1. Создание тестовой даты
+    2. Форматирование с выключенным feature flag
+    3. Проверка использования Moscow timezone
+    
+    **Ожидаемый результат:**
+    При выключенном flag должно использоваться Moscow время (15:00), а не Tokyo.
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("timezone", "integration", "display", "feature_flag")
+    def test_feature_flag_disabled_uses_moscow(self, temp_db):
+        """Тест использования Moscow при выключенном feature flag"""
+        init_test_database(temp_db)
+        
+        with allure.step("Подготовка тестовой даты"):
+            dt_utc = datetime(2025, 1, 1, 12, 0, 0)
+            allure.attach(str(dt_utc), "dt_utc", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка форматирования с выключенным feature flag"):
+            result = format_datetime_for_user(
+                dt_utc,
+                user_timezone="Asia/Tokyo",  # Указываем Tokyo
+                feature_enabled=False  # Но flag выключен
+            )
+            allure.attach(result, "result", allure.attachment_type.TEXT)
+            assert "15:00" in result, "При выключенном flag должно быть Moscow время"
+            assert "UTC+3" in result
 
 
-class TestAutoRenewalTiming(TestTimezoneIntegration):
+@pytest.mark.integration
+@pytest.mark.database
+@allure.epic("Интеграционные тесты")
+@allure.feature("Timezone")
+@allure.label("package", "tests.integration.test_timezone_integration")
+class TestAutoRenewalTiming:
     """Тесты: автопродление работает вовремя"""
     
-    def test_auto_renewal_triggers_at_correct_time(self):
-        """
-        Тест 5: Автопродление срабатывает в правильное время
-        """
-        print("\n[TEST] Автопродление -> проверка времени срабатывания")
+    @allure.story("Автопродление срабатывает в правильное время")
+    @allure.title("Автопродление срабатывает в правильное время")
+    @allure.description("""
+    Проверяет, что автопродление срабатывает в правильное время (за 1 час до истечения ключа).
+    
+    **Что проверяется:**
+    - Создание пользователя с балансом и включенным автопродлением
+    - Расчет времени срабатывания автопродления
+    - Корректность времени истечения в UTC
+    
+    **Тестовые данные:**
+    - user_id: 12347
+    - expiry_date: текущее время + 2 часа
+    - balance: 100.0
+    - auto_renewal: 1 (включено)
+    
+    **Предусловия:**
+    - Используется временная БД (temp_db)
+    - БД инициализирована с нужной структурой
+    
+    **Шаги теста:**
+    1. Создание пользователя с балансом и автопродлением
+    2. Вычисление времени срабатывания автопродления
+    3. Проверка формата expiry_date в UTC
+    
+    **Ожидаемый результат:**
+    Автопродление должно сработать примерно через 1 час от текущего момента.
+    expiry_date должен быть в UTC (naive).
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("timezone", "integration", "auto_renewal", "timing", "database")
+    def test_auto_renewal_triggers_at_correct_time(self, temp_db):
+        """Тест правильного времени срабатывания автопродления"""
+        init_test_database(temp_db)
         
-        # 1. Создаем пользователя с балансом и включенным автопродлением
-        user_id = 12347
-        now_utc = get_current_utc_naive()
-        expiry_date = now_utc + timedelta(hours=2)  # Истекает через 2 часа
+        with allure.step("Создание пользователя с балансом и автопродлением"):
+            user_id = 12347
+            now_utc = get_current_utc_naive()
+            expiry_date = now_utc + timedelta(hours=2)  # Истекает через 2 часа
+            allure.attach(str(expiry_date), "expiry_date", allure.attachment_type.TEXT)
+            
+            conn = sqlite3.connect(str(temp_db))
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO vpn_keys (user_id, host_name, xui_client_uuid, key_email, expiry_date, created_date)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                user_id,
+                "test-host",
+                "test-uuid-renewal",
+                "test-key-renewal@example.com",
+                expiry_date.isoformat(),
+                now_utc.isoformat()
+            ))
+            key_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            allure.attach(str(key_id), "ID созданного ключа", allure.attachment_type.TEXT)
         
-        from shop_bot.data_manager import database
-        # Используем database.DB_FILE (который патчится через monkeypatch в фикстуре temp_db)
-        # В unittest.TestCase фикстура temp_db применяется через monkeypatch к database.DB_FILE
-        conn = sqlite3.connect(str(database.DB_FILE))
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO users (user_id, username, key, expiry_date, balance, auto_renewal, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            user_id,
-            "test_user_renewal",
-            "test-key-renewal",
-            expiry_date.isoformat(),
-            100.0,  # Достаточно баланса
-            1,  # Автопродление включено
-            now_utc.isoformat(),
-            now_utc.isoformat()
-        ))
-        conn.commit()
-        conn.close()
+        with allure.step("Вычисление времени срабатывания автопродления"):
+            expiry_timestamp_ms = int(expiry_date.replace(tzinfo=UTC).timestamp() * 1000)
+            remaining_seconds = calculate_remaining_seconds(expiry_timestamp_ms)
+            
+            # Автопродление должно сработать за 1 час (3600 секунд) до истечения
+            auto_renewal_delay = remaining_seconds - 3600
+            allure.attach(str(auto_renewal_delay), "auto_renewal_delay", allure.attachment_type.TEXT)
+            
+            assert auto_renewal_delay > 3500, "Автопродление через ~1 час"
+            assert auto_renewal_delay < 3700, "Автопродление через ~1 час"
         
-        # 2. Вычисляем, когда должно сработать автопродление (за 1 час)
-        expiry_timestamp_ms = int(expiry_date.replace(tzinfo=UTC).timestamp() * 1000)
-        remaining_seconds = calculate_remaining_seconds(expiry_timestamp_ms)
-        
-        # Автопродление должно сработать за 1 час (3600 секунд) до истечения
-        auto_renewal_delay = remaining_seconds - 3600
-        
-        # Проверяем, что это примерно через 1 час от текущего момента
-        self.assertGreater(auto_renewal_delay, 3500, "Автопродление через ~1 час")
-        self.assertLess(auto_renewal_delay, 3700, "Автопродление через ~1 час")
-        
-        print(f"[+] Автопродление сработает через: {auto_renewal_delay} сек (~1 час)")
-        
-        # 3. Проверяем, что время истечения в UTC
-        user = self._get_user_from_db(user_id)
-        expiry_str = user[3]
-        expiry_from_db = datetime.fromisoformat(expiry_str)
-        
-        self.assertIsNone(expiry_from_db.tzinfo, "expiry_date должен быть в UTC (naive)")
-        print(f"[+] expiry_date в UTC: {expiry_from_db.isoformat()}")
+        with allure.step("Проверка формата expiry_date в UTC"):
+            key = get_key_from_db(temp_db, key_id)
+            expiry_str = key[5]  # expiry_date (колонка 5 в vpn_keys)
+            expiry_from_db = datetime.fromisoformat(expiry_str)
+            allure.attach(str(expiry_from_db), "Дата из БД", allure.attachment_type.TEXT)
+            assert expiry_from_db.tzinfo is None, "expiry_date должен быть в UTC (naive)"
 
 
-class TestBackwardCompatibility(TestTimezoneIntegration):
+@pytest.mark.integration
+@pytest.mark.database
+@allure.epic("Интеграционные тесты")
+@allure.feature("Timezone")
+@allure.label("package", "tests.integration.test_timezone_integration")
+class TestBackwardCompatibility:
     """Тесты: обратная совместимость со старыми данными"""
     
-    def test_existing_keys_work_correctly(self):
-        """
-        Тест 6: Существующие ключи (без timezone) работают корректно
-        """
-        print("\n[TEST] Обратная совместимость -> старые ключи")
+    @allure.story("Обратная совместимость со старыми ключами")
+    @allure.title("Существующие ключи (без timezone) работают корректно")
+    @allure.description("""
+    Проверяет, что существующие ключи (созданные до внедрения timezone) работают корректно.
+    
+    **Что проверяется:**
+    - Создание "старого" ключа без timezone
+    - Корректность чтения из БД
+    - Работа форматирования для старых ключей
+    
+    **Тестовые данные:**
+    - user_id: 12348
+    - expiry_date: текущее время + 30 дней
+    - timezone: не указан (старый формат)
+    
+    **Предусловия:**
+    - Используется временная БД (temp_db)
+    - БД инициализирована с нужной структурой
+    
+    **Шаги теста:**
+    1. Создание "старого" ключа без timezone
+    2. Чтение из БД
+    3. Проверка форматирования
+    
+    **Ожидаемый результат:**
+    Старый формат должен работать корректно.
+    Форматирование должно использовать Moscow по умолчанию.
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("timezone", "integration", "backward_compatibility", "database")
+    def test_existing_keys_work_correctly(self, temp_db):
+        """Тест обратной совместимости со старыми ключами"""
+        init_test_database(temp_db)
         
-        # 1. Создаем "старый" ключ (до внедрения timezone)
-        user_id = 12348
-        now_utc = get_current_utc_naive()
-        expiry_date = now_utc + timedelta(days=30)
+        with allure.step("Создание старого ключа без timezone"):
+            user_id = 12348
+            now_utc = get_current_utc_naive()
+            expiry_date = now_utc + timedelta(days=30)
+            allure.attach(str(expiry_date), "expiry_date", allure.attachment_type.TEXT)
+            
+            conn = sqlite3.connect(str(temp_db))
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO vpn_keys (user_id, host_name, xui_client_uuid, key_email, expiry_date, created_date)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                user_id,
+                "test-host",
+                "test-uuid-old",
+                "old-key-12348@example.com",
+                expiry_date.isoformat(),
+                now_utc.isoformat()
+            ))
+            key_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            allure.attach(str(key_id), "ID созданного ключа", allure.attachment_type.TEXT)
         
-        from shop_bot.data_manager import database
-        # Используем database.DB_FILE (который патчится через monkeypatch в фикстуре temp_db)
-        # В unittest.TestCase фикстура temp_db применяется через monkeypatch к database.DB_FILE
-        conn = sqlite3.connect(str(database.DB_FILE))
-        cursor = conn.cursor()
+        with allure.step("Проверка чтения из БД"):
+            key = get_key_from_db(temp_db, key_id)
+            expiry_str = key[5]  # expiry_date (колонка 5 в vpn_keys)
+            expiry_from_db = datetime.fromisoformat(expiry_str)
+            assert expiry_from_db.tzinfo is None, "Старый формат без tzinfo"
         
-        # Вставляем БЕЗ timezone (старый формат)
-        cursor.execute("""
-            INSERT INTO users (user_id, username, key, expiry_date, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            user_id,
-            "old_user",
-            "old-key-12348",
-            expiry_date.isoformat(),
-            now_utc.isoformat(),
-            now_utc.isoformat()
-        ))
-        conn.commit()
-        conn.close()
-        
-        # 2. Читаем и проверяем, что дата читается корректно
-        user = self._get_user_from_db(user_id)
-        expiry_str = user[3]
-        expiry_from_db = datetime.fromisoformat(expiry_str)
-        
-        # 3. Проверяем, что старый формат работает
-        self.assertIsNone(expiry_from_db.tzinfo, "Старый формат без tzinfo")
-        
-        # 4. Проверяем, что форматирование работает (должен использоваться Moscow по умолчанию)
-        formatted = format_datetime_for_user(
-            expiry_from_db,
-            user_timezone=None,  # Не указан timezone
-            feature_enabled=True
-        )
-        
-        self.assertIsNotNone(formatted, "Форматирование должно работать")
-        self.assertIn("UTC", formatted)
-        print(f"[+] Старый ключ работает: {formatted}")
+        with allure.step("Проверка форматирования"):
+            formatted = format_datetime_for_user(
+                expiry_from_db,
+                user_timezone=None,  # Не указан timezone
+                feature_enabled=True
+            )
+            allure.attach(formatted, "formatted", allure.attachment_type.TEXT)
+            assert formatted is not None, "Форматирование должно работать"
+            assert "UTC" in formatted
 
 
-class TestEdgeCases(TestTimezoneIntegration):
+@pytest.mark.integration
+@pytest.mark.database
+@allure.epic("Интеграционные тесты")
+@allure.feature("Timezone")
+@allure.label("package", "tests.integration.test_timezone_integration")
+class TestEdgeCases:
     """Тесты: граничные случаи"""
     
-    def test_expired_key_returns_zero_remaining(self):
-        """
-        Тест 7: Истекший ключ возвращает 0 оставшихся секунд
-        """
-        print("\n[TEST] Граничный случай -> истекший ключ")
+    @allure.story("Граничные случаи работы с timezone")
+    @allure.title("Истекший ключ возвращает 0 оставшихся секунд")
+    @allure.description("""
+    Проверяет, что для истекшего ключа функция calculate_remaining_seconds возвращает 0.
+    
+    **Что проверяется:**
+    - Обработка истекшего ключа
+    - Возврат 0 секунд для истекшего ключа
+    
+    **Тестовые данные:**
+    - expired_date: текущее время - 1 час
+    
+    **Предусловия:**
+    - Нет (не требуется БД)
+    
+    **Шаги теста:**
+    1. Создание истекшей даты
+    2. Вычисление оставшихся секунд
+    3. Проверка результата
+    
+    **Ожидаемый результат:**
+    Для истекшего ключа должно быть 0 секунд.
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("timezone", "integration", "edge_cases", "expired_key")
+    def test_expired_key_returns_zero_remaining(self, temp_db):
+        """Тест обработки истекшего ключа"""
+        init_test_database(temp_db)
         
-        # Создаем ключ, который истек час назад
-        now_utc = get_current_utc_naive()
-        expired_date = now_utc - timedelta(hours=1)
+        with allure.step("Создание истекшей даты"):
+            now_utc = get_current_utc_naive()
+            expired_date = now_utc - timedelta(hours=1)
+            allure.attach(str(expired_date), "expired_date", allure.attachment_type.TEXT)
         
-        expiry_timestamp_ms = int(expired_date.replace(tzinfo=UTC).timestamp() * 1000)
-        remaining_seconds = calculate_remaining_seconds(expiry_timestamp_ms)
+        with allure.step("Вычисление оставшихся секунд"):
+            expiry_timestamp_ms = int(expired_date.replace(tzinfo=UTC).timestamp() * 1000)
+            remaining_seconds = calculate_remaining_seconds(expiry_timestamp_ms)
+            allure.attach(str(remaining_seconds), "remaining_seconds", allure.attachment_type.TEXT)
+            assert remaining_seconds == 0, "Для истекшего ключа должно быть 0 секунд"
+    
+    @allure.story("Обработка невалидного timezone")
+    @allure.title("Невалидный timezone падает обратно на Moscow")
+    @allure.description("""
+    Проверяет, что при указании невалидного timezone используется fallback на Moscow.
+    
+    **Что проверяется:**
+    - Обработка невалидного timezone
+    - Использование fallback на Moscow
+    - Корректность отображения времени
+    
+    **Тестовые данные:**
+    - dt_utc: 2025-01-01 12:00:00 UTC
+    - user_timezone: "Invalid/Timezone" (невалидный)
+    - feature_enabled: True
+    
+    **Предусловия:**
+    - Feature flag включен
+    
+    **Шаги теста:**
+    1. Создание тестовой даты
+    2. Форматирование с невалидным timezone
+    3. Проверка fallback на Moscow
+    
+    **Ожидаемый результат:**
+    Должен использоваться fallback на Moscow (15:00).
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("timezone", "integration", "edge_cases", "invalid_timezone", "fallback")
+    def test_invalid_timezone_fallback_to_moscow(self, temp_db):
+        """Тест fallback на Moscow при невалидном timezone"""
+        init_test_database(temp_db)
         
-        self.assertEqual(remaining_seconds, 0, "Для истекшего ключа должно быть 0 секунд")
-        print(f"[+] Истекший ключ: {remaining_seconds} сек")
-    
-    def test_invalid_timezone_fallback_to_moscow(self):
-        """
-        Тест 8: Невалидный timezone падает обратно на Moscow
-        """
-        print("\n[TEST] Граничный случай -> невалидный timezone")
+        with allure.step("Подготовка тестовой даты"):
+            dt_utc = datetime(2025, 1, 1, 12, 0, 0)
+            allure.attach(str(dt_utc), "dt_utc", allure.attachment_type.TEXT)
         
-        dt_utc = datetime(2025, 1, 1, 12, 0, 0)
-        
-        # Указываем несуществующий timezone
-        result = format_datetime_for_user(
-            dt_utc,
-            user_timezone="Invalid/Timezone",
-            feature_enabled=True
-        )
-        
-        # Должен использоваться fallback на Moscow (15:00)
-        self.assertIn("15:00", result, "Должен быть fallback на Moscow")
-        self.assertIn("UTC+3", result)
-        print(f"[+] Fallback на Moscow: {result}")
-
-
-def run_integration_tests():
-    """Запуск всех интеграционных тестов"""
-    print("=" * 80)
-    print("INTEGRATION TESTS: Timezone Support")
-    print("=" * 80 + "\n")
-    
-    # Создаем test suite
-    loader = unittest.TestLoader()
-    suite = unittest.TestSuite()
-    
-    # Добавляем все тесты
-    suite.addTests(loader.loadTestsFromTestCase(TestKeyCreationStoresUTC))
-    suite.addTests(loader.loadTestsFromTestCase(TestNotificationTiming))
-    suite.addTests(loader.loadTestsFromTestCase(TestTimezoneDisplay))
-    suite.addTests(loader.loadTestsFromTestCase(TestAutoRenewalTiming))
-    suite.addTests(loader.loadTestsFromTestCase(TestBackwardCompatibility))
-    suite.addTests(loader.loadTestsFromTestCase(TestEdgeCases))
-    
-    # Запускаем тесты
-    runner = unittest.TextTestRunner(verbosity=2)
-    result = runner.run(suite)
-    
-    # Итоги
-    print("\n" + "=" * 80)
-    print("INTEGRATION TEST RESULTS")
-    print("=" * 80)
-    print(f"Tests run: {result.testsRun}")
-    print(f"Success: {result.testsRun - len(result.failures) - len(result.errors)}")
-    print(f"Failed: {len(result.failures)}")
-    print(f"Errors: {len(result.errors)}")
-    print("=" * 80 + "\n")
-    
-    if result.wasSuccessful():
-        print("[OK] ВСЕ ИНТЕГРАЦИОННЫЕ ТЕСТЫ ПРОЙДЕНЫ!")
-    else:
-        print("[ERROR] ЕСТЬ ОШИБКИ В ИНТЕГРАЦИОННЫХ ТЕСТАХ")
-    
-    return result.wasSuccessful()
-
-
-if __name__ == '__main__':
-    success = run_integration_tests()
-    sys.exit(0 if success else 1)
-
+        with allure.step("Проверка fallback на Moscow"):
+            result = format_datetime_for_user(
+                dt_utc,
+                user_timezone="Invalid/Timezone",
+                feature_enabled=True
+            )
+            allure.attach(result, "result", allure.attachment_type.TEXT)
+            assert "15:00" in result, "Должен быть fallback на Moscow"
+            assert "UTC+3" in result

@@ -877,6 +877,7 @@ def initialize_db():
 
                 # Feature flags
                 "feature_timezone_enabled": "0",  # Поддержка timezone (0 = выключена, 1 = включена)
+                "admin_timezone": "Europe/Moscow",  # Часовой пояс администратора по умолчанию
 
             }
 
@@ -1543,6 +1544,13 @@ def run_migration(conn: Optional[sqlite3.Connection] = None):
                 # Не прерываем миграцию, продолжаем работу
         else:
             logging.info(" -> The column 'keys_count' already exists in users table.")
+
+        # Миграция: добавляем поле timezone для поддержки временных зон пользователей
+        if 'timezone' not in columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN timezone TEXT")
+            logging.info(" -> The column 'timezone' is successfully added to users table.")
+        else:
+            logging.info(" -> The column 'timezone' already exists in users table.")
 
         logging.info("The table 'users' has been successfully updated.")
 
@@ -3193,7 +3201,10 @@ def create_plan(host_name: str, plan_name: str, months: int, price: float, days:
 
             conn.commit()
             
-            logging.info(f"Created new plan '{plan_name}' for host '{host_name}' with provision mode '{key_provision_mode}' and display mode '{display_mode}'.")
+            plan_id = cursor.lastrowid
+            logging.info(f"Created new plan '{plan_name}' for host '{host_name}' with provision mode '{key_provision_mode}' and display mode '{display_mode}' (plan_id: {plan_id}).")
+            
+            return plan_id
 
     except sqlite3.Error as e:
         logging.error(f"Failed to create plan for host '{host_name}': {e}")
@@ -4736,7 +4747,10 @@ def register_user_if_not_exists(telegram_id: int, username: str, referrer_id, fu
             cursor.execute("SELECT * FROM users WHERE telegram_id = ?", (telegram_id,))
             user_data = cursor.fetchone()
             
-            return dict(user_data) if user_data else None
+            if user_data:
+                # Явное преобразование sqlite3.Row в словарь для совместимости
+                return {key: user_data[key] for key in user_data.keys()}
+            return None
 
     except sqlite3.Error as e:
 
@@ -6472,6 +6486,8 @@ def create_key_with_stats_atomic(user_id: int, host_name: str, xui_client_uuid: 
                 new_key_id = cursor.lastrowid
                 
                 # 2. Обновляем статистику пользователя
+                # Примечание: keys_count обновляется через get_next_key_number() перед созданием ключа,
+                # поэтому здесь не нужно инкрементировать счетчик
                 cursor.execute(
                     "UPDATE users SET total_spent = total_spent + ?, total_months = total_months + ? WHERE telegram_id = ?",
                     (amount_spent, months_purchased, user_id)
@@ -6708,8 +6724,12 @@ def delete_key_by_email(email: str):
             
             key_id = row[0] if row else None
             
-            # Удаляем ключ (токен НЕ удаляем, чтобы validate_permanent_token мог определить,
-            # что ключ был удален, и вернуть key_deleted=True для корректной обработки в приложении)
+            # НЕ удаляем токен при удалении ключа - это позволяет validate_permanent_token
+            # корректно определить удаленный ключ через LEFT JOIN и вернуть key_deleted=True,
+            # что обеспечивает правильную обработку в приложении user-cabinet
+            # (возврат 404 "Ключ удален" вместо 403 "Ссылка недействительна")
+            
+            # Удаляем ключ
             cursor.execute("DELETE FROM vpn_keys WHERE key_email = ?", (email,))
             deleted_keys = cursor.rowcount
 

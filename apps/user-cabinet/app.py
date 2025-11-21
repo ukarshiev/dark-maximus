@@ -196,35 +196,63 @@ def require_token(f):
     def decorated_function(*args, **kwargs):
         token = kwargs.get('token') or request.args.get('token') or session.get('token')
         
+        client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
+        if client_ip:
+            client_ip = client_ip.split(',')[0].strip()
+        
         if not token:
-            logger.warning("Token validation failed: token not provided")
+            logger.warning(
+                f"[AUTH] [user-cabinet] Token validation failed: token not provided, "
+                f"path={request.path}, ip={client_ip}"
+            )
             return render_template('error.html', 
                                  error_title="Ссылка не предоставлена",
                                  error_message="Для доступа к личному кабинету необходима ссылка доступа."), 401
         
         # Логируем попытку валидации (первые 10 символов для безопасности)
         token_preview = token[:10] + "..." if len(token) > 10 else token
-        logger.info(f"Validating token: {token_preview}")
+        logger.info(f"[AUTH] [user-cabinet] Validating token: {token_preview}, path={request.path}, ip={client_ip}")
         
         try:
             # Валидируем токен
             token_data = validate_permanent_token(token)
             
             if not token_data:
-                logger.warning(f"Token validation failed: token {token_preview} not found")
+                logger.warning(
+                    f"[AUTH] [user-cabinet] Token validation failed: token {token_preview} not found, "
+                    f"path={request.path}, ip={client_ip}"
+                )
                 return render_template('error.html',
                                      error_title="Ссылка недействительна",
                                      error_message="Ссылка устарела или указана с ошибкой. Скопируйте ссылку заново из Telegram-бота и попробуйте ещё раз."), 403
             
             # Проверяем, не был ли ключ удален
             if token_data.get('key_deleted'):
-                logger.warning(f"Token validated but key_id={token_data.get('key_id')} was deleted")
+                logger.warning(
+                    f"[AUTH] [user-cabinet] Token validated but key deleted: "
+                    f"token={token_preview}, key_id={token_data.get('key_id')}, "
+                    f"user_id={token_data.get('user_id')}, ip={client_ip}"
+                )
                 return render_template('error.html',
                                      error_title="Ключ удален",
                                      error_message="Ссылка действительна, но ключ был удален. Обратитесь в поддержку или создайте новый ключ."), 404
             
-            # Логируем успешную валидацию
-            logger.info(f"Token validated successfully: user_id={token_data.get('user_id')}, key_id={token_data.get('key_id')}")
+            # Логируем успешную валидацию (только при первом использовании токена или для важных операций)
+            user_id = token_data.get('user_id')
+            key_id = token_data.get('key_id')
+            
+            if 'token' not in session:
+                logger.info(
+                    f"[AUTH] [user-cabinet] Token validated successfully: "
+                    f"token={token_preview}, user_id={user_id}, key_id={key_id}, "
+                    f"path={request.path}, ip={client_ip}"
+                )
+            elif request.method in ['POST', 'PUT', 'DELETE']:
+                logger.info(
+                    f"[AUTH] [user-cabinet] Session validated for operation: "
+                    f"token={token_preview}, user_id={user_id}, key_id={key_id}, "
+                    f"path={request.path}, method={request.method}, ip={client_ip}"
+                )
             
             # Сохраняем данные в сессию
             session['token'] = token
@@ -234,7 +262,11 @@ def require_token(f):
             
             return f(*args, **kwargs)
         except Exception as e:
-            logger.error(f"Exception during token validation for token {token_preview}: {e}", exc_info=True)
+            logger.error(
+                f"[AUTH] [user-cabinet] Exception during token validation: "
+                f"token={token_preview}, path={request.path}, ip={client_ip}, error={e}",
+                exc_info=True
+            )
             return render_template('error.html',
                                  error_title="Ошибка при проверке ссылки",
                                  error_message="Произошла ошибка при проверке ссылки доступа. Попробуйте позже."), 500

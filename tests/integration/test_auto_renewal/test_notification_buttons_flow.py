@@ -563,6 +563,8 @@ class TestNotificationButtonsFlow:
     - Отображение информации о ключе
     - Корректность клавиатуры с информацией о ключе
     - Проверка правильности извлечения key_id из callback_data
+    - Использование _get_user_timezone_context для получения timezone
+    - Использование get_key_auto_renewal_enabled для получения статуса автопродления
 
     **Тестовые данные:**
     - user_id: 123500 (создается через test_notification_user)
@@ -613,9 +615,10 @@ class TestNotificationButtonsFlow:
     @allure.tag("notification", "buttons", "integration", "bot", "show-key")
     async def test_show_key_button(self, temp_db, test_notification_user, mock_callback_query, mock_xui_api):
         """Тест обработки кнопки show_key с мокированием xui_api"""
-        from shop_bot.data_manager.database import get_key_by_id, get_user_keys, get_plans_for_host
+        from shop_bot.data_manager.database import get_key_by_id, get_user_keys, get_plans_for_host, get_key_auto_renewal_enabled
         from shop_bot.bot import keyboards
         from shop_bot.config import get_key_info_text
+        from aiogram.enums import ParseMode
         
         # Arrange: подготовка callback и моков
         user_id = test_notification_user['user_id']
@@ -632,107 +635,114 @@ class TestNotificationButtonsFlow:
         
         with allure.step("Патчинг xui_api в handlers"):
             with patch('shop_bot.bot.handlers.xui_api', mock_xui_api):
-                with allure.step("Создание тестового обработчика show_key_handler"):
-                    # Создаем обработчик на основе логики из handlers.py
-                    async def show_key_handler_test(callback):
-                        key_id_to_show = int(callback.data.split("_")[2])
-                        await callback.message.edit_text("Загружаю информацию о ключе...")
-                        user_id_local = callback.from_user.id
-                        key_data = get_key_by_id(key_id_to_show)
+                with patch('shop_bot.bot.handlers._get_user_timezone_context') as mock_get_timezone:
+                    # Мокируем _get_user_timezone_context для возврата значений по умолчанию
+                    mock_get_timezone.return_value = (False, None)
+                    
+                    with allure.step("Создание тестового обработчика show_key_handler"):
+                        # Создаем обработчик на основе логики из handlers.py
+                        async def show_key_handler_test(callback):
+                            key_id_to_show = int(callback.data.split("_")[2])
+                            await callback.message.edit_text("Загружаю информацию о ключе...")
+                            user_id_local = callback.from_user.id
+                            key_data = get_key_by_id(key_id_to_show)
 
-                        if not key_data or key_data['user_id'] != user_id_local:
-                            await callback.message.edit_text("❌ Ошибка: ключ не найден.")
-                            return
-                            
-                        try:
-                            # Используем мок xui_api
-                            details = await mock_xui_api.get_key_details_from_host(key_data)
-                            if not details or not details['connection_string']:
-                                await callback.message.edit_text("❌ Ошибка на сервере. Не удалось получить данные ключа.")
+                            if not key_data or key_data['user_id'] != user_id_local:
+                                await callback.message.edit_text("❌ Ошибка: ключ не найден.")
                                 return
+                                
+                            try:
+                                # Используем мок xui_api
+                                details = await mock_xui_api.get_key_details_from_host(key_data)
+                                if not details or not details['connection_string']:
+                                    await callback.message.edit_text("❌ Ошибка на сервере. Не удалось получить данные ключа.")
+                                    return
 
-                            connection_string = details['connection_string']
-                            expiry_date = datetime.fromisoformat(key_data['expiry_date'])
-                            created_date = datetime.fromisoformat(key_data['created_date'])
-                            status = details.get('status', 'unknown')
-                            subscription_link = details.get('subscription_link') or key_data.get('subscription_link')
-                            
-                            all_user_keys = get_user_keys(user_id_local)
-                            key_number = next((i + 1 for i, key in enumerate(all_user_keys) if key['key_id'] == key_id_to_show), 0)
-                            
-                            # Получаем provision_mode из тарифа ключа
-                            provision_mode = 'key'  # по умолчанию
-                            plan_name = key_data.get('plan_name')
-                            if plan_name:
+                                connection_string = details['connection_string']
+                                expiry_date = datetime.fromisoformat(key_data['expiry_date'])
+                                created_date = datetime.fromisoformat(key_data['created_date'])
+                                status = details.get('status', 'unknown')
+                                subscription_link = details.get('subscription_link') or key_data.get('subscription_link')
+                                
+                                all_user_keys = get_user_keys(user_id_local)
+                                key_number = next((i + 1 for i, key in enumerate(all_user_keys) if key['key_id'] == key_id_to_show), 0)
+                                
+                                # Получаем provision_mode из тарифа ключа
+                                provision_mode = 'key'  # по умолчанию
+                                plan_name = key_data.get('plan_name')
+                                if plan_name:
+                                    host_name = key_data.get('host_name')
+                                    plans = get_plans_for_host(host_name)
+                                    plan = next((p for p in plans if p.get('plan_name') == plan_name), None)
+                                    if plan:
+                                        provision_mode = plan.get('key_provision_mode', 'key')
+                                
+                                # Используем _get_user_timezone_context как в реальном обработчике
+                                feature_enabled, user_timezone = mock_get_timezone(user_id_local)
+                                is_trial = key_data.get('is_trial') == 1
                                 host_name = key_data.get('host_name')
-                                plans = get_plans_for_host(host_name)
-                                plan = next((p for p in plans if p.get('plan_name') == plan_name), None)
-                                if plan:
-                                    provision_mode = plan.get('key_provision_mode', 'key')
-                            
-                            # Проверяем timezone (упрощенная версия)
-                            feature_enabled = False
-                            user_timezone = None
-                            is_trial = key_data.get('is_trial') == 1
-                            host_name = key_data.get('host_name')
-                            plan_name = key_data.get('plan_name')
-                            price = key_data.get('price')
+                                plan_name = key_data.get('plan_name')
+                                price = key_data.get('price')
+                                
+                                # Получаем статус автопродления ключа как в реальном обработчике
+                                key_auto_renewal_enabled = get_key_auto_renewal_enabled(key_id_to_show)
 
-                            final_text = get_key_info_text(
-                                key_number,
-                                expiry_date,
-                                created_date,
-                                connection_string,
-                                status,
-                                subscription_link,
-                                provision_mode,
-                                user_timezone=user_timezone,
-                                feature_enabled=feature_enabled,
-                                is_trial=is_trial,
-                                user_id=user_id_local,
-                                key_id=key_id_to_show,
-                                host_name=host_name,
-                                plan_name=plan_name,
-                                price=price,
-                            )
+                                final_text = get_key_info_text(
+                                    key_number,
+                                    expiry_date,
+                                    created_date,
+                                    connection_string,
+                                    status,
+                                    subscription_link,
+                                    provision_mode,
+                                    user_timezone=user_timezone,
+                                    feature_enabled=feature_enabled,
+                                    is_trial=is_trial,
+                                    user_id=user_id_local,
+                                    key_id=key_id_to_show,
+                                    host_name=host_name,
+                                    plan_name=plan_name,
+                                    price=price,
+                                    key_auto_renewal_enabled=key_auto_renewal_enabled,
+                                )
+                                
+                                await callback.message.edit_text(
+                                    text=final_text,
+                                    reply_markup=keyboards.create_key_info_keyboard(key_id_to_show, subscription_link, key_auto_renewal_enabled),
+                                    parse_mode=ParseMode.HTML
+                                )
+                            except Exception as e:
+                                import logging
+                                logger = logging.getLogger(__name__)
+                                logger.error(f"Error showing key {key_id_to_show}: {e}")
+                                await callback.message.edit_text("❌ Произошла ошибка при получении данных ключа.")
+                    
+                    with allure.step("Вызов обработчика show_key_handler"):
+                        await show_key_handler_test(mock_callback_query)
+                        
+                        allure.attach(str(user_id), "User ID", allure.attachment_type.TEXT)
+                        allure.attach(str(key_id), "Key ID", allure.attachment_type.TEXT)
+                    
+                    with allure.step("Проверка вызова xui_api.get_key_details_from_host"):
+                        mock_xui_api.get_key_details_from_host.assert_called_once()
+                    
+                    with allure.step("Проверка редактирования сообщения"):
+                        # Может быть несколько вызовов edit_text (первый - "Загружаю...", второй - результат)
+                        assert mock_callback_query.message.edit_text.called, "edit_text должен быть вызван"
+                        
+                        # Получаем последний вызов
+                        call_args_list = mock_callback_query.message.edit_text.call_args_list
+                        if call_args_list:
+                            last_call = call_args_list[-1]
+                            text = last_call[0][0] if last_call[0] else last_call[1].get('text', '')
+                            reply_markup = last_call[1].get('reply_markup') if last_call[1] else None
                             
-                            await callback.message.edit_text(
-                                text=final_text,
-                                reply_markup=keyboards.create_key_info_keyboard(key_id_to_show, subscription_link),
-                                parse_mode='HTML'
-                            )
-                        except Exception as e:
-                            import logging
-                            logger = logging.getLogger(__name__)
-                            logger.error(f"Error showing key {key_id_to_show}: {e}")
-                            await callback.message.edit_text("❌ Произошла ошибка при получении данных ключа.")
-                
-                with allure.step("Вызов обработчика show_key_handler"):
-                    await show_key_handler_test(mock_callback_query)
-                    
-                    allure.attach(str(user_id), "User ID", allure.attachment_type.TEXT)
-                    allure.attach(str(key_id), "Key ID", allure.attachment_type.TEXT)
-                
-                with allure.step("Проверка вызова xui_api.get_key_details_from_host"):
-                    mock_xui_api.get_key_details_from_host.assert_called_once()
-                
-                with allure.step("Проверка редактирования сообщения"):
-                    # Может быть несколько вызовов edit_text (первый - "Загружаю...", второй - результат)
-                    assert mock_callback_query.message.edit_text.called, "edit_text должен быть вызван"
-                    
-                    # Получаем последний вызов
-                    call_args_list = mock_callback_query.message.edit_text.call_args_list
-                    if call_args_list:
-                        last_call = call_args_list[-1]
-                        text = last_call[0][0] if last_call[0] else last_call[1].get('text', '')
-                        reply_markup = last_call[1].get('reply_markup') if last_call[1] else None
-                        
-                        # Проверяем наличие информации о ключе
-                        assert 'ключ' in text.lower() or 'key' in text.lower() or 'vless' in text.lower() or 'подключ' in text.lower(), \
-                            "Текст должен содержать информацию о ключе"
-                        
-                        if reply_markup is not None:
-                            allure.attach(text, "Текст сообщения с информацией о ключе", allure.attachment_type.TEXT)
+                            # Проверяем наличие информации о ключе
+                            assert 'ключ' in text.lower() or 'key' in text.lower() or 'vless' in text.lower() or 'подключ' in text.lower(), \
+                                "Текст должен содержать информацию о ключе"
+                            
+                            if reply_markup is not None:
+                                allure.attach(text, "Текст сообщения с информацией о ключе", allure.attachment_type.TEXT)
 
     @pytest.mark.asyncio
     @allure.story("Обработка кнопки 'Назад в меню' из уведомления")
