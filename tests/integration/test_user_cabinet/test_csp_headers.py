@@ -170,8 +170,10 @@ class TestCSPHeaders:
         
         with allure.step("Выполнение HTTP запроса к личному кабинету"):
             try:
+                # Используем /health endpoint, так как он не требует токена
+                # CSP заголовки устанавливаются в nginx с флагом 'always', поэтому доступны для всех ответов
                 response = requests.get(
-                    user_cabinet_config["base_url"],
+                    user_cabinet_config["health_url"],
                     allow_redirects=True,
                     timeout=10
                 )
@@ -297,8 +299,10 @@ class TestCSPHeaders:
         
         with allure.step("Выполнение HTTP запроса к личному кабинету"):
             try:
+                # Используем /health endpoint, так как он не требует токена
+                # CSP заголовки устанавливаются в nginx с флагом 'always', поэтому доступны для всех ответов
                 response = requests.get(
-                    user_cabinet_config["base_url"],
+                    user_cabinet_config["health_url"],
                     allow_redirects=True,
                     timeout=10
                 )
@@ -307,12 +311,21 @@ class TestCSPHeaders:
             except requests.exceptions.RequestException as e:
                 pytest.fail(f"Ошибка при запросе к личному кабинету: {e}")
         
-        csp_header = response.headers.get("Content-Security-Policy")
-        if not csp_header:
-            pytest.skip("Заголовок Content-Security-Policy отсутствует")
+        with allure.step("Проверка наличия заголовка Content-Security-Policy"):
+            csp_header = response.headers.get("Content-Security-Policy")
+            assert csp_header is not None, \
+                "Заголовок Content-Security-Policy отсутствует в ответе"
+            
+            allure.attach(
+                csp_header,
+                "Content-Security-Policy заголовок",
+                allure.attachment_type.TEXT
+            )
         
         with allure.step("Проверка валидного wildcard паттерна в frame-src"):
             frame_src_sources = parse_csp_directive(csp_header, "frame-src")
+            assert len(frame_src_sources) > 0, \
+                "Директива frame-src отсутствует в CSP заголовке"
             
             # Ищем валидный wildcard паттерн (например, *.domain.com или https://*.domain.com)
             valid_wildcard_pattern = re.compile(r'https?://\*\.|^\*\.', re.IGNORECASE)
@@ -320,26 +333,23 @@ class TestCSPHeaders:
                 valid_wildcard_pattern.search(source) for source in frame_src_sources
             )
             
-            if not has_wildcard:
-                allure.attach(
-                    f"Директива: frame-src\n"
-                    f"Источники: {frame_src_sources}\n"
-                    f"Рекомендация: Добавьте валидный wildcard паттерн '*.domain.com' "
-                    f"для разрешения всех поддоменов.",
-                    "frame-src источники",
-                    allure.attachment_type.TEXT
-                )
-            else:
-                allure.attach(
-                    f"Директива: frame-src\n"
-                    f"Источники: {frame_src_sources}\n"
-                    f"Валидный wildcard паттерн найден: ✓",
-                    "frame-src источники",
-                    allure.attachment_type.TEXT
-                )
+            assert has_wildcard, \
+                f"Валидный wildcard паттерн для поддоменов не найден в frame-src. " \
+                f"Найденные источники: {frame_src_sources}. " \
+                f"Ожидается паттерн типа '*.domain.com' или 'https://*.domain.com' для разрешения всех поддоменов."
+            
+            allure.attach(
+                f"Директива: frame-src\n"
+                f"Источники: {frame_src_sources}\n"
+                f"Валидный wildcard паттерн найден: ✓",
+                "frame-src источники",
+                allure.attachment_type.TEXT
+            )
         
         with allure.step("Проверка валидного wildcard паттерна в connect-src"):
             connect_src_sources = parse_csp_directive(csp_header, "connect-src")
+            assert len(connect_src_sources) > 0, \
+                "Директива connect-src отсутствует в CSP заголовке"
             
             # Ищем валидный wildcard паттерн
             valid_wildcard_pattern = re.compile(r'https?://\*\.|^\*\.', re.IGNORECASE)
@@ -347,21 +357,16 @@ class TestCSPHeaders:
                 valid_wildcard_pattern.search(source) for source in connect_src_sources
             )
             
-            if not has_wildcard:
-                allure.attach(
-                    f"Директива: connect-src\n"
-                    f"Источники: {connect_src_sources}\n"
-                    f"Рекомендация: Добавьте валидный wildcard паттерн '*.domain.com' "
-                    f"для разрешения всех поддоменов.",
-                    "connect-src источники",
-                    allure.attachment_type.TEXT
-                )
-            else:
-                allure.attach(
-                    f"Директива: connect-src\n"
-                    f"Источники: {connect_src_sources}\n"
-                    f"Валидный wildcard паттерн найден: ✓",
-                    "connect-src источники",
-                    allure.attachment_type.TEXT
-                )
+            assert has_wildcard, \
+                f"Валидный wildcard паттерн для поддоменов не найден в connect-src. " \
+                f"Найденные источники: {connect_src_sources}. " \
+                f"Ожидается паттерн типа '*.domain.com' или 'https://*.domain.com' для разрешения всех поддоменов."
+            
+            allure.attach(
+                f"Директива: connect-src\n"
+                f"Источники: {connect_src_sources}\n"
+                f"Валидный wildcard паттерн найден: ✓",
+                "connect-src источники",
+                allure.attachment_type.TEXT
+            )
 

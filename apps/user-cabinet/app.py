@@ -60,6 +60,49 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'dev-secret-key-change-in-pr
 app.config['SESSION_COOKIE_NAME'] = 'cabinet_session'
 
 
+@app.after_request
+def set_csp_headers(response):
+    """
+    Устанавливает CSP заголовки для всех ответов.
+    Эти заголовки также устанавливаются в nginx, но для тестирования
+    (прямой доступ к контейнеру) они должны быть и в приложении.
+    """
+    # Получаем домены из настроек БД
+    try:
+        settings = get_all_settings()
+        help_domain = (settings.get('codex_docs_domain') or '').strip()
+        main_domain = (settings.get('global_domain') or '').strip()
+        
+        # Если домены не настроены, используем значения по умолчанию
+        if not help_domain:
+            help_domain = 'help.dark-maximus.com'
+        if not main_domain:
+            main_domain = 'dark-maximus.com'
+        else:
+            # Убираем протокол и путь из домена
+            main_domain = main_domain.replace('http://', '').replace('https://', '').split('/')[0].split(':')[0]
+    except Exception as e:
+        # Fallback значения при ошибке чтения настроек
+        logger.warning(f"Ошибка при получении настроек для CSP: {e}")
+        help_domain = 'help.dark-maximus.com'
+        main_domain = 'dark-maximus.com'
+    
+    # Формируем CSP заголовок с wildcard паттернами для поддоменов
+    csp_policy = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://api.2ip.ru; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "img-src 'self' data: https:; "
+        "font-src 'self' data:; "
+        f"connect-src 'self' https://api.2ip.ru https://{help_domain} https://*.{main_domain}; "
+        f"frame-src 'self' https://{help_domain} https://*.{main_domain}; "
+        "frame-ancestors 'self';"
+    )
+    
+    response.headers['Content-Security-Policy'] = csp_policy
+    return response
+
+
 def _build_knowledge_base_url(settings: dict) -> tuple[str, str]:
     """Определяем базовый URL базы знаний и ссылку на инструкции."""
     codex_docs_domain = (settings.get('codex_docs_domain') or '').strip()
@@ -173,7 +216,36 @@ def rate_limit(f):
 @app.route('/health')
 def health():
     """Healthcheck endpoint для Docker"""
-    return jsonify({"status": "ok"}), 200
+    response = jsonify({"status": "ok"})
+    # Устанавливаем CSP заголовки для health endpoint
+    # Используем значения по умолчанию, так как БД может быть недоступна при health check
+    try:
+        settings = get_all_settings()
+        help_domain = (settings.get('codex_docs_domain') or '').strip()
+        main_domain = (settings.get('global_domain') or '').strip()
+        
+        if not help_domain:
+            help_domain = 'help.dark-maximus.com'
+        if not main_domain:
+            main_domain = 'dark-maximus.com'
+        else:
+            main_domain = main_domain.replace('http://', '').replace('https://', '').split('/')[0].split(':')[0]
+    except Exception:
+        help_domain = 'help.dark-maximus.com'
+        main_domain = 'dark-maximus.com'
+    
+    csp_policy = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://api.2ip.ru; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "img-src 'self' data: https:; "
+        "font-src 'self' data:; "
+        f"connect-src 'self' https://api.2ip.ru https://{help_domain} https://*.{main_domain}; "
+        f"frame-src 'self' https://{help_domain} https://*.{main_domain}; "
+        "frame-ancestors 'self';"
+    )
+    response.headers['Content-Security-Policy'] = csp_policy
+    return response, 200
 
 
 @app.route('/api/ip-info')

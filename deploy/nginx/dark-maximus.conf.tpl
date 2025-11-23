@@ -293,6 +293,8 @@ server {
     location /health {
         proxy_pass http://user_cabinet_backend/health;
         access_log off;
+        # CSP заголовки для health endpoint (для тестирования)
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://api.2ip.ru; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.2ip.ru https://${HELP_DOMAIN} https://*.${MAIN_DOMAIN}; frame-src 'self' https://${HELP_DOMAIN} https://*.${MAIN_DOMAIN}; frame-ancestors 'self';" always;
     }
 }
 

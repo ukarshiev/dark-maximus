@@ -87,7 +87,24 @@ def compose_file_with_services(tmp_path, sample_compose_config):
 
 @pytest.fixture
 def project_root() -> Path:
-    """Возвращает путь к корню проекта"""
+    """
+    Возвращает путь к корню проекта.
+    
+    Определяет путь автоматически:
+    - В Docker контейнере: использует /app/ (где маппятся скрипты)
+    - Локально: вычисляет относительно расположения этого файла
+    """
+    # Проверяем, запущен ли тест в Docker контейнере
+    app_path = Path("/app")
+    if app_path.exists() and app_path.is_dir():
+        # В Docker контейнере скрипты маппятся в /app/
+        # Проверяем наличие хотя бы одного скрипта для подтверждения
+        test_script = app_path / "install.sh"
+        if test_script.exists():
+            return app_path
+    
+    # Локальный запуск: вычисляем относительно расположения файла
+    # tests/scripts/conftest.py -> tests/scripts/ -> tests/ -> корень проекта
     return Path(__file__).parent.parent.parent
 
 

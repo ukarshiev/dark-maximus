@@ -364,6 +364,17 @@ create_directories \
     "${PROJECT_DIR}/allure-reports" \
     "${PROJECT_DIR}/sessions-allure"
 
+# Устанавливаем правильные права доступа для Allure Service
+# Контейнер allure-service работает от пользователя uid=1000, gid=1000
+echo -e "${YELLOW}Установка прав доступа для Allure Service...${NC}"
+chown -R 1000:1000 "${PROJECT_DIR}/allure-results" "${PROJECT_DIR}/allure-report" "${PROJECT_DIR}/allure-reports" 2>/dev/null || {
+    echo -e "${YELLOW}⚠️  Не удалось изменить владельца директорий (возможно, уже установлены правильные права)${NC}"
+}
+chmod -R 755 "${PROJECT_DIR}/allure-results" "${PROJECT_DIR}/allure-report" "${PROJECT_DIR}/allure-reports" 2>/dev/null || {
+    echo -e "${YELLOW}⚠️  Не удалось изменить права доступа директорий${NC}"
+}
+echo -e "${GREEN}✔ Права доступа установлены${NC}"
+
 # Создаем allure-categories.json если его нет
 if [ ! -f "${PROJECT_DIR}/allure-categories.json" ]; then
     echo -e "${YELLOW}Создаем шаблон allure-categories.json...${NC}"
