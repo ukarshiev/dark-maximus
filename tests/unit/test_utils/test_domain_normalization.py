@@ -30,22 +30,23 @@ class TestDomainNormalization:
     @pytest.mark.parametrize("input_domain,expected", [
         ("example.com", "https://example.com"),
         ("https://example.com", "https://example.com"),
-        ("http://example.com", "https://example.com"),  # get_user_cabinet_domain преобразует http в https
+        ("http://example.com", "http://example.com"),  # get_user_cabinet_domain сохраняет исходный протокол
     ])
-    @allure.title("Добавление https:// протокола если отсутствует")
+    @allure.title("Обработка протокола при нормализации домена")
     @allure.description("""
-    Проверяет автоматическое добавление протокола https:// если он отсутствует.
+    Проверяет обработку протокола при нормализации домена.
     
     **Что проверяется:**
-    - Добавление https:// для домена без протокола
+    - Добавление https:// для домена без протокола (по умолчанию)
     - Сохранение https:// если уже есть
-    - Преобразование http:// в https://
+    - Сохранение http:// если указан (для локальной разработки)
     
     **Тестовые данные:**
     - Различные варианты входных доменов (с протоколом и без)
     
     **Ожидаемый результат:**
-    Все домены нормализуются с протоколом https://.
+    Домены нормализуются с сохранением исходного протокола, если он указан.
+    Если протокол не указан, добавляется https:// по умолчанию.
     """)
     @allure.severity(allure.severity_level.NORMAL)
     @allure.tag("domain", "normalization", "protocol", "unit")
@@ -159,6 +160,37 @@ class TestDomainNormalization:
             assert result == "https://example.com"
             assert "/path" not in result
             assert result.count("/") == 2  # Только https:// и домен
+
+    @allure.title("Сохранение http:// протокола для локальной разработки")
+    @allure.description("""
+    Проверяет сохранение http:// протокола при нормализации домена.
+    
+    **Что проверяется:**
+    - Сохранение http:// протокола если он указан в настройках
+    - Корректная работа с локальными адресами (localhost:50003)
+    
+    **Тестовые данные:**
+    - user_cabinet_domain: "http://localhost:50003"
+    
+    **Ожидаемый результат:**
+    get_user_cabinet_domain() возвращает "http://localhost:50003" (сохраняет исходный протокол).
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("domain", "normalization", "http", "protocol", "unit")
+    def test_preserve_http_protocol(self, temp_db):
+        """Проверка сохранения http:// протокола"""
+        with allure.step("Установка домена с http:// протоколом"):
+            update_setting("user_cabinet_domain", "http://localhost:50003")
+            allure.attach("http://localhost:50003", "Входной домен", allure.attachment_type.TEXT)
+        
+        with allure.step("Чтение через get_user_cabinet_domain()"):
+            result = get_user_cabinet_domain()
+            allure.attach(str(result), "Результат нормализации", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка результата"):
+            assert result == "http://localhost:50003"
+            assert result.startswith("http://")
+            assert not result.startswith("https://")
 
     @pytest.mark.parametrize("input_value", [None, "", "   "])
     @allure.title("Обработка None и пустых строк")

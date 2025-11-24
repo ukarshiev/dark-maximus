@@ -807,8 +807,13 @@ def initialize_db():
                 if not panel_domain.startswith(('http://', 'https://')):
                     panel_domain = f"https://{panel_domain}"
             else:
-                # Fallback на дефолт только если настройки нет
-                panel_domain = "https://panel.dark-maximus.com"
+                # Если домен не настроен, используем None
+                # Это безопаснее, чем жестко прописывать домен
+                panel_domain = None
+                logging.warning(
+                    "global_domain не настроен в БД. TON manifest URL будут None. "
+                    "Рекомендуется настроить global_domain в настройках панели."
+                )
 
             default_settings = {
 
@@ -893,13 +898,13 @@ def initialize_db():
 
                 "ton_manifest_name": "Dark Maximus Shop Bot",
 
-                "ton_manifest_url": panel_domain,
+                "ton_manifest_url": f"{panel_domain}/.well-known/tonconnect-manifest.json" if panel_domain else None,
 
-                "ton_manifest_icon_url": f"{panel_domain}/static/logo.png",
+                "ton_manifest_icon_url": f"{panel_domain}/static/logo.png" if panel_domain else None,
 
-                "ton_manifest_terms_url": f"{panel_domain}/terms",
+                "ton_manifest_terms_url": f"{panel_domain}/terms" if panel_domain else None,
 
-                "ton_manifest_privacy_url": f"{panel_domain}/privacy",
+                "ton_manifest_privacy_url": f"{panel_domain}/privacy" if panel_domain else None,
 
                 # Feature flags
                 "feature_timezone_enabled": "0",  # Поддержка timezone (0 = выключена, 1 = включена)
@@ -2552,6 +2557,21 @@ def run_migration(conn: Optional[sqlite3.Connection] = None):
         except Exception as e:
             logging.error(f" -> Failed to create message_templates table: {e}")
 
+        # Миграция: добавляем настройку server_environment
+        logging.info("The migration of the setting 'server_environment' ...")
+        try:
+            # Проверяем существование настройки через прямой SQL запрос
+            cursor.execute("SELECT value FROM bot_settings WHERE key = ?", ("server_environment",))
+            existing_env = cursor.fetchone()
+            if existing_env is None:
+                # Создаем настройку со значением по умолчанию "production"
+                cursor.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", ("server_environment", "production"))
+                logging.info(" -> The setting 'server_environment' is successfully added with default value 'production'.")
+            else:
+                logging.debug(" -> The setting 'server_environment' already exists.")
+        except Exception as e:
+            logging.warning(f" -> Failed to add setting 'server_environment': {e}")
+
         logging.info("--- The database is successfully completed! ---")
         
         # Коммитим изменения только если мы создали соединение сами
@@ -2885,21 +2905,58 @@ def get_setting(key: str) -> str | None:
 
         return None
 
-def get_global_domain() -> str:
+def get_server_environment() -> str:
+    """
+    Получает текущее окружение сервера из настроек.
+    
+    Returns:
+        "development" или "production" (по умолчанию "production")
+    """
+    env = get_setting("server_environment")
+    if env in ("development", "production"):
+        return env
+    # По умолчанию production для безопасности
+    return "production"
+
+def is_production_server() -> bool:
+    """
+    Проверяет, запущен ли сервер в production окружении.
+    
+    Returns:
+        True если окружение "production", False если "development"
+    """
+    return get_server_environment() == "production"
+
+def is_development_server() -> bool:
+    """
+    Проверяет, запущен ли сервер в development окружении.
+    
+    Returns:
+        True если окружение "development", False если "production"
+    """
+    return get_server_environment() == "development"
+
+def get_global_domain() -> str | None:
     """Получить глобальный домен с fallback на старый параметр domain"""
     global_domain = get_setting("global_domain")
-    if global_domain:
+    # Проверяем, что значение не None и не пустая строка
+    if global_domain and global_domain.strip():
         return global_domain
     
     # Fallback на старый параметр domain
     domain = get_setting("domain")
-    if domain:
+    # Проверяем, что значение не None и не пустая строка
+    if domain and domain.strip():
         if not domain.startswith(('http://', 'https://')):
             domain = f"https://{domain}"
         return domain
     
-    # Fallback на localhost для разработки
-    return "https://localhost:8443"
+    # Fallback зависит от окружения
+    if is_development_server():
+        return "https://localhost:8443"
+    else:
+        # В production возвращаем None если домен не настроен
+        return None
 
 def get_all_settings() -> dict:
 
@@ -9096,17 +9153,23 @@ def get_ton_manifest() -> dict:
 
         settings = get_all_settings()
 
+        domain = get_global_domain()
+        if not domain:
+            logging.warning(
+                "global_domain не настроен. TON manifest будет использовать значения по умолчанию или из настроек app_url."
+            )
+        
         return {
 
-            "url": settings.get("app_url", get_global_domain()),
+            "url": settings.get("app_url", domain or ""),
 
             "name": settings.get("ton_manifest_name", "Dark Maximus Shop Bot"),
 
-            "iconUrl": settings.get("ton_manifest_icon_url", f"{get_global_domain()}/static/logo.png"),
+            "iconUrl": settings.get("ton_manifest_icon_url", f"{domain}/static/logo.png" if domain else ""),
 
-            "termsOfUseUrl": settings.get("ton_manifest_terms_url", f"{get_global_domain()}/terms"),
+            "termsOfUseUrl": settings.get("ton_manifest_terms_url", f"{domain}/terms" if domain else ""),
 
-            "privacyPolicyUrl": settings.get("ton_manifest_privacy_url", f"{get_global_domain()}/privacy")
+            "privacyPolicyUrl": settings.get("ton_manifest_privacy_url", f"{domain}/privacy" if domain else "")
 
         }
 
@@ -9114,17 +9177,23 @@ def get_ton_manifest() -> dict:
 
         logging.error(f"Failed to get Ton manifest settings: {e}")
 
+        domain = get_global_domain()
+        if not domain:
+            logging.warning(
+                "global_domain не настроен. TON manifest будет использовать значения по умолчанию."
+            )
+        
         return {
 
-            "url": get_global_domain(),
+            "url": domain or "",
 
             "name": "Dark Maximus Shop Bot",
 
-            "iconUrl": f"{get_global_domain()}/static/logo.png",
+            "iconUrl": f"{domain}/static/logo.png" if domain else "",
 
-            "termsOfUseUrl": f"{get_global_domain()}/terms",
+            "termsOfUseUrl": f"{domain}/terms" if domain else "",
 
-            "privacyPolicyUrl": f"{get_global_domain()}/privacy"
+            "privacyPolicyUrl": f"{domain}/privacy" if domain else ""
 
         }
 
@@ -9532,6 +9601,26 @@ def set_video_instructions_display_setting(show_in_bot: bool):
         logging.info(f"Updated video instructions display setting: {show_in_bot}")
     except Exception as e:
         logging.error(f"Failed to set video instructions display setting: {e}")
+
+def has_any_instructions_enabled() -> bool:
+    """Проверяет, есть ли хотя бы одна включенная инструкция (текстовая или видео)"""
+    try:
+        # Проверяем текстовые инструкции для всех платформ
+        platforms = ['android', 'ios', 'windows', 'macos', 'linux']
+        for platform in platforms:
+            if get_instruction_display_setting(platform):
+                return True
+        
+        # Проверяем видеоинструкции
+        if get_video_instructions_display_setting():
+            return True
+        
+        # Если ни одна инструкция не включена
+        return False
+    except Exception as e:
+        logging.error(f"Failed to check if any instructions are enabled: {e}")
+        # В случае ошибки возвращаем True, чтобы не скрывать кнопку
+        return True
 
 
 # ==================== ФУНКЦИИ ДЛЯ РАБОТЫ С ГРУППАМИ ПОЛЬЗОВАТЕЛЕЙ ====================

@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from shop_bot.data_manager.database import get_setting
+from shop_bot.data_manager.database import get_setting, has_any_instructions_enabled, is_production_server, is_development_server, get_global_domain
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,70 @@ def _convert_to_https(url: str | None) -> str | None:
         return url
     except Exception:
         return url
+
+
+def normalize_web_app_url(url: str) -> str:
+    """
+    Нормализует URL для использования в Web App кнопках Telegram.
+    Telegram требует только HTTPS для Web App URL.
+    
+    Args:
+        url: Исходный URL (может быть с http://, https:// или без протокола)
+        
+    Returns:
+        URL с протоколом https://
+    """
+    if not url:
+        return ""
+    
+    url = url.strip().rstrip('/')
+    
+    # Убираем протокол если есть
+    if url.startswith('http://'):
+        url = url[7:]  # Убираем 'http://'
+    elif url.startswith('https://'):
+        url = url[8:]  # Убираем 'https://'
+    
+    # Всегда добавляем HTTPS для Web App
+    return f"https://{url}"
+
+def _is_local_address(url: str) -> bool:
+    """
+    Проверяет, является ли URL локальным адресом (localhost, 127.0.0.1, 0.0.0.0, ::1).
+    Telegram не принимает локальные адреса в Web App URL.
+    
+    Args:
+        url: URL для проверки (может быть с протоколом или без)
+        
+    Returns:
+        True если URL содержит локальный адрес, False иначе
+    """
+    if not url:
+        return False
+    
+    url_lower = url.lower().strip()
+    
+    # Проверяем различные варианты локальных адресов
+    local_patterns = [
+        'localhost',
+        '127.0.0.1',
+        '0.0.0.0',
+        '::1',  # IPv6 localhost
+    ]
+    
+    # Убираем протокол для проверки
+    url_without_protocol = url_lower
+    if url_without_protocol.startswith('http://'):
+        url_without_protocol = url_without_protocol[7:]
+    elif url_without_protocol.startswith('https://'):
+        url_without_protocol = url_without_protocol[8:]
+    
+    # Проверяем наличие локальных адресов
+    for pattern in local_patterns:
+        if pattern in url_without_protocol:
+            return True
+    
+    return False
 
 def get_main_reply_keyboard(is_admin: bool = False) -> ReplyKeyboardMarkup:
     """Возвращает актуальную Reply-клавиатуру без пункта "Главное меню".
@@ -129,7 +193,8 @@ def create_help_center_keyboard() -> InlineKeyboardMarkup:
         support_enabled = False
     if support_enabled:
         builder.button(text="🆘 Поддержка", callback_data="show_help")
-    builder.button(text="🌐 Инструкции❓", callback_data="howto_vless")
+    if has_any_instructions_enabled():
+        builder.button(text="🌐 Инструкции❓", callback_data="howto_vless")
     builder.button(text="ℹ️ О проекте", callback_data="show_about")
     builder.button(text="⬅️ Назад в меню", callback_data="back_to_main_menu")
     builder.adjust(1)
@@ -246,10 +311,10 @@ def create_trial_reset_keyboard() -> InlineKeyboardMarkup:
 def create_about_keyboard(channel_url: str | None, terms_url: str | None, privacy_url: str | None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     
-    # Проверяем, что URL не localhost
-    if terms_url and (terms_url.startswith("http://localhost") or terms_url.startswith("https://localhost")):
+    # Проверяем, что URL не локальные адреса
+    if terms_url and _is_local_address(terms_url):
         terms_url = None
-    if privacy_url and (privacy_url.startswith("http://localhost") or privacy_url.startswith("https://localhost")):
+    if privacy_url and _is_local_address(privacy_url):
         privacy_url = None
     
     if channel_url:
@@ -477,10 +542,12 @@ def create_keys_management_keyboard(keys: list, trial_used: int = 1) -> InlineKe
 def create_key_info_keyboard(key_id: int, subscription_link: str | None = None, key_auto_renewal_enabled: bool | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     subscription_button_added = False
+    cabinet_button_added = False
     key_data = None
 
     try:
-        from shop_bot.data_manager.database import get_key_by_id, get_key_auto_renewal_enabled
+        from shop_bot.data_manager.database import get_key_by_id, get_key_auto_renewal_enabled, get_plans_for_host, get_or_create_permanent_token
+        from shop_bot.config import get_user_cabinet_domain
         key_data = get_key_by_id(key_id)
         # Если статус автопродления не передан, получаем его из БД
         if key_auto_renewal_enabled is None:
@@ -495,23 +562,95 @@ def create_key_info_keyboard(key_id: int, subscription_link: str | None = None, 
     if not subscription_link and key_data:
         subscription_link = key_data.get('subscription_link')
 
+    # Определяем provision_mode для проверки необходимости показа кнопки "Личный кабинет"
+    provision_mode = 'key'  # по умолчанию
+    if key_data:
+        plan_name = key_data.get('plan_name')
+        if plan_name:
+            # Получаем тариф по имени и хосту
+            host_name = key_data.get('host_name')
+            try:
+                plans = get_plans_for_host(host_name)
+                plan = next((p for p in plans if p.get('plan_name') == plan_name), None)
+                if plan:
+                    provision_mode = plan.get('key_provision_mode', 'key')
+            except Exception as e:
+                logger.warning(f"Failed to get provision_mode for key {key_id}: {e}")
+
+    # Кнопка "Личный кабинет" (только для production и режимов cabinet/cabinet_subscription)
+    if (is_production_server() and 
+        provision_mode in ('cabinet', 'cabinet_subscription') and 
+        key_data):
+        try:
+            user_id = key_data.get('user_id')
+            cabinet_domain = get_user_cabinet_domain()
+            
+            if cabinet_domain and user_id and not _is_local_address(cabinet_domain):
+                # Получаем или создаем токен для доступа к личному кабинету
+                cabinet_token = get_or_create_permanent_token(user_id, key_id)
+                
+                if cabinet_token:
+                    cabinet_url = f"{cabinet_domain}/auth/{cabinet_token}"
+                else:
+                    cabinet_url = f"{cabinet_domain}/"
+                
+                # Дополнительная проверка после формирования URL
+                if not _is_local_address(cabinet_url) and _is_https_url(cabinet_url):
+                    builder.button(
+                        text="🗂️ Личный кабинет",
+                        web_app=WebAppInfo(url=cabinet_url)
+                    )
+                    cabinet_button_added = True
+                else:
+                    logger.warning(
+                        f"Cabinet URL для ключа {key_id} не является HTTPS или является локальным адресом: {cabinet_url}"
+                    )
+            elif not cabinet_domain:
+                logger.debug(f"Cabinet domain не настроен для ключа {key_id}")
+            elif not user_id:
+                logger.warning(f"User ID не найден для ключа {key_id}")
+        except Exception as e:
+            logger.warning(f"Failed to create cabinet button for key {key_id}: {e}")
+
     # Кнопка настройки
     # Получаем домен codex-docs из настроек
     codex_docs_domain = get_setting("codex_docs_domain")
-    if codex_docs_domain:
-        # Нормализация домена (убираем протокол если есть, добавляем https)
-        codex_docs_domain = codex_docs_domain.strip().rstrip('/')
-        if not codex_docs_domain.startswith(('http://', 'https://')):
-            codex_docs_domain = f"https://{codex_docs_domain}"
-        setup_url = f"{codex_docs_domain}/setup"
+    setup_url = None
+    
+    if is_production_server() and codex_docs_domain and not _is_local_address(codex_docs_domain):
+        # В production используем настройки из БД
+        setup_url = normalize_web_app_url(f"{codex_docs_domain}/setup")
+        # Дополнительная проверка после нормализации (для надежности)
+        if _is_local_address(setup_url):
+            logger.warning(
+                f"Local address detected in setup_url: {setup_url}. Trying fallback."
+            )
+            setup_url = None
+    
+    # Если codex_docs_domain не настроен или не подходит, пробуем global_domain
+    if not setup_url:
+        global_domain = get_global_domain()
+        if global_domain and not _is_local_address(global_domain):
+            # Используем global_domain для формирования URL настройки
+            # Предполагаем, что настройка находится по пути /setup относительно global_domain
+            setup_url = normalize_web_app_url(f"{global_domain}/setup")
+            if _is_local_address(setup_url):
+                logger.warning(
+                    f"Local address detected in setup_url from global_domain: {setup_url}. Skipping setup button."
+                )
+                setup_url = None
+    
+    # Если все fallback не сработали, не добавляем кнопку настройки
+    if setup_url:
+        builder.button(
+            text="⚙️ Настройка",
+            web_app=WebAppInfo(url=setup_url)
+        )
     else:
-        # Fallback на дефолт (для обратной совместимости)
-        setup_url = "https://help.dark-maximus.com/setup"
-
-    builder.button(
-        text="⚙️ Настройка",
-        web_app=WebAppInfo(url=setup_url)
-    )
+        logger.warning(
+            "Setup URL не может быть сформирован: codex_docs_domain и global_domain не настроены или являются локальными адресами. "
+            "Кнопка настройки не будет добавлена."
+        )
 
     if subscription_link and _is_http_like_url(subscription_link):
         builder.button(
@@ -535,17 +674,29 @@ def create_key_info_keyboard(key_id: int, subscription_link: str | None = None, 
     # Кнопка возврата
     builder.button(text="⬅️ Назад к списку ключей", callback_data="manage_keys")
 
-    if subscription_button_added:
-        builder.adjust(2, 1, 1, 1)
+    # Настройка расположения кнопок
+    if cabinet_button_added:
+        if subscription_button_added:
+            # Личный кабинет, затем Настройка и Подписка в одном ряду, затем остальные
+            builder.adjust(1, 2, 1, 1, 1)
+        else:
+            # Личный кабинет, затем Настройка, затем остальные
+            builder.adjust(1, 1, 1, 1, 1)
     else:
-        builder.adjust(1, 1, 1, 1)
+        if subscription_button_added:
+            # Настройка и Подписка в одном ряду, затем остальные
+            builder.adjust(2, 1, 1, 1)
+        else:
+            # Настройка, затем остальные
+            builder.adjust(1, 1, 1, 1)
     return builder.as_markup()
 
 def create_qr_keyboard(key_id: int) -> InlineKeyboardMarkup:
     """Клавиатура для QR-кода ключа"""
     builder = InlineKeyboardBuilder()
     builder.button(text="📑 Скопировать ключ", callback_data=f"copy_key_{key_id}")
-    builder.button(text="🌐 Инструкции❓", callback_data=f"howto_vless_{key_id}")
+    if has_any_instructions_enabled():
+        builder.button(text="🌐 Инструкции❓", callback_data=f"howto_vless_{key_id}")
     builder.button(text="⬅️ Назад к списку ключей", callback_data="manage_keys")
     builder.adjust(1, 1, 1)
     return builder.as_markup()
@@ -637,10 +788,10 @@ def create_back_to_menu_keyboard() -> InlineKeyboardMarkup:
 def create_welcome_keyboard(channel_url: str | None, is_subscription_forced: bool = False, terms_url: str | None = None, privacy_url: str | None = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     
-    # Проверяем, что URL не localhost
-    if terms_url and (terms_url.startswith("http://localhost") or terms_url.startswith("https://localhost")):
+    # Проверяем, что URL не локальные адреса
+    if terms_url and _is_local_address(terms_url):
         terms_url = None
-    if privacy_url and (privacy_url.startswith("http://localhost") or privacy_url.startswith("https://localhost")):
+    if privacy_url and _is_local_address(privacy_url):
         privacy_url = None
 
     if channel_url and terms_url and privacy_url and is_subscription_forced:

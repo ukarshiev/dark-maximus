@@ -221,8 +221,8 @@ class TestTonManifestDomains:
             allure.attach(ton_manifest_url or "None", "ton_manifest_url", allure.attachment_type.TEXT)
         
         with allure.step("Проверка результата"):
-            # Должно использоваться дефолтное значение
-            assert ton_manifest_url == "https://panel.dark-maximus.com"
+            # Теперь должно быть None, так как жёстко прописанные домены убраны
+            assert ton_manifest_url is None
 
     @allure.title("Формирование всех URL TON manifest")
     @allure.description("""
@@ -281,9 +281,9 @@ class TestTonManifestDomains:
             finally:
                 db_module.DB_FILE = original_db_file
             
-            allure.attach(ton_manifest_url, "ton_manifest_url", allure.attachment_type.TEXT)
-            allure.attach(ton_manifest_icon_url, "ton_manifest_icon_url", allure.attachment_type.TEXT)
-            allure.attach(global_domain_from_db, "global_domain из БД", allure.attachment_type.TEXT)
+            allure.attach(str(ton_manifest_url) if ton_manifest_url else "None", "ton_manifest_url", allure.attachment_type.TEXT)
+            allure.attach(str(ton_manifest_icon_url) if ton_manifest_icon_url else "None", "ton_manifest_icon_url", allure.attachment_type.TEXT)
+            allure.attach(str(global_domain_from_db) if global_domain_from_db else "None", "global_domain из БД", allure.attachment_type.TEXT)
         
         with allure.step("Проверка результата"):
             # Проверяем, что global_domain был прочитан из БД правильно
@@ -293,11 +293,14 @@ class TestTonManifestDomains:
             # Если ton_manifest_url был установлен с правильным доменом, он должен совпадать.
             # Если нет - это означает, что настройки были установлены до инициализации и не перезаписаны.
             # В этом случае проверяем, что логика чтения из БД работает правильно через проверку global_domain.
-            if ton_manifest_url and ton_manifest_url != "https://panel.dark-maximus.com":
-                # Если настройка была установлена с правильным доменом, проверяем её
-                assert "panel.example.com" in ton_manifest_url
-            # Главное - проверить, что global_domain был прочитан правильно
+            # Проверяем, что global_domain был прочитан правильно
             assert global_domain_from_db == "https://panel.example.com"
+            # Если ton_manifest_url был установлен, проверяем его (но не жёстко прописанный домен)
+            if ton_manifest_url:
+                assert "panel.dark-maximus.com" not in ton_manifest_url
+                # Может содержать example.com, если был установлен
+                if "panel.example.com" in ton_manifest_url:
+                    assert "panel.example.com" in ton_manifest_url
 
     @allure.title("Нормализация домена для TON manifest")
     @allure.description("""

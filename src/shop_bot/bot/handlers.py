@@ -37,6 +37,7 @@ from aiogram.enums import ChatMemberStatus, ParseMode
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from shop_bot.bot import keyboards
+from shop_bot.bot.keyboards import normalize_web_app_url, _is_local_address
 from shop_bot.modules import xui_api
 from shop_bot.data_manager.database import (
     get_user, add_new_key, get_user_keys, update_user_stats,
@@ -46,7 +47,7 @@ from shop_bot.data_manager.database import (
     add_to_referral_balance, create_pending_transaction, create_pending_ton_transaction, create_pending_stars_transaction, get_all_users,
     set_referral_balance, set_referral_balance_all, update_transaction_on_payment, update_yookassa_transaction,
     set_subscription_status, revoke_user_consent, set_trial_days_given, increment_trial_reuses, 
-    reset_trial_used, get_trial_info, filter_plans_by_display_mode, assign_user_to_group_by_code
+    reset_trial_used, get_trial_info, filter_plans_by_display_mode, assign_user_to_group_by_code, is_production_server
 )
 
 from shop_bot.config import (
@@ -162,6 +163,43 @@ def _reconfigure_yookassa():
     else:
         logger.warning(f"[YOOKASSA_RECONFIGURE] Missing credentials for {mode_text} mode! shop_id={bool(shop_id)}, secret_key={bool(secret_key)}")
         return False
+
+
+def get_yookassa_return_url() -> str:
+    """
+    Получить return_url для YooKassa с безопасным fallback на Telegram deep link.
+    
+    Согласно документации YooKassa, для мобильных платежей рекомендуется использовать
+    валидный HTTP(S) URL вместо deep links. Если домен не настроен, используется
+    fallback на Telegram deep link для обратной совместимости.
+    
+    Returns:
+        str: URL для редиректа после оплаты
+    """
+    from shop_bot.data_manager.database import get_global_domain
+    
+    global_domain = get_global_domain()
+    
+    if global_domain:
+        # Убираем trailing slash если есть
+        domain = global_domain.rstrip('/')
+        return_url = f"{domain}/yookassa-return"
+        logger.info(
+            f"[YOOKASSA_RETURN_URL] Using domain-based return_url: {return_url} "
+            f"(domain: {domain})"
+        )
+        return return_url
+    else:
+        # Fallback на Telegram deep link если домен не настроен
+        # Это сохраняет обратную совместимость и не ломает существующий функционал
+        fallback_url = f"https://t.me/{TELEGRAM_BOT_USERNAME}"
+        logger.warning(
+            f"[YOOKASSA_RETURN_URL] global_domain not configured, "
+            f"using fallback Telegram deep link: {fallback_url}. "
+            f"Рекомендуется настроить global_domain в настройках панели для лучшей "
+            f"совместимости с мобильными платежами (особенно Mir Pay)."
+        )
+        return fallback_url
 
 
 # Добавляем обработчик ошибок для admin_router
@@ -525,9 +563,9 @@ def documents_consent_required(f):
             
             terms_url = None
             privacy_url = None
-            if domain and not domain.startswith("http://localhost") and not domain.startswith("https://localhost"):
-                terms_url = f"{domain.rstrip('/')}/terms"
-                privacy_url = f"{domain.rstrip('/')}/privacy"
+            if is_production_server() and domain and not _is_local_address(domain):
+                terms_url = normalize_web_app_url(f"{domain.rstrip('/')}/terms")
+                privacy_url = normalize_web_app_url(f"{domain.rstrip('/')}/privacy")
             
             if not terms_url or not privacy_url:
                 # Если документы не настроены, разрешаем доступ
@@ -713,20 +751,14 @@ def get_user_router() -> Router:
         
         terms_url = None
         privacy_url = None
-        if domain and not domain.startswith("http://localhost") and not domain.startswith("https://localhost"):
-            terms_url = f"{domain.rstrip('/')}/terms"
-            privacy_url = f"{domain.rstrip('/')}/privacy"
+        if is_production_server() and domain and not _is_local_address(domain):
+            terms_url = normalize_web_app_url(f"{domain.rstrip('/')}/terms")
+            privacy_url = normalize_web_app_url(f"{domain.rstrip('/')}/privacy")
             
         channel_url = get_setting("channel_url")
         is_subscription_forced = get_setting("force_subscription") == "true"
         
         logger.info(f"START HANDLER: Settings - force_subscription: {is_subscription_forced}, channel_url: {channel_url}, terms_url: {terms_url}, privacy_url: {privacy_url}")
-        
-        # Проверяем, что URL не localhost
-        if terms_url and (terms_url.startswith("http://localhost") or terms_url.startswith("https://localhost")):
-            terms_url = None
-        if privacy_url and (privacy_url.startswith("http://localhost") or privacy_url.startswith("https://localhost")):
-            privacy_url = None
 
         # Получаем текущий статус пользователя
         agreed_to_terms = user_data.get('agreed_to_terms', False)
@@ -2038,9 +2070,9 @@ def get_user_router() -> Router:
         # Генерируем URL для страниц только если домен не localhost
         terms_url = None
         privacy_url = None
-        if domain and not domain.startswith("http://localhost") and not domain.startswith("https://localhost"):
-            terms_url = f"{domain.rstrip('/')}/terms"
-            privacy_url = f"{domain.rstrip('/')}/privacy"
+        if is_production_server() and domain and not _is_local_address(domain):
+            terms_url = normalize_web_app_url(f"{domain.rstrip('/')}/terms")
+            privacy_url = normalize_web_app_url(f"{domain.rstrip('/')}/privacy")
         
         final_text = about_text if about_text else "Информация о проекте не добавлена."
         
@@ -2967,9 +2999,9 @@ def get_user_router() -> Router:
         # Генерируем URL для страниц только если домен не localhost
         terms_url = None
         privacy_url = None
-        if domain and not domain.startswith("http://localhost") and not domain.startswith("https://localhost"):
-            terms_url = f"{domain.rstrip('/')}/terms"
-            privacy_url = f"{domain.rstrip('/')}/privacy"
+        if is_production_server() and domain and not _is_local_address(domain):
+            terms_url = normalize_web_app_url(f"{domain.rstrip('/')}/terms")
+            privacy_url = normalize_web_app_url(f"{domain.rstrip('/')}/privacy")
 
         final_text = about_text if about_text else "Информация о проекте не добавлена."
         
@@ -4376,9 +4408,10 @@ def get_user_router() -> Router:
                 f"active_shop_id={Configuration.account_id[:8] if Configuration.account_id else 'None'}..."
             )
 
+            return_url = get_yookassa_return_url()
             payment_payload = {
                 "amount": {"value": price_str_for_api, "currency": "RUB"},
-                "confirmation": {"type": "redirect", "return_url": f"https://t.me/{TELEGRAM_BOT_USERNAME}"},
+                "confirmation": {"type": "redirect", "return_url": return_url},
                 "capture": True,
                 "description": "Пополнение баланса",
                 "test": yookassa_test_mode,  # Критически важно для определения режима YooKassa
@@ -4390,6 +4423,11 @@ def get_user_router() -> Router:
                     "host_code": data.get('host_code')
                 }
             }
+            
+            # Логируем return_url для диагностики
+            logger.info(
+                f"[YOOKASSA_PAYMENT_TOPUP] Created payment payload with return_url: {return_url}"
+            )
 
             if _should_use_yookassa_stub():
                 stub_payment_id = f"stub-{uuid.uuid4()}"
@@ -5042,9 +5080,10 @@ def get_user_router() -> Router:
                         "vat_code": "1"
                     }]
                 }
+            return_url = get_yookassa_return_url()
             payment_payload = {
                 "amount": {"value": price_str_for_api, "currency": "RUB"},
-                "confirmation": {"type": "redirect", "return_url": f"https://t.me/{TELEGRAM_BOT_USERNAME}"},
+                "confirmation": {"type": "redirect", "return_url": return_url},
                 "capture": True,
                 "description": "Подписка на сервис",
                 "test": yookassa_test_mode,  # Критически важно для определения режима YooKassa
@@ -5058,6 +5097,11 @@ def get_user_router() -> Router:
             }
             if receipt:
                 payment_payload['receipt'] = receipt
+            
+            # Логируем return_url для диагностики
+            logger.info(
+                f"[YOOKASSA_PAYMENT_PURCHASE] Created payment payload with return_url: {return_url}"
+            )
 
             payment_metadata = {
                 "user_id": user_id,
@@ -5744,7 +5788,7 @@ def get_user_router() -> Router:
             return
 
         try:
-            invoice_price = types.LabeledPrice(label=f"{plan.get('plan_name', 'Тариф')}", amount=int(price_rub * 100))
+            invoice_price = types.LabeledPrice(label=f"{plan.get('plan_name', 'Тариф')}", amount=amount_stars)
 
             payment_id = str(uuid.uuid4())
             payment_metadata = {
@@ -6424,7 +6468,12 @@ except Exception:
 async def _get_ton_connect_instance(user_id: int) -> TonConnect:
     if user_id not in _user_connectors:
         from shop_bot.data_manager.database import get_global_domain
-        manifest_url = f'{get_global_domain()}/.well-known/tonconnect-manifest.json'
+        domain = get_global_domain()
+        if not domain:
+            raise ValueError(
+                "Глобальный домен не настроен. Настройте global_domain в настройках панели для использования TON Connect."
+            )
+        manifest_url = f'{domain}/.well-known/tonconnect-manifest.json'
         _user_connectors[user_id] = TonConnect(manifest_url=manifest_url)
     return _user_connectors[user_id]
 
@@ -6541,7 +6590,12 @@ async def _start_ton_connect_process(user_id: int, transaction_payload: dict, me
     if user_id in _listener_tasks and not _listener_tasks[user_id].done():
         _listener_tasks[user_id].cancel()
 
-    connector = await _get_ton_connect_instance(user_id)
+    try:
+        connector = await _get_ton_connect_instance(user_id)
+    except ValueError as e:
+        # Глобальный домен не настроен - логируем и пробрасываем ошибку выше
+        logger.error(f"TON Connect недоступен для user {user_id}: {e}")
+        raise
     
     task = asyncio.create_task(
         _listener_task(connector, user_id, transaction_payload, metadata, bot_instance)
@@ -7728,7 +7782,17 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
         
     except Exception as e:
         logger.error(f"Error processing payment for user {user_id} on host {host_name}: {e}", exc_info=True)
-        await processing_message.edit_text("❌ Ошибка при выдаче ключа.")
+        
+        # Безопасная попытка отредактировать сообщение
+        try:
+            await processing_message.edit_text("❌ Ошибка при выдаче ключа.")
+        except Exception as edit_error:
+            # Если не удалось отредактировать, отправляем новое сообщение
+            logger.warning(f"Could not edit processing message: {edit_error}")
+            try:
+                await bot.send_message(user_id, "❌ Ошибка при выдаче ключа.")
+            except Exception as send_error:
+                logger.error(f"Could not send error message to user {user_id}: {send_error}")
         
         # Возвращаем статус транзакции на pending при ошибке
         try:
@@ -7746,8 +7810,8 @@ async def show_terms_agreement_screen(message: types.Message, state: FSMContext)
     domain = get_global_domain()
     
     terms_url = None
-    if domain and not domain.startswith("http://localhost") and not domain.startswith("https://localhost"):
-        terms_url = f"{domain.rstrip('/')}/terms"
+    if is_production_server() and domain and not _is_local_address(domain):
+        terms_url = normalize_web_app_url(f"{domain.rstrip('/')}/terms")
     
     if not terms_url:
         # Если условия не настроены, переходим к проверке документов
@@ -7775,8 +7839,8 @@ async def show_documents_agreement_screen(message: types.Message, state: FSMCont
     domain = get_global_domain()
     
     privacy_url = None
-    if domain and not domain.startswith("http://localhost") and not domain.startswith("https://localhost"):
-        privacy_url = f"{domain.rstrip('/')}/privacy"
+    if is_production_server() and domain and not _is_local_address(domain):
+        privacy_url = normalize_web_app_url(f"{domain.rstrip('/')}/privacy")
     
     if not privacy_url:
         # Если политика не настроена, переходим к проверке подписки

@@ -1,6 +1,6 @@
 # База данных Dark Maximus
 
-**Последнее обновление:** 22.10.2025 21:15
+**Последнее обновление:** 24.11.2025 13:29
 
 ## Оглавление
 - [Обзор](#обзор)
@@ -501,6 +501,30 @@ CREATE INDEX idx_users_group_id ON users(group_id);
 - Автоматическое назначение существующих пользователей в группу по умолчанию
 - Подготовка для расширенного управления пользователями
 
+#### v2.7 - Настройка окружения сервера
+```python
+# Добавление настройки server_environment
+# Значение по умолчанию: "production"
+INSERT OR IGNORE INTO bot_settings (key, value) 
+VALUES ('server_environment', 'production');
+```
+
+**Цель миграции:**
+- Централизованное управление окружением сервера
+- Автоматический выбор доменов в зависимости от окружения
+- Упрощение кода за счет единой проверки окружения
+- Безопасность: значение по умолчанию "production"
+
+**Новые функции:**
+- `get_server_environment()` — получение текущего окружения
+- `is_production_server()` — проверка production окружения
+- `is_development_server()` — проверка development окружения
+
+**Влияние на другие функции:**
+- `get_global_domain()` — возвращает `None` в production если домен не настроен, `"https://localhost:8443"` в development
+- Логика выбора доменов в `dashboard_page()` — учитывает окружение
+- Формирование Web App URL — учитывает окружение для предотвращения использования localhost в production
+
 ### Запуск миграций
 ```python
 from shop_bot.data_manager.database import run_migration
@@ -558,13 +582,29 @@ def get_paginated_transactions(page: int = 1, per_page: int = 15) -> tuple[list[
 #### Настройки
 ```python
 # Получение настройки
-def get_setting(key: str) -> str
+def get_setting(key: str) -> str | None
 
 # Получение всех настроек
 def get_all_settings() -> dict
 
 # Обновление настройки
 def update_setting(key: str, value: str)
+
+# Получение окружения сервера
+def get_server_environment() -> str
+# Возвращает "development" или "production" (по умолчанию "production")
+
+# Проверка окружения
+def is_production_server() -> bool
+# Возвращает True если окружение "production"
+
+def is_development_server() -> bool
+# Возвращает True если окружение "development"
+
+# Получение глобального домена
+def get_global_domain() -> str | None
+# Возвращает глобальный домен или None (в production если не настроен)
+# В development возвращает "https://localhost:8443"
 ```
 
 #### Группы пользователей

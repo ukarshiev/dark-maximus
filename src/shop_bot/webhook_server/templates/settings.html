@@ -115,7 +115,7 @@
 									<i class="fas fa-plug"></i>
 									<span>Проверить соединение</span>
 								</button>
-                                <button type="button" class="kebab-item" onclick="closeKebabMenu('kebab-server-{{ host.host_name }}'); openHostModalData(this)" data-host-name="{{ host.host_name }}" data-host-url="{{ host.host_url }}" data-host-username="{{ host.host_username }}" data-host-inbound-id="{{ host.host_inbound_id }}" data-host-code="{{ host.host_code or '' }}" title="Редактировать настройки сервера">
+                                <button type="button" class="kebab-item" onclick="closeKebabMenu('kebab-server-{{ host.host_name }}'); openHostModalData(this)" data-host-name="{{ host.host_name }}" data-host-url="{{ host.host_url }}" data-host-username="{{ host.host_username }}" data-host-pass="{{ host.host_pass }}" data-host-inbound-id="{{ host.host_inbound_id }}" data-host-code="{{ host.host_code or '' }}" title="Редактировать настройки сервера">
 									<i class="fas fa-edit"></i>
 									<span>Редактировать</span>
 								</button>
@@ -360,6 +360,25 @@
 						{% endfor %}
 					</select>
 					<small class="text-muted">Определяет часовой пояс для отображения дат и времени в панели управления и связанных уведомлениях.</small>
+				</div>
+				<div class="form-group">
+					<label for="server_environment">Тип сервера:</label>
+					<select
+						id="server_environment"
+						name="server_environment"
+						title="Определяет режим работы сервера: development использует localhost, production использует настроенные домены"
+					>
+						<option value="production" {% if settings.server_environment != 'development' %}selected{% endif %}>
+							production
+						</option>
+						<option value="development" {% if settings.server_environment == 'development' %}selected{% endif %}>
+							development
+						</option>
+					</select>
+					<small class="text-muted">
+						<strong>production:</strong> используются настроенные домены из полей ниже.<br>
+						<strong>development:</strong> используются localhost адреса для всех сервисов.
+					</small>
 				</div>
 			</section>
 			
@@ -844,7 +863,7 @@
 										type="url"
 										id="ton_manifest_url"
 										name="ton_manifest_url"
-										value="{{ (settings.global_domain or settings.domain or 'https://panel.dark-maximus.com') + '/.well-known/tonconnect-manifest.json' }}"
+										value="{{ (settings.global_domain or settings.domain or '') + '/.well-known/tonconnect-manifest.json' if (settings.global_domain or settings.domain) else '' }}"
 										placeholder="https://example.com/.well-known/tonconnect-manifest.json"
 										readonly
 									/>
@@ -2097,7 +2116,7 @@ function openHostModal(name='', url='', user='', pass='', inbound='', code=''){
               <div class="form-group"><label>Название</label><input type="text" name="host_name" value="${name}" required></div>
               <div class="form-group"><label>URL панели XUI</label><input type="url" name="host_url" value="${url}" placeholder="https://host:port/secret" required></div>
               <div class="form-group"><label>Логин</label><input type="text" name="host_username" value="${user}" required></div>
-              <div class="form-group"><label>Пароль</label><input type="password" name="host_pass" value="${pass||''}" autocomplete="current-password" required></div>
+              <div class="form-group"><label>Пароль</label><input type="password" name="host_pass" value="${pass||''}" autocomplete="current-password" ${name ? '' : 'required'} placeholder="${name ? 'Оставьте пустым, чтобы не менять' : ''}"></div>
               <div class="form-group"><label>ID инбаунда</label><input type="number" name="host_inbound_id" value="${inbound}" required></div>
               <div class="form-group"><label>Код 3x‑ui (стабильный)</label><input type="text" name="host_code" value="${code||''}" placeholder="amsterdam"></div>
               <div class="modal-actions">
@@ -2119,9 +2138,10 @@ function openHostModalData(el){
     const name = el.getAttribute('data-host-name') || '';
     const url = el.getAttribute('data-host-url') || '';
     const user = el.getAttribute('data-host-username') || '';
+    const pass = el.getAttribute('data-host-pass') || '';
     const inbound = el.getAttribute('data-host-inbound-id') || '';
     const code = el.getAttribute('data-host-code') || '';
-    openHostModal(name, url, user, '', inbound, code);
+    openHostModal(name, url, user, pass, inbound, code);
 }
 
 // Модалка для тарифа (создание/редактирование)

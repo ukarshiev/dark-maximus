@@ -121,14 +121,13 @@ class TestXuiApiDomains:
             user_agent = session.headers.get("User-Agent", "")
             allure.attach(user_agent, "User-Agent заголовок", allure.attachment_type.TEXT)
         
-        with allure.step("Проверка использования дефолтного домена"):
-            # Если global_domain отсутствует, должен использоваться дефолт
-            # Проверяем, что User-Agent содержит либо домен из global_domain, либо дефолтный
+        with allure.step("Проверка User-Agent без домена"):
+            # Если global_domain отсутствует, User-Agent должен быть без домена
             assert "DarkMaximus-XUI" in user_agent
-            # Должен быть либо домен из настроек, либо дефолтный
-            assert ("dark-maximus.com" in user_agent or 
-                   "localhost" in user_agent or
-                   any(char.isalnum() for char in user_agent.split("+")[-1] if "+" in user_agent))
+            # Не должно быть жёстко прописанного домена
+            assert "dark-maximus.com" not in user_agent
+            # User-Agent должен быть в формате "DarkMaximus-XUI/1.0" (без домена)
+            assert user_agent == "DarkMaximus-XUI/1.0"
 
     @allure.title("Проверка формата User-Agent строки")
     @allure.description("""

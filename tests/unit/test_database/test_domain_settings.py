@@ -21,6 +21,9 @@ from shop_bot.data_manager.database import (
     get_setting,
     update_setting,
     initialize_db,
+    get_server_environment,
+    is_production_server,
+    is_development_server,
 )
 from shop_bot.config import get_user_cabinet_domain
 
@@ -93,23 +96,131 @@ class TestDomainSettings:
         with allure.step("Проверка результата"):
             assert result == "https://old-example.com"
 
-    @allure.title("Fallback на localhost если оба домена отсутствуют")
+    @allure.title("Fallback на localhost в development если оба домена отсутствуют")
     @allure.description("""
-    Проверяет fallback на localhost если и global_domain и domain отсутствуют.
+    Проверяет fallback на localhost в development режиме если и global_domain и domain отсутствуют.
     
     **Что проверяется:**
+    - Установка server_environment в "development"
+    - Проверка сохранения настройки server_environment
+    - Явная очистка global_domain и domain в БД
     - Отсутствие global_domain и domain в БД
     - Чтение через get_global_domain()
-    - Fallback на дефолтное значение localhost
+    - Fallback на дефолтное значение localhost в development
     
     **Ожидаемый результат:**
-    get_global_domain() возвращает "https://localhost:8443".
+    get_global_domain() возвращает "https://localhost:8443" в development режиме.
     """)
     @allure.severity(allure.severity_level.NORMAL)
-    @allure.tag("domain", "settings", "fallback", "database", "unit")
-    def test_get_global_domain_fallback_to_localhost(self, temp_db):
-        """Проверка fallback на localhost если оба домена отсутствуют"""
-        with allure.step("Проверка отсутствия настроек"):
+    @allure.tag("domain", "settings", "fallback", "database", "unit", "server-environment")
+    def test_get_global_domain_fallback_to_localhost_in_development(self, temp_db):
+        """Проверка fallback на localhost в development если оба домена отсутствуют"""
+        import sqlite3
+        import time
+        
+        with allure.step("Установка server_environment в development"):
+            update_setting("server_environment", "development")
+            allure.attach("development", "Установленное окружение", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка сохранения настройки server_environment"):
+            saved_env = get_server_environment()
+            allure.attach(f"server_environment: {saved_env}", "Сохраненное окружение", allure.attachment_type.TEXT)
+            assert saved_env == "development", f"server_environment должен быть 'development', но получен: {saved_env}"
+            
+            # Дополнительная проверка через is_development_server()
+            is_dev = is_development_server()
+            allure.attach(f"is_development_server(): {is_dev}", "Результат проверки development", allure.attachment_type.TEXT)
+            assert is_dev is True, f"is_development_server() должен возвращать True, но получен: {is_dev}"
+        
+        with allure.step("Явная очистка настроек доменов"):
+            # Сначала устанавливаем домены в None через update_setting для гарантии
+            # что изменения видны через get_setting()
+            update_setting("global_domain", "")
+            update_setting("domain", "")
+            
+            # Затем удаляем через прямой SQL для полной очистки
+            # Используем temp_db напрямую - это Path объект к временной БД
+            # temp_db соответствует database.DB_FILE благодаря monkeypatch в фикстуре
+            with sqlite3.connect(str(temp_db)) as conn:
+                cursor = conn.cursor()
+                # Удаляем записи, включая пустые строки
+                cursor.execute("DELETE FROM bot_settings WHERE key IN ('global_domain', 'domain')")
+                conn.commit()
+                # Явно закрываем соединение для гарантии применения изменений
+            allure.attach("global_domain и domain удалены из БД", "Очистка настроек", allure.attachment_type.TEXT)
+            
+            # Небольшая задержка для гарантии, что изменения применены
+            time.sleep(0.1)
+        
+        with allure.step("Проверка отсутствия настроек доменов"):
+            # Проверяем через get_setting() - должно возвращать None
+            global_domain = get_setting("global_domain")
+            domain = get_setting("domain")
+            allure.attach(f"global_domain: {global_domain}, domain: {domain}", "Текущие настройки", allure.attachment_type.TEXT)
+            
+            # Убеждаемся, что настройки действительно отсутствуют (None или пустая строка)
+            assert global_domain is None or global_domain == "", f"global_domain должен быть None или пустой строкой, но получен: {global_domain}"
+            assert domain is None or domain == "", f"domain должен быть None или пустой строкой, но получен: {domain}"
+            
+            # Дополнительная проверка через прямой SQL запрос
+            with sqlite3.connect(str(temp_db)) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT value FROM bot_settings WHERE key IN ('global_domain', 'domain')")
+                remaining = cursor.fetchall()
+                allure.attach(f"Оставшиеся записи в БД: {remaining}", "Проверка через SQL", allure.attachment_type.TEXT)
+                assert len(remaining) == 0, f"В БД остались записи доменов: {remaining}"
+        
+        with allure.step("Проверка окружения перед вызовом get_global_domain()"):
+            # Еще раз проверяем окружение перед вызовом функции
+            current_env = get_server_environment()
+            is_dev_check = is_development_server()
+            allure.attach(
+                f"server_environment: {current_env}, is_development_server(): {is_dev_check}",
+                "Проверка окружения перед вызовом",
+                allure.attachment_type.TEXT
+            )
+            assert current_env == "development", f"Окружение должно быть 'development', но получено: {current_env}"
+            assert is_dev_check is True, f"is_development_server() должен возвращать True, но получен: {is_dev_check}"
+        
+        with allure.step("Чтение через get_global_domain()"):
+            result = get_global_domain()
+            allure.attach(str(result), "Полученное значение", allure.attachment_type.TEXT)
+            
+            # Дополнительная диагностика
+            debug_info = {
+                "result": result,
+                "server_environment": get_server_environment(),
+                "is_development_server": is_development_server(),
+                "global_domain_from_db": get_setting("global_domain"),
+                "domain_from_db": get_setting("domain"),
+            }
+            allure.attach(str(debug_info), "Диагностическая информация", allure.attachment_type.JSON)
+        
+        with allure.step("Проверка результата"):
+            assert result == "https://localhost:8443", f"Ожидалось 'https://localhost:8443', но получено: {result}"
+
+    @allure.title("Возврат None в production если оба домена отсутствуют")
+    @allure.description("""
+    Проверяет возврат None в production режиме если и global_domain и domain отсутствуют.
+    
+    **Что проверяется:**
+    - Установка server_environment в "production"
+    - Отсутствие global_domain и domain в БД
+    - Чтение через get_global_domain()
+    - Возврат None в production если домен не настроен
+    
+    **Ожидаемый результат:**
+    get_global_domain() возвращает None в production режиме если домен не настроен.
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("domain", "settings", "fallback", "database", "unit", "server-environment")
+    def test_get_global_domain_returns_none_in_production(self, temp_db):
+        """Проверка возврата None в production если оба домена отсутствуют"""
+        with allure.step("Установка server_environment в production"):
+            update_setting("server_environment", "production")
+            allure.attach("production", "Установленное окружение", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка отсутствия настроек доменов"):
             global_domain = get_setting("global_domain")
             domain = get_setting("domain")
             allure.attach(f"global_domain: {global_domain}, domain: {domain}", "Текущие настройки", allure.attachment_type.TEXT)
@@ -119,7 +230,7 @@ class TestDomainSettings:
             allure.attach(str(result), "Полученное значение", allure.attachment_type.TEXT)
         
         with allure.step("Проверка результата"):
-            assert result == "https://localhost:8443"
+            assert result is None
 
     @allure.title("Чтение user_cabinet_domain из БД")
     @allure.description("""
@@ -300,4 +411,115 @@ class TestDomainSettings:
         with allure.step("Проверка результата"):
             assert result == "https://app.example.com"
             assert not result.endswith("/")
+
+    @allure.title("Получение server_environment из БД")
+    @allure.description("""
+    Проверяет корректное чтение настройки server_environment из БД.
+    
+    **Что проверяется:**
+    - Установка значения server_environment в БД
+    - Чтение значения через get_server_environment()
+    - Корректное возвращение установленного значения
+    
+    **Тестовые данные:**
+    - server_environment: "production"
+    
+    **Ожидаемый результат:**
+    get_server_environment() возвращает установленное значение.
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("server-environment", "settings", "database", "unit")
+    def test_get_server_environment_from_db(self, temp_db):
+        """Проверка чтения server_environment из БД"""
+        with allure.step("Установка server_environment в БД"):
+            update_setting("server_environment", "production")
+            allure.attach("production", "Установленное значение", allure.attachment_type.TEXT)
+        
+        with allure.step("Чтение server_environment из БД"):
+            result = get_server_environment()
+            allure.attach(str(result), "Полученное значение", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка результата"):
+            assert result == "production"
+
+    @allure.title("Значение по умолчанию server_environment")
+    @allure.description("""
+    Проверяет возврат значения по умолчанию "production" если настройка отсутствует.
+    
+    **Что проверяется:**
+    - Отсутствие server_environment в БД
+    - Чтение через get_server_environment()
+    - Возврат значения по умолчанию "production"
+    
+    **Ожидаемый результат:**
+    get_server_environment() возвращает "production" по умолчанию.
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("server-environment", "settings", "default", "database", "unit")
+    def test_get_server_environment_default_value(self, temp_db):
+        """Проверка значения по умолчанию server_environment"""
+        with allure.step("Проверка отсутствия настройки"):
+            setting = get_setting("server_environment")
+            allure.attach(str(setting), "Текущее значение", allure.attachment_type.TEXT)
+        
+        with allure.step("Чтение через get_server_environment()"):
+            result = get_server_environment()
+            allure.attach(str(result), "Полученное значение", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка результата"):
+            assert result == "production"
+
+    @allure.title("Проверка is_production_server")
+    @allure.description("""
+    Проверяет корректность работы функции is_production_server().
+    
+    **Что проверяется:**
+    - Установка server_environment в "production"
+    - Проверка через is_production_server()
+    - Возврат True для production
+    
+    **Ожидаемый результат:**
+    is_production_server() возвращает True для "production".
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("server-environment", "settings", "database", "unit")
+    def test_is_production_server(self, temp_db):
+        """Проверка функции is_production_server"""
+        with allure.step("Установка server_environment в production"):
+            update_setting("server_environment", "production")
+            allure.attach("production", "Установленное значение", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка через is_production_server()"):
+            result = is_production_server()
+            allure.attach(str(result), "Результат проверки", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка результата"):
+            assert result is True
+
+    @allure.title("Проверка is_development_server")
+    @allure.description("""
+    Проверяет корректность работы функции is_development_server().
+    
+    **Что проверяется:**
+    - Установка server_environment в "development"
+    - Проверка через is_development_server()
+    - Возврат True для development
+    
+    **Ожидаемый результат:**
+    is_development_server() возвращает True для "development".
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("server-environment", "settings", "database", "unit")
+    def test_is_development_server(self, temp_db):
+        """Проверка функции is_development_server"""
+        with allure.step("Установка server_environment в development"):
+            update_setting("server_environment", "development")
+            allure.attach("development", "Установленное значение", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка через is_development_server()"):
+            result = is_development_server()
+            allure.attach(str(result), "Результат проверки", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка результата"):
+            assert result is True
 

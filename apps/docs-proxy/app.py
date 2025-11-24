@@ -44,11 +44,9 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__, template_folder='templates')
 
 # Инициализация авторизации
-init_flask_auth(app, session_dir='/app/sessions')
-
-# ИСПРАВЛЕНИЕ: Устанавливаем уникальное имя cookie для docs-proxy
+# ИСПРАВЛЕНИЕ: Передаем уникальное имя cookie для docs-proxy в init_flask_auth
 # Это предотвращает конфликт cookie между сервисами при использовании одинакового FLASK_SECRET_KEY
-app.config['SESSION_COOKIE_NAME'] = 'docs_session'
+init_flask_auth(app, session_dir='/app/sessions', cookie_name='docs_session')
 
 # ProxyFix для правильной работы за reverse proxy
 app.wsgi_app = ProxyFix(

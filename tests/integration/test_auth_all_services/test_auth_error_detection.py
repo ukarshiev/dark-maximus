@@ -57,7 +57,19 @@ class TestAuthErrorDetection:
         """Проверяет отсутствие ошибок AttributeError при авторизации"""
         # Пропускаем тест, если сервис недоступен
         if not check_service_available(service_name):
-            pytest.skip(f"Сервис {service_name} недоступен")
+            import os
+            config = service_configs[service_name]
+            skip_reason = f"""
+Сервис {service_name} недоступен.
+
+**Диагностическая информация:**
+- Сервис: {service_name}
+- URL: {config.get('login_url', 'не указан')}
+- ENVIRONMENT: {os.getenv('ENVIRONMENT', 'не установлен')}
+- Проверьте, что сервис запущен и доступен по указанному адресу
+"""
+            allure.attach(skip_reason, "Причина пропуска теста", allure.attachment_type.TEXT)
+            pytest.skip(f"Сервис {service_name} недоступен: {config.get('login_url', 'URL не указан')}")
         
         config = service_configs[service_name]
         

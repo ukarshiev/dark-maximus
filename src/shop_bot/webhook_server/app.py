@@ -59,7 +59,7 @@ from shop_bot.data_manager.database import (
     get_user_group_by_name, get_default_user_group, update_user_group_assignment, get_user_group_info,
     get_users_in_group, get_groups_statistics, update_transaction_status,
     get_message_template, get_all_message_templates, create_message_template, update_message_template,
-    delete_message_template, get_message_template_statistics
+    delete_message_template, get_message_template_statistics, is_development_server
 )
 from shop_bot.data_manager.scheduler import (
     get_manual_notification_template,
@@ -460,7 +460,11 @@ def create_webhook_app(bot_controller_instance):
         codex_docs_domain = settings.get('codex_docs_domain', '')
         
         # URL для Вики (docs)
-        if docs_domain:
+        if is_development_server():
+            # В development режиме используем localhost
+            wiki_url = 'http://localhost:50001'
+        elif docs_domain:
+            # В production используем настройки из БД
             # Убираем слэш в конце если есть
             docs_domain = docs_domain.rstrip('/')
             # Проверяем, есть ли уже протокол
@@ -468,11 +472,15 @@ def create_webhook_app(bot_controller_instance):
                 docs_domain = f'https://{docs_domain}'
             wiki_url = docs_domain
         else:
-            # Если домен не настроен, используем localhost
+            # Fallback на localhost если ничего не настроено
             wiki_url = 'http://localhost:50001'
         
         # URL для базы знаний (codex-docs)
-        if codex_docs_domain:
+        if is_development_server():
+            # В development режиме используем localhost
+            knowledge_base_url = 'http://localhost:50002'
+        elif codex_docs_domain:
+            # В production используем настройки из БД
             # Убираем слэш в конце если есть
             codex_docs_domain = codex_docs_domain.rstrip('/')
             # Проверяем, есть ли уже протокол
@@ -486,12 +494,16 @@ def create_webhook_app(bot_controller_instance):
                 global_domain = f'https://{global_domain}'
             knowledge_base_url = f'{global_domain}:50002'
         else:
-            # Если домены не настроены, используем localhost
+            # Fallback на localhost если ничего не настроено
             knowledge_base_url = 'http://localhost:50002'
         
         # URL для Allure (тестирование)
         allure_domain = settings.get('allure_domain', '')
-        if allure_domain:
+        if is_development_server():
+            # В development режиме используем localhost
+            allure_url = 'http://localhost:50005'
+        elif allure_domain:
+            # В production используем настройки из БД
             # Убираем слэш в конце если есть
             allure_domain = allure_domain.rstrip('/')
             # Проверяем, есть ли уже протокол
@@ -499,7 +511,7 @@ def create_webhook_app(bot_controller_instance):
                 allure_domain = f'https://{allure_domain}'
             allure_url = allure_domain
         else:
-            # Если домен не настроен, используем localhost
+            # Fallback на localhost если ничего не настроено
             allure_url = 'http://localhost:50005'
         
         return {
@@ -533,10 +545,15 @@ def create_webhook_app(bot_controller_instance):
             from shop_bot.data_manager.database import DB_FILE
             
             # Получаем домен кабинета
+            from shop_bot.data_manager.database import is_development_server
             cabinet_domain = get_user_cabinet_domain()
             if not cabinet_domain:
-                # Fallback на localhost если домен не настроен
-                cabinet_domain = "http://localhost:50003"
+                if is_development_server():
+                    # В development режиме используем localhost
+                    cabinet_domain = "http://localhost:50003"
+                else:
+                    # В production возвращаем None если домен не настроен
+                    return None
             
             # Находим последний ключ (по максимальному key_id)
             with sqlite3.connect(DB_FILE, timeout=30) as conn:
@@ -1181,7 +1198,7 @@ def create_webhook_app(bot_controller_instance):
     @login_required
     def save_panel_settings():
         """Сохранение настроек панели - v2.1"""
-        panel_keys = ['panel_login', 'global_domain', 'docs_domain', 'codex_docs_domain', 'user_cabinet_domain', 'allure_domain', 'admin_timezone', 'monitoring_max_metrics', 'monitoring_slow_threshold', 'monitoring_cleanup_hours']
+        panel_keys = ['panel_login', 'global_domain', 'docs_domain', 'codex_docs_domain', 'user_cabinet_domain', 'allure_domain', 'admin_timezone', 'server_environment', 'monitoring_max_metrics', 'monitoring_slow_threshold', 'monitoring_cleanup_hours']
         
         # Пароль отдельно, если указан
         if 'panel_password' in request.form and request.form.get('panel_password'):
@@ -1569,7 +1586,7 @@ def create_webhook_app(bot_controller_instance):
             
             # Генерируем полный URL для доступа к файлу
             # Получаем домен из настроек или используем текущий хост
-            domain = get_global_domain()
+            domain = get_global_domain() or request.host_url.rstrip('/')  # Fallback на текущий хост
             icon_url = f"{domain}/static/icons/{unique_filename}"
             
             # Сохраняем URL в настройках
@@ -2545,10 +2562,20 @@ def create_webhook_app(bot_controller_instance):
             new_name = request.form.get('host_name')
             url = request.form.get('host_url')
             user = request.form.get('host_username')
-            passwd = request.form.get('host_pass')
+            passwd = request.form.get('host_pass', '').strip()  # Получаем пароль и убираем пробелы
             inbound = int(request.form.get('host_inbound_id'))
             # Получаем host_code из формы (если не указан, update_host сгенерирует автоматически)
             host_code = request.form.get('host_code', '').strip()
+            
+            # Если пароль не указан, получаем старый пароль из БД
+            if not passwd:
+                old_host = get_host(old_name)
+                if old_host:
+                    passwd = old_host.get('host_pass', '')
+                else:
+                    flash('Хост не найден.', 'danger')
+                    return redirect(url_for('settings_page', tab='servers'))
+            
             ok = update_host(old_name, new_name, url, user, passwd, inbound, host_code if host_code else None)
             if ok:
                 flash('Хост обновлён.', 'success')
@@ -3205,6 +3232,65 @@ def create_webhook_app(bot_controller_instance):
         except Exception as e:
             logger.error(f"Error in yookassa webhook handler: {e}", exc_info=True)
             return 'Error', 500
+    
+    @flask_app.route('/yookassa-return', methods=['GET'])
+    @measure_performance_sync("yookassa_return")
+    def yookassa_return_handler():
+        """
+        Эндпоинт для редиректа пользователя после оплаты через YooKassa.
+        
+        YooKassa перенаправляет пользователя на этот URL после завершения оплаты.
+        Эндпоинт редиректит пользователя на Telegram бота через deep link.
+        
+        Параметры от YooKassa (если есть):
+        - orderId: ID заказа в YooKassa
+        - Другие параметры могут быть переданы в query string
+        """
+        try:
+            # Получаем параметры от YooKassa
+            order_id = request.args.get('orderId')
+            other_params = dict(request.args)
+            
+            # Получаем имя бота из настроек
+            bot_username = get_setting("telegram_bot_username")
+            if not bot_username:
+                logger.error("[YOOKASSA_RETURN] telegram_bot_username not configured in settings")
+                return render_template(
+                    'error.html',
+                    error_message="Ошибка конфигурации: имя бота не настроено. Обратитесь к администратору."
+                ), 500
+            
+            # Убираем @ если есть
+            bot_username = str(bot_username).strip().lstrip('@')
+            
+            # Формируем Telegram deep link
+            telegram_deep_link = f"https://t.me/{bot_username}"
+            
+            # Логируем информацию о редиректе
+            logger.info(
+                f"[YOOKASSA_RETURN] Redirecting user after payment: "
+                f"orderId={order_id}, bot_username={bot_username}, "
+                f"params={other_params}"
+            )
+            
+            # Редиректим пользователя на Telegram бота
+            return redirect(telegram_deep_link, code=302)
+            
+        except Exception as e:
+            logger.error(f"[YOOKASSA_RETURN] Error in yookassa return handler: {e}", exc_info=True)
+            # В случае ошибки пытаемся редиректить на бота, если имя бота доступно
+            try:
+                bot_username = get_setting("telegram_bot_username")
+                if bot_username:
+                    bot_username = str(bot_username).strip().lstrip('@')
+                    return redirect(f"https://t.me/{bot_username}", code=302)
+            except:
+                pass
+            
+            return render_template(
+                'error.html',
+                error_message="Произошла ошибка при обработке возврата после оплаты. Пожалуйста, вернитесь в бота вручную."
+            ), 500
         
     @flask_app.route('/cryptobot-webhook', methods=['POST'])
     @measure_performance_sync("cryptobot_webhook")

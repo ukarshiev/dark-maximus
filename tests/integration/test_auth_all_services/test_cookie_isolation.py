@@ -65,7 +65,19 @@ class TestCookieIsolation:
         
         for service_name, expected_cookie_name in expected_cookie_names.items():
             if not check_service_available(service_name):
-                pytest.skip(f"Сервис {service_name} недоступен")
+                import os
+                config = service_configs[service_name]
+                skip_reason = f"""
+Сервис {service_name} недоступен.
+
+**Диагностическая информация:**
+- Сервис: {service_name}
+- URL: {config.get('login_url', 'не указан')}
+- ENVIRONMENT: {os.getenv('ENVIRONMENT', 'не установлен')}
+- Проверьте, что сервис запущен и доступен по указанному адресу
+"""
+                allure.attach(skip_reason, "Причина пропуска теста", allure.attachment_type.TEXT)
+                pytest.skip(f"Сервис {service_name} недоступен: {config.get('login_url', 'URL не указан')}")
             
             config = service_configs[service_name]
             
@@ -152,9 +164,33 @@ class TestCookieIsolation:
         
         # Проверяем доступность сервисов
         if not check_service_available('webhook_server'):
-            pytest.skip("Сервис webhook_server недоступен")
+            import os
+            config = service_configs['webhook_server']
+            skip_reason = f"""
+Сервис webhook_server недоступен.
+
+**Диагностическая информация:**
+- Сервис: webhook_server
+- URL: {config.get('login_url', 'не указан')}
+- ENVIRONMENT: {os.getenv('ENVIRONMENT', 'не установлен')}
+- Проверьте, что сервис запущен и доступен по указанному адресу
+"""
+            allure.attach(skip_reason, "Причина пропуска теста", allure.attachment_type.TEXT)
+            pytest.skip(f"Сервис webhook_server недоступен: {config.get('login_url', 'URL не указан')}")
         if not check_service_available('docs-proxy'):
-            pytest.skip("Сервис docs-proxy недоступен")
+            import os
+            config = service_configs['docs-proxy']
+            skip_reason = f"""
+Сервис docs-proxy недоступен.
+
+**Диагностическая информация:**
+- Сервис: docs-proxy
+- URL: {config.get('login_url', 'не указан')}
+- ENVIRONMENT: {os.getenv('ENVIRONMENT', 'не установлен')}
+- Проверьте, что сервис запущен и доступен по указанному адресу
+"""
+            allure.attach(skip_reason, "Причина пропуска теста", allure.attachment_type.TEXT)
+            pytest.skip(f"Сервис docs-proxy недоступен: {config.get('login_url', 'URL не указан')}")
         
         webhook_config = service_configs['webhook_server']
         docs_config = service_configs['docs-proxy']

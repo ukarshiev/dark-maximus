@@ -167,33 +167,130 @@ class TestKeyboardGeneration:
         buttons = keyboard.inline_keyboard
         assert len(buttons) > 0
 
-    @allure.title("Генерация клавиатуры помощи")
+    @allure.title("Генерация клавиатуры помощи с включенными инструкциями")
     @allure.description("""
-    Проверяет генерацию inline-клавиатуры центра помощи.
+    Проверяет генерацию inline-клавиатуры центра помощи, когда инструкции включены.
     
     **Что проверяется:**
     - Генерация клавиатуры через create_help_center_keyboard
-    - Использование настройки support_user из БД
+    - Использование настройки support_enabled из БД
+    - Отображение кнопки "Инструкции" когда есть включенные инструкции
     - Корректность типа клавиатуры (InlineKeyboardMarkup)
     
     **Тестовые данные:**
-    - support_user: "test_support_user"
+    - support_enabled: False
+    - has_any_instructions_enabled: True
     
     **Ожидаемый результат:**
-    Клавиатура содержит все необходимые кнопки центра помощи.
+    Клавиатура содержит кнопку "Инструкции" когда есть включенные инструкции.
     """)
     @allure.severity(allure.severity_level.NORMAL)
-    @allure.tag("keyboard", "help_keyboard", "bot", "unit")
+    @allure.tag("keyboard", "help_keyboard", "instructions", "bot", "unit")
+    @patch('shop_bot.bot.keyboards.has_any_instructions_enabled')
     @patch('shop_bot.bot.keyboards.get_setting')
-    def test_create_help_center_keyboard(self, mock_get_setting):
-        """Тест генерации клавиатуры помощи"""
-        mock_get_setting.return_value = "test_support_user"
+    def test_create_help_center_keyboard_with_instructions(self, mock_get_setting, mock_has_instructions):
+        """Тест генерации клавиатуры помощи с включенными инструкциями"""
+        mock_get_setting.return_value = "false"  # support_enabled = False
+        mock_has_instructions.return_value = True  # Инструкции включены
         
         keyboard = keyboards.create_help_center_keyboard()
         
         assert isinstance(keyboard, InlineKeyboardMarkup)
-        buttons = keyboard.inline_keyboard
-        assert len(buttons) > 0
+        buttons_text = [btn.text for row in keyboard.inline_keyboard for btn in row]
+        assert "🌐 Инструкции❓" in buttons_text
+        assert "ℹ️ О проекте" in buttons_text
+
+    @allure.title("Генерация клавиатуры помощи без инструкций")
+    @allure.description("""
+    Проверяет генерацию inline-клавиатуры центра помощи, когда все инструкции отключены.
+    
+    **Что проверяется:**
+    - Генерация клавиатуры через create_help_center_keyboard
+    - Скрытие кнопки "Инструкции" когда все инструкции отключены
+    - Корректность типа клавиатуры (InlineKeyboardMarkup)
+    
+    **Тестовые данные:**
+    - support_enabled: False
+    - has_any_instructions_enabled: False
+    
+    **Ожидаемый результат:**
+    Клавиатура не содержит кнопку "Инструкции" когда все инструкции отключены.
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("keyboard", "help_keyboard", "instructions", "bot", "unit")
+    @patch('shop_bot.bot.keyboards.has_any_instructions_enabled')
+    @patch('shop_bot.bot.keyboards.get_setting')
+    def test_create_help_center_keyboard_without_instructions(self, mock_get_setting, mock_has_instructions):
+        """Тест генерации клавиатуры помощи без инструкций"""
+        mock_get_setting.return_value = "false"  # support_enabled = False
+        mock_has_instructions.return_value = False  # Все инструкции отключены
+        
+        keyboard = keyboards.create_help_center_keyboard()
+        
+        assert isinstance(keyboard, InlineKeyboardMarkup)
+        buttons_text = [btn.text for row in keyboard.inline_keyboard for btn in row]
+        assert "🌐 Инструкции❓" not in buttons_text
+        assert "ℹ️ О проекте" in buttons_text
+
+    @allure.title("Генерация клавиатуры QR-кода с включенными инструкциями")
+    @allure.description("""
+    Проверяет генерацию inline-клавиатуры QR-кода, когда инструкции включены.
+    
+    **Что проверяется:**
+    - Генерация клавиатуры через create_qr_keyboard
+    - Отображение кнопки "Инструкции" когда есть включенные инструкции
+    - Корректность типа клавиатуры (InlineKeyboardMarkup)
+    
+    **Тестовые данные:**
+    - key_id: 1
+    - has_any_instructions_enabled: True
+    
+    **Ожидаемый результат:**
+    Клавиатура содержит кнопку "Инструкции" когда есть включенные инструкции.
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("keyboard", "qr_keyboard", "instructions", "bot", "unit")
+    @patch('shop_bot.bot.keyboards.has_any_instructions_enabled')
+    def test_create_qr_keyboard_with_instructions(self, mock_has_instructions):
+        """Тест генерации клавиатуры QR-кода с включенными инструкциями"""
+        mock_has_instructions.return_value = True  # Инструкции включены
+        
+        keyboard = keyboards.create_qr_keyboard(key_id=1)
+        
+        assert isinstance(keyboard, InlineKeyboardMarkup)
+        buttons_text = [btn.text for row in keyboard.inline_keyboard for btn in row]
+        assert "🌐 Инструкции❓" in buttons_text
+        assert "📑 Скопировать ключ" in buttons_text
+
+    @allure.title("Генерация клавиатуры QR-кода без инструкций")
+    @allure.description("""
+    Проверяет генерацию inline-клавиатуры QR-кода, когда все инструкции отключены.
+    
+    **Что проверяется:**
+    - Генерация клавиатуры через create_qr_keyboard
+    - Скрытие кнопки "Инструкции" когда все инструкции отключены
+    - Корректность типа клавиатуры (InlineKeyboardMarkup)
+    
+    **Тестовые данные:**
+    - key_id: 1
+    - has_any_instructions_enabled: False
+    
+    **Ожидаемый результат:**
+    Клавиатура не содержит кнопку "Инструкции" когда все инструкции отключены.
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("keyboard", "qr_keyboard", "instructions", "bot", "unit")
+    @patch('shop_bot.bot.keyboards.has_any_instructions_enabled')
+    def test_create_qr_keyboard_without_instructions(self, mock_has_instructions):
+        """Тест генерации клавиатуры QR-кода без инструкций"""
+        mock_has_instructions.return_value = False  # Все инструкции отключены
+        
+        keyboard = keyboards.create_qr_keyboard(key_id=1)
+        
+        assert isinstance(keyboard, InlineKeyboardMarkup)
+        buttons_text = [btn.text for row in keyboard.inline_keyboard for btn in row]
+        assert "🌐 Инструкции❓" not in buttons_text
+        assert "📑 Скопировать ключ" in buttons_text
 
     @allure.title("Генерация клавиатуры оплаты через Stars")
     @allure.description("""

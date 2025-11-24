@@ -76,12 +76,25 @@ def _create_verified_panel_session(host_url: str) -> requests.Session:
         # Нормализация домена (убираем протокол если есть)
         domain_for_ua = global_domain.replace("https://", "").replace("http://", "").rstrip("/")
     else:
-        # Fallback на дефолт (для обратной совместимости)
-        domain_for_ua = "dark-maximus.com"
+        # Если домен не настроен, используем пустую строку
+        # Это безопаснее, чем жестко прописывать домен
+        domain_for_ua = ""
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "global_domain не настроен в БД. User-Agent будет без домена. "
+            "Рекомендуется настроить global_domain в настройках панели."
+        )
+    
+    # Формируем User-Agent с доменом или без него
+    if domain_for_ua:
+        user_agent = f"DarkMaximus-XUI/1.0 (+https://{domain_for_ua})"
+    else:
+        user_agent = "DarkMaximus-XUI/1.0"
     
     session.headers.update(
         {
-            "User-Agent": f"DarkMaximus-XUI/1.0 (+https://{domain_for_ua})",
+            "User-Agent": user_agent,
             "Accept": "application/json, text/plain, */*",
         }
     )
@@ -917,11 +930,25 @@ async def get_key_details_from_host(key_data: dict) -> dict | None:
                         sub_uri = get_sub_uri_from_panel(host_db_data['host_url'], host_db_data['host_username'], host_db_data['host_pass'])
                         if sub_uri:
                             subscription_link = f"{sub_uri}{subscription}"
-                            logger.debug(f"Created subscription link: {subscription_link}")
+                            logger.info(f"Created subscription link for key_id={key_data.get('key_id')}, email={cemail}: {subscription_link}")
                         else:
-                            logger.warning(f"Could not get subURI from panel for {cemail}")
+                            logger.warning(f"Could not get subURI from panel for key_id={key_data.get('key_id')}, email={cemail}. Will try fallback method.")
+                    else:
+                        logger.warning(f"No subscription (subId) found for key_id={key_data.get('key_id')}, email={cemail}. Will try fallback method.")
                     
                     break
+        
+        # Fallback: пытаемся получить subscription_link через get_client_subscription_link
+        if not subscription_link and key_data.get('key_email'):
+            try:
+                logger.info(f"Attempting to get subscription_link via fallback method for key_id={key_data.get('key_id')}, email={key_data.get('key_email')}")
+                subscription_link = await get_client_subscription_link(host_name, key_data['key_email'])
+                if subscription_link:
+                    logger.info(f"Successfully restored subscription_link via fallback for key_id={key_data.get('key_id')}, email={key_data.get('key_email')}: {subscription_link}")
+                else:
+                    logger.warning(f"Failed to get subscription_link via fallback for key_id={key_data.get('key_id')}, email={key_data.get('key_email')}: get_client_subscription_link returned None")
+            except Exception as e:
+                logger.error(f"Error getting subscription_link via fallback for key_id={key_data.get('key_id')}, email={key_data.get('key_email')}: {e}", exc_info=True)
         
         return {
             "connection_string": connection_string, 

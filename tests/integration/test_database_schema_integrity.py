@@ -39,17 +39,32 @@ from shop_bot.data_manager import database
 def is_production_environment() -> bool:
     """
     Проверяет, запущен ли тест в продакшн окружении.
-    Читает из .env файла (загружается через conftest.py).
+    Читает из переменной окружения ENVIRONMENT (загружается через conftest.py).
     
     Returns:
-        True если ENVIRONMENT=production в .env
+        True если ENVIRONMENT=production
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     env = os.getenv("ENVIRONMENT", "").strip().lower()
     # Обрабатываем случай, когда в .env файле комментарий в той же строке
     # Например: "ENVIRONMENT=production - комментарий"
     if " " in env:
         env = env.split()[0]  # Берем только первое слово до пробела
-    return env == "production"
+    
+    is_prod = env == "production"
+    
+    # Логируем информацию для диагностики
+    logger.info(f"🔍 Проверка окружения: ENVIRONMENT='{os.getenv('ENVIRONMENT', 'не установлен')}' -> is_production={is_prod}")
+    
+    if not is_prod:
+        logger.warning(
+            f"⚠️ Тест пропущен: ENVIRONMENT='{os.getenv('ENVIRONMENT', 'не установлен')}' != 'production'. "
+            f"Установите ENVIRONMENT=production в .env файле для запуска теста на продакшне."
+        )
+    
+    return is_prod
 
 
 def get_reference_db_path() -> Optional[Path]:
@@ -354,9 +369,43 @@ class TestDatabaseSchemaIntegrity:
     def check_production_environment(self):
         """Проверяет, что тест запущен в продакшн окружении (из .env)"""
         if not is_production_environment():
+            env_value = os.getenv("ENVIRONMENT", "не установлен")
+            skip_reason = f"""
+Тест пропущен: не запущен в продакшн окружении.
+
+**Диагностическая информация:**
+- ENVIRONMENT: {env_value}
+- Требуется: ENVIRONMENT=production
+- Проект: {project_root}
+
+**Как исправить:**
+1. Откройте файл .env в корне проекта
+2. Установите ENVIRONMENT=production
+3. Перезапустите тесты
+
+**Примечание:**
+Этот тест сравнивает структуру продакшн БД с эталонной локальной БД.
+Он должен запускаться только на продакшне для проверки целостности схемы БД.
+"""
+            allure.attach(skip_reason, "Причина пропуска теста", allure.attachment_type.TEXT)
+            
+            # Также прикрепляем информацию о текущем окружении
+            env_info = {
+                "ENVIRONMENT": env_value,
+                "project_root": str(project_root),
+                "required": "ENVIRONMENT=production",
+            }
+            import json
+            allure.attach(
+                json.dumps(env_info, indent=2, ensure_ascii=False),
+                "Информация об окружении",
+                allure.attachment_type.JSON
+            )
+            
             pytest.skip(
-                "Тест запускается только на продакшне. "
-                "Установите ENVIRONMENT=production в .env файле"
+                f"Тест запускается только на продакшне. "
+                f"Текущее значение ENVIRONMENT: '{env_value}'. "
+                f"Установите ENVIRONMENT=production в .env файле"
             )
     
     @pytest.fixture

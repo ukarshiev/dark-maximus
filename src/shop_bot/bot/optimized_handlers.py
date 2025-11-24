@@ -13,10 +13,12 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from shop_bot.bot import keyboards
+from shop_bot.bot.keyboards import _is_local_address
 from shop_bot.data_manager.async_database import (
     get_user_async, get_all_hosts_async, get_plans_for_host_async,
     register_user_if_not_exists_async, get_setting_async
 )
+from shop_bot.data_manager.database import is_production_server
 from shop_bot.config import get_profile_text, get_vpn_active_text, VPN_INACTIVE_TEXT, VPN_NO_DATA_TEXT
 from shop_bot.utils.performance_monitor import measure_performance
 
@@ -248,7 +250,7 @@ async def start_handler_optimized(message: types.Message, state: FSMContext, com
             
             terms_url = None
             privacy_url = None
-            if domain and not domain.startswith("http://localhost") and not domain.startswith("https://localhost"):
+            if is_production_server() and domain and not _is_local_address(domain):
                 terms_url = f"{domain.rstrip('/')}/terms"
                 privacy_url = f"{domain.rstrip('/')}/privacy"
             

@@ -662,8 +662,14 @@ def get_user_cabinet_domain() -> str | None:
     # Нормализация домена
     domain = domain.strip().rstrip('/')
     
-    # Убираем протокол если есть (для нормализации)
-    domain = domain.replace("https://", "").replace("http://", "")
+    # Определяем исходный протокол
+    original_protocol = None
+    if domain.lower().startswith("https://"):
+        original_protocol = "https://"
+        domain = domain[8:]  # Убираем "https://"
+    elif domain.lower().startswith("http://"):
+        original_protocol = "http://"
+        domain = domain[7:]  # Убираем "http://"
     
     # Убираем путь (всё после первого /)
     if "/" in domain:
@@ -671,8 +677,12 @@ def get_user_cabinet_domain() -> str | None:
     
     # Порт сохраняем (не удаляем)
     
-    # Добавляем https:// протокол
-    domain = f'https://{domain}'
+    # Восстанавливаем исходный протокол, если он был указан, иначе используем https://
+    if original_protocol:
+        domain = f'{original_protocol}{domain}'
+    else:
+        # Если протокол не был указан, добавляем https:// по умолчанию
+        domain = f'https://{domain}'
     
     return domain
 

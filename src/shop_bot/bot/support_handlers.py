@@ -17,6 +17,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from shop_bot.data_manager import database
 from shop_bot.bot.handlers import process_successful_onboarding
+from shop_bot.bot.keyboards import normalize_web_app_url, _is_local_address
+from shop_bot.data_manager.database import is_production_server
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +36,9 @@ async def show_terms_agreement_screen(message: types.Message, state: FSMContext)
     
     terms_url = None
     privacy_url = None
-    if domain and not domain.startswith("http://localhost") and not domain.startswith("https://localhost"):
-        terms_url = f"{domain.rstrip('/')}/terms"
-        privacy_url = f"{domain.rstrip('/')}/privacy"
+    if is_production_server() and domain and not _is_local_address(domain):
+        terms_url = normalize_web_app_url(f"{domain.rstrip('/')}/terms")
+        privacy_url = normalize_web_app_url(f"{domain.rstrip('/')}/privacy")
     
     if not terms_url or not privacy_url:
         # Если документы не настроены, переходим к проверке подписки
