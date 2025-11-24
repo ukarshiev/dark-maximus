@@ -593,6 +593,7 @@ class TestTemplateValidation:
     - `{cabinet_url}` - URL личного кабинета
     - `{status_icon}` - иконка статуса
     - `{status_text}` - текст статуса
+    - `{auto_renewal_status}` - статус автопродления ключа ("Включено 🟢" или "Отключено 🔴")
     - И другие переменные из словаря `template_variables` в функции `get_message_text()`
     """)
     @allure.severity(allure.severity_level.CRITICAL)

@@ -1,21 +1,21 @@
 {
   "run": {
-    "command": "nx run bot:lint",
-    "startTime": "2025-11-17T05:13:00.906Z",
-    "endTime": "2025-11-17T05:13:19.165Z",
+    "command": "nx serve bot",
+    "startTime": "2025-11-24T23:04:24.305Z",
+    "endTime": "2025-11-24T23:04:25.279Z",
     "inner": false
   },
   "tasks": [
     {
-      "taskId": "bot:lint",
-      "target": "lint",
+      "taskId": "bot:serve",
+      "target": "serve",
       "projectName": "bot",
-      "hash": "17946164240555883845",
-      "startTime": "2025-11-17T05:13:00.914Z",
-      "endTime": "2025-11-17T05:13:19.165Z",
+      "hash": "3367953233812977480",
+      "startTime": "2025-11-24T23:04:24.314Z",
+      "endTime": "2025-11-24T23:04:25.279Z",
       "params": "",
       "cacheStatus": "cache-miss",
-      "status": 1
+      "status": 0
     }
   ]
 }

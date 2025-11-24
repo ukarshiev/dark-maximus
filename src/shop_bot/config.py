@@ -422,6 +422,7 @@ def get_key_info_text(
         'connection_string': connection_string or '',
         'subscription_link': subscription_link or '',
         'cabinet_url': cabinet_url or '',
+        'auto_renewal_status': auto_renewal_status,
         **tariff_vars,  # Добавляем переменные о тарифе
     }
     

@@ -11,6 +11,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode 
+from aiogram.exceptions import TelegramConflictError
 from aiohttp import ClientTimeout
 
 from shop_bot.data_manager import database
@@ -36,6 +37,53 @@ def _safe_strip(value: str | None) -> str | None:
         return None
     stripped = value.strip()
     return stripped or None
+
+
+async def _ensure_no_webhook(bot: Bot, bot_name: str) -> bool:
+    """
+    Проверяет и удаляет webhook перед запуском polling.
+    
+    Telegram API не позволяет использовать getUpdates (polling) одновременно с webhook.
+    Эта функция проверяет наличие webhook и удаляет его, если он установлен.
+    
+    Args:
+        bot: Экземпляр бота для проверки webhook
+        bot_name: Имя бота для логирования
+        
+    Returns:
+        True если webhook был удален или отсутствовал, False при ошибке
+    """
+    try:
+        webhook_info = await bot.get_webhook_info()
+        
+        if webhook_info.url:
+            logger.warning(
+                f"⚠️ {bot_name}: Обнаружен установленный webhook: {webhook_info.url}. "
+                "Удаляем webhook для использования polling..."
+            )
+            try:
+                deleted = await bot.delete_webhook(drop_pending_updates=False)
+                if deleted:
+                    logger.info(f"✅ {bot_name}: Webhook успешно удален. Можно запускать polling.")
+                    return True
+                else:
+                    logger.error(f"❌ {bot_name}: Не удалось удалить webhook.")
+                    return False
+            except Exception as e:
+                logger.error(
+                    f"❌ {bot_name}: Ошибка при удалении webhook: {e}. "
+                    "Polling может не работать корректно."
+                )
+                return False
+        else:
+            logger.debug(f"✅ {bot_name}: Webhook не установлен. Можно запускать polling.")
+            return True
+    except Exception as e:
+        logger.error(
+            f"❌ {bot_name}: Ошибка при проверке webhook: {e}. "
+            "Продолжаем запуск polling, но возможны конфликты."
+        )
+        return False
 
 
 def _create_telegram_session(timeout: ClientTimeout) -> AiohttpSession:
@@ -103,10 +151,36 @@ class BotController:
     async def _start_polling(self, bot, dp, name):
         logger.info(f"BotController: Polling task for '{name}' has been started.")
         try:
+            # Проверяем и удаляем webhook перед запуском polling
+            webhook_ok = await _ensure_no_webhook(bot, name)
+            if not webhook_ok:
+                logger.warning(
+                    f"⚠️ {name}: Проблемы с webhook, но продолжаем запуск polling. "
+                    "Если возникнет конфликт, проверьте наличие других экземпляров бота."
+                )
+            
             print(f"DEBUG: Starting polling for {name} with bot {bot.id}")
             # В aiogram 3.21.0 timeout должен быть числом для вычисления request_timeout
             # Используем polling_timeout=10 (дефолт) и не устанавливаем timeout на сессии
             await dp.start_polling(bot, polling_timeout=10)
+        except TelegramConflictError as e:
+            logger.error(
+                f"❌ {name}: TelegramConflictError - Конфликт при получении обновлений!\n"
+                f"   Сообщение: {e}\n"
+                f"   Это означает, что другой экземпляр бота уже использует getUpdates с тем же токеном.\n"
+                f"   Возможные причины:\n"
+                f"   1. Бот запущен на другом сервере/машине с тем же токеном\n"
+                f"   2. Бот был запущен ранее и не был корректно остановлен\n"
+                f"   3. Бот запущен локально (вне Docker) одновременно с Docker контейнером\n"
+                f"   4. Контейнер был перезапущен, но старый процесс polling все еще работает\n"
+                f"   Решение: Убедитесь, что только один экземпляр бота запущен с данным токеном.",
+                exc_info=True
+            )
+            # Помечаем бота как не запущенного при конфликте
+            if name == "ShopBot":
+                self.shop_is_running = False
+            elif name == "SupportBot":
+                self.support_is_running = False
         except asyncio.CancelledError:
             logger.info(f"BotController: Polling task for '{name}' was cancelled.")
         except Exception as e:

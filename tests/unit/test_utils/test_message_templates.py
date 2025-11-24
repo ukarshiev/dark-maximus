@@ -504,6 +504,7 @@ class TestGetKeyInfoText:
                                 host_name="Финляндия",
                                 plan_name="5. ЛК Подписка",
                                 price=1.0,
+                                key_auto_renewal_enabled=True,
                             )
                             allure.attach(text, f"Сгенерированная информация о ключе для режима {provision_mode}", allure.attachment_type.HTML)
         
@@ -518,6 +519,12 @@ class TestGetKeyInfoText:
             assert "Действителен до" in text, "Отсутствует информация о дате истечения"
             assert "Статус" in text, "Отсутствует информация о статусе"
             allure.attach("Все обязательные элементы найдены", "Структура сообщения", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка наличия информации об автопродлении"):
+            # Проверяем, что в тексте есть информация об автопродлении (либо в fallback, либо в шаблоне)
+            # Переменная auto_renewal_status передаётся в template_variables, поэтому должна быть доступна в шаблонах
+            assert "Автопродление" in text or "автопродление" in text, "Отсутствует информация об автопродлении"
+            allure.attach("Информация об автопродлении найдена", "Проверка автопродления", allure.attachment_type.TEXT)
 
     @allure.title("Генерация информации о ключе: пробный ключ")
     @allure.description("""
@@ -554,6 +561,7 @@ class TestGetKeyInfoText:
                         host_name="Финляндия",
                         plan_name="",
                         price=0.0,
+                        key_auto_renewal_enabled=False,
                     )
                     allure.attach(text, "Сгенерированная информация о пробном ключе", allure.attachment_type.HTML)
         
