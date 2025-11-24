@@ -3572,7 +3572,7 @@ def get_user_router() -> Router:
                 else:
                     raise
         except Exception as e:
-            logger.error(f"Error showing key {key_id_to_show}: {e}")
+            logger.error(f"Error showing key {key_id_to_show}: {e}", exc_info=True)
             await callback.message.edit_text("❌ Произошла ошибка при получении данных ключа.")
 
 

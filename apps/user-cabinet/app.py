@@ -33,7 +33,8 @@ from shop_bot.data_manager.database import (
     get_user_keys,
     run_migration,
     validate_permanent_token,
-    get_all_settings
+    get_all_settings,
+    is_development_server
 )
 
 # Импортируем StructuredLogger для логирования
@@ -87,6 +88,26 @@ def set_csp_headers(response):
         help_domain = 'help.dark-maximus.com'
         main_domain = 'dark-maximus.com'
     
+    # Определяем режим сервера
+    is_dev = is_development_server()
+    
+    # Формируем frame-src в зависимости от режима
+    if is_dev:
+        # Для development разрешаем любые домены (localhost и внешние провайдеры)
+        frame_src = "'self' http: https:"
+    else:
+        # Для production разрешаем все поддомены главного домена из настроек БД
+        # main_domain уже извлечен из настроек БД выше
+        frame_src = f"'self' https://{help_domain} https://*.{main_domain} https:"
+    
+    # Формируем frame-ancestors в зависимости от режима
+    if is_dev:
+        # Для development разрешаем любые домены (для localhost и тестирования)
+        frame_ancestors = "*"
+    else:
+        # Для production разрешаем все поддомены главного домена и Telegram домены
+        frame_ancestors = f"'self' https://*.{main_domain} https://t.me https://web.telegram.org"
+    
     # Формируем CSP заголовок с wildcard паттернами для поддоменов
     csp_policy = (
         "default-src 'self'; "
@@ -95,8 +116,8 @@ def set_csp_headers(response):
         "img-src 'self' data: https:; "
         "font-src 'self' data:; "
         f"connect-src 'self' https://api.2ip.ru https://{help_domain} https://*.{main_domain}; "
-        f"frame-src 'self' https://{help_domain} https://*.{main_domain}; "
-        "frame-ancestors 'self';"
+        f"frame-src {frame_src}; "
+        f"frame-ancestors {frame_ancestors};"
     )
     
     response.headers['Content-Security-Policy'] = csp_policy
@@ -234,6 +255,25 @@ def health():
         help_domain = 'help.dark-maximus.com'
         main_domain = 'dark-maximus.com'
     
+    # Определяем режим сервера
+    is_dev = is_development_server()
+    
+    # Формируем frame-src в зависимости от режима
+    if is_dev:
+        # Для development разрешаем любые домены (localhost и внешние провайдеры)
+        frame_src = "'self' http: https:"
+    else:
+        # Для production разрешаем все поддомены главного домена из настроек БД
+        frame_src = f"'self' https://{help_domain} https://*.{main_domain} https:"
+    
+    # Формируем frame-ancestors в зависимости от режима
+    if is_dev:
+        # Для development разрешаем любые домены (для localhost и тестирования)
+        frame_ancestors = "*"
+    else:
+        # Для production разрешаем все поддомены главного домена и Telegram домены
+        frame_ancestors = f"'self' https://*.{main_domain} https://t.me https://web.telegram.org"
+    
     csp_policy = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://api.2ip.ru; "
@@ -241,8 +281,8 @@ def health():
         "img-src 'self' data: https:; "
         "font-src 'self' data:; "
         f"connect-src 'self' https://api.2ip.ru https://{help_domain} https://*.{main_domain}; "
-        f"frame-src 'self' https://{help_domain} https://*.{main_domain}; "
-        "frame-ancestors 'self';"
+        f"frame-src {frame_src}; "
+        f"frame-ancestors {frame_ancestors};"
     )
     response.headers['Content-Security-Policy'] = csp_policy
     return response, 200

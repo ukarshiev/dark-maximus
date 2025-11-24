@@ -578,79 +578,75 @@ def create_key_info_keyboard(key_id: int, subscription_link: str | None = None, 
                 logger.warning(f"Failed to get provision_mode for key {key_id}: {e}")
 
     # Кнопка "Личный кабинет" (только для production и режимов cabinet/cabinet_subscription)
-    if (is_production_server() and 
-        provision_mode in ('cabinet', 'cabinet_subscription') and 
-        key_data):
-        try:
-            user_id = key_data.get('user_id')
-            cabinet_domain = get_user_cabinet_domain()
-            
-            if cabinet_domain and user_id and not _is_local_address(cabinet_domain):
-                # Получаем или создаем токен для доступа к личному кабинету
-                cabinet_token = get_or_create_permanent_token(user_id, key_id)
+    try:
+        is_prod = is_production_server()
+        if (is_prod and 
+            provision_mode in ('cabinet', 'cabinet_subscription') and 
+            key_data):
+            try:
+                user_id = key_data.get('user_id')
+                cabinet_domain = get_user_cabinet_domain()
                 
-                if cabinet_token:
-                    cabinet_url = f"{cabinet_domain}/auth/{cabinet_token}"
-                else:
-                    cabinet_url = f"{cabinet_domain}/"
-                
-                # Дополнительная проверка после формирования URL
-                if not _is_local_address(cabinet_url) and _is_https_url(cabinet_url):
-                    builder.button(
-                        text="🗂️ Личный кабинет",
-                        web_app=WebAppInfo(url=cabinet_url)
-                    )
-                    cabinet_button_added = True
-                else:
-                    logger.warning(
-                        f"Cabinet URL для ключа {key_id} не является HTTPS или является локальным адресом: {cabinet_url}"
-                    )
-            elif not cabinet_domain:
-                logger.debug(f"Cabinet domain не настроен для ключа {key_id}")
-            elif not user_id:
-                logger.warning(f"User ID не найден для ключа {key_id}")
-        except Exception as e:
-            logger.warning(f"Failed to create cabinet button for key {key_id}: {e}")
+                if cabinet_domain and user_id and not _is_local_address(cabinet_domain):
+                    # Получаем или создаем токен для доступа к личному кабинету
+                    cabinet_token = get_or_create_permanent_token(user_id, key_id)
+                    
+                    if cabinet_token:
+                        cabinet_url = f"{cabinet_domain}/auth/{cabinet_token}"
+                    else:
+                        cabinet_url = f"{cabinet_domain}/"
+                    
+                    # Дополнительная проверка после формирования URL
+                    if not _is_local_address(cabinet_url) and _is_https_url(cabinet_url):
+                        builder.button(
+                            text="🗂️ Личный кабинет",
+                            url=cabinet_url  # Обычная ссылка вместо web_app
+                        )
+                        cabinet_button_added = True
+                    else:
+                        logger.warning(
+                            f"Cabinet URL для ключа {key_id} не является HTTPS или является локальным адресом: {cabinet_url}"
+                        )
+                elif not cabinet_domain:
+                    logger.debug(f"Cabinet domain не настроен для ключа {key_id}")
+                elif not user_id:
+                    logger.warning(f"User ID не найден для ключа {key_id}")
+            except Exception as e:
+                logger.warning(f"Failed to create cabinet button for key {key_id}: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"Ошибка при проверке условий для кнопки личного кабинета для ключа {key_id}: {e}", exc_info=True)
 
     # Кнопка настройки
-    # Получаем домен codex-docs из настроек
+    # Восстановлена старая логика: кнопка ВСЕГДА добавляется, как раньше работало
+    # Для localhost используем fallback на рабочий URL, так как Telegram не принимает localhost в web_app
     codex_docs_domain = get_setting("codex_docs_domain")
-    setup_url = None
-    
-    if is_production_server() and codex_docs_domain and not _is_local_address(codex_docs_domain):
-        # В production используем настройки из БД
-        setup_url = normalize_web_app_url(f"{codex_docs_domain}/setup")
-        # Дополнительная проверка после нормализации (для надежности)
-        if _is_local_address(setup_url):
-            logger.warning(
-                f"Local address detected in setup_url: {setup_url}. Trying fallback."
-            )
-            setup_url = None
-    
-    # Если codex_docs_domain не настроен или не подходит, пробуем global_domain
-    if not setup_url:
-        global_domain = get_global_domain()
-        if global_domain and not _is_local_address(global_domain):
-            # Используем global_domain для формирования URL настройки
-            # Предполагаем, что настройка находится по пути /setup относительно global_domain
-            setup_url = normalize_web_app_url(f"{global_domain}/setup")
-            if _is_local_address(setup_url):
-                logger.warning(
-                    f"Local address detected in setup_url from global_domain: {setup_url}. Skipping setup button."
-                )
-                setup_url = None
-    
-    # Если все fallback не сработали, не добавляем кнопку настройки
-    if setup_url:
-        builder.button(
-            text="⚙️ Настройка",
-            web_app=WebAppInfo(url=setup_url)
-        )
+    if codex_docs_domain:
+        # Проверяем, является ли домен localhost
+        domain_for_check = codex_docs_domain.replace('http://', '').replace('https://', '').split('/')[0].split(':')[0]
+        if _is_local_address(domain_for_check):
+            # Для localhost используем fallback на рабочий URL
+            setup_url = "https://help.dark-maximus.com/setup"
+            logger.debug(f"Кнопка 'Настройка' для ключа {key_id}: localhost обнаружен, используется fallback URL={setup_url}")
+        else:
+            # Для не-localhost доменов нормализуем URL
+            codex_docs_domain = codex_docs_domain.strip().rstrip('/')
+            # Убираем протокол если есть (и http:// и https://)
+            if codex_docs_domain.startswith('http://'):
+                codex_docs_domain = codex_docs_domain[7:]  # Убираем 'http://'
+            elif codex_docs_domain.startswith('https://'):
+                codex_docs_domain = codex_docs_domain[8:]  # Убираем 'https://'
+            # Всегда добавляем https:// для web_app (Telegram требует HTTPS)
+            setup_url = f"https://{codex_docs_domain}/setup"
+            logger.debug(f"Кнопка 'Настройка' для ключа {key_id}: используется домен из настроек, setup_url={setup_url}")
     else:
-        logger.warning(
-            "Setup URL не может быть сформирован: codex_docs_domain и global_domain не настроены или являются локальными адресами. "
-            "Кнопка настройки не будет добавлена."
-        )
+        # Fallback на дефолт (для обратной совместимости)
+        setup_url = "https://help.dark-maximus.com/setup"
+        logger.debug(f"Кнопка 'Настройка' для ключа {key_id}: используется fallback URL={setup_url}")
+    
+    builder.button(
+        text="⚙️ Настройка",
+        web_app=WebAppInfo(url=setup_url)
+    )
 
     if subscription_link and _is_http_like_url(subscription_link):
         builder.button(
