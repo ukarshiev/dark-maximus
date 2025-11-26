@@ -133,41 +133,47 @@ class TestDomainSettings:
             assert is_dev is True, f"is_development_server() должен возвращать True, но получен: {is_dev}"
         
         with allure.step("Явная очистка настроек доменов"):
-            # Сначала устанавливаем домены в None через update_setting для гарантии
-            # что изменения видны через get_setting()
-            update_setting("global_domain", "")
-            update_setting("domain", "")
-            
-            # Затем удаляем через прямой SQL для полной очистки
+            # ВАЖНО: Используем прямое удаление через SQL без предварительной вставки пустых строк
+            # Это избегает race condition и проблем с изоляцией соединений SQLite
             # Используем temp_db напрямую - это Path объект к временной БД
             # temp_db соответствует database.DB_FILE благодаря monkeypatch в фикстуре
-            with sqlite3.connect(str(temp_db)) as conn:
+            with sqlite3.connect(str(temp_db), timeout=30.0) as conn:
                 cursor = conn.cursor()
-                # Удаляем записи, включая пустые строки
+                # Устанавливаем PRAGMA для предотвращения блокировок
+                cursor.execute("PRAGMA busy_timeout = 30000")
+                # Удаляем записи напрямую, включая возможные пустые строки
                 cursor.execute("DELETE FROM bot_settings WHERE key IN ('global_domain', 'domain')")
                 conn.commit()
-                # Явно закрываем соединение для гарантии применения изменений
-            allure.attach("global_domain и domain удалены из БД", "Очистка настроек", allure.attachment_type.TEXT)
+                # Проверяем, что записи действительно удалены
+                cursor.execute("SELECT key, value FROM bot_settings WHERE key IN ('global_domain', 'domain')")
+                remaining = cursor.fetchall()
+                if remaining:
+                    allure.attach(f"ВНИМАНИЕ: Остались записи после удаления: {remaining}", "Диагностика удаления", allure.attachment_type.TEXT)
+                else:
+                    allure.attach("Записи успешно удалены из БД", "Очистка настроек", allure.attachment_type.TEXT)
             
-            # Небольшая задержка для гарантии, что изменения применены
-            time.sleep(0.1)
+            # Закрываем все соединения и даем время для синхронизации
+            # SQLite использует файловые блокировки, поэтому важно убедиться, что изменения видны
+            time.sleep(0.2)
         
-        with allure.step("Проверка отсутствия настроек доменов"):
+        with allure.step("Проверка отсутствия настроек доменов через get_setting()"):
             # Проверяем через get_setting() - должно возвращать None
             global_domain = get_setting("global_domain")
             domain = get_setting("domain")
-            allure.attach(f"global_domain: {global_domain}, domain: {domain}", "Текущие настройки", allure.attachment_type.TEXT)
+            allure.attach(f"global_domain: {global_domain}, domain: {domain}", "Текущие настройки через get_setting()", allure.attachment_type.TEXT)
             
             # Убеждаемся, что настройки действительно отсутствуют (None или пустая строка)
             assert global_domain is None or global_domain == "", f"global_domain должен быть None или пустой строкой, но получен: {global_domain}"
             assert domain is None or domain == "", f"domain должен быть None или пустой строкой, но получен: {domain}"
-            
-            # Дополнительная проверка через прямой SQL запрос
-            with sqlite3.connect(str(temp_db)) as conn:
+        
+        with allure.step("Дополнительная проверка через прямой SQL запрос"):
+            # Проверяем через прямое SQL соединение для дополнительной уверенности
+            with sqlite3.connect(str(temp_db), timeout=30.0) as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT value FROM bot_settings WHERE key IN ('global_domain', 'domain')")
+                cursor.execute("PRAGMA busy_timeout = 30000")
+                cursor.execute("SELECT key, value FROM bot_settings WHERE key IN ('global_domain', 'domain')")
                 remaining = cursor.fetchall()
-                allure.attach(f"Оставшиеся записи в БД: {remaining}", "Проверка через SQL", allure.attachment_type.TEXT)
+                allure.attach(f"Оставшиеся записи в БД через SQL: {remaining}", "Проверка через SQL", allure.attachment_type.TEXT)
                 assert len(remaining) == 0, f"В БД остались записи доменов: {remaining}"
         
         with allure.step("Проверка окружения перед вызовом get_global_domain()"):
@@ -184,7 +190,7 @@ class TestDomainSettings:
         
         with allure.step("Чтение через get_global_domain()"):
             result = get_global_domain()
-            allure.attach(str(result), "Полученное значение", allure.attachment_type.TEXT)
+            allure.attach(str(result), "Полученное значение из get_global_domain()", allure.attachment_type.TEXT)
             
             # Дополнительная диагностика
             debug_info = {
@@ -193,8 +199,9 @@ class TestDomainSettings:
                 "is_development_server": is_development_server(),
                 "global_domain_from_db": get_setting("global_domain"),
                 "domain_from_db": get_setting("domain"),
+                "expected": "https://localhost:8443",
             }
-            allure.attach(str(debug_info), "Диагностическая информация", allure.attachment_type.JSON)
+            allure.attach(str(debug_info), "Диагностическая информация перед проверкой", allure.attachment_type.JSON)
         
         with allure.step("Проверка результата"):
             assert result == "https://localhost:8443", f"Ожидалось 'https://localhost:8443', но получено: {result}"
@@ -205,6 +212,7 @@ class TestDomainSettings:
     
     **Что проверяется:**
     - Установка server_environment в "production"
+    - Явная очистка global_domain и domain в БД
     - Отсутствие global_domain и domain в БД
     - Чтение через get_global_domain()
     - Возврат None в production если домен не настроен
@@ -216,21 +224,91 @@ class TestDomainSettings:
     @allure.tag("domain", "settings", "fallback", "database", "unit", "server-environment")
     def test_get_global_domain_returns_none_in_production(self, temp_db):
         """Проверка возврата None в production если оба домена отсутствуют"""
+        import sqlite3
+        import time
+        
         with allure.step("Установка server_environment в production"):
             update_setting("server_environment", "production")
             allure.attach("production", "Установленное окружение", allure.attachment_type.TEXT)
         
-        with allure.step("Проверка отсутствия настроек доменов"):
+        with allure.step("Проверка сохранения настройки server_environment"):
+            saved_env = get_server_environment()
+            allure.attach(f"server_environment: {saved_env}", "Сохраненное окружение", allure.attachment_type.TEXT)
+            assert saved_env == "production", f"server_environment должен быть 'production', но получен: {saved_env}"
+            
+            # Дополнительная проверка через is_production_server()
+            is_prod = is_production_server()
+            allure.attach(f"is_production_server(): {is_prod}", "Результат проверки production", allure.attachment_type.TEXT)
+            assert is_prod is True, f"is_production_server() должен возвращать True, но получен: {is_prod}"
+        
+        with allure.step("Явная очистка настроек доменов"):
+            # ВАЖНО: Используем прямое удаление через SQL для гарантии отсутствия доменов
+            # Это обеспечивает изоляцию теста от предыдущих тестов
+            with sqlite3.connect(str(temp_db), timeout=30.0) as conn:
+                cursor = conn.cursor()
+                # Устанавливаем PRAGMA для предотвращения блокировок
+                cursor.execute("PRAGMA busy_timeout = 30000")
+                # Удаляем записи напрямую
+                cursor.execute("DELETE FROM bot_settings WHERE key IN ('global_domain', 'domain')")
+                conn.commit()
+                # Проверяем, что записи действительно удалены
+                cursor.execute("SELECT key, value FROM bot_settings WHERE key IN ('global_domain', 'domain')")
+                remaining = cursor.fetchall()
+                if remaining:
+                    allure.attach(f"ВНИМАНИЕ: Остались записи после удаления: {remaining}", "Диагностика удаления", allure.attachment_type.TEXT)
+                else:
+                    allure.attach("Записи успешно удалены из БД", "Очистка настроек", allure.attachment_type.TEXT)
+            
+            # Закрываем все соединения и даем время для синхронизации
+            time.sleep(0.2)
+        
+        with allure.step("Проверка отсутствия настроек доменов через get_setting()"):
             global_domain = get_setting("global_domain")
             domain = get_setting("domain")
-            allure.attach(f"global_domain: {global_domain}, domain: {domain}", "Текущие настройки", allure.attachment_type.TEXT)
+            allure.attach(f"global_domain: {global_domain}, domain: {domain}", "Текущие настройки через get_setting()", allure.attachment_type.TEXT)
+            
+            # Убеждаемся, что настройки действительно отсутствуют
+            assert global_domain is None or global_domain == "", f"global_domain должен быть None или пустой строкой, но получен: {global_domain}"
+            assert domain is None or domain == "", f"domain должен быть None или пустой строкой, но получен: {domain}"
+        
+        with allure.step("Дополнительная проверка через прямой SQL запрос"):
+            with sqlite3.connect(str(temp_db), timeout=30.0) as conn:
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA busy_timeout = 30000")
+                cursor.execute("SELECT key, value FROM bot_settings WHERE key IN ('global_domain', 'domain')")
+                remaining = cursor.fetchall()
+                allure.attach(f"Оставшиеся записи в БД через SQL: {remaining}", "Проверка через SQL", allure.attachment_type.TEXT)
+                assert len(remaining) == 0, f"В БД остались записи доменов: {remaining}"
+        
+        with allure.step("Проверка окружения перед вызовом get_global_domain()"):
+            current_env = get_server_environment()
+            is_prod_check = is_production_server()
+            allure.attach(
+                f"server_environment: {current_env}, is_production_server(): {is_prod_check}",
+                "Проверка окружения перед вызовом",
+                allure.attachment_type.TEXT
+            )
+            assert current_env == "production", f"Окружение должно быть 'production', но получено: {current_env}"
+            assert is_prod_check is True, f"is_production_server() должен возвращать True, но получен: {is_prod_check}"
         
         with allure.step("Чтение через get_global_domain()"):
             result = get_global_domain()
-            allure.attach(str(result), "Полученное значение", allure.attachment_type.TEXT)
+            allure.attach(str(result), "Полученное значение из get_global_domain()", allure.attachment_type.TEXT)
+            
+            # Дополнительная диагностика
+            debug_info = {
+                "result": result,
+                "server_environment": get_server_environment(),
+                "is_production_server": is_production_server(),
+                "is_development_server": is_development_server(),
+                "global_domain_from_db": get_setting("global_domain"),
+                "domain_from_db": get_setting("domain"),
+                "expected": None,
+            }
+            allure.attach(str(debug_info), "Диагностическая информация перед проверкой", allure.attachment_type.JSON)
         
         with allure.step("Проверка результата"):
-            assert result is None
+            assert result is None, f"Ожидалось None, но получено: {result}"
 
     @allure.title("Чтение user_cabinet_domain из БД")
     @allure.description("""

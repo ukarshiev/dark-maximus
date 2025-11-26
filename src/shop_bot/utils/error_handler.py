@@ -78,29 +78,80 @@ class ErrorHandler:
         }
     
     def _handle_network_error(self, error: TelegramNetworkError, context: str = "") -> Dict[str, Any]:
-        """Обработка сетевых ошибок, включая SSL ошибки"""
+        """
+        Обработка сетевых ошибок, включая SSL ошибки.
+        
+        Детально обрабатывает различные типы SSL ошибок:
+        - record layer failure - временные ошибки, aiogram автоматически повторяет попытки
+        - certificate errors - критические ошибки, требуют проверки системного времени и сертификатов
+        - другие SSL ошибки - логируются как предупреждения с указанием на автоматический retry
+        """
         error_message = str(error)
-        logger.error(f"Network error in {context}: {error}")
+        error_str_lower = error_message.lower()
         
         # Определяем тип сетевой ошибки для более информативного логирования
         is_ssl_error = False
+        is_temporary = False
         user_message = 'Ошибка сети. Проверьте подключение.'
+        log_level = 'error'
         
         # Проверяем на SSL ошибки
-        if "SSL" in error_message or "ssl" in error_message.lower():
+        if "SSL" in error_message or "ssl" in error_str_lower:
             is_ssl_error = True
-            if "record layer failure" in error_message:
+            
+            if "record layer failure" in error_str_lower:
+                # Временная SSL ошибка - обычно связана с сетевыми проблемами
+                is_temporary = True
                 user_message = 'Временная ошибка SSL соединения. Повторная попытка выполняется автоматически.'
+                log_level = 'warning'
                 logger.warning(
-                    f"SSL record layer failure detected in {context}. "
-                    "This is usually a temporary network issue. Aiogram will retry automatically."
+                    f"⚠️ SSL record layer failure detected in {context}. "
+                    f"Error: {error_message}\n"
+                    f"Это обычно временная сетевая проблема. "
+                    f"Aiogram автоматически повторяет попытки подключения. "
+                    f"Если ошибки повторяются часто, проверьте:\n"
+                    f"  - Стабильность интернет-соединения\n"
+                    f"  - Настройки файрвола и прокси\n"
+                    f"  - Актуальность SSL сертификатов (certifi)"
                 )
-            elif "certificate" in error_message.lower():
-                user_message = 'Ошибка проверки SSL сертификата. Проверьте системное время.'
-                logger.error(f"SSL certificate error in {context}: {error_message}")
+            elif "certificate" in error_str_lower or "cert" in error_str_lower:
+                # Критическая SSL ошибка - проблема с сертификатами
+                is_temporary = False
+                user_message = 'Ошибка проверки SSL сертификата. Проверьте системное время и сертификаты.'
+                log_level = 'error'
+                logger.error(
+                    f"❌ SSL certificate error in {context}. "
+                    f"Error: {error_message}\n"
+                    f"Это критическая ошибка SSL сертификата. Проверьте:\n"
+                    f"  - Системное время сервера (должно быть синхронизировано)\n"
+                    f"  - Актуальность SSL сертификатов (certifi)\n"
+                    f"  - Настройки SSL контекста в bot_controller.py"
+                )
+            elif "handshake" in error_str_lower:
+                # Ошибка SSL handshake - может быть временной
+                is_temporary = True
+                user_message = 'Ошибка SSL handshake. Повторная попытка выполняется автоматически.'
+                log_level = 'warning'
+                logger.warning(
+                    f"⚠️ SSL handshake error in {context}. "
+                    f"Error: {error_message}\n"
+                    f"Это может быть временная сетевая проблема. "
+                    f"Aiogram автоматически повторяет попытки подключения."
+                )
             else:
+                # Другие SSL ошибки
+                is_temporary = True
                 user_message = 'Ошибка SSL соединения. Повторная попытка выполняется автоматически.'
-                logger.warning(f"SSL error in {context}: {error_message}")
+                log_level = 'warning'
+                logger.warning(
+                    f"⚠️ SSL error in {context}. "
+                    f"Error: {error_message}\n"
+                    f"Aiogram автоматически повторяет попытки подключения. "
+                    f"Если ошибки повторяются, проверьте сетевые настройки."
+                )
+        else:
+            # Не SSL ошибка - обычная сетевая ошибка
+            logger.error(f"Network error in {context}: {error_message}")
         
         return {
             'error': 'Network error',
@@ -108,6 +159,7 @@ class ErrorHandler:
             'code': 'NETWORK_ERROR',
             'status_code': 503,
             'is_ssl_error': is_ssl_error,
+            'is_temporary': is_temporary,
             'original_error': error_message
         }
     

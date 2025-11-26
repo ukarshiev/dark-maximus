@@ -1661,7 +1661,7 @@ function populateTransactionDrawer(tx) {
 		const hashEl = document.getElementById('txDetailHash');
 		if (hashEl) {
 			if (tx.payment_method === 'TON Connect') {
-				hashEl.innerHTML = `<a href="https://tonscan.org/tx/${tx.transaction_hash}" target="_blank" class="transaction-link">${tx.transaction_hash}</a>`;
+				hashEl.innerHTML = `<a href="https://tonviewer.com/transaction/${tx.transaction_hash}" target="_blank" class="transaction-link">${tx.transaction_hash}</a>`;
 			} else {
 				hashEl.textContent = tx.transaction_hash;
 			}

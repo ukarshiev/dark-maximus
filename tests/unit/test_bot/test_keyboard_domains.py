@@ -84,6 +84,13 @@ class TestKeyboardDomains:
     @allure.tag("keyboard", "domain", "fallback", "bot", "unit")
     def test_setup_button_fallback_to_default(self, temp_db):
         """Проверка что кнопка Настройка не добавляется если домен не настроен"""
+        with allure.step("Установка server_environment в development для проверки fallback"):
+            update_setting("server_environment", "development")
+            allure.attach("development", "Установленное окружение", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка окружения"):
+            assert is_development_server() is True
+        
         with allure.step("Проверка отсутствия настройки"):
             codex_docs_domain = get_setting("codex_docs_domain")
             allure.attach(str(codex_docs_domain), "Текущее значение codex_docs_domain", allure.attachment_type.TEXT)
@@ -260,15 +267,16 @@ class TestKeyboardDomains:
     - Создание ключа с режимом предоставления "cabinet"
     - Формирование кнопки "Личный кабинет" через create_key_info_keyboard()
     - Использование правильного URL из настроек
+    - Проверка структуры клавиатуры и наличия кнопки
     
     **Тестовые данные:**
     - server_environment: "production"
-    - user_cabinet_domain: "https://cabinet.example.com"
+    - user_cabinet_domain: "cabinet.example.com"
     - provision_mode: "cabinet"
-    - key_id: 1
+    - key_id: создается динамически
     
     **Ожидаемый результат:**
-    Кнопка "Личный кабинет" отображается в клавиатуре.
+    Кнопка "Личный кабинет" отображается в клавиатуре с правильным URL.
     """)
     @allure.severity(allure.severity_level.NORMAL)
     @allure.tag("keyboard", "cabinet", "production", "bot", "unit", "server-environment")
@@ -276,10 +284,11 @@ class TestKeyboardDomains:
         """Проверка отображения кнопки Личный кабинет в production для режима cabinet"""
         from shop_bot.data_manager.database import (
             register_user_if_not_exists, add_new_key, create_host, create_plan,
-            update_setting
+            update_setting, get_or_create_permanent_token
         )
         from shop_bot.config import get_user_cabinet_domain
         from datetime import datetime, timezone, timedelta
+        from aiogram.types import InlineKeyboardButton
         
         with allure.step("Установка server_environment в production"):
             update_setting("server_environment", "production")
@@ -320,16 +329,63 @@ class TestKeyboardDomains:
             allure.attach(str(key_id), "Созданный key_id", allure.attachment_type.TEXT)
         
         with allure.step("Проверка окружения"):
-            assert is_production_server() is True
+            assert is_production_server() is True, "Окружение должно быть production"
+            allure.attach("production", "Проверенное окружение", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка настроек домена"):
+            cabinet_domain = get_user_cabinet_domain()
+            assert cabinet_domain is not None, "Домен личного кабинета должен быть настроен"
+            assert "cabinet.example.com" in cabinet_domain, f"Домен должен содержать 'cabinet.example.com', получен: {cabinet_domain}"
+            allure.attach(cabinet_domain, "Полученный домен", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка создания токена"):
+            cabinet_token = get_or_create_permanent_token(user_id, key_id)
+            assert cabinet_token is not None, "Токен должен быть создан"
+            assert len(cabinet_token) > 0, "Токен не должен быть пустым"
+            allure.attach(cabinet_token[:20] + "...", "Созданный токен (первые 20 символов)", allure.attachment_type.TEXT)
         
         with allure.step("Формирование клавиатуры"):
             keyboard = create_key_info_keyboard(key_id=key_id)
-            allure.attach(str(keyboard), "Сформированная клавиатура", allure.attachment_type.TEXT)
+            keyboard_dict = keyboard.model_dump() if hasattr(keyboard, 'model_dump') else None
+            allure.attach(str(keyboard_dict) if keyboard_dict else str(keyboard), "Сформированная клавиатура", allure.attachment_type.TEXT)
         
-        with allure.step("Проверка наличия кнопки Личный кабинет"):
-            keyboard_dict = keyboard.model_dump() if hasattr(keyboard, 'model_dump') else str(keyboard)
-            keyboard_str = str(keyboard_dict)
-            assert "Личный кабинет" in keyboard_str or "🗂️" in keyboard_str
+        with allure.step("Проверка структуры клавиатуры"):
+            # Проверяем, что клавиатура имеет структуру inline_keyboard
+            assert hasattr(keyboard, 'inline_keyboard'), "Клавиатура должна иметь атрибут inline_keyboard"
+            assert keyboard.inline_keyboard is not None, "inline_keyboard не должен быть None"
+            assert len(keyboard.inline_keyboard) > 0, "Клавиатура должна содержать хотя бы один ряд кнопок"
+            allure.attach(str(len(keyboard.inline_keyboard)), "Количество рядов кнопок", allure.attachment_type.TEXT)
+        
+        with allure.step("Поиск кнопки Личный кабинет в структуре клавиатуры"):
+            cabinet_button_found = False
+            cabinet_button_url = None
+            cabinet_button_text = None
+            
+            for row in keyboard.inline_keyboard:
+                for button in row:
+                    # Проверяем текст кнопки
+                    button_text = button.text if hasattr(button, 'text') else str(button)
+                    if "Личный кабинет" in button_text or "🗂️" in button_text:
+                        cabinet_button_found = True
+                        cabinet_button_text = button_text
+                        # Проверяем URL кнопки
+                        if hasattr(button, 'url') and button.url:
+                            cabinet_button_url = button.url
+                        break
+                if cabinet_button_found:
+                    break
+            
+            assert cabinet_button_found, "Кнопка 'Личный кабинет' должна быть найдена в клавиатуре"
+            assert cabinet_button_text is not None, "Текст кнопки должен быть определен"
+            allure.attach(cabinet_button_text, "Текст найденной кнопки", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка URL кнопки Личный кабинет"):
+            assert cabinet_button_url is not None, "URL кнопки должен быть определен"
+            assert "cabinet.example.com" in cabinet_button_url, f"URL должен содержать 'cabinet.example.com', получен: {cabinet_button_url}"
+            assert cabinet_button_url.startswith("https://"), f"URL должен начинаться с 'https://', получен: {cabinet_button_url}"
+            # Проверяем, что URL содержит токен или корневой путь
+            assert "/auth/" in cabinet_button_url or cabinet_button_url.endswith("/"), f"URL должен содержать '/auth/' или заканчиваться '/', получен: {cabinet_button_url}"
+            allure.attach(cabinet_button_url, "URL кнопки Личный кабинет", allure.attachment_type.TEXT)
 
     @allure.title("Кнопка Личный кабинет не отображается в development режиме")
     @allure.description("""

@@ -146,7 +146,7 @@ block content %}
 							<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
 								{% if tx.transaction_hash %}
 									{% if tx.payment_method == 'TON Connect' %}
-										<a href="https://tonscan.org/tx/{{ tx.transaction_hash }}" target="_blank" class="transaction-link">Посмотреть</a>
+										<a href="https://tonviewer.com/transaction/{{ tx.transaction_hash }}" target="_blank" class="transaction-link">Посмотреть</a>
 									{% elif tx.payment_method == 'Stars' %}
 										<button class="copy-btn" data-size="xs" onclick="copyPaymentLink('{{ tx.transaction_hash }}')" title="Копировать ID транзакции">
 											<i class="fas fa-copy"></i>

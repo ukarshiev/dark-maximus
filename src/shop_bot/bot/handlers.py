@@ -6839,8 +6839,30 @@ async def get_ton_usdt_rate() -> Decimal | None:
         return None
 
 def get_ton_transaction_url(tx_hash: str) -> str:
-    """Создает ссылку на транзакцию в TON Explorer"""
-    return f"https://tonscan.org/tx/{tx_hash}"
+    """
+    Создает ссылку на транзакцию в TON Explorer (tonviewer.com)
+    
+    Args:
+        tx_hash: hex-хеш транзакции (64 символа) или BOC (base64)
+    
+    Returns:
+        URL для просмотра транзакции на tonviewer.com
+    """
+    if not tx_hash:
+        return ""
+    
+    # Проверяем формат: hex-хеш обычно 64 символа (32 байта в hex)
+    # BOC обычно длиннее и содержит base64 символы
+    if len(tx_hash) == 64 and all(c in '0123456789abcdefABCDEF' for c in tx_hash):
+        # Это hex-хеш, используем напрямую
+        return f"https://tonviewer.com/transaction/{tx_hash}"
+    else:
+        # Вероятно это BOC или другой формат
+        # Для tonviewer.com нужен hex-хеш, но если это BOC, нужно конвертировать
+        # Пока возвращаем как есть - если в БД хранится hex-хеш, это сработает
+        # Если хранится BOC, нужно будет добавить конвертацию через TON API
+        logger.warning(f"get_ton_transaction_url: получен нестандартный формат хеша, длина: {len(tx_hash)}, первые 20 символов: {tx_hash[:20]}")
+        return f"https://tonviewer.com/transaction/{tx_hash}"
 
 async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
     """Обрабатывает успешный платеж YooKassa с дополнительными данными"""

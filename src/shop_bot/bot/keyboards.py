@@ -617,16 +617,23 @@ def create_key_info_keyboard(key_id: int, subscription_link: str | None = None, 
         logger.error(f"Ошибка при проверке условий для кнопки личного кабинета для ключа {key_id}: {e}", exc_info=True)
 
     # Кнопка настройки
-    # Восстановлена старая логика: кнопка ВСЕГДА добавляется, как раньше работало
-    # Для localhost используем fallback на рабочий URL, так как Telegram не принимает localhost в web_app
+    # Логика учитывает настройку server_environment:
+    # - В production: используется fallback, если домен не настроен или локальный
+    # - В development: кнопка не добавляется, если домен не настроен или локальный
     codex_docs_domain = get_setting("codex_docs_domain")
+    setup_url = None
+
     if codex_docs_domain:
         # Проверяем, является ли домен localhost
         domain_for_check = codex_docs_domain.replace('http://', '').replace('https://', '').split('/')[0].split(':')[0]
         if _is_local_address(domain_for_check):
-            # Для localhost используем fallback на рабочий URL
-            setup_url = "https://help.dark-maximus.com/setup"
-            logger.debug(f"Кнопка 'Настройка' для ключа {key_id}: localhost обнаружен, используется fallback URL={setup_url}")
+            # Для localhost используем fallback только в production
+            if is_production_server():
+                setup_url = "https://help.dark-maximus.com/setup"
+                logger.debug(f"Кнопка 'Настройка' для ключа {key_id}: localhost обнаружен, используется fallback URL={setup_url}")
+            else:
+                # В development не добавляем кнопку для localhost
+                logger.debug(f"Кнопка 'Настройка' для ключа {key_id}: localhost обнаружен в development, кнопка не добавляется")
         else:
             # Для не-localhost доменов нормализуем URL
             codex_docs_domain = codex_docs_domain.strip().rstrip('/')
@@ -639,14 +646,20 @@ def create_key_info_keyboard(key_id: int, subscription_link: str | None = None, 
             setup_url = f"https://{codex_docs_domain}/setup"
             logger.debug(f"Кнопка 'Настройка' для ключа {key_id}: используется домен из настроек, setup_url={setup_url}")
     else:
-        # Fallback на дефолт (для обратной совместимости)
-        setup_url = "https://help.dark-maximus.com/setup"
-        logger.debug(f"Кнопка 'Настройка' для ключа {key_id}: используется fallback URL={setup_url}")
+        # Fallback на дефолт только в production
+        if is_production_server():
+            setup_url = "https://help.dark-maximus.com/setup"
+            logger.debug(f"Кнопка 'Настройка' для ключа {key_id}: используется fallback URL={setup_url}")
+        else:
+            # В development не добавляем кнопку, если домен не настроен
+            logger.debug(f"Кнопка 'Настройка' для ключа {key_id}: домен не настроен в development, кнопка не добавляется")
     
-    builder.button(
-        text="⚙️ Настройка",
-        web_app=WebAppInfo(url=setup_url)
-    )
+    # Добавляем кнопку только если setup_url установлен
+    if setup_url:
+        builder.button(
+            text="⚙️ Настройка",
+            web_app=WebAppInfo(url=setup_url)
+        )
 
     if subscription_link and _is_http_like_url(subscription_link):
         builder.button(

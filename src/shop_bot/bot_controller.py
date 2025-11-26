@@ -5,6 +5,8 @@
 
 import asyncio
 import logging
+import ssl
+import certifi
 
 from yookassa import Configuration
 from aiogram import Bot, Dispatcher
@@ -12,7 +14,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode 
 from aiogram.exceptions import TelegramConflictError
-from aiohttp import ClientTimeout
+from aiohttp import ClientTimeout, TCPConnector
 
 from shop_bot.data_manager import database
 from shop_bot.bot.handlers import get_user_router
@@ -86,13 +88,47 @@ async def _ensure_no_webhook(bot: Bot, bot_name: str) -> bool:
         return False
 
 
+class CustomAiohttpSession(AiohttpSession):
+    """
+    Кастомная сессия AiohttpSession с явной настройкой SSL контекста через certifi.
+    
+    Переопределяет создание connector для использования явного SSL контекста
+    с актуальными сертификатами из certifi, что помогает предотвратить
+    ошибки типа "SSL record layer failure" при подключении к Telegram API.
+    """
+    
+    def __init__(self, **kwargs):
+        """
+        Инициализирует кастомную сессию с явным SSL контекстом.
+        
+        Args:
+            **kwargs: Дополнительные параметры для AiohttpSession
+        """
+        super().__init__(**kwargs)
+        # Переопределяем connector_init для использования явного SSL контекста
+        try:
+            # Создаем SSL контекст с certifi для надежной проверки сертификатов
+            ssl_context = ssl.create_default_context(cafile=certifi.where())
+            # Дополнительные настройки SSL для большей надежности
+            ssl_context.check_hostname = True
+            ssl_context.verify_mode = ssl.CERT_REQUIRED
+            
+            # Обновляем connector_init с явным SSL контекстом
+            if hasattr(self, '_connector_init'):
+                self._connector_init['ssl'] = ssl_context
+                logger.debug("Custom SSL context with certifi configured for Telegram session")
+        except Exception as e:
+            logger.warning(f"Failed to configure custom SSL context: {e}. Using default SSL context.")
+            # В случае ошибки используем дефолтный SSL контекст от AiohttpSession
+
+
 def _create_telegram_session(timeout: ClientTimeout) -> AiohttpSession:
     """
     Создает AiohttpSession для надежного подключения к Telegram API.
     
-    AiohttpSession уже использует certifi по умолчанию для SSL контекста,
-    что помогает предотвратить ошибки типа "SSL record layer failure" при временных проблемах с сетью.
-    Явное создание сессии гарантирует использование актуальных SSL сертификатов.
+    Использует кастомную сессию CustomAiohttpSession с явной настройкой SSL контекста
+    через certifi для предотвращения ошибок типа "SSL record layer failure" при временных проблемах с сетью.
+    Явное создание SSL контекста гарантирует использование актуальных SSL сертификатов.
     
     В aiogram 3.21.0 session.timeout должен быть числом (total из ClientTimeout),
     а не объектом ClientTimeout, так как aiogram пытается сложить его с polling_timeout.
@@ -102,23 +138,23 @@ def _create_telegram_session(timeout: ClientTimeout) -> AiohttpSession:
         timeout: Таймауты для HTTP запросов (ClientTimeout объект)
         
     Returns:
-        AiohttpSession с настроенными таймаутами (SSL контекст настроен автоматически через certifi)
+        CustomAiohttpSession с настроенными таймаутами и явным SSL контекстом через certifi
     """
     try:
-        # AiohttpSession уже использует certifi по умолчанию для SSL контекста
+        # Создаем кастомную сессию с явным SSL контекстом
         # В aiogram 3.21.0 timeout должен быть числом для вычисления request_timeout = timeout + polling_timeout
         # Используем total из ClientTimeout для совместимости с aiogram dispatcher
-        session = AiohttpSession()
+        session = CustomAiohttpSession()
         # Устанавливаем timeout как число (total), чтобы aiogram мог его использовать
         # aiohttp автоматически создаст ClientTimeout из числа при создании сессии
         timeout_value = timeout.total if isinstance(timeout, ClientTimeout) else timeout
         session.timeout = timeout_value
         
-        logger.debug(f"Telegram session created with timeout={timeout_value}s (certifi used by default)")
+        logger.debug(f"Telegram session created with timeout={timeout_value}s and explicit SSL context (certifi)")
         return session
     except Exception as e:
-        logger.warning(f"Failed to create session: {e}. Using default session.")
-        # В случае ошибки возвращаем сессию с дефолтными настройками
+        logger.warning(f"Failed to create custom session: {e}. Using default AiohttpSession.")
+        # В случае ошибки возвращаем стандартную сессию с дефолтными настройками
         session = AiohttpSession()
         # Устанавливаем timeout как число
         timeout_value = timeout.total if isinstance(timeout, ClientTimeout) else timeout
