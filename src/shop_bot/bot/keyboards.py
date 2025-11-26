@@ -616,50 +616,11 @@ def create_key_info_keyboard(key_id: int, subscription_link: str | None = None, 
     except Exception as e:
         logger.error(f"Ошибка при проверке условий для кнопки личного кабинета для ключа {key_id}: {e}", exc_info=True)
 
-    # Кнопка настройки
-    # Логика учитывает настройку server_environment:
-    # - В production: используется fallback, если домен не настроен или локальный
-    # - В development: кнопка не добавляется, если домен не настроен или локальный
-    codex_docs_domain = get_setting("codex_docs_domain")
-    setup_url = None
-
-    if codex_docs_domain:
-        # Проверяем, является ли домен localhost
-        domain_for_check = codex_docs_domain.replace('http://', '').replace('https://', '').split('/')[0].split(':')[0]
-        if _is_local_address(domain_for_check):
-            # Для localhost используем fallback только в production
-            if is_production_server():
-                setup_url = "https://help.dark-maximus.com/setup"
-                logger.debug(f"Кнопка 'Настройка' для ключа {key_id}: localhost обнаружен, используется fallback URL={setup_url}")
-            else:
-                # В development не добавляем кнопку для localhost
-                logger.debug(f"Кнопка 'Настройка' для ключа {key_id}: localhost обнаружен в development, кнопка не добавляется")
-        else:
-            # Для не-localhost доменов нормализуем URL
-            codex_docs_domain = codex_docs_domain.strip().rstrip('/')
-            # Убираем протокол если есть (и http:// и https://)
-            if codex_docs_domain.startswith('http://'):
-                codex_docs_domain = codex_docs_domain[7:]  # Убираем 'http://'
-            elif codex_docs_domain.startswith('https://'):
-                codex_docs_domain = codex_docs_domain[8:]  # Убираем 'https://'
-            # Всегда добавляем https:// для web_app (Telegram требует HTTPS)
-            setup_url = f"https://{codex_docs_domain}/setup"
-            logger.debug(f"Кнопка 'Настройка' для ключа {key_id}: используется домен из настроек, setup_url={setup_url}")
-    else:
-        # Fallback на дефолт только в production
-        if is_production_server():
-            setup_url = "https://help.dark-maximus.com/setup"
-            logger.debug(f"Кнопка 'Настройка' для ключа {key_id}: используется fallback URL={setup_url}")
-        else:
-            # В development не добавляем кнопку, если домен не настроен
-            logger.debug(f"Кнопка 'Настройка' для ключа {key_id}: домен не настроен в development, кнопка не добавляется")
-    
-    # Добавляем кнопку только если setup_url установлен
-    if setup_url:
-        builder.button(
-            text="⚙️ Настройка",
-            web_app=WebAppInfo(url=setup_url)
-        )
+    # Кнопка настройки - всегда ведёт на официальную документацию
+    builder.button(
+        text="⚙️ Настройка",
+        web_app=WebAppInfo(url="https://help.dark-maximus.com/setup")
+    )
 
     if subscription_link and _is_http_like_url(subscription_link):
         builder.button(

@@ -29,216 +29,55 @@ from shop_bot.data_manager.database import update_setting, get_setting, is_produ
 class TestKeyboardDomains:
     """Тесты для формирования клавиатур с использованием доменов"""
 
-    @allure.title("Использование codex_docs_domain для кнопки Настройка")
+    @allure.title("Кнопка Настройка всегда отображается с фиксированным URL")
     @allure.description("""
-    Проверяет использование настройки codex_docs_domain для формирования URL кнопки "Настройка".
+    Проверяет, что кнопка "Настройка" всегда отображается с фиксированным URL независимо от настроек.
     
     **Что проверяется:**
-    - Установка codex_docs_domain в БД
     - Формирование кнопки "Настройка" через create_key_info_keyboard()
-    - Использование правильного URL из настройки
+    - Использование фиксированного URL https://help.dark-maximus.com/setup
+    - Независимость от настройки codex_docs_domain
     
     **Тестовые данные:**
-    - codex_docs_domain: "https://help.example.com"
     - key_id: 1
     
     **Ожидаемый результат:**
-    Кнопка "Настройка" содержит URL "https://help.example.com/setup".
+    Кнопка "Настройка" всегда содержит URL "https://help.dark-maximus.com/setup".
     """)
-    @allure.severity(allure.severity_level.NORMAL)
-    @allure.tag("keyboard", "domain", "codex-docs", "bot", "unit")
-    def test_setup_button_uses_codex_docs_domain(self, temp_db):
-        """Проверка использования codex_docs_domain для кнопки Настройка"""
-        with allure.step("Установка codex_docs_domain в БД"):
-            update_setting("codex_docs_domain", "https://help.example.com")
-            allure.attach("https://help.example.com", "Установленное значение", allure.attachment_type.TEXT)
-        
-        with allure.step("Формирование клавиатуры"):
+    @allure.severity(allure.severity_level.CRITICAL)
+    @allure.tag("keyboard", "setup-button", "bot", "unit", "critical")
+    def test_setup_button_always_present(self, temp_db):
+        """Проверка что кнопка Настройка всегда отображается с фиксированным URL"""
+        with allure.step("Формирование клавиатуры без настройки codex_docs_domain"):
             keyboard = create_key_info_keyboard(key_id=1)
             allure.attach(str(keyboard), "Сформированная клавиатура", allure.attachment_type.TEXT)
         
-        with allure.step("Проверка URL кнопки Настройка"):
-            # Проверяем, что в клавиатуре есть кнопка с правильным URL
+        with allure.step("Проверка наличия кнопки Настройка с фиксированным URL"):
             keyboard_dict = keyboard.model_dump() if hasattr(keyboard, 'model_dump') else str(keyboard)
             keyboard_str = str(keyboard_dict)
-            assert "help.example.com/setup" in keyboard_str or "https://help.example.com/setup" in keyboard_str
+            assert "help.dark-maximus.com/setup" in keyboard_str or "https://help.dark-maximus.com/setup" in keyboard_str, \
+                "Кнопка 'Настройка' должна всегда присутствовать с URL https://help.dark-maximus.com/setup"
 
-    @allure.title("Кнопка Настройка не добавляется если домен не настроен")
+    @allure.title("Кнопка Настройка отображается в development режиме")
     @allure.description("""
-    Проверяет, что кнопка "Настройка" не добавляется, если домены не настроены.
-    
-    **Что проверяется:**
-    - Отсутствие codex_docs_domain и global_domain в БД
-    - Формирование кнопки "Настройка" через create_key_info_keyboard()
-    - Отсутствие кнопки "Настройка" в клавиатуре
-    
-    **Тестовые данные:**
-    - codex_docs_domain: не установлен
-    - global_domain: не установлен
-    - key_id: 1
-    
-    **Ожидаемый результат:**
-    Кнопка "Настройка" не добавляется в клавиатуру, если домены не настроены.
-    """)
-    @allure.severity(allure.severity_level.NORMAL)
-    @allure.tag("keyboard", "domain", "fallback", "bot", "unit")
-    def test_setup_button_fallback_to_default(self, temp_db):
-        """Проверка что кнопка Настройка не добавляется если домен не настроен"""
-        with allure.step("Установка server_environment в development для проверки fallback"):
-            update_setting("server_environment", "development")
-            allure.attach("development", "Установленное окружение", allure.attachment_type.TEXT)
-        
-        with allure.step("Проверка окружения"):
-            assert is_development_server() is True
-        
-        with allure.step("Проверка отсутствия настройки"):
-            codex_docs_domain = get_setting("codex_docs_domain")
-            allure.attach(str(codex_docs_domain), "Текущее значение codex_docs_domain", allure.attachment_type.TEXT)
-        
-        with allure.step("Формирование клавиатуры"):
-            keyboard = create_key_info_keyboard(key_id=1)
-            allure.attach(str(keyboard), "Сформированная клавиатура", allure.attachment_type.TEXT)
-        
-        with allure.step("Проверка отсутствия кнопки Настройка"):
-            keyboard_dict = keyboard.model_dump() if hasattr(keyboard, 'model_dump') else str(keyboard)
-            keyboard_str = str(keyboard_dict)
-            # Проверяем, что кнопка "Настройка" не добавлена (нет жёстко прописанных доменов)
-            assert "help.dark-maximus.com/setup" not in keyboard_str
-            assert "https://help.dark-maximus.com/setup" not in keyboard_str
-            # Проверяем, что кнопка "Настройка" (⚙️) отсутствует, если домен не настроен
-            # Но кнопка может быть, если используется другой домен - проверяем только отсутствие жёстко прописанного
-
-    @allure.title("Нормализация URL кнопки Настройка")
-    @allure.description("""
-    Проверяет нормализацию URL кнопки "Настройка" (протокол, слэши).
-    
-    **Что проверяется:**
-    - Установка codex_docs_domain без протокола
-    - Установка codex_docs_domain с trailing slash
-    - Формирование правильного URL с /setup
-    
-    **Тестовые данные:**
-    - codex_docs_domain: "help.example.com"
-    
-    **Ожидаемый результат:**
-    URL кнопки "Настройка" нормализован: "https://help.example.com/setup".
-    """)
-    @allure.severity(allure.severity_level.NORMAL)
-    @allure.tag("keyboard", "domain", "normalization", "bot", "unit")
-    def test_setup_button_url_normalization(self, temp_db):
-        """Проверка нормализации URL кнопки Настройка"""
-        with allure.step("Установка codex_docs_domain без протокола"):
-            update_setting("codex_docs_domain", "help.example.com")
-            allure.attach("help.example.com", "Установленное значение (без протокола)", allure.attachment_type.TEXT)
-        
-        with allure.step("Формирование клавиатуры"):
-            keyboard = create_key_info_keyboard(key_id=1)
-            allure.attach(str(keyboard), "Сформированная клавиатура", allure.attachment_type.TEXT)
-        
-        with allure.step("Проверка нормализованного URL"):
-            keyboard_dict = keyboard.model_dump() if hasattr(keyboard, 'model_dump') else str(keyboard)
-            keyboard_str = str(keyboard_dict)
-            # Проверяем, что URL нормализован (есть https:// и /setup)
-            assert "https://help.example.com/setup" in keyboard_str
-
-    @allure.title("Добавление /setup к домену")
-    @allure.description("""
-    Проверяет добавление пути /setup к домену codex_docs_domain.
-    
-    **Что проверяется:**
-    - Установка codex_docs_domain
-    - Формирование URL кнопки "Настройка"
-    - Добавление /setup к домену
-    
-    **Тестовые данные:**
-    - codex_docs_domain: "https://help.example.com"
-    
-    **Ожидаемый результат:**
-    URL кнопки "Настройка" содержит "/setup" в конце.
-    """)
-    @allure.severity(allure.severity_level.NORMAL)
-    @allure.tag("keyboard", "domain", "setup-path", "bot", "unit")
-    def test_setup_button_url_with_setup_path(self, temp_db):
-        """Проверка добавления /setup к домену"""
-        with allure.step("Установка codex_docs_domain"):
-            update_setting("codex_docs_domain", "https://help.example.com")
-            allure.attach("https://help.example.com", "Установленное значение", allure.attachment_type.TEXT)
-        
-        with allure.step("Формирование клавиатуры"):
-            keyboard = create_key_info_keyboard(key_id=1)
-            allure.attach(str(keyboard), "Сформированная клавиатура", allure.attachment_type.TEXT)
-        
-        with allure.step("Проверка наличия /setup в URL"):
-            keyboard_dict = keyboard.model_dump() if hasattr(keyboard, 'model_dump') else str(keyboard)
-            keyboard_str = str(keyboard_dict)
-            # Проверяем, что URL содержит /setup
-            assert "/setup" in keyboard_str
-            assert "help.example.com/setup" in keyboard_str or "https://help.example.com/setup" in keyboard_str
-
-    @allure.title("Использование codex_docs_domain в production режиме")
-    @allure.description("""
-    Проверяет использование настройки codex_docs_domain в production режиме.
-    
-    **Что проверяется:**
-    - Установка server_environment в "production"
-    - Установка codex_docs_domain в БД
-    - Формирование кнопки "Настройка" через create_key_info_keyboard()
-    - Использование правильного URL из настройки
-    
-    **Тестовые данные:**
-    - server_environment: "production"
-    - codex_docs_domain: "https://help.example.com"
-    - key_id: 1
-    
-    **Ожидаемый результат:**
-    Кнопка "Настройка" содержит URL "https://help.example.com/setup".
-    """)
-    @allure.severity(allure.severity_level.NORMAL)
-    @allure.tag("keyboard", "domain", "codex-docs", "bot", "unit", "server-environment")
-    def test_setup_button_uses_codex_docs_domain_in_production(self, temp_db):
-        """Проверка использования codex_docs_domain в production режиме"""
-        with allure.step("Установка server_environment в production"):
-            update_setting("server_environment", "production")
-            allure.attach("production", "Установленное окружение", allure.attachment_type.TEXT)
-        
-        with allure.step("Установка codex_docs_domain в БД"):
-            update_setting("codex_docs_domain", "https://help.example.com")
-            allure.attach("https://help.example.com", "Установленное значение", allure.attachment_type.TEXT)
-        
-        with allure.step("Проверка окружения"):
-            assert is_production_server() is True
-        
-        with allure.step("Формирование клавиатуры"):
-            keyboard = create_key_info_keyboard(key_id=1)
-            allure.attach(str(keyboard), "Сформированная клавиатура", allure.attachment_type.TEXT)
-        
-        with allure.step("Проверка URL кнопки Настройка"):
-            keyboard_dict = keyboard.model_dump() if hasattr(keyboard, 'model_dump') else str(keyboard)
-            keyboard_str = str(keyboard_dict)
-            assert "help.example.com/setup" in keyboard_str or "https://help.example.com/setup" in keyboard_str
-
-    @allure.title("Кнопка Настройка не добавляется в development если домен локальный")
-    @allure.description("""
-    Проверяет, что кнопка "Настройка" не добавляется в development режиме, если домен является локальным адресом.
+    Проверяет, что кнопка "Настройка" отображается даже в development режиме с фиксированным URL.
     
     **Что проверяется:**
     - Установка server_environment в "development"
-    - Отсутствие codex_docs_domain или установка локального адреса
     - Формирование кнопки "Настройка" через create_key_info_keyboard()
-    - Отсутствие кнопки "Настройка" (локальные адреса не поддерживаются в Web App)
+    - Наличие кнопки "Настройка" с фиксированным URL
     
     **Тестовые данные:**
     - server_environment: "development"
-    - codex_docs_domain: не установлен (или локальный адрес)
     - key_id: 1
     
     **Ожидаемый результат:**
-    Кнопка "Настройка" не добавляется в клавиатуру, так как локальные адреса не поддерживаются в Web App.
+    Кнопка "Настройка" отображается с URL "https://help.dark-maximus.com/setup" даже в development.
     """)
-    @allure.severity(allure.severity_level.NORMAL)
-    @allure.tag("keyboard", "domain", "fallback", "bot", "unit", "server-environment")
-    def test_setup_button_fallback_in_development(self, temp_db):
-        """Проверка что кнопка Настройка не добавляется в development если домен локальный"""
+    @allure.severity(allure.severity_level.CRITICAL)
+    @allure.tag("keyboard", "setup-button", "development", "bot", "unit", "critical")
+    def test_setup_button_in_development(self, temp_db):
+        """Проверка что кнопка Настройка отображается в development режиме"""
         with allure.step("Установка server_environment в development"):
             update_setting("server_environment", "development")
             allure.attach("development", "Установленное окружение", allure.attachment_type.TEXT)
@@ -250,13 +89,155 @@ class TestKeyboardDomains:
             keyboard = create_key_info_keyboard(key_id=1)
             allure.attach(str(keyboard), "Сформированная клавиатура", allure.attachment_type.TEXT)
         
-        with allure.step("Проверка отсутствия жёстко прописанного домена"):
+        with allure.step("Проверка наличия кнопки Настройка"):
             keyboard_dict = keyboard.model_dump() if hasattr(keyboard, 'model_dump') else str(keyboard)
             keyboard_str = str(keyboard_dict)
-            # В development кнопка не добавляется, если домен не настроен или локальный
-            # Проверяем только отсутствие жёстко прописанного домена
-            assert "help.dark-maximus.com/setup" not in keyboard_str
-            assert "https://help.dark-maximus.com/setup" not in keyboard_str
+            # Кнопка "Настройка" должна быть всегда, даже в development
+            assert "help.dark-maximus.com/setup" in keyboard_str or "https://help.dark-maximus.com/setup" in keyboard_str, \
+                "Кнопка 'Настройка' должна присутствовать даже в development режиме"
+
+    @allure.title("Кнопка Настройка использует фиксированный URL независимо от настроек")
+    @allure.description("""
+    Проверяет, что кнопка "Настройка" использует фиксированный URL независимо от настройки codex_docs_domain.
+    
+    **Что проверяется:**
+    - Установка codex_docs_domain с другим доменом
+    - Формирование кнопки "Настройка" через create_key_info_keyboard()
+    - Использование фиксированного URL https://help.dark-maximus.com/setup
+    
+    **Тестовые данные:**
+    - codex_docs_domain: "help.example.com"
+    - key_id: 1
+    
+    **Ожидаемый результат:**
+    Кнопка "Настройка" игнорирует codex_docs_domain и использует фиксированный URL.
+    """)
+    @allure.severity(allure.severity_level.CRITICAL)
+    @allure.tag("keyboard", "setup-button", "fixed-url", "bot", "unit", "critical")
+    def test_setup_button_ignores_codex_docs_domain(self, temp_db):
+        """Проверка что кнопка Настройка игнорирует настройку codex_docs_domain"""
+        with allure.step("Установка codex_docs_domain с другим доменом"):
+            update_setting("codex_docs_domain", "help.example.com")
+            allure.attach("help.example.com", "Установленное значение", allure.attachment_type.TEXT)
+        
+        with allure.step("Формирование клавиатуры"):
+            keyboard = create_key_info_keyboard(key_id=1)
+            allure.attach(str(keyboard), "Сформированная клавиатура", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка использования фиксированного URL"):
+            keyboard_dict = keyboard.model_dump() if hasattr(keyboard, 'model_dump') else str(keyboard)
+            keyboard_str = str(keyboard_dict)
+            # Кнопка должна использовать фиксированный URL, игнорируя настройку
+            assert "help.dark-maximus.com/setup" in keyboard_str or "https://help.dark-maximus.com/setup" in keyboard_str, \
+                "Кнопка 'Настройка' должна использовать фиксированный URL https://help.dark-maximus.com/setup"
+            # Проверяем, что НЕ используется домен из настройки
+            assert "help.example.com" not in keyboard_str, \
+                "Кнопка 'Настройка' НЕ должна использовать домен из настройки codex_docs_domain"
+
+    @allure.title("Кнопка Настройка содержит путь /setup")
+    @allure.description("""
+    Проверяет, что URL кнопки "Настройка" содержит путь /setup.
+    
+    **Что проверяется:**
+    - Формирование кнопки "Настройка" через create_key_info_keyboard()
+    - Наличие пути /setup в URL
+    
+    **Тестовые данные:**
+    - key_id: 1
+    
+    **Ожидаемый результат:**
+    URL кнопки "Настройка" содержит "/setup": "https://help.dark-maximus.com/setup".
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("keyboard", "setup-button", "setup-path", "bot", "unit")
+    def test_setup_button_url_with_setup_path(self, temp_db):
+        """Проверка что URL кнопки Настройка содержит путь /setup"""
+        with allure.step("Формирование клавиатуры"):
+            keyboard = create_key_info_keyboard(key_id=1)
+            allure.attach(str(keyboard), "Сформированная клавиатура", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка наличия /setup в URL"):
+            keyboard_dict = keyboard.model_dump() if hasattr(keyboard, 'model_dump') else str(keyboard)
+            keyboard_str = str(keyboard_dict)
+            # Проверяем, что URL содержит /setup
+            assert "/setup" in keyboard_str, "URL кнопки 'Настройка' должен содержать путь /setup"
+            assert "help.dark-maximus.com/setup" in keyboard_str or "https://help.dark-maximus.com/setup" in keyboard_str, \
+                "URL должен быть https://help.dark-maximus.com/setup"
+
+    @allure.title("Кнопка Настройка отображается в production режиме с фиксированным URL")
+    @allure.description("""
+    Проверяет, что кнопка "Настройка" отображается в production режиме с фиксированным URL.
+    
+    **Что проверяется:**
+    - Установка server_environment в "production"
+    - Формирование кнопки "Настройка" через create_key_info_keyboard()
+    - Использование фиксированного URL https://help.dark-maximus.com/setup
+    
+    **Тестовые данные:**
+    - server_environment: "production"
+    - key_id: 1
+    
+    **Ожидаемый результат:**
+    Кнопка "Настройка" содержит фиксированный URL "https://help.dark-maximus.com/setup".
+    """)
+    @allure.severity(allure.severity_level.CRITICAL)
+    @allure.tag("keyboard", "setup-button", "production", "bot", "unit", "critical")
+    def test_setup_button_in_production(self, temp_db):
+        """Проверка что кнопка Настройка отображается в production режиме с фиксированным URL"""
+        with allure.step("Установка server_environment в production"):
+            update_setting("server_environment", "production")
+            allure.attach("production", "Установленное окружение", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка окружения"):
+            assert is_production_server() is True
+        
+        with allure.step("Формирование клавиатуры"):
+            keyboard = create_key_info_keyboard(key_id=1)
+            allure.attach(str(keyboard), "Сформированная клавиатура", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка URL кнопки Настройка"):
+            keyboard_dict = keyboard.model_dump() if hasattr(keyboard, 'model_dump') else str(keyboard)
+            keyboard_str = str(keyboard_dict)
+            assert "help.dark-maximus.com/setup" in keyboard_str or "https://help.dark-maximus.com/setup" in keyboard_str, \
+                "Кнопка 'Настройка' должна содержать фиксированный URL https://help.dark-maximus.com/setup"
+
+    @allure.title("Кнопка Настройка отображается даже при локальном codex_docs_domain")
+    @allure.description("""
+    Проверяет, что кнопка "Настройка" отображается с фиксированным URL даже если codex_docs_domain локальный.
+    
+    **Что проверяется:**
+    - Установка codex_docs_domain с локальным адресом
+    - Формирование кнопки "Настройка" через create_key_info_keyboard()
+    - Использование фиксированного URL вместо локального адреса
+    
+    **Тестовые данные:**
+    - codex_docs_domain: "localhost:3001"
+    - key_id: 1
+    
+    **Ожидаемый результат:**
+    Кнопка "Настройка" отображается с фиксированным URL https://help.dark-maximus.com/setup.
+    """)
+    @allure.severity(allure.severity_level.CRITICAL)
+    @allure.tag("keyboard", "setup-button", "localhost", "bot", "unit", "critical")
+    def test_setup_button_with_localhost_domain(self, temp_db):
+        """Проверка что кнопка Настройка отображается даже при локальном codex_docs_domain"""
+        with allure.step("Установка codex_docs_domain с локальным адресом"):
+            update_setting("codex_docs_domain", "localhost:3001")
+            allure.attach("localhost:3001", "Установленное значение", allure.attachment_type.TEXT)
+        
+        with allure.step("Формирование клавиатуры"):
+            keyboard = create_key_info_keyboard(key_id=1)
+            allure.attach(str(keyboard), "Сформированная клавиатура", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка использования фиксированного URL вместо localhost"):
+            keyboard_dict = keyboard.model_dump() if hasattr(keyboard, 'model_dump') else str(keyboard)
+            keyboard_str = str(keyboard_dict)
+            # Кнопка должна использовать фиксированный URL, игнорируя локальный адрес
+            assert "help.dark-maximus.com/setup" in keyboard_str or "https://help.dark-maximus.com/setup" in keyboard_str, \
+                "Кнопка 'Настройка' должна использовать фиксированный URL https://help.dark-maximus.com/setup"
+            # Проверяем, что НЕ используется локальный адрес
+            assert "localhost" not in keyboard_str, \
+                "Кнопка 'Настройка' НЕ должна использовать локальный адрес"
 
     @allure.title("Кнопка Личный кабинет отображается только в production для режима cabinet")
     @allure.description("""
