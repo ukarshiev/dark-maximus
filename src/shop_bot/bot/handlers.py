@@ -4949,6 +4949,7 @@ def get_user_router() -> Router:
                         plan_name=plan['plan_name'],
                         price=0.0,
                         subscription=subscription,
+                        subscription_link=result.get('subscription_link'),
                         telegram_chat_id=telegram_chat_id,
                         comment=f"Бесплатный ключ для пользователя {fullname or username or user_id}"
                     )
@@ -5471,6 +5472,7 @@ def get_user_router() -> Router:
                         plan_name=plan['plan_name'],
                         price=0.0,
                         subscription=subscription,
+                        subscription_link=result.get('subscription_link'),
                         telegram_chat_id=telegram_chat_id,
                         comment=f"Бесплатный ключ для пользователя {fullname or username or user_id}"
                     )
@@ -7066,6 +7068,7 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
                     plan_name=plan.get('plan_name') if plan else None,
                     price=price,
                     subscription=subscription,
+                    subscription_link=result.get('subscription_link'),
                     telegram_chat_id=telegram_chat_id,
                     comment=f"Ключ для пользователя {fullname or username or user_id}"
                 )
