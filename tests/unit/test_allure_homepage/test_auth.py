@@ -93,7 +93,8 @@ class TestAllureHomepageAuth:
         app, allure_homepage_app = setup_app_with_templates()
         
         with app.test_client() as client:
-            # Мокируем verify_admin_credentials, чтобы реальная функция verify_and_login выполнилась и установила сессию
+            # Мокируем verify_admin_credentials в database модуле
+            # verify_and_login импортирует его внутри функции, поэтому патчим в database
             with patch('shop_bot.data_manager.database.verify_admin_credentials', return_value=True):
                 response = client.post('/login', data=admin_credentials, follow_redirects=True)
                 # Проверяем отсутствие ошибок 500 (Internal Server Error), которые могут быть связаны с AttributeError
@@ -220,19 +221,13 @@ class TestAllureHomepageAuth:
         """Тест проверки декоратора @login_required"""
         app, allure_homepage_app = setup_app_with_templates()
         
-        def mock_verify_and_login(username, password):
-            from flask import session
-            session['logged_in'] = True
-            session.permanent = True
-            return True
-        
         with app.test_client() as client:
             # Пытаемся получить доступ к защищенной странице без входа
             response = client.get('/allure-docker-service/')
             assert response.status_code == 302  # Редирект на /login
             
-            # Входим
-            with patch.object(allure_homepage_app, 'verify_and_login', side_effect=mock_verify_and_login):
+            # Входим - мокируем verify_admin_credentials в database модуле
+            with patch('shop_bot.data_manager.database.verify_admin_credentials', return_value=True):
                 client.post('/login', data=admin_credentials, follow_redirects=True)
             
             # Теперь доступ должен быть разрешен

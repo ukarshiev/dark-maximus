@@ -4130,6 +4130,67 @@ def create_webhook_app(bot_controller_instance):
                 
                 key = dict(row)
                 
+                # FALLBACK: Если subscription_link пустой, но есть subscription (sub_id), генерируем ссылку на лету
+                if not key.get('subscription_link') and key.get('subscription'):
+                    try:
+                        import asyncio
+                        from shop_bot.modules.xui_api import get_client_subscription_link
+                        
+                        host_name = key.get('host_name')
+                        key_email = key.get('key_email')
+                        
+                        if host_name and key_email:
+                            logger.info(
+                                f"[API] Subscription link is empty for key_id={key_id}, attempting to generate from "
+                                f"subscription={key.get('subscription')}, host={host_name}, email={key_email}"
+                            )
+                            
+                            # Получаем subscription_link через API 3X-UI
+                            try:
+                                # Пытаемся получить существующий event loop
+                                loop = asyncio.get_event_loop()
+                            except RuntimeError:
+                                # Если event loop не существует, создаем новый
+                                loop = asyncio.new_event_loop()
+                                asyncio.set_event_loop(loop)
+                            
+                            subscription_link = loop.run_until_complete(
+                                get_client_subscription_link(host_name, key_email)
+                            )
+                            
+                            if subscription_link:
+                                key['subscription_link'] = subscription_link
+                                logger.info(
+                                    f"[API] Successfully generated subscription_link for key_id={key_id}: {subscription_link}"
+                                )
+                                
+                                # Сохраняем subscription_link в БД для будущих запросов
+                                try:
+                                    cursor.execute(
+                                        'UPDATE vpn_keys SET subscription_link = ? WHERE key_id = ?',
+                                        (subscription_link, key_id)
+                                    )
+                                    conn.commit()
+                                    logger.info(f"[API] Saved subscription_link to database for key_id={key_id}")
+                                except sqlite3.Error as update_error:
+                                    logger.warning(
+                                        f"[API] Failed to save subscription_link to database for key_id={key_id}: {update_error}"
+                                    )
+                            else:
+                                logger.warning(
+                                    f"[API] Failed to generate subscription_link for key_id={key_id} via API"
+                                )
+                        else:
+                            logger.warning(
+                                f"[API] Cannot generate subscription_link for key_id={key_id}: "
+                                f"host_name={host_name}, key_email={key_email}"
+                            )
+                    except Exception as fallback_error:
+                        logger.error(
+                            f"[API] Error during subscription_link fallback generation for key_id={key_id}: {fallback_error}",
+                            exc_info=True
+                        )
+                
                 # Преобразуем даты в строки для JSON
                 if key['created_date']:
                     key['created_date'] = to_panel_iso(key['created_date'])

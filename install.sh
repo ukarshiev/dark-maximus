@@ -239,12 +239,19 @@ echo -e "Количество аргументов: $#"
 echo -e "Переменная DOMAIN: ${DOMAIN:-не установлена}"
 
 # Проверяем, существует ли уже .env файл (обновление)
+# ВАЖНО: Функция read_env_value будет определена позже, поэтому используем временную логику
 if [ -f ".env" ]; then
     echo -e "${GREEN}✔ Найден существующий .env файл - режим обновления${NC}"
     # Читаем домен из существующего .env файла
-    if grep -q "DOMAIN=" .env; then
-        MAIN_DOMAIN=$(grep "DOMAIN=" .env | cut -d'=' -f2 | tr -d '"' | tr -d "'")
-        echo -e "${GREEN}✔ Домен получен из существующего .env: ${MAIN_DOMAIN}${NC}"
+    # Используем безопасное чтение с обработкой кавычек
+    if grep -q "^DOMAIN=" .env 2>/dev/null; then
+        MAIN_DOMAIN=$(grep "^DOMAIN=" .env | cut -d'=' -f2- | sed 's/^["'\'']*//; s/["'\'']*$//' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | head -n1)
+        if [ -n "$MAIN_DOMAIN" ]; then
+            echo -e "${GREEN}✔ Домен получен из существующего .env: ${MAIN_DOMAIN}${NC}"
+        else
+            echo -e "${YELLOW}⚠️  Домен в .env файле пуст, используем значение по умолчанию${NC}"
+            MAIN_DOMAIN="localhost"
+        fi
     else
         echo -e "${YELLOW}⚠️  Домен не найден в .env файле, используем значение по умолчанию${NC}"
         MAIN_DOMAIN="localhost"
@@ -282,17 +289,172 @@ echo -e "   - Allure: ${ALLURE_DOMAIN}"
 
 echo -e "\n${CYAN}Шаг 4: Генерация секретов...${NC}"
 
-# Генерируем секреты
-FLASK_SECRET_KEY=$(openssl rand -hex 32)
+# ============================================
+# Функции для безопасной работы с .env файлом
+# ============================================
+
+# Безопасное чтение значения из .env файла
+read_env_value() {
+    local var_name="$1"
+    local default_value="${2:-}"
+    if [ -f ".env" ] && grep -q "^${var_name}=" .env 2>/dev/null; then
+        # Извлекаем значение, удаляя кавычки и пробелы
+        grep "^${var_name}=" .env | cut -d'=' -f2- | sed 's/^["'\'']*//; s/["'\'']*$//' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | head -n1
+    else
+        echo "$default_value"
+    fi
+}
+
+# Сохраняет все пользовательские параметры из существующего .env
+preserve_custom_env_vars() {
+    local env_file="${1:-.env}"
+    local preserved_vars=""
+    
+    if [ ! -f "$env_file" ]; then
+        echo ""
+        return
+    fi
+    
+    # Список параметров, которые нужно сохранить (не управляются скриптом напрямую)
+    local custom_vars=(
+        "GITHUB_TOKEN"
+        "PANEL_LOGIN"
+        "PANEL_PASSWORD"
+        "ENVIRONMENT"
+        "FLASK_ENV"
+        "SESSION_COOKIE_SECURE"
+        "FLASK_DEBUG"
+        "DOCKER_COMPOSE_FILE"
+        "CODEX_DOCS_PASSWORD"
+        "XUI_TLS_VERIFY"
+        "XUI_TLS_CA_BUNDLE"
+    )
+    
+    for var in "${custom_vars[@]}"; do
+        local value=$(read_env_value "$var" "")
+        if [ -n "$value" ]; then
+            preserved_vars="${preserved_vars}${var}=${value}\n"
+        fi
+    done
+    
+    # Сохраняем все остальные пользовательские параметры, которых нет в стандартном списке
+    # Исключаем параметры, которые управляются скриптом
+    local managed_vars=(
+        "FLASK_SECRET_KEY" "DOMAIN" "MAIN_DOMAIN" "DOCS_DOMAIN" "HELP_DOMAIN" 
+        "APP_DOMAIN" "ALLURE_DOMAIN" "PANEL_DOMAIN" "BOT_TOKEN" "WEBHOOK_URL"
+        "PAYMENT_PROVIDER" "PAYMENT_TOKEN" "DATABASE_URL" "SSH_PORT"
+    )
+    
+    # Читаем все строки из .env и сохраняем пользовательские комментарии и параметры
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Пропускаем пустые строки и комментарии
+        if [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]]; then
+            continue
+        fi
+        
+        # Извлекаем имя переменной
+        if [[ "$line" =~ ^([A-Z_][A-Z0-9_]*)= ]]; then
+            local var_name="${BASH_REMATCH[1]}"
+            # Проверяем, не является ли это управляемым параметром
+            local is_managed=false
+            for managed_var in "${managed_vars[@]}" "${custom_vars[@]}"; do
+                if [ "$var_name" = "$managed_var" ]; then
+                    is_managed=true
+                    break
+                fi
+            done
+            
+            # Если это не управляемый параметр, сохраняем его
+            if [ "$is_managed" = false ]; then
+                preserved_vars="${preserved_vars}${line}\n"
+            fi
+        fi
+    done < "$env_file"
+    
+    echo -e "$preserved_vars"
+}
+
+# Безопасное обновление .env файла с сохранением пользовательских параметров
+update_env_file() {
+    local temp_file=$(mktemp)
+    local backup_file=".env.backup.$(date +%Y%m%d-%H%M%S)"
+    
+    # Создаем резервную копию
+    if [ -f ".env" ]; then
+        cp ".env" "$backup_file"
+        echo -e "${YELLOW}Создана резервная копия: $backup_file${NC}"
+    fi
+    
+    # Сохраняем пользовательские параметры
+    local preserved=$(preserve_custom_env_vars ".env")
+    
+    # Создаем новый .env файл
+    # ВАЖНО: Используем printf для безопасной записи preserved, чтобы избежать интерпретации специальных символов
+    {
+        cat << EOF
+# Основные настройки
+FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
+# Примечание: учетные данные панели (логин/пароль) хранятся в базе данных users.db, а не в .env
+DOMAIN=${MAIN_DOMAIN}
+
+# Дополнительные настройки из шаблона
+BOT_TOKEN=${BOT_TOKEN:-}
+WEBHOOK_URL=${WEBHOOK_URL:-}
+PAYMENT_PROVIDER=${PAYMENT_PROVIDER:-}
+PAYMENT_TOKEN=${PAYMENT_TOKEN:-}
+DATABASE_URL=${DATABASE_URL:-sqlite:///bot.db}
+
+# Домены (без дублей)
+MAIN_DOMAIN=${MAIN_DOMAIN}
+DOCS_DOMAIN=${DOCS_DOMAIN}
+HELP_DOMAIN=${HELP_DOMAIN}
+APP_DOMAIN=${APP_DOMAIN}
+ALLURE_DOMAIN=${ALLURE_DOMAIN}
+
+# Пользовательские параметры (сохранены из предыдущей версии)
+EOF
+        # Безопасно выводим сохраненные параметры (если они есть)
+        if [ -n "$preserved" ]; then
+            printf '%s' "$preserved"
+        fi
+    } > "$temp_file"
+    
+    # Валидация: проверяем, что файл не пустой
+    if [ ! -s "$temp_file" ]; then
+        echo -e "${RED}❌ Ошибка: временный файл пуст${NC}"
+        rm -f "$temp_file"
+        return 1
+    fi
+    
+    # Атомарная замена: перемещаем временный файл на место .env
+    mv "$temp_file" ".env"
+    echo -e "${GREEN}✔ .env файл обновлен безопасно${NC}"
+}
+
+# ============================================
+# Генерация и сохранение секретов
+# ============================================
+
+# КРИТИЧНО: Сохраняем существующий FLASK_SECRET_KEY если он есть
+EXISTING_FLASK_SECRET_KEY=$(read_env_value "FLASK_SECRET_KEY")
+if [ -n "$EXISTING_FLASK_SECRET_KEY" ]; then
+    FLASK_SECRET_KEY="$EXISTING_FLASK_SECRET_KEY"
+    echo -e "${GREEN}✔ Сохранен существующий FLASK_SECRET_KEY${NC}"
+else
+    FLASK_SECRET_KEY=$(openssl rand -hex 32)
+    echo -e "${YELLOW}⚠️  Сгенерирован новый FLASK_SECRET_KEY${NC}"
+fi
+
 # Примечание: ADMIN_PASSWORD не используется - учетные данные панели хранятся в базе данных users.db
 
-# Создаем .env файл на основе шаблона
-if [ -f "config/env.example" ]; then
-    cp config/env.example .env
-    echo -e "${YELLOW}Скопирован шаблон .env из config/env.example${NC}"
-else
-    # Создаем базовый .env файл
-    cat > .env << EOF
+# Создаем .env файл на основе шаблона (только если файла нет)
+if [ ! -f ".env" ]; then
+    if [ -f "config/env.example" ]; then
+        cp config/env.example .env
+        echo -e "${YELLOW}Скопирован шаблон .env из config/env.example${NC}"
+    else
+        # Создаем базовый .env файл
+        cat > .env << EOF
 # Dark Maximus Environment Variables
 # Автоматически сгенерировано при установке
 
@@ -311,30 +473,11 @@ DOCS_DOMAIN=${DOCS_DOMAIN}
 HELP_DOMAIN=${HELP_DOMAIN}
 APP_DOMAIN=${APP_DOMAIN}
 EOF
+    fi
 fi
 
-# Обновляем .env с нашими значениями
-# Используем более безопасный способ - пересоздаем .env файл
-cat > .env << EOF
-# Основные настройки
-FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
-# Примечание: учетные данные панели (логин/пароль) хранятся в базе данных users.db, а не в .env
-DOMAIN=${MAIN_DOMAIN}
-
-# Дополнительные настройки из шаблона
-BOT_TOKEN=${BOT_TOKEN:-}
-WEBHOOK_URL=${WEBHOOK_URL:-}
-PAYMENT_PROVIDER=${PAYMENT_PROVIDER:-}
-PAYMENT_TOKEN=${PAYMENT_TOKEN:-}
-DATABASE_URL=${DATABASE_URL:-sqlite:///bot.db}
-
-# Домены
-MAIN_DOMAIN=${MAIN_DOMAIN}
-DOCS_DOMAIN=${DOCS_DOMAIN}
-HELP_DOMAIN=${HELP_DOMAIN}
-APP_DOMAIN=${APP_DOMAIN}
-ALLURE_DOMAIN=${ALLURE_DOMAIN}
-EOF
+# Обновляем .env с нашими значениями безопасным способом
+update_env_file
 
 # Примечание: учетные данные панели хранятся в базе данных users.db
 # Для просмотра текущего логина и пароля используйте веб-панель или базу данных

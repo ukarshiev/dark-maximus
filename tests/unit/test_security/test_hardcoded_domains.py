@@ -61,13 +61,16 @@ class TestHardcodedDomains:
                                 stripped = line.strip()
                                 # Проверяем предыдущую строку на наличие комментария о fallback
                                 prev_line = lines[line_num - 2].strip() if line_num > 1 else ""
+                                # Проверяем текущую строку на наличие комментария о fallback (может быть на той же строке)
                                 has_fallback_comment = (
                                     'fallback' in stripped.lower() or
                                     'default' in stripped.lower() or
                                     '# fallback' in prev_line.lower() or
                                     '# default' in prev_line.lower() or
                                     'fallback' in prev_line.lower() or
-                                    'для обратной совместимости' in prev_line.lower()
+                                    'для обратной совместимости' in prev_line.lower() or
+                                    '# fallback' in stripped.lower() or
+                                    '# default' in stripped.lower()
                                 )
                                 
                                 if not (stripped.startswith('#') or 
@@ -135,13 +138,16 @@ class TestHardcodedDomains:
                                     stripped = line.strip()
                                     # Проверяем предыдущую строку на наличие комментария о fallback
                                     prev_line = lines[line_num - 2].strip() if line_num > 1 else ""
+                                    # Проверяем текущую строку на наличие комментария о fallback (может быть на той же строке)
                                     has_fallback_comment = (
                                         'fallback' in stripped.lower() or
                                         'default' in stripped.lower() or
                                         '# fallback' in prev_line.lower() or
                                         '# default' in prev_line.lower() or
                                         'fallback' in prev_line.lower() or
-                                        'для обратной совместимости' in prev_line.lower()
+                                        'для обратной совместимости' in prev_line.lower() or
+                                        '# fallback' in stripped.lower() or
+                                        '# default' in stripped.lower()
                                     )
                                     
                                     if not (stripped.startswith('#') or 

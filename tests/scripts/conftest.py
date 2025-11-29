@@ -99,13 +99,32 @@ def project_root() -> Path:
     if app_path.exists() and app_path.is_dir():
         # В Docker контейнере скрипты маппятся в /app/
         # Проверяем наличие хотя бы одного скрипта для подтверждения
-        test_script = app_path / "install.sh"
-        if test_script.exists():
-            return app_path
+        # Проверяем несколько возможных скриптов для большей надежности
+        test_scripts = [
+            app_path / "install.sh",
+            app_path / "install-autotest.sh",
+            app_path / "ssl-install.sh"
+        ]
+        for test_script in test_scripts:
+            if test_script.exists():
+                return app_path
     
     # Локальный запуск: вычисляем относительно расположения файла
     # tests/scripts/conftest.py -> tests/scripts/ -> tests/ -> корень проекта
-    return Path(__file__).parent.parent.parent
+    local_root = Path(__file__).parent.parent.parent
+    
+    # Проверяем, что это действительно корень проекта (должен содержать хотя бы один скрипт)
+    test_scripts = [
+        local_root / "install.sh",
+        local_root / "install-autotest.sh",
+        local_root / "ssl-install.sh"
+    ]
+    for test_script in test_scripts:
+        if test_script.exists():
+            return local_root
+    
+    # Если ничего не найдено, возвращаем вычисленный путь (для совместимости)
+    return local_root
 
 
 @pytest.fixture

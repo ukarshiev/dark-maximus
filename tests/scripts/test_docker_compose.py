@@ -128,22 +128,36 @@ class TestDockerCompose:
                 service = services[service_name]
                 ports = service.get("ports", [])
                 
-                # Проверяем порты в формате "127.0.0.1:PORT:PORT" или "PORT:PORT"
+                # Если у сервиса нет секции ports, пропускаем проверку (может использоваться expose)
+                if not ports:
+                    continue
+                
+                # Проверяем порты в формате "127.0.0.1:PORT:PORT" или "PORT:PORT" или "127.0.0.1:HOST_PORT:CONTAINER_PORT"
                 found_port = False
                 for port_mapping in ports:
                     if isinstance(port_mapping, str):
-                        # Формат: "127.0.0.1:50001:50001" или "50001:50001"
+                        # Формат: "127.0.0.1:50001:50001" или "50001:50001" или "127.0.0.1:50004:5050"
                         parts = port_mapping.split(":")
                         if len(parts) >= 2:
-                            host_port = parts[-2] if len(parts) == 3 else parts[0]
+                            # Для формата "127.0.0.1:HOST:CONTAINER" берем HOST (второй элемент)
+                            # Для формата "HOST:CONTAINER" берем HOST (первый элемент)
+                            if len(parts) == 3:
+                                # Формат "127.0.0.1:HOST:CONTAINER" - берем HOST (второй элемент)
+                                host_port = parts[1]
+                            elif len(parts) == 2:
+                                # Формат "HOST:CONTAINER" - берем HOST (первый элемент)
+                                host_port = parts[0]
+                            else:
+                                continue
+                            
                             if host_port == str(expected_port):
                                 found_port = True
                                 break
                 
-                if not found_port and ports:
+                if not found_port:
                     port_errors.append(
                         f"{service_name}: ожидается порт {expected_port}, "
-                        f"найдено {ports}"
+                        f"найдено {ports if ports else 'порты не указаны'}"
                     )
             
             allure.attach(
@@ -227,13 +241,34 @@ class TestDockerCompose:
         
         with allure.step("Проверка дубликатов"):
             # Проверяем, что каждый сервис упоминается только один раз в секции services
+            # Ищем определения сервисов на корневом уровне секции services (должны начинаться с пробелов и заканчиваться двоеточием)
             for service_name in service_names:
-                # Ищем все вхождения "^  service_name:" в файле
-                pattern = f"^  {service_name}:"
-                count = sum(1 for line in content.split("\n") if line.strip().startswith(f"{service_name}:"))
+                # Ищем строки, которые определяют сервис (начинаются с пробелов, затем имя сервиса, затем двоеточие)
+                # Игнорируем вхождения в depends_on, volumes и других местах
+                lines = content.split("\n")
+                service_definitions = []
+                in_services_section = False
                 
-                if count > 1:
-                    pytest.fail(f"Сервис {service_name} определен {count} раз(а)")
+                for i, line in enumerate(lines):
+                    stripped = line.strip()
+                    # Определяем начало секции services
+                    if stripped == "services:" or stripped.startswith("services:"):
+                        in_services_section = True
+                        continue
+                    # Если встретили другую секцию верхнего уровня, выходим из секции services
+                    if in_services_section and stripped and not line.startswith(" ") and not line.startswith("\t") and stripped.endswith(":"):
+                        if stripped not in ["services:", "networks:", "volumes:"]:
+                            in_services_section = False
+                            continue
+                    # Ищем определения сервисов (имя сервиса на корневом уровне в секции services)
+                    if in_services_section and stripped.startswith(f"{service_name}:"):
+                        # Проверяем, что это определение на корневом уровне (начинается с 2 пробелов)
+                        if line.startswith("  ") and not line.startswith("    "):
+                            service_definitions.append((i + 1, line))
+                
+                if len(service_definitions) > 1:
+                    definitions_str = "\n".join([f"  Строка {num}: {line.strip()}" for num, line in service_definitions])
+                    pytest.fail(f"Сервис {service_name} определен {len(service_definitions)} раз(а):\n{definitions_str}")
             
             allure.attach(
                 str(service_names),

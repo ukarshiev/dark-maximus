@@ -1,8 +1,8 @@
 {
   "run": {
     "command": "nx serve bot",
-    "startTime": "2025-11-24T23:04:24.305Z",
-    "endTime": "2025-11-24T23:04:25.279Z",
+    "startTime": "2025-11-26T11:19:27.502Z",
+    "endTime": "2025-11-26T11:19:28.568Z",
     "inner": false
   },
   "tasks": [
@@ -11,8 +11,8 @@
       "target": "serve",
       "projectName": "bot",
       "hash": "3367953233812977480",
-      "startTime": "2025-11-24T23:04:24.314Z",
-      "endTime": "2025-11-24T23:04:25.279Z",
+      "startTime": "2025-11-26T11:19:27.515Z",
+      "endTime": "2025-11-26T11:19:28.567Z",
       "params": "",
       "cacheStatus": "cache-miss",
       "status": 0

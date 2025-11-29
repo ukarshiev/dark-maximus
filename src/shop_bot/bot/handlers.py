@@ -702,11 +702,14 @@ def get_user_router() -> Router:
                                 promo_data=promo_data
                             )
                             
-                            # Зачисляем discount_bonus на баланс пользователя
+                            # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Зачисляем discount_bonus ТОЛЬКО если existing_usage_id отсутствует
+                            # Это предотвращает многократное начисление бонуса при повторном переходе по deeplink ссылке
                             bonus_amount = promo_data.get('discount_bonus', 0.0)
-                            if bonus_amount > 0:
+                            if not existing_usage_id and bonus_amount > 0:
                                 add_to_user_balance(user_id, bonus_amount)
-                                logger.info(f"Applied bonus {bonus_amount} RUB to user {user_id} from promo '{promo_code}'")
+                                logger.info(f"Applied bonus {bonus_amount} RUB to user {user_id} from promo '{promo_code}' (first time)")
+                            elif existing_usage_id and bonus_amount > 0:
+                                logger.info(f"Bonus NOT applied for user {user_id} from promo '{promo_code}' (already applied, existing_usage_id={existing_usage_id})")
                             
                             logger.info(f"Successfully applied promo code '{promo_code}' for user {user_id}")
                         else:
@@ -4651,11 +4654,14 @@ def get_user_router() -> Router:
                         if usage_id:
                             await state.update_data(promo_usage_id=usage_id)
                         
-                        # Зачисляем discount_bonus на баланс пользователя
+                        # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Зачисляем discount_bonus ТОЛЬКО если existing_usage_id отсутствует
+                        # Это предотвращает многократное начисление бонуса при повторном применении промокода
                         bonus_amount = promo_data.get('discount_bonus', 0.0)
-                        if bonus_amount > 0:
+                        if not existing_usage_id and bonus_amount > 0:
                             add_to_user_balance(user_id, bonus_amount)
-                            logger.info(f"Added {bonus_amount} RUB bonus to user {user_id} balance from promo code {promo_code}")
+                            logger.info(f"Added {bonus_amount} RUB bonus to user {user_id} balance from promo code {promo_code} (first time)")
+                        elif existing_usage_id and bonus_amount > 0:
+                            logger.info(f"Bonus NOT added for user {user_id} from promo code {promo_code} (already applied, existing_usage_id={existing_usage_id})")
                 except Exception as e:
                     logger.error(f"Error recording promo code usage: {e}", exc_info=True)
                     await message.answer(

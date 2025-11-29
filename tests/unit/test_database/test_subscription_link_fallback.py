@@ -6,7 +6,7 @@ Unit-тесты для fallback генерации subscription_link
 
 import pytest
 import allure
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, MagicMock
 from pathlib import Path
 
 
@@ -94,22 +94,37 @@ class TestSubscriptionLinkFallback:
         with allure.step("Мокируем get_client_subscription_link для возврата тестовой ссылки"):
             mock_subscription_link = "https://test-host.com/sub/test-sub-id-123"
             
-            with patch('shop_bot.modules.xui_api.get_client_subscription_link', new_callable=AsyncMock) as mock_get_link:
-                mock_get_link.return_value = mock_subscription_link
-                
-                with allure.step("Вызываем validate_permanent_token"):
-                    token_data = validate_permanent_token(token)
-                    
-                    allure.attach(str(token_data), "Token data", allure.attachment_type.JSON)
+            # Мокируем async функцию и event loop для работы с run_until_complete
+            mock_get_link_async = AsyncMock(return_value=mock_subscription_link)
+            
+            # Создаем мок event loop, который будет возвращать результат из async функции
+            mock_loop = MagicMock()
+            mock_loop.run_until_complete = MagicMock(return_value=mock_subscription_link)
+            
+            with patch('shop_bot.modules.xui_api.get_client_subscription_link', mock_get_link_async):
+                with patch('asyncio.get_event_loop', return_value=mock_loop):
+                    with patch('asyncio.new_event_loop', return_value=mock_loop):
+                        with patch('asyncio.set_event_loop'):
+                            with allure.step("Вызываем validate_permanent_token"):
+                                token_data = validate_permanent_token(token)
+                                
+                                allure.attach(str(token_data), "Token data", allure.attachment_type.JSON)
         
         with allure.step("Проверяем результат"):
             assert token_data is not None, "Token data should not be None"
             assert token_data.get('subscription_link') == mock_subscription_link, \
                 f"Expected subscription_link to be {mock_subscription_link}, got {token_data.get('subscription_link')}"
             
-            # Проверяем, что ссылка сохранена в БД
+            # Проверяем, что ссылка сохранена в БД (повторный вызов - мок больше не нужен, т.к. ссылка уже в БД)
+            # Но нужно мокировать event loop, чтобы не было проблем с asyncio
             from shop_bot.data_manager.database import get_key_by_id
-            key_data = get_key_by_id(key_id)
+            mock_loop_empty = MagicMock()
+            mock_loop_empty.run_until_complete = MagicMock(return_value=None)
+            
+            with patch('asyncio.get_event_loop', return_value=mock_loop_empty):
+                with patch('asyncio.new_event_loop', return_value=mock_loop_empty):
+                    with patch('asyncio.set_event_loop'):
+                        key_data = get_key_by_id(key_id)
             
             assert key_data is not None, "Key data should not be None"
             assert key_data.get('subscription_link') == mock_subscription_link, \
@@ -192,21 +207,36 @@ class TestSubscriptionLinkFallback:
         with allure.step("Мокируем get_client_subscription_link для возврата тестовой ссылки"):
             mock_subscription_link = "https://test-host.com/sub/test-sub-id-456"
             
-            with patch('shop_bot.data_manager.database.get_client_subscription_link', new_callable=AsyncMock) as mock_get_link:
-                mock_get_link.return_value = mock_subscription_link
-                
-                with allure.step("Вызываем get_key_by_id"):
-                    key_data = get_key_by_id(key_id)
-                    
-                    allure.attach(str(key_data), "Key data", allure.attachment_type.JSON)
+            # Мокируем async функцию и event loop для работы с run_until_complete
+            mock_get_link_async = AsyncMock(return_value=mock_subscription_link)
+            
+            # Создаем мок event loop, который будет возвращать результат из async функции
+            mock_loop = MagicMock()
+            mock_loop.run_until_complete = MagicMock(return_value=mock_subscription_link)
+            
+            with patch('shop_bot.modules.xui_api.get_client_subscription_link', mock_get_link_async):
+                with patch('asyncio.get_event_loop', return_value=mock_loop):
+                    with patch('asyncio.new_event_loop', return_value=mock_loop):
+                        with patch('asyncio.set_event_loop'):
+                            with allure.step("Вызываем get_key_by_id"):
+                                key_data = get_key_by_id(key_id)
+                                
+                                allure.attach(str(key_data), "Key data", allure.attachment_type.JSON)
         
         with allure.step("Проверяем результат"):
             assert key_data is not None, "Key data should not be None"
             assert key_data.get('subscription_link') == mock_subscription_link, \
                 f"Expected subscription_link to be {mock_subscription_link}, got {key_data.get('subscription_link')}"
             
-            # Проверяем, что ссылка сохранена в БД (повторный вызов без мока)
-            key_data_from_db = get_key_by_id(key_id)
+            # Проверяем, что ссылка сохранена в БД (повторный вызов - мок больше не нужен, т.к. ссылка уже в БД)
+            # Но нужно мокировать event loop, чтобы не было проблем с asyncio
+            mock_loop_empty = MagicMock()
+            mock_loop_empty.run_until_complete = MagicMock(return_value=None)
+            
+            with patch('asyncio.get_event_loop', return_value=mock_loop_empty):
+                with patch('asyncio.new_event_loop', return_value=mock_loop_empty):
+                    with patch('asyncio.set_event_loop'):
+                        key_data_from_db = get_key_by_id(key_id)
             
             assert key_data_from_db is not None, "Key data from DB should not be None"
             assert key_data_from_db.get('subscription_link') == mock_subscription_link, \

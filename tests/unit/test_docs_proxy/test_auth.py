@@ -92,7 +92,8 @@ class TestDocsProxyAuth:
         app.jinja_loader.searchpath = [str(templates_path)]
         
         with app.test_client() as client:
-            # Мокируем verify_admin_credentials, чтобы реальная функция verify_and_login выполнилась и установила сессию
+            # Мокируем verify_admin_credentials в database модуле
+            # verify_and_login импортирует его внутри функции, поэтому патчим в database
             with patch('shop_bot.data_manager.database.verify_admin_credentials', return_value=True):
                 response = client.post('/login', data=admin_credentials, follow_redirects=True)
                 # Проверяем отсутствие ошибок 500 (Internal Server Error), которые могут быть связаны с AttributeError
@@ -243,9 +244,9 @@ class TestDocsProxyAuth:
             response = client.get('/')
             assert response.status_code == 302  # Редирект на /login
             
-            # Входим
+            # Входим - мокируем verify_admin_credentials в database модуле
             with patch('shop_bot.data_manager.database.verify_admin_credentials', return_value=True):
-                client.post('/login', data=admin_credentials)
+                client.post('/login', data=admin_credentials, follow_redirects=True)
             
             # Теперь доступ должен быть разрешен
             response = client.get('/')

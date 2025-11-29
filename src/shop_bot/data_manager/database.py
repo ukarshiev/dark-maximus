@@ -9408,21 +9408,29 @@ def can_user_use_promo_code(user_id: int, promo_code: str, bot: str) -> dict:
                     cursor.execute("ROLLBACK")
                     return {'can_use': False, 'message': 'Лимит использований промокода исчерпан'}
                 
-                # Проверяем срок действия промокода (valid_until)
-                if promo_dict.get('valid_until'):
+                # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Проверяем срок действия промокода (valid_until)
+                # Проверка выполняется ТОЛЬКО если valid_until установлен (не NULL и не пустая строка)
+                valid_until_value = promo_dict.get('valid_until')
+                if valid_until_value and str(valid_until_value).strip():
                     try:
-                        valid_until = _parse_db_datetime(promo_dict['valid_until'])
+                        valid_until = _parse_db_datetime(valid_until_value)
                         if valid_until and datetime.now(timezone.utc) > valid_until:
                             cursor.execute("ROLLBACK")
                             return {'can_use': False, 'message': 'Срок действия промокода истек'}
-                    except (ValueError, TypeError):
-                        pass  # Если не удалось распарсить дату, пропускаем проверку
+                    except (ValueError, TypeError) as e:
+                        # Если не удалось распарсить дату, пропускаем проверку
+                        # Промокод без установленного срока действия работает БЕЗ ОГРАНИЧЕНИЙ
+                        logging.warning(f"Failed to parse valid_until for promo {promo_dict.get('promo_id')}: {e}")
+                        pass
                 
-                # Проверяем срок сгорания промокода (burn_after)
-                if promo_dict.get('burn_after_value') and promo_dict.get('burn_after_unit'):
+                # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Проверяем срок сгорания промокода (burn_after)
+                # Проверка выполняется ТОЛЬКО если burn_after_value и burn_after_unit установлены
+                burn_value_raw = promo_dict.get('burn_after_value')
+                burn_unit_raw = promo_dict.get('burn_after_unit')
+                if burn_value_raw and burn_unit_raw and str(burn_value_raw).strip() and str(burn_unit_raw).strip():
                     try:
-                        burn_value = int(promo_dict['burn_after_value'])
-                        burn_unit = promo_dict['burn_after_unit']
+                        burn_value = int(burn_value_raw)
+                        burn_unit = str(burn_unit_raw).strip()
                         
                         # Получаем дату создания промокода
                         created_at = _parse_db_datetime(promo_dict['created_at'])
@@ -9442,8 +9450,11 @@ def can_user_use_promo_code(user_id: int, promo_code: str, bot: str) -> dict:
                         if burn_until and datetime.now(timezone.utc) > burn_until:
                             cursor.execute("ROLLBACK")
                             return {'can_use': False, 'message': 'Время использования промокода истекло'}
-                    except (ValueError, TypeError):
-                        pass  # Если не удалось распарсить, пропускаем проверку
+                    except (ValueError, TypeError) as e:
+                        # Если не удалось распарсить, пропускаем проверку
+                        # Промокод без установленного срока сгорания работает БЕЗ ОГРАНИЧЕНИЙ
+                        logging.warning(f"Failed to parse burn_after for promo {promo_dict.get('promo_id')}: {e}")
+                        pass
                 
                 # Проверяем группу пользователя
                 if promo_dict.get('target_group_ids'):
