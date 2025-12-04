@@ -278,6 +278,13 @@ class TestCSPHeaders:
     - Сервис: user-cabinet (порт 50003)
     - Ожидаемый паттерн: `*.dark-maximus.com` или `https://*.dark-maximus.com`
     
+    **Важно:**
+    Тест обращается напрямую к Flask приложению (минуя nginx), поэтому проверяет CSP заголовки,
+    установленные Flask приложением. Flask приложение использует разные CSP заголовки в зависимости
+    от настройки `server_environment` в БД:
+    - Если `server_environment = 'development'`: `frame-src` НЕ содержит wildcard паттерн
+    - Если `server_environment = 'production'`: `frame-src` содержит wildcard паттерн
+    
     **Критичность:**
     Отсутствие валидного wildcard паттерна приведет к блокировке загрузки subscription links
     с поддоменов, которые не указаны явно в CSP.
@@ -297,10 +304,31 @@ class TestCSPHeaders:
         if not check_user_cabinet_available():
             pytest.skip("Личный кабинет недоступен")
         
+        # Проверяем режим сервера для диагностики
+        try:
+            from shop_bot.data_manager.database import is_development_server, get_server_environment
+            is_dev = is_development_server()
+            server_env = get_server_environment()
+            
+            allure.attach(
+                f"Режим сервера: {server_env}\n"
+                f"is_development_server(): {is_dev}\n"
+                f"Примечание: В development режиме frame-src не содержит wildcard паттерн",
+                "Диагностика: Режим сервера",
+                allure.attachment_type.TEXT
+            )
+        except Exception as e:
+            allure.attach(
+                f"Не удалось проверить режим сервера: {e}",
+                "Диагностика: Ошибка проверки режима",
+                allure.attachment_type.TEXT
+            )
+        
         with allure.step("Выполнение HTTP запроса к личному кабинету"):
             try:
                 # Используем /health endpoint, так как он не требует токена
-                # CSP заголовки устанавливаются в nginx с флагом 'always', поэтому доступны для всех ответов
+                # ВАЖНО: Тест обращается напрямую к Flask приложению (минуя nginx)
+                # Flask приложение устанавливает CSP заголовки в зависимости от server_environment
                 response = requests.get(
                     user_cabinet_config["health_url"],
                     allow_redirects=True,
@@ -333,9 +361,32 @@ class TestCSPHeaders:
                 valid_wildcard_pattern.search(source) for source in frame_src_sources
             )
             
+            # Формируем диагностическое сообщение
+            diagnostic_info = (
+                f"Найденные источники frame-src: {frame_src_sources}\n"
+                f"Wildcard паттерн найден: {has_wildcard}\n\n"
+            )
+            
+            # Проверяем режим сервера для более информативного сообщения об ошибке
+            try:
+                from shop_bot.data_manager.database import is_development_server, get_server_environment
+                is_dev = is_development_server()
+                server_env = get_server_environment()
+                
+                if is_dev and not has_wildcard:
+                    diagnostic_info += (
+                        f"ПРОБЛЕМА: server_environment установлен в 'development'\n"
+                        f"В development режиме Flask приложение использует frame-src без wildcard паттерна.\n"
+                        f"РЕШЕНИЕ: Установите server_environment = 'production' через веб-панель\n"
+                        f"(/settings → Глобальные параметры → Тип сервера)\n"
+                        f"Затем перезапустите user-cabinet контейнер: docker compose restart user-cabinet"
+                    )
+            except Exception:
+                pass
+            
             assert has_wildcard, \
-                f"Валидный wildcard паттерн для поддоменов не найден в frame-src. " \
-                f"Найденные источники: {frame_src_sources}. " \
+                f"Валидный wildcard паттерн для поддоменов не найден в frame-src.\n" \
+                f"{diagnostic_info}\n" \
                 f"Ожидается паттерн типа '*.domain.com' или 'https://*.domain.com' для разрешения всех поддоменов."
             
             allure.attach(

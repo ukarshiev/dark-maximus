@@ -118,6 +118,54 @@ class TestDomainSettings:
         import sqlite3
         import time
         
+        # Вспомогательная функция для проверки удаления доменов с retry
+        def _verify_domains_deleted(db_path, max_attempts=5, delay=0.1):
+            """Проверяет, что домены удалены из БД, с retry логикой"""
+            for attempt in range(max_attempts):
+                try:
+                    with sqlite3.connect(str(db_path), timeout=30.0) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("PRAGMA busy_timeout = 30000")
+                        cursor.execute("SELECT key, value FROM bot_settings WHERE key IN ('global_domain', 'domain')")
+                        remaining = cursor.fetchall()
+                        if len(remaining) == 0:
+                            return True, None
+                        if attempt < max_attempts - 1:
+                            time.sleep(delay)
+                except sqlite3.Error as e:
+                    if attempt < max_attempts - 1:
+                        time.sleep(delay)
+                        continue
+                    return False, str(e)
+            return False, remaining
+        
+        with allure.step("Проверка изоляции БД через monkeypatch"):
+            # КРИТИЧНО: Проверяем, что database.DB_FILE действительно указывает на temp_db
+            # Это гарантирует, что тест использует временную БД, а не реальную
+            from shop_bot.data_manager import database
+            # Сравниваем как строки, так как DB_FILE может быть Path объектом
+            assert str(database.DB_FILE) == str(temp_db), (
+                f"КРИТИЧЕСКАЯ ОШИБКА: database.DB_FILE ({database.DB_FILE}) не соответствует temp_db ({temp_db}). "
+                f"Monkeypatch не применен корректно! Тест может использовать реальную БД."
+            )
+            allure.attach(
+                f"database.DB_FILE: {database.DB_FILE}\ntemp_db: {temp_db}\nИзоляция БД: OK",
+                "Проверка изоляции БД",
+                allure.attachment_type.TEXT
+            )
+            
+            # Проверяем начальное состояние БД
+            with sqlite3.connect(str(temp_db), timeout=30.0) as conn:
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA busy_timeout = 30000")
+                cursor.execute("SELECT key, value FROM bot_settings WHERE key IN ('server_environment', 'global_domain', 'domain')")
+                initial_settings = cursor.fetchall()
+                allure.attach(
+                    f"Начальное состояние БД: {initial_settings}",
+                    "Начальные настройки БД",
+                    allure.attachment_type.TEXT
+                )
+        
         with allure.step("Установка server_environment в development"):
             update_setting("server_environment", "development")
             allure.attach("development", "Установленное окружение", allure.attachment_type.TEXT)
@@ -132,29 +180,72 @@ class TestDomainSettings:
             allure.attach(f"is_development_server(): {is_dev}", "Результат проверки development", allure.attachment_type.TEXT)
             assert is_dev is True, f"is_development_server() должен возвращать True, но получен: {is_dev}"
         
-        with allure.step("Явная очистка настроек доменов"):
-            # ВАЖНО: Используем прямое удаление через SQL без предварительной вставки пустых строк
+        with allure.step("Явная очистка настроек доменов с retry-логикой"):
+            # ВАЖНО: Используем прямое удаление через SQL с retry-логикой для надежности
             # Это избегает race condition и проблем с изоляцией соединений SQLite
             # Используем temp_db напрямую - это Path объект к временной БД
             # temp_db соответствует database.DB_FILE благодаря monkeypatch в фикстуре
-            with sqlite3.connect(str(temp_db), timeout=30.0) as conn:
-                cursor = conn.cursor()
-                # Устанавливаем PRAGMA для предотвращения блокировок
-                cursor.execute("PRAGMA busy_timeout = 30000")
-                # Удаляем записи напрямую, включая возможные пустые строки
-                cursor.execute("DELETE FROM bot_settings WHERE key IN ('global_domain', 'domain')")
-                conn.commit()
-                # Проверяем, что записи действительно удалены
-                cursor.execute("SELECT key, value FROM bot_settings WHERE key IN ('global_domain', 'domain')")
-                remaining = cursor.fetchall()
-                if remaining:
-                    allure.attach(f"ВНИМАНИЕ: Остались записи после удаления: {remaining}", "Диагностика удаления", allure.attachment_type.TEXT)
-                else:
-                    allure.attach("Записи успешно удалены из БД", "Очистка настроек", allure.attachment_type.TEXT)
             
-            # Закрываем все соединения и даем время для синхронизации
-            # SQLite использует файловые блокировки, поэтому важно убедиться, что изменения видны
-            time.sleep(0.2)
+            max_delete_attempts = 3
+            delete_success = False
+            
+            for attempt in range(max_delete_attempts):
+                try:
+                    with sqlite3.connect(str(temp_db), timeout=30.0) as conn:
+                        cursor = conn.cursor()
+                        # Устанавливаем PRAGMA для предотвращения блокировок
+                        cursor.execute("PRAGMA busy_timeout = 30000")
+                        # Удаляем записи напрямую, включая возможные пустые строки
+                        cursor.execute("DELETE FROM bot_settings WHERE key IN ('global_domain', 'domain')")
+                        conn.commit()
+                        
+                        # Проверяем, что записи действительно удалены
+                        cursor.execute("SELECT key, value FROM bot_settings WHERE key IN ('global_domain', 'domain')")
+                        remaining = cursor.fetchall()
+                        
+                        if len(remaining) == 0:
+                            delete_success = True
+                            allure.attach(
+                                f"Записи успешно удалены из БД (попытка {attempt + 1}/{max_delete_attempts})",
+                                "Очистка настроек",
+                                allure.attachment_type.TEXT
+                            )
+                            break
+                        else:
+                            allure.attach(
+                                f"Попытка {attempt + 1}/{max_delete_attempts}: Остались записи: {remaining}",
+                                "Диагностика удаления",
+                                allure.attachment_type.TEXT
+                            )
+                            if attempt < max_delete_attempts - 1:
+                                time.sleep(0.1)  # Небольшая задержка перед следующей попыткой
+                except sqlite3.Error as e:
+                    allure.attach(
+                        f"Ошибка при удалении (попытка {attempt + 1}/{max_delete_attempts}): {e}",
+                        "Ошибка очистки БД",
+                        allure.attachment_type.TEXT
+                    )
+                    if attempt < max_delete_attempts - 1:
+                        time.sleep(0.1)
+                    continue
+            
+            # Проверяем успешность удаления
+            assert delete_success, (
+                f"Не удалось удалить записи доменов из БД после {max_delete_attempts} попыток. "
+                f"Возможна проблема с блокировками SQLite или изоляцией БД."
+            )
+            
+            # Используем функцию проверки с retry вместо sleep
+            verify_success, verify_error = _verify_domains_deleted(temp_db, max_attempts=5, delay=0.1)
+            assert verify_success, (
+                f"Проверка удаления доменов не прошла: {verify_error}. "
+                f"Записи все еще присутствуют в БД после удаления."
+            )
+            allure.attach(
+                "Проверка удаления доменов успешна (через retry)",
+                "Верификация очистки",
+                allure.attachment_type.TEXT
+            )
         
         with allure.step("Проверка отсутствия настроек доменов через get_setting()"):
             # Проверяем через get_setting() - должно возвращать None
@@ -176,35 +267,93 @@ class TestDomainSettings:
                 allure.attach(f"Оставшиеся записи в БД через SQL: {remaining}", "Проверка через SQL", allure.attachment_type.TEXT)
                 assert len(remaining) == 0, f"В БД остались записи доменов: {remaining}"
         
-        with allure.step("Проверка окружения перед вызовом get_global_domain()"):
-            # Еще раз проверяем окружение перед вызовом функции
+        with allure.step("Финальная проверка целостности перед вызовом get_global_domain()"):
+            # КРИТИЧНО: Проверяем все условия еще раз перед финальным вызовом
+            from shop_bot.data_manager import database
+            
+            # Проверка изоляции БД
+            assert str(database.DB_FILE) == str(temp_db), (
+                f"КРИТИЧЕСКАЯ ОШИБКА: database.DB_FILE изменился! "
+                f"Было: {temp_db}, стало: {database.DB_FILE}. Monkeypatch мог быть сброшен."
+            )
+            
+            # Проверка окружения
             current_env = get_server_environment()
             is_dev_check = is_development_server()
-            allure.attach(
-                f"server_environment: {current_env}, is_development_server(): {is_dev_check}",
-                "Проверка окружения перед вызовом",
-                allure.attachment_type.TEXT
+            assert current_env == "development", (
+                f"Окружение должно быть 'development', но получено: {current_env}. "
+                f"Возможно, настройка была изменена другим тестом."
             )
-            assert current_env == "development", f"Окружение должно быть 'development', но получено: {current_env}"
-            assert is_dev_check is True, f"is_development_server() должен возвращать True, но получен: {is_dev_check}"
+            assert is_dev_check is True, (
+                f"is_development_server() должен возвращать True, но получен: {is_dev_check}. "
+                f"Проверка окружения не прошла."
+            )
+            
+            # Проверка отсутствия доменов через SQL
+            with sqlite3.connect(str(temp_db), timeout=30.0) as conn:
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA busy_timeout = 30000")
+                cursor.execute("SELECT key, value FROM bot_settings WHERE key IN ('global_domain', 'domain')")
+                remaining_sql = cursor.fetchall()
+                assert len(remaining_sql) == 0, (
+                    f"В БД остались записи доменов через SQL: {remaining_sql}. "
+                    f"Очистка не была успешной."
+                )
+            
+            # Проверка через get_setting()
+            global_domain_check = get_setting("global_domain")
+            domain_check = get_setting("domain")
+            assert global_domain_check is None or global_domain_check == "", (
+                f"global_domain через get_setting() должен быть None или пустой строкой, "
+                f"но получен: {global_domain_check}"
+            )
+            assert domain_check is None or domain_check == "", (
+                f"domain через get_setting() должен быть None или пустой строкой, "
+                f"но получен: {domain_check}"
+            )
+            
+            # Логируем все диагностические данные
+            integrity_info = {
+                "database.DB_FILE": database.DB_FILE,
+                "temp_db": str(temp_db),
+                "server_environment": current_env,
+                "is_development_server": is_dev_check,
+                "global_domain_from_db_sql": remaining_sql,
+                "global_domain_from_get_setting": global_domain_check,
+                "domain_from_get_setting": domain_check,
+                "expected_result": "https://localhost:8443",
+            }
+            allure.attach(
+                str(integrity_info),
+                "Финальная проверка целостности данных",
+                allure.attachment_type.JSON
+            )
         
         with allure.step("Чтение через get_global_domain()"):
             result = get_global_domain()
             allure.attach(str(result), "Полученное значение из get_global_domain()", allure.attachment_type.TEXT)
             
-            # Дополнительная диагностика
+            # Дополнительная диагностика после вызова
             debug_info = {
                 "result": result,
+                "database.DB_FILE": database.DB_FILE,
                 "server_environment": get_server_environment(),
                 "is_development_server": is_development_server(),
                 "global_domain_from_db": get_setting("global_domain"),
                 "domain_from_db": get_setting("domain"),
                 "expected": "https://localhost:8443",
             }
-            allure.attach(str(debug_info), "Диагностическая информация перед проверкой", allure.attachment_type.JSON)
+            allure.attach(str(debug_info), "Диагностическая информация после вызова", allure.attachment_type.JSON)
         
         with allure.step("Проверка результата"):
-            assert result == "https://localhost:8443", f"Ожидалось 'https://localhost:8443', но получено: {result}"
+            assert result == "https://localhost:8443", (
+                f"Ожидалось 'https://localhost:8443', но получено: {result}. "
+                f"Проверьте диагностическую информацию выше для выяснения причины. "
+                f"Возможные причины: "
+                f"1) server_environment не установлен в 'development', "
+                f"2) домены не были удалены из БД, "
+                f"3) проблема с изоляцией БД (monkeypatch не применен)."
+            )
 
     @allure.title("Возврат None в production если оба домена отсутствуют")
     @allure.description("""

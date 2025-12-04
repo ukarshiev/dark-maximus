@@ -8,8 +8,12 @@ import pytest
 import yaml
 import tempfile
 import shutil
+import os
+import logging
 from pathlib import Path
 from typing import Dict, Any
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
@@ -91,23 +95,36 @@ def project_root() -> Path:
     Возвращает путь к корню проекта.
     
     Определяет путь автоматически:
+    - Через переменную окружения PROJECT_ROOT (если установлена)
     - В Docker контейнере: использует /app/ (где маппятся скрипты)
     - Локально: вычисляет относительно расположения этого файла
     """
+    # Проверяем переменную окружения PROJECT_ROOT
+    project_root_env = os.getenv('PROJECT_ROOT')
+    if project_root_env:
+        env_path = Path(project_root_env).resolve()
+        if env_path.exists() and env_path.is_dir():
+            test_script = env_path / "install-autotest.sh"
+            if test_script.exists():
+                logger.debug(f"Используем PROJECT_ROOT из переменной окружения: {env_path}")
+                return env_path
+    
     # Проверяем, запущен ли тест в Docker контейнере
     app_path = Path("/app")
     if app_path.exists() and app_path.is_dir():
         # В Docker контейнере скрипты маппятся в /app/
-        # Проверяем наличие хотя бы одного скрипта для подтверждения
-        # Проверяем несколько возможных скриптов для большей надежности
+        # Проверяем наличие всех трех скриптов для большей надежности
         test_scripts = [
             app_path / "install.sh",
             app_path / "install-autotest.sh",
             app_path / "ssl-install.sh"
         ]
-        for test_script in test_scripts:
-            if test_script.exists():
-                return app_path
+        found_scripts = [s for s in test_scripts if s.exists()]
+        if found_scripts:
+            logger.debug(f"Используем /app из Docker контейнера. Найдено скриптов: {len(found_scripts)}")
+            return app_path
+        else:
+            logger.warning(f"Директория /app существует, но скрипты не найдены. Проверяем: {[str(s) for s in test_scripts]}")
     
     # Локальный запуск: вычисляем относительно расположения файла
     # tests/scripts/conftest.py -> tests/scripts/ -> tests/ -> корень проекта
@@ -119,11 +136,13 @@ def project_root() -> Path:
         local_root / "install-autotest.sh",
         local_root / "ssl-install.sh"
     ]
-    for test_script in test_scripts:
-        if test_script.exists():
-            return local_root
+    found_scripts = [s for s in test_scripts if s.exists()]
+    if found_scripts:
+        logger.debug(f"Используем локальный путь: {local_root}. Найдено скриптов: {len(found_scripts)}")
+        return local_root
     
     # Если ничего не найдено, возвращаем вычисленный путь (для совместимости)
+    logger.warning(f"Не удалось найти скрипты. Возвращаем вычисленный путь: {local_root}")
     return local_root
 
 

@@ -457,8 +457,9 @@ class TestUserCabinet:
                     allure.attach(str(sess.get('key_id')), "Значение key_id в сессии", allure.attachment_type.TEXT)
 
     def test_rate_limit_decorator(self, flask_app):
-        """Тест rate limiting (10 запросов в минуту)"""
+        """Тест rate limiting - проверка что health endpoint не имеет rate limit"""
         # Делаем 10 запросов - все должны пройти
+        # Health endpoint не имеет декоратора @rate_limit, поэтому лимит не применяется
         for i in range(10):
             response = flask_app.get('/health')
             assert response.status_code == 200, f"Запрос {i+1} должен пройти"
@@ -467,19 +468,52 @@ class TestUserCabinet:
         response = flask_app.get('/health')
         assert response.status_code == 200, "11-й запрос к health должен пройти"
 
-    def test_rate_limit_exceeded(self, flask_app):
+    @allure.title("Проверка превышения лимита запросов (rate limiting)")
+    @allure.description("""
+    Проверяет, что при превышении лимита запросов (30 запросов в минуту) возвращается код 429 (Too Many Requests).
+    
+    **Что проверяется:**
+    - Rate limiting работает корректно при превышении лимита
+    - После 30 запросов возвращается код 429
+    - Внешний сервис мокируется для стабильности теста
+    
+    **Тестовые данные:**
+    - Лимит: 30 запросов в минуту (RATE_LIMIT_REQUESTS = 30)
+    - Количество запросов: 35 (больше лимита)
+    - Эндпоинт: /api/ip-info (имеет декоратор @rate_limit)
+    
+    **Ожидаемый результат:**
+    После превышения лимита (30 запросов) должен быть хотя бы один ответ с кодом 429.
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("rate-limiting", "unit", "cabinet")
+    @patch('app.requests.get')
+    def test_rate_limit_exceeded(self, mock_get, flask_app):
         """Тест превышения лимита запросов"""
-        # Делаем много запросов к эндпоинту с rate limit
-        # Поскольку /api/ip-info имеет rate limit, делаем запросы к нему
+        # Мокируем успешный ответ от внешнего сервиса для стабильности теста
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'ip': '192.168.1.1',
+            'country': 'Russia',
+            'city': 'Moscow',
+            'provider': 'Test ISP'
+        }
+        mock_get.return_value = mock_response
+        
+        # Делаем больше лимита (30 запросов) + 5 для гарантии превышения
         responses = []
-        for i in range(15):  # Делаем больше лимита (10 запросов)
-            response = flask_app.get('/api/ip-info')
-            responses.append(response.status_code)
+        with allure.step("Выполнение 35 запросов к /api/ip-info (лимит 30)"):
+            for i in range(35):  # Делаем больше лимита (30 запросов)
+                response = flask_app.get('/api/ip-info')
+                responses.append(response.status_code)
+                allure.attach(str(response.status_code), f"Статус запроса {i+1}", allure.attachment_type.TEXT)
         
         # Должен быть хотя бы один ответ с кодом 429 (Too Many Requests)
-        # Или все запросы должны вернуть другие коды (например, из-за отсутствия токена)
-        assert any(status == 429 for status in responses) or all(status != 200 for status in responses), \
-            "Должен быть код 429 или другие ошибки"
+        with allure.step("Проверка наличия кода 429 в ответах"):
+            allure.attach(str(responses), "Все статусы ответов", allure.attachment_type.TEXT)
+            assert any(status == 429 for status in responses), \
+                f"Должен быть код 429 при превышении лимита. Полученные статусы: {responses}"
 
     @patch('app.requests.get')
     def test_ip_info_api_success(self, mock_get, flask_app):

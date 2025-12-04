@@ -6,8 +6,12 @@
 
 import pytest
 import yaml
+import os
+import logging
 import allure
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 @allure.epic("Валидация скриптов установки")
@@ -44,6 +48,23 @@ class TestAutotestValidation:
         autotest_script = project_root / "install-autotest.sh"
         
         with allure.step("Подготовка: определение пути к файлу"):
+            # Диагностическая информация
+            cwd = Path.cwd()
+            project_root_env = os.getenv('PROJECT_ROOT')
+            
+            diagnostic_info = f"""Корневая директория проекта (project_root): {project_root}
+Путь к файлу install-autotest.sh: {autotest_script}
+Текущая рабочая директория: {cwd}
+PROJECT_ROOT (env): {project_root_env}
+Файл существует: {autotest_script.exists()}
+"""
+            allure.attach(
+                diagnostic_info,
+                "Диагностическая информация",
+                allure.attachment_type.TEXT
+            )
+            logger.debug(diagnostic_info)
+            
             allure.attach(
                 str(autotest_script),
                 "Путь к файлу install-autotest.sh",
@@ -54,6 +75,23 @@ class TestAutotestValidation:
                 "Корневая директория проекта",
                 allure.attachment_type.TEXT
             )
+            
+            # Проверяем альтернативные пути
+            alternative_paths = [
+                Path("/app/install-autotest.sh"),
+                Path.cwd() / "install-autotest.sh",
+                Path(__file__).parent.parent.parent / "install-autotest.sh"
+            ]
+            if project_root_env:
+                alternative_paths.append(Path(project_root_env) / "install-autotest.sh")
+            
+            found_paths = [p for p in alternative_paths if p.exists()]
+            if found_paths:
+                allure.attach(
+                    "\n".join(str(p) for p in found_paths),
+                    "Альтернативные пути, где файл найден",
+                    allure.attachment_type.TEXT
+                )
         
         with allure.step("Проверка существования файла"):
             file_exists = autotest_script.exists()
@@ -62,7 +100,29 @@ class TestAutotestValidation:
                 "Файл существует",
                 allure.attachment_type.TEXT
             )
-            assert file_exists, "Файл install-autotest.sh не найден"
+            
+            if not file_exists:
+                # Дополнительная диагностика
+                error_msg = f"""Файл install-autotest.sh не найден по пути: {autotest_script}
+
+Возможные причины:
+1. Файл не существует в репозитории на сервере
+2. Файл не маппится в Docker контейнер через docker-compose.yml
+3. Фикстура project_root возвращает неправильный путь
+
+Проверьте:
+- Существует ли файл в корне проекта на сервере
+- Правильно ли настроен volume-маппинг в docker-compose.yml
+- Запускается ли тест в Docker контейнере или локально
+"""
+                allure.attach(
+                    error_msg,
+                    "Детальная информация об ошибке",
+                    allure.attachment_type.TEXT
+                )
+                logger.error(error_msg)
+            
+            assert file_exists, f"Файл install-autotest.sh не найден по пути: {autotest_script}"
         
         with allure.step("Проверка типа файла"):
             is_file = autotest_script.is_file()

@@ -62,21 +62,34 @@ def _is_docker_environment() -> bool:
     """
     Определяет, запущены ли тесты внутри Docker контейнера.
     
-    Проверяет наличие файла /proc/1/cgroup, который в Docker контейнере
-    содержит упоминание "docker".
+    Проверяет наличие файла /.dockerenv, который создается Docker автоматически
+    во всех контейнерах и является стандартным способом определения Docker окружения.
+    
+    Также проверяет /proc/1/cgroup как fallback для старых версий Docker
+    и HOSTNAME как дополнительный fallback.
     
     Returns:
         True если тесты запущены в Docker, False если на хосте
     """
+    # Основной способ: проверка файла /.dockerenv (стандартный способ Docker)
+    try:
+        dockerenv_path = Path("/.dockerenv")
+        if dockerenv_path.exists():
+            return True
+    except Exception:
+        pass
+    
+    # Fallback 1: проверка /proc/1/cgroup (для старых версий Docker с cgroup v1)
     try:
         cgroup_path = Path("/proc/1/cgroup")
         if cgroup_path.exists():
             content = cgroup_path.read_text()
-            return "docker" in content.lower()
+            if "docker" in content.lower():
+                return True
     except Exception:
         pass
     
-    # Дополнительная проверка: если hostname содержит "dark-maximus", вероятно Docker
+    # Fallback 2: проверка hostname (если содержит "dark-maximus", вероятно Docker)
     try:
         hostname = os.environ.get("HOSTNAME", "")
         if "dark-maximus" in hostname.lower():
