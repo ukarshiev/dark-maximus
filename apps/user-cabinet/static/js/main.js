@@ -356,16 +356,17 @@ function generateQRCode(url) {
     }
 }
 
-// Общая функция для проверки IP
-async function fetchIPInfo(apiUrl, containerId) {
-    const ipInfo = document.getElementById(containerId);
+// Проверка через ipwho.is (напрямую из браузера)
+async function checkIPWho() {
+    const ipInfo = document.getElementById('ip-info-ipwho');
     if (!ipInfo) return;
     
     ipInfo.innerHTML = '<p>Загрузка информации...</p>';
     
     try {
         const timestamp = new Date().getTime();
-        const response = await fetch(`${apiUrl}?_t=${timestamp}`, { 
+        // Прямой запрос из браузера к ipwho.is
+        const response = await fetch(`https://ipwho.is/?_t=${timestamp}`, { 
             cache: 'no-store',
             headers: {
                 'Cache-Control': 'no-cache',
@@ -373,30 +374,51 @@ async function fetchIPInfo(apiUrl, containerId) {
             }
         });
         
-        if (response.status === 429) {
-            ipInfo.innerHTML = `
-                <p style="color: var(--color-button-warning);">Слишком много запросов.</p>
-                <p>Подождите минуту перед повторной попыткой.</p>
-            `;
-            return;
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        const payload = await response.json();
+        const data = await response.json();
         
-        if (!response.ok || payload.status !== 'ok') {
-            throw new Error(payload.message || `Ошибка API: ${response.status}`);
+        if (!data.success) {
+            throw new Error(data.message || 'Unknown error from ipwho.is');
         }
         
-        const data = payload.data || {};
+        const connection = data.connection || {};
         ipInfo.innerHTML = `
             <p><strong>IP-адрес:</strong> ${data.ip || 'Не определен'}</p>
             <p><strong>Страна:</strong> ${data.country || 'Не определена'}</p>
             ${data.region ? `<p><strong>Регион:</strong> ${data.region}</p>` : ''}
             <p><strong>Город:</strong> ${data.city || 'Не определен'}</p>
-            <p><strong>Провайдер:</strong> ${data.provider || 'Не определен'}</p>
+            <p><strong>Провайдер:</strong> ${connection.isp || connection.org || 'Не определен'}</p>
         `;
     } catch (error) {
-        console.error('IP check failed:', error);
+        console.error('IP check failed (ipwho.is):', error);
+        
+        // Fallback: пробуем через серверный эндпоинт
+        try {
+            console.log('Trying fallback via server endpoint...');
+            const fallbackResponse = await fetch(`/api/ip-info-ipwho?_t=${new Date().getTime()}`, {
+                cache: 'no-store'
+            });
+            const payload = await fallbackResponse.json();
+            
+            if (fallbackResponse.ok && payload.status === 'ok') {
+                const data = payload.data || {};
+                ipInfo.innerHTML = `
+                    <p><strong>IP-адрес:</strong> ${data.ip || 'Не определен'}</p>
+                    <p><strong>Страна:</strong> ${data.country || 'Не определена'}</p>
+                    ${data.region ? `<p><strong>Регион:</strong> ${data.region}</p>` : ''}
+                    <p><strong>Город:</strong> ${data.city || 'Не определен'}</p>
+                    <p><strong>Провайдер:</strong> ${data.provider || 'Не определен'}</p>
+                    <p style="font-size: 0.85rem; color: var(--color-text-second); margin-top: 0.5rem;">⚠️ Использован резервный метод</p>
+                `;
+                return;
+            }
+        } catch (fallbackError) {
+            console.error('Fallback also failed:', fallbackError);
+        }
+        
         ipInfo.innerHTML = `
             <p style="color: var(--color-button-warning);">Не удалось получить информацию.</p>
             <p style="font-size: 0.9rem;">${error.message || 'Проверьте подключение к интернету.'}</p>
@@ -404,14 +426,70 @@ async function fetchIPInfo(apiUrl, containerId) {
     }
 }
 
-// Проверка через ipwho.is
-async function checkIPWho() {
-    await fetchIPInfo('/api/ip-info-ipwho', 'ip-info-ipwho');
-}
-
-// Проверка через 2ip.ru
+// Проверка через 2ip.ru (напрямую из браузера)
 async function checkIP2ip() {
-    await fetchIPInfo('/api/ip-info-2ip', 'ip-info-2ip');
+    const ipInfo = document.getElementById('ip-info-2ip');
+    if (!ipInfo) return;
+    
+    ipInfo.innerHTML = '<p>Загрузка информации...</p>';
+    
+    try {
+        const timestamp = new Date().getTime();
+        // Прямой запрос из браузера к 2ip.ru API
+        const response = await fetch(`https://api.2ip.io/?token=pb9x4n3dfnv0az2h&lang=ru&_t=${timestamp}`, { 
+            cache: 'no-store',
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        const asn_info = data.asn || {};
+        
+        ipInfo.innerHTML = `
+            <p><strong>IP-адрес:</strong> ${data.ip || 'Не определен'}</p>
+            <p><strong>Страна:</strong> ${data.country || 'Не определена'}</p>
+            ${data.region ? `<p><strong>Регион:</strong> ${data.region}</p>` : ''}
+            <p><strong>Город:</strong> ${data.city || 'Не определен'}</p>
+            <p><strong>Провайдер:</strong> ${asn_info.name || 'Не определен'}</p>
+        `;
+    } catch (error) {
+        console.error('IP check failed (2ip.ru):', error);
+        
+        // Fallback: пробуем через серверный эндпоинт
+        try {
+            console.log('Trying fallback via server endpoint...');
+            const fallbackResponse = await fetch(`/api/ip-info-2ip?_t=${new Date().getTime()}`, {
+                cache: 'no-store'
+            });
+            const payload = await fallbackResponse.json();
+            
+            if (fallbackResponse.ok && payload.status === 'ok') {
+                const data = payload.data || {};
+                ipInfo.innerHTML = `
+                    <p><strong>IP-адрес:</strong> ${data.ip || 'Не определен'}</p>
+                    <p><strong>Страна:</strong> ${data.country || 'Не определена'}</p>
+                    ${data.region ? `<p><strong>Регион:</strong> ${data.region}</p>` : ''}
+                    <p><strong>Город:</strong> ${data.city || 'Не определен'}</p>
+                    <p><strong>Провайдер:</strong> ${data.provider || 'Не определен'}</p>
+                    <p style="font-size: 0.85rem; color: var(--color-text-second); margin-top: 0.5rem;">⚠️ Использован резервный метод</p>
+                `;
+                return;
+            }
+        } catch (fallbackError) {
+            console.error('Fallback also failed:', fallbackError);
+        }
+        
+        ipInfo.innerHTML = `
+            <p style="color: var(--color-button-warning);">Не удалось получить информацию.</p>
+            <p style="font-size: 0.9rem;">${error.message || 'Проверьте подключение к интернету.'}</p>
+        `;
+    }
 }
 
 // Старая функция для обратной совместимости (если используется где-то ещё)

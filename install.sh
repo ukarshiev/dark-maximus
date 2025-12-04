@@ -163,6 +163,15 @@ DOCS_DOMAIN=""
 HELP_DOMAIN=""
 APP_DOMAIN=""
 
+# Обработка аргументов командной строки для --no-cache или --rebuild
+BUILD_NO_CACHE=""
+for arg in "$@"; do
+    if [[ "$arg" == "--no-cache" ]] || [[ "$arg" == "--rebuild" ]]; then
+        BUILD_NO_CACHE="--no-cache"
+        break
+    fi
+done
+
 # Определяем директорию установки
 INSTALL_DIR="/opt/dark-maximus"
 PROJECT_DIR="$INSTALL_DIR"
@@ -337,9 +346,15 @@ if [ -f ".env" ]; then
 elif [ -n "${DOMAIN:-}" ]; then
     MAIN_DOMAIN="$DOMAIN"
     echo -e "${GREEN}✔ Домен получен из переменной окружения: ${MAIN_DOMAIN}${NC}"
-elif [ $# -gt 0 ] && [ -n "${1:-}" ]; then
-    MAIN_DOMAIN="$1"
-    echo -e "${GREEN}✔ Домен получен из аргументов: ${MAIN_DOMAIN}${NC}"
+elif [ $# -gt 0 ]; then
+    # Ищем первый аргумент, который не является флагом --no-cache или --rebuild
+    for arg in "$@"; do
+        if [[ "$arg" != "--no-cache" ]] && [[ "$arg" != "--rebuild" ]] && [ -n "$arg" ]; then
+            MAIN_DOMAIN="$arg"
+            echo -e "${GREEN}✔ Домен получен из аргументов: ${MAIN_DOMAIN}${NC}"
+            break
+        fi
+    done
 else
     echo -e "${YELLOW}Переменная окружения и аргументы не найдены, запрашиваем интерактивный ввод...${NC}"
     # Запрашиваем основной домен
@@ -1440,8 +1455,18 @@ done
 # Теперь выполняем docker compose down для очистки сетей и volumes
 ${DC[@]} down --remove-orphans 2>/dev/null || true
 
+# Включаем BuildKit для параллельной сборки и улучшенного кэширования
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
+
 # Собираем и запускаем контейнеры
-${DC[@]} build --no-cache
+if [ -n "$BUILD_NO_CACHE" ]; then
+    echo -e "${YELLOW}⚠️  Режим пересборки: кэш Docker отключен${NC}"
+    ${DC[@]} build --no-cache
+else
+    echo -e "${GREEN}✔ Используется кэш Docker для ускорения сборки${NC}"
+    ${DC[@]} build
+fi
 ${DC[@]} up -d
 
 # Ждем запуска контейнеров с улучшенной проверкой

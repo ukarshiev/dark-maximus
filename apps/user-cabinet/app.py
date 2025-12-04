@@ -115,7 +115,7 @@ def set_csp_headers(response):
         "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
         "img-src 'self' data: https:; "
         "font-src 'self' data:; "
-        f"connect-src 'self' https://api.2ip.ru https://{help_domain} https://*.{main_domain}; "
+        f"connect-src 'self' https://api.2ip.ru https://api.2ip.io https://ipwho.is https://{help_domain} https://*.{main_domain}; "
         f"frame-src {frame_src}; "
         f"frame-ancestors {frame_ancestors};"
     )
@@ -280,7 +280,7 @@ def health():
         "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
         "img-src 'self' data: https:; "
         "font-src 'self' data:; "
-        f"connect-src 'self' https://api.2ip.ru https://{help_domain} https://*.{main_domain}; "
+        f"connect-src 'self' https://api.2ip.ru https://api.2ip.io https://ipwho.is https://{help_domain} https://*.{main_domain}; "
         f"frame-src {frame_src}; "
         f"frame-ancestors {frame_ancestors};"
     )
