@@ -192,3 +192,8 @@ allure-results/*
 !allure-results/.gitkeep
 allure-report/*
 !allure-report/.gitkeep
+
+# Session files (temporary session data)
+sessions/
+sessions-allure/
+sessions-docs/
