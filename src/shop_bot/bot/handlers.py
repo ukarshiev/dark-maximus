@@ -696,7 +696,14 @@ def get_user_router() -> Router:
                         )
                         
                         if success:
-                            applied_promos.append(promo_code)
+                            # ИСПРАВЛЕНИЕ: Разделяем промокоды на новые и уже примененные
+                            if not existing_usage_id:
+                                # Промокод применен впервые
+                                applied_promos.append(promo_code)
+                            else:
+                                # Промокод уже был применен ранее
+                                already_applied_promos.append(promo_code)
+                            
                             # Сохраняем промокод в state для дальнейшего использования
                             await state.update_data(
                                 promo_code=promo_code,
@@ -713,7 +720,7 @@ def get_user_router() -> Router:
                             elif existing_usage_id and bonus_amount > 0:
                                 logger.info(f"Bonus NOT applied for user {user_id} from promo '{promo_code}' (already applied, existing_usage_id={existing_usage_id})")
                             
-                            logger.info(f"Successfully applied promo code '{promo_code}' for user {user_id}")
+                            logger.info(f"Successfully processed promo code '{promo_code}' for user {user_id}: first_time={not existing_usage_id}")
                         else:
                             # Проверяем, почему не удалось применить промокод
                             # Проверяем, есть ли уже запись о применении этого промокода
@@ -821,7 +828,7 @@ def get_user_router() -> Router:
                 else:
                     message_parts.append(f"✅ Применен промокод: {', '.join(deeplink_promos)}")
             if deeplink_already_applied_promos:
-                message_parts.append(f"ℹ️ Промокод уже применён: {', '.join(deeplink_already_applied_promos)}")
+                message_parts.append(f"❌ Вы ранее использовали промокод: {', '.join(deeplink_already_applied_promos)}")
             
             if message_parts:
                 await message.answer('\n'.join(message_parts))
@@ -6749,7 +6756,7 @@ async def process_successful_onboarding(message_or_callback, state: FSMContext):
             else:
                 message_parts.append(f"✅ Применен промокод: {', '.join(deeplink_promos)}")
         if deeplink_already_applied_promos:
-            message_parts.append(f"ℹ️ Промокод уже применён: {', '.join(deeplink_already_applied_promos)}")
+            message_parts.append(f"❌ Вы ранее использовали промокод: {', '.join(deeplink_already_applied_promos)}")
         
         if message_parts:
             await message_to_send.answer('\n'.join(message_parts))

@@ -1,6 +1,6 @@
 [project]
 name = "dark-maximus"
-version = "4.33.0"
+version = "4.34.1"
 description = "Продвинутый Telegram-бот для автоматической продажи VLESS VPN с улучшенным веб-интерфейсом и аналитикой"
 authors = [
     {name = "Karshie Umid", email = "umid.t.karshiev@gmail.com"}
