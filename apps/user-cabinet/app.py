@@ -77,15 +77,13 @@ def set_csp_headers(response):
         # Если домены не настроены, используем значения по умолчанию
         if not help_domain:
             help_domain = 'help.dark-maximus.com'
-        else:
-            # Убираем протокол и путь из домена для CSP
-            help_domain = help_domain.replace('http://', '').replace('https://', '').split('/')[0].split(':')[0]
-        
         if not main_domain:
             main_domain = 'dark-maximus.com'
-        else:
-            # Убираем протокол и путь из домена
-            main_domain = main_domain.replace('http://', '').replace('https://', '').split('/')[0].split(':')[0]
+        
+        # Убираем протокол и путь из доменов для CSP (применяется всегда)
+        help_domain = help_domain.replace('http://', '').replace('https://', '').split('/')[0].split(':')[0]
+        main_domain = main_domain.replace('http://', '').replace('https://', '').split('/')[0].split(':')[0]
+            
     except Exception as e:
         # Fallback значения при ошибке чтения настроек
         logger.warning(f"Ошибка при получении настроек для CSP: {e}")
@@ -251,14 +249,13 @@ def health():
         
         if not help_domain:
             help_domain = 'help.dark-maximus.com'
-        else:
-            # Убираем протокол и путь из домена для CSP
-            help_domain = help_domain.replace('http://', '').replace('https://', '').split('/')[0].split(':')[0]
-        
         if not main_domain:
             main_domain = 'dark-maximus.com'
-        else:
-            main_domain = main_domain.replace('http://', '').replace('https://', '').split('/')[0].split(':')[0]
+        
+        # Убираем протокол и путь из доменов для CSP (применяется всегда)
+        help_domain = help_domain.replace('http://', '').replace('https://', '').split('/')[0].split(':')[0]
+        main_domain = main_domain.replace('http://', '').replace('https://', '').split('/')[0].split(':')[0]
+            
     except Exception:
         help_domain = 'help.dark-maximus.com'
         main_domain = 'dark-maximus.com'
