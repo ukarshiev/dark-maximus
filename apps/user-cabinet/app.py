@@ -312,7 +312,16 @@ def ip_info():
 def ip_info_ipwho():
     """Возвращает данные об IP-адресе через ipwho.is"""
     try:
-        response = requests.get('https://ipwho.is/', timeout=5)
+        # Получаем IP клиента из заголовков
+        client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
+        if client_ip:
+            client_ip = client_ip.split(',')[0].strip()
+        
+        # Передаем IP клиента в запрос к ipwho.is через параметр ip
+        # Если IP не передан, API вернет IP сервера (fallback)
+        url = f'https://ipwho.is/{client_ip}' if client_ip else 'https://ipwho.is/'
+        response = requests.get(url, timeout=5)
+        
         if response.status_code != 200:
             raise Exception(f"ipwho.is returned status {response.status_code}")
         
@@ -351,7 +360,20 @@ def ip_info_ipwho():
 def ip_info_2ip():
     """Возвращает данные об IP-адресе через 2ip.ru API"""
     try:
-        response = requests.get('https://api.2ip.io/?token=pb9x4n3dfnv0az2h&lang=ru', timeout=5)
+        # Получаем IP клиента из заголовков
+        client_ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
+        if client_ip:
+            client_ip = client_ip.split(',')[0].strip()
+        
+        # Передаем IP клиента в запрос к api.2ip.io через параметр ip
+        # Если IP не передан, API вернет IP сервера (fallback)
+        url = 'https://api.2ip.io/'
+        params = {'token': 'pb9x4n3dfnv0az2h', 'lang': 'ru'}
+        if client_ip:
+            params['ip'] = client_ip
+        
+        response = requests.get(url, params=params, timeout=5)
+        
         if response.status_code != 200:
             raise Exception(f"2ip.io returned status {response.status_code}")
         
