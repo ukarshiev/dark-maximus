@@ -718,3 +718,28 @@ body.error-body {
   }
 }
 
+.ip-check-box {
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-card-border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.ip-check-box h3 {
+    margin: 0 0 1rem 0;
+    font-size: 1.1rem;
+    color: var(--color-text-main);
+}
+
+.ip-check-box .ip-info {
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background: var(--color-bg-primary);
+    border-radius: 4px;
+}
+
+.ip-check-box .ip-refresh {
+    width: 100%;
+}
+

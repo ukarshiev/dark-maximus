@@ -616,22 +616,28 @@ def create_key_info_keyboard(key_id: int, subscription_link: str | None = None, 
     except Exception as e:
         logger.error(f"Ошибка при проверке условий для кнопки личного кабинета для ключа {key_id}: {e}", exc_info=True)
 
-    # Кнопка настройки - использует codex_docs_domain из БД с fallback на жестко прописанный URL
+    # Кнопка настройки - использует setup_direct_link из БД с fallback на codex_docs_domain + /setup
     setup_url = None
     try:
-        codex_docs_domain = get_setting("codex_docs_domain")
-        if codex_docs_domain and codex_docs_domain.strip():
-            # Нормализуем домен: убираем trailing slash, добавляем протокол если нужно
-            domain = codex_docs_domain.strip().rstrip('/')
-            if not domain.startswith(('http://', 'https://')):
-                domain = f'https://{domain}'
-            # Добавляем путь /setup к домену
-            setup_url = f"{domain}/setup"
+        # Сначала пробуем получить прямую ссылку
+        setup_direct_link = get_setting("setup_direct_link")
+        if setup_direct_link and setup_direct_link.strip():
+            setup_url = setup_direct_link.strip()
         else:
-            # Fallback на жестко прописанный URL если настройка не задана (для обратной совместимости)
-            setup_url = "https://help.dark-maximus.com/setup"  # fallback
+            # Fallback: используем codex_docs_domain + /setup
+            codex_docs_domain = get_setting("codex_docs_domain")
+            if codex_docs_domain and codex_docs_domain.strip():
+                # Нормализуем домен: убираем trailing slash, добавляем протокол если нужно
+                domain = codex_docs_domain.strip().rstrip('/')
+                if not domain.startswith(('http://', 'https://')):
+                    domain = f'https://{domain}'
+                # Добавляем путь /setup к домену
+                setup_url = f"{domain}/setup"
+            else:
+                # Fallback на жестко прописанный URL если настройка не задана (для обратной совместимости)
+                setup_url = "https://help.dark-maximus.com/setup"
     except Exception as e:
-        logger.warning(f"Failed to get codex_docs_domain for setup button: {e}, using fallback")
+        logger.warning(f"Failed to get setup_direct_link or codex_docs_domain for setup button: {e}, using fallback")
         setup_url = "https://help.dark-maximus.com/setup"  # fallback для обработки ошибок
     
     if setup_url:

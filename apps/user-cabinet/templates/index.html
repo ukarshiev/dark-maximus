@@ -156,10 +156,26 @@
                 <section class="step-pane step-pane--ip-check" id="step-panel-ip-check" data-step="ip-check" role="tabpanel" aria-labelledby="step-tab-ip-check" aria-hidden="true" tabindex="-1">
                     <div class="step-pane__content">
                         <p>Проверьте ваш текущий IP-адрес после подключения к VPN:</p>
-                        <div id="ip-info" class="ip-info">
-                            <p>Загрузка информации...</p>
+                        
+                        <!-- Проверка через ipwho.is -->
+                        <div class="ip-check-box">
+                            <h3>Проверка через ipwho.is</h3>
+                            <div id="ip-info-ipwho" class="ip-info">
+                                <p>Загрузка информации...</p>
+                            </div>
+                            <button class="ip-refresh" type="button" onclick="checkIPWho()">Обновить</button>
                         </div>
-                        <button class="ip-refresh" type="button" onclick="checkIP()">Обновить IP</button>
+                        
+                        <!-- Проверка через 2ip.ru -->
+                        <div class="ip-check-box">
+                            <h3>Проверка через 2ip.ru</h3>
+                            <div id="ip-info-2ip" class="ip-info">
+                                <p>Загрузка информации...</p>
+                            </div>
+                            <button class="ip-refresh" type="button" onclick="checkIP2ip()">Обновить</button>
+                        </div>
+                        
+                        <p style="margin-top: 1rem;">Также вы можете проверить свой IP на сайте <a href="https://2ip.ru" target="_blank" rel="noopener noreferrer">https://2ip.ru</a></p>
                     </div>
                 </section>
             </div>

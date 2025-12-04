@@ -67,6 +67,84 @@ set_dc_command() {
 
 set_dc_command
 
+# Функция для патчинга nginx конфигурации с добавлением Allure
+patch_nginx_allure_config() {
+    local backup_file="/etc/nginx/sites-available/dark-maximus.backup.$(date +%Y%m%d-%H%M%S)"
+    
+    # Создаём резервную копию
+    cp /etc/nginx/sites-available/dark-maximus "$backup_file"
+    echo -e "${GREEN}✔ Создана резервная копия: $backup_file${NC}"
+    
+    # Добавляем upstream allure_backend после последнего upstream блока
+    # Находим последний upstream блок и добавляем после него
+    sed -i '/^upstream.*{$/,/^}$/{
+        /^}$/a\
+\
+upstream allure_backend {\
+    server 127.0.0.1:50005;\
+    keepalive 32;\
+}
+    }' /etc/nginx/sites-available/dark-maximus
+    
+    # Добавляем HTTP редирект для Allure перед блоком "Блокировка неопознанных доменов"
+    sed -i '/# Блокировка неопознанных доменов/i\
+# HTTP редирект на HTTPS для Allure\
+server {\
+    listen 80;\
+    server_name '"${ALLURE_DOMAIN}"';\
+    return 301 https://$host$request_uri;\
+}\
+\
+' /etc/nginx/sites-available/dark-maximus
+    
+    # Добавляем HTTPS server блок для Allure
+    sed -i '/# Блокировка неопознанных доменов/i\
+# HTTPS сервер для Allure\
+server {\
+    listen 443 ssl http2;\
+    server_name '"${ALLURE_DOMAIN}"';\
+\
+    # SSL сертификаты\
+    ssl_certificate /etc/letsencrypt/live/'"${ALLURE_DOMAIN}"'/fullchain.pem;\
+    ssl_certificate_key /etc/letsencrypt/live/'"${ALLURE_DOMAIN}"'/privkey.pem;\
+    include /etc/nginx/snippets/ssl-params.conf;\
+\
+    # Ограничение размера загружаемых файлов\
+    client_max_body_size 20m;\
+\
+    # Проксирование на allure-homepage сервис\
+    location / {\
+        proxy_pass http://allure_backend;\
+        proxy_set_header Host $host;\
+        proxy_set_header X-Real-IP $remote_addr;\
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\
+        proxy_set_header X-Forwarded-Proto $scheme;\
+        proxy_set_header X-Forwarded-Host $host;\
+        proxy_set_header X-Forwarded-Port $server_port;\
+\
+        # Таймауты\
+        proxy_connect_timeout 30s;\
+        proxy_send_timeout 30s;\
+        proxy_read_timeout 30s;\
+\
+        # Буферизация\
+        proxy_buffering on;\
+        proxy_buffer_size 4k;\
+        proxy_buffers 8 4k;\
+    }\
+\
+    # Health check\
+    location /health {\
+        proxy_pass http://allure_backend/health;\
+        access_log off;\
+    }\
+}\
+\
+' /etc/nginx/sites-available/dark-maximus
+    
+    echo -e "${GREEN}✔ Allure конфигурация добавлена${NC}"
+}
+
 echo -e "${GREEN}===============================================${NC}"
 echo -e "${GREEN}      🚀 Dark Maximus - Установка системы     ${NC}"
 echo -e "${GREEN}===============================================${NC}"
@@ -967,6 +1045,16 @@ if [ -f "/etc/nginx/sites-available/dark-maximus" ]; then
             echo -e "${YELLOW}⚠️  Обнаружена ошибка в конфигурации nginx, но она не перезаписана${NC}"
             echo -e "${YELLOW}   Проверьте конфигурацию вручную или запустите ssl-install.sh${NC}"
         fi
+        
+        # Проверяем, есть ли Allure upstream в конфигурации
+        if ! grep -q "upstream allure_backend" /etc/nginx/sites-available/dark-maximus 2>/dev/null; then
+            echo -e "${YELLOW}⚠️  SSL конфигурация не содержит Allure upstream${NC}"
+            echo -e "${YELLOW}   Добавляем Allure конфигурацию...${NC}"
+            NEED_ALLURE_PATCH=true
+        else
+            echo -e "${GREEN}✔ Allure upstream уже настроен${NC}"
+            NEED_ALLURE_PATCH=false
+        fi
     fi
 fi
 
@@ -1466,6 +1554,37 @@ else
         echo -e "${YELLOW}⚠️  Конфигурация nginx не создана - nginx не настроен${NC}"
         echo -e "${YELLOW}   Для настройки nginx запустите: ${CYAN}curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/ssl-install.sh | sudo bash -s -- ${MAIN_DOMAIN}${NC}"
     fi
+fi
+
+# Патчим конфигурацию если нужно
+if [ "${NEED_ALLURE_PATCH:-false}" = "true" ]; then
+    echo -e "\n${CYAN}Шаг 9.1: Патчинг nginx конфигурации для Allure...${NC}"
+    patch_nginx_allure_config
+    
+    # Проверяем конфигурацию nginx
+    if nginx -t 2>/dev/null | grep -q "successful"; then
+        echo -e "${GREEN}✔ Конфигурация nginx после патча корректна${NC}"
+        systemctl reload nginx
+        echo -e "${GREEN}✔ Nginx перезагружен${NC}"
+    else
+        echo -e "${RED}❌ Ошибка в конфигурации nginx после патча${NC}"
+        echo -e "${YELLOW}Восстанавливаем из резервной копии...${NC}"
+        # Находим последнюю резервную копию
+        LAST_BACKUP=$(ls -t /etc/nginx/sites-available/dark-maximus.backup.* 2>/dev/null | head -1)
+        if [ -n "$LAST_BACKUP" ]; then
+            cp "$LAST_BACKUP" /etc/nginx/sites-available/dark-maximus
+            systemctl reload nginx
+            echo -e "${YELLOW}⚠️  Конфигурация восстановлена из резервной копии${NC}"
+        fi
+        echo -e "${YELLOW}⚠️  Для корректной настройки Allure запустите ssl-install.sh${NC}"
+    fi
+fi
+
+# Проверяем наличие SSL сертификата для Allure
+if [ "$NGINX_HAS_SSL" = "true" ] && [ ! -f "/etc/letsencrypt/live/${ALLURE_DOMAIN}/fullchain.pem" ]; then
+    echo -e "\n${YELLOW}⚠️  SSL сертификат для Allure не найден${NC}"
+    echo -e "${YELLOW}   Для получения сертификата и полной настройки HTTPS запустите:${NC}"
+    echo -e "${CYAN}   curl -sSL https://raw.githubusercontent.com/ukarshiev/dark-maximus/main/ssl-install.sh | sudo bash -s -- $MAIN_DOMAIN${NC}"
 fi
 
 echo -e "\n${CYAN}Шаг 10: Финальная проверка доступности...${NC}"

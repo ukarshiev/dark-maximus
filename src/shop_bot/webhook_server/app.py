@@ -1198,7 +1198,7 @@ def create_webhook_app(bot_controller_instance):
     @login_required
     def save_panel_settings():
         """Сохранение настроек панели - v2.1"""
-        panel_keys = ['panel_login', 'global_domain', 'docs_domain', 'codex_docs_domain', 'user_cabinet_domain', 'allure_domain', 'admin_timezone', 'server_environment', 'monitoring_max_metrics', 'monitoring_slow_threshold', 'monitoring_cleanup_hours']
+        panel_keys = ['panel_login', 'global_domain', 'docs_domain', 'codex_docs_domain', 'setup_direct_link', 'user_cabinet_domain', 'allure_domain', 'admin_timezone', 'server_environment', 'monitoring_max_metrics', 'monitoring_slow_threshold', 'monitoring_cleanup_hours']
         
         # Пароль отдельно, если указан
         if 'panel_password' in request.form and request.form.get('panel_password'):

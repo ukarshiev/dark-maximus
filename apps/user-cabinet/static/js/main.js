@@ -356,35 +356,68 @@ function generateQRCode(url) {
     }
 }
 
-// Проверка IP через серверный API
-async function checkIP() {
-    const ipInfo = document.getElementById('ip-info');
+// Общая функция для проверки IP
+async function fetchIPInfo(apiUrl, containerId) {
+    const ipInfo = document.getElementById(containerId);
     if (!ipInfo) return;
     
     ipInfo.innerHTML = '<p>Загрузка информации...</p>';
     
     try {
-        const response = await fetch('/api/ip-info', { cache: 'no-store' });
+        const timestamp = new Date().getTime();
+        const response = await fetch(`${apiUrl}?_t=${timestamp}`, { 
+            cache: 'no-store',
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
+        });
+        
+        if (response.status === 429) {
+            ipInfo.innerHTML = `
+                <p style="color: var(--color-button-warning);">Слишком много запросов.</p>
+                <p>Подождите минуту перед повторной попыткой.</p>
+            `;
+            return;
+        }
+        
         const payload = await response.json();
         
         if (!response.ok || payload.status !== 'ok') {
-            throw new Error(payload.message || `IP API request failed with status ${response.status}`);
+            throw new Error(payload.message || `Ошибка API: ${response.status}`);
         }
         
         const data = payload.data || {};
         ipInfo.innerHTML = `
             <p><strong>IP-адрес:</strong> ${data.ip || 'Не определен'}</p>
             <p><strong>Страна:</strong> ${data.country || 'Не определена'}</p>
+            ${data.region ? `<p><strong>Регион:</strong> ${data.region}</p>` : ''}
             <p><strong>Город:</strong> ${data.city || 'Не определен'}</p>
             <p><strong>Провайдер:</strong> ${data.provider || 'Не определен'}</p>
         `;
     } catch (error) {
         console.error('IP check failed:', error);
         ipInfo.innerHTML = `
-            <p style="color: var(--color-button-warning);">Не удалось получить информацию об IP-адресе.</p>
-            <p>${error.message || 'Попробуйте обновить страницу или проверить подключение к интернету.'}</p>
+            <p style="color: var(--color-button-warning);">Не удалось получить информацию.</p>
+            <p style="font-size: 0.9rem;">${error.message || 'Проверьте подключение к интернету.'}</p>
         `;
     }
+}
+
+// Проверка через ipwho.is
+async function checkIPWho() {
+    await fetchIPInfo('/api/ip-info-ipwho', 'ip-info-ipwho');
+}
+
+// Проверка через 2ip.ru
+async function checkIP2ip() {
+    await fetchIPInfo('/api/ip-info-2ip', 'ip-info-2ip');
+}
+
+// Старая функция для обратной совместимости (если используется где-то ещё)
+async function checkIP() {
+    await checkIPWho();
+    await checkIP2ip();
 }
 
 // Инициализация при загрузке страницы
@@ -392,8 +425,9 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeStepNavigation();
     initializeToolbarActions();
 
-    // Проверяем IP при загрузке
-    checkIP();
+    // Проверяем IP при загрузке (обе проверки)
+    checkIPWho();
+    checkIP2ip();
     
     // Генерируем QR-код для subscription link если iframe не загрузился
     const subscriptionLinkAnchor = document.getElementById('subscription-link-anchor');

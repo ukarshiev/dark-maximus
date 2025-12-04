@@ -448,6 +448,129 @@ class TestKeyboardDomains:
             # В development кнопка "Личный кабинет" не должна отображаться
             assert "Личный кабинет" not in keyboard_str
 
+    @allure.title("Кнопка Настройка использует setup_direct_link с приоритетом над codex_docs_domain")
+    @allure.description("""
+    Проверяет, что кнопка "Настройка" использует настройку setup_direct_link с приоритетом над codex_docs_domain.
+    
+    **Что проверяется:**
+    - Установка setup_direct_link и codex_docs_domain с разными значениями
+    - Формирование кнопки "Настройка" через create_key_info_keyboard()
+    - Использование setup_direct_link вместо codex_docs_domain + /setup
+    
+    **Тестовые данные:**
+    - setup_direct_link: "https://help.dark-maximus.com/setup"
+    - codex_docs_domain: "http://localhost:50002"
+    - key_id: 1
+    
+    **Ожидаемый результат:**
+    Кнопка "Настройка" использует setup_direct_link, игнорируя codex_docs_domain.
+    
+    **Важность:**
+    Эта функциональность решает проблему с кнопкой "Настройка" на тестовых серверах,
+    где codex-docs доступен только по HTTP (localhost), что не поддерживается Telegram для Web App кнопок.
+    """)
+    @allure.severity(allure.severity_level.CRITICAL)
+    @allure.tag("keyboard", "setup-button", "setup_direct_link", "bot", "unit", "critical")
+    def test_setup_button_uses_setup_direct_link_priority(self, temp_db):
+        """Проверка приоритета setup_direct_link над codex_docs_domain"""
+        with allure.step("Установка setup_direct_link и codex_docs_domain"):
+            update_setting("setup_direct_link", "https://help.dark-maximus.com/setup")
+            update_setting("codex_docs_domain", "http://localhost:50002")
+            allure.attach("setup_direct_link: https://help.dark-maximus.com/setup\ncodex_docs_domain: http://localhost:50002", 
+                         "Установленные значения", allure.attachment_type.TEXT)
+        
+        with allure.step("Формирование клавиатуры"):
+            keyboard = create_key_info_keyboard(key_id=1)
+            allure.attach(str(keyboard), "Сформированная клавиатура", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка использования setup_direct_link"):
+            keyboard_dict = keyboard.model_dump() if hasattr(keyboard, 'model_dump') else str(keyboard)
+            keyboard_str = str(keyboard_dict)
+            # Кнопка должна использовать setup_direct_link
+            assert "help.dark-maximus.com/setup" in keyboard_str, \
+                "Кнопка 'Настройка' должна использовать setup_direct_link: https://help.dark-maximus.com/setup"
+            # Проверяем, что НЕ используется localhost из codex_docs_domain
+            assert "localhost:50002" not in keyboard_str, \
+                "Кнопка 'Настройка' не должна использовать codex_docs_domain, если задан setup_direct_link"
+
+    @allure.title("Кнопка Настройка использует codex_docs_domain если setup_direct_link не задан")
+    @allure.description("""
+    Проверяет fallback на codex_docs_domain + /setup, если setup_direct_link не задан.
+    
+    **Что проверяется:**
+    - Отсутствие setup_direct_link в настройках
+    - Установка codex_docs_domain
+    - Формирование кнопки "Настройка" через create_key_info_keyboard()
+    - Использование codex_docs_domain + /setup
+    
+    **Тестовые данные:**
+    - setup_direct_link: не задан (пустая строка)
+    - codex_docs_domain: "help.example.com"
+    - key_id: 1
+    
+    **Ожидаемый результат:**
+    Кнопка "Настройка" использует codex_docs_domain + /setup как fallback.
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("keyboard", "setup-button", "fallback", "bot", "unit")
+    def test_setup_button_fallback_to_codex_docs_domain(self, temp_db):
+        """Проверка fallback на codex_docs_domain если setup_direct_link не задан"""
+        with allure.step("Очистка setup_direct_link и установка codex_docs_domain"):
+            update_setting("setup_direct_link", "")  # Пустая строка
+            update_setting("codex_docs_domain", "help.example.com")
+            allure.attach("setup_direct_link: (пусто)\ncodex_docs_domain: help.example.com", 
+                         "Установленные значения", allure.attachment_type.TEXT)
+        
+        with allure.step("Формирование клавиатуры"):
+            keyboard = create_key_info_keyboard(key_id=1)
+            allure.attach(str(keyboard), "Сформированная клавиатура", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка использования codex_docs_domain + /setup"):
+            keyboard_dict = keyboard.model_dump() if hasattr(keyboard, 'model_dump') else str(keyboard)
+            keyboard_str = str(keyboard_dict)
+            # Кнопка должна использовать codex_docs_domain + /setup
+            assert "help.example.com/setup" in keyboard_str or "https://help.example.com/setup" in keyboard_str, \
+                "Кнопка 'Настройка' должна использовать codex_docs_domain + /setup: help.example.com/setup"
+
+    @allure.title("Кнопка Настройка использует жёстко прописанный fallback если оба параметра не заданы")
+    @allure.description("""
+    Проверяет использование жёстко прописанного fallback URL, если setup_direct_link и codex_docs_domain не заданы.
+    
+    **Что проверяется:**
+    - Отсутствие setup_direct_link в настройках
+    - Отсутствие codex_docs_domain в настройках
+    - Формирование кнопки "Настройка" через create_key_info_keyboard()
+    - Использование https://help.dark-maximus.com/setup как fallback
+    
+    **Тестовые данные:**
+    - setup_direct_link: не задан (пустая строка)
+    - codex_docs_domain: не задан (пустая строка)
+    - key_id: 1
+    
+    **Ожидаемый результат:**
+    Кнопка "Настройка" использует жёстко прописанный URL https://help.dark-maximus.com/setup.
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("keyboard", "setup-button", "fallback", "bot", "unit")
+    def test_setup_button_hardcoded_fallback(self, temp_db):
+        """Проверка жёстко прописанного fallback если оба параметра не заданы"""
+        with allure.step("Очистка setup_direct_link и codex_docs_domain"):
+            update_setting("setup_direct_link", "")
+            update_setting("codex_docs_domain", "")
+            allure.attach("setup_direct_link: (пусто)\ncodex_docs_domain: (пусто)", 
+                         "Установленные значения", allure.attachment_type.TEXT)
+        
+        with allure.step("Формирование клавиатуры"):
+            keyboard = create_key_info_keyboard(key_id=1)
+            allure.attach(str(keyboard), "Сформированная клавиатура", allure.attachment_type.TEXT)
+        
+        with allure.step("Проверка использования жёстко прописанного fallback"):
+            keyboard_dict = keyboard.model_dump() if hasattr(keyboard, 'model_dump') else str(keyboard)
+            keyboard_str = str(keyboard_dict)
+            # Кнопка должна использовать жёстко прописанный fallback
+            assert "help.dark-maximus.com/setup" in keyboard_str or "https://help.dark-maximus.com/setup" in keyboard_str, \
+                "Кнопка 'Настройка' должна использовать жёстко прописанный fallback: https://help.dark-maximus.com/setup"
+
     @allure.title("Кнопка Личный кабинет не отображается для режима key")
     @allure.description("""
     Проверяет, что кнопка "Личный кабинет" не отображается для ключей с режимом предоставления "key" даже в production.

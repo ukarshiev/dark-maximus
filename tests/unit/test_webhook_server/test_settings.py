@@ -92,6 +92,42 @@ class TestSettings:
             assert response.status_code == 302, "Обновление настроек должно перенаправить"
 
     @allure.story("Настройки: управление конфигурацией")
+    @allure.title("Обновление настройки прямой ссылки на базу знаний")
+    @allure.description("""
+    Проверяет обновление настройки "Прямая ссылка на базу знаний" через веб-панель.
+    
+    **Что проверяется:**
+    - Отправка POST запроса на /settings/panel с новой настройкой setup_direct_link
+    - Сохранение настройки в БД через update_setting
+    - Перенаправление после обновления (статус 302)
+    
+    **Тестовые данные:**
+    - setup_direct_link: 'https://help.dark-maximus.com/setup'
+    
+    **Ожидаемый результат:**
+    Настройка setup_direct_link успешно сохранена в БД, происходит перенаправление.
+    
+    **Важность:**
+    Эта настройка решает проблему с кнопкой "Настройка" на тестовых серверах,
+    где codex-docs доступен только по HTTP (localhost), что не поддерживается Telegram.
+    """)
+    @allure.severity(allure.severity_level.NORMAL)
+    @allure.tag("settings", "panel", "setup_direct_link", "webhook_server", "unit")
+    def test_update_setup_direct_link(self, authenticated_session):
+        """Тест обновления настройки прямой ссылки на базу знаний"""
+        with patch('shop_bot.data_manager.database.update_setting') as mock_update:
+            response = authenticated_session.post('/settings/panel', data={
+                'panel_login': 'admin',
+                'setup_direct_link': 'https://help.dark-maximus.com/setup'
+            })
+            assert response.status_code == 302, "Обновление настроек должно перенаправить"
+            
+            # Проверяем, что update_setting был вызван с setup_direct_link
+            calls = [call for call in mock_update.call_args_list if call[0][0] == 'setup_direct_link']
+            assert len(calls) > 0, "update_setting должен быть вызван для setup_direct_link"
+            assert calls[0][0][1] == 'https://help.dark-maximus.com/setup', "Значение setup_direct_link должно быть сохранено корректно"
+
+    @allure.story("Настройки: управление конфигурацией")
     @allure.title("Обновление настроек бота")
     @allure.description("""
     Проверяет обновление настроек бота через веб-панель.

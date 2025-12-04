@@ -13,6 +13,7 @@ from typing import List, Dict
 import json
 import requests
 import sqlite3
+import asyncio
 
 from py3xui import Api, Client, Inbound
 
@@ -698,7 +699,10 @@ async def create_or_update_key_on_host(host_name: str, email: str, days_to_add: 
         return None
 
     logger.info(f"Attempting to connect to host '{host_name}' at {host_data['host_url']}")
-    api, inbound = login_to_host(
+    # ВАЖНО: login_to_host выполняет сетевые операции и использует time.sleep,
+    # поэтому выносим его в отдельный поток, чтобы не блокировать event loop.
+    api, inbound = await asyncio.to_thread(
+        login_to_host,
         host_url=host_data['host_url'],
         username=host_data['host_username'],
         password=host_data['host_pass'],
@@ -709,7 +713,19 @@ async def create_or_update_key_on_host(host_name: str, email: str, days_to_add: 
         return None
     
     logger.info(f"Successfully connected to host '{host_name}', attempting to create/update client '{email}'")
-    client_uuid, new_expiry_ms = update_or_create_client_on_panel(api, inbound.id, email, days_to_add, comment, traffic_gb, sub_id, telegram_chat_id)
+    # update_or_create_client_on_panel использует py3xui (синхронные HTTP-вызовы),
+    # поэтому также выполняем его в отдельном потоке.
+    client_uuid, new_expiry_ms = await asyncio.to_thread(
+        update_or_create_client_on_panel,
+        api,
+        inbound.id,
+        email,
+        days_to_add,
+        comment,
+        traffic_gb,
+        sub_id,
+        telegram_chat_id,
+    )
     if not client_uuid:
         logger.error(f"Workflow failed: Could not create/update client '{email}' on host '{host_name}'.")
         return None
@@ -725,14 +741,31 @@ async def create_or_update_key_on_host(host_name: str, email: str, days_to_add: 
         if traffic_gb is not None:
             traffic_bytes = int(float(traffic_gb) * 1024 * 1024 * 1024)
             if client_uuid and new_expiry_ms:
-                _panel_update_client_quota(host_data['host_url'], host_data['host_username'], host_data['host_pass'], host_data['host_inbound_id'], client_uuid, email, new_expiry_ms, traffic_bytes)
+                # Нативный эндпоинт панели тоже синхронный — уводим в отдельный поток.
+                await asyncio.to_thread(
+                    _panel_update_client_quota,
+                    host_data['host_url'],
+                    host_data['host_username'],
+                    host_data['host_pass'],
+                    host_data['host_inbound_id'],
+                    client_uuid,
+                    email,
+                    new_expiry_ms,
+                    traffic_bytes,
+                )
     except Exception:
         pass
     
     # Получаем subscription_link из 3x-ui настроек
     subscription_link = None
     if sub_id:
-        sub_uri = get_sub_uri_from_panel(host_data['host_url'], host_data['host_username'], host_data['host_pass'])
+        # Получение subURI использует requests, поэтому выносим в поток.
+        sub_uri = await asyncio.to_thread(
+            get_sub_uri_from_panel,
+            host_data['host_url'],
+            host_data['host_username'],
+            host_data['host_pass'],
+        )
         if sub_uri:
             subscription_link = f"{sub_uri}{sub_id}"
             logger.info(f"Created subscription link: {subscription_link}")
@@ -762,11 +795,13 @@ async def get_key_details_from_host(key_data: dict) -> dict | None:
         logger.error(f"Could not get key details: Host '{host_name}' not found in the database.")
         return None
 
-    api, inbound = login_to_host(
+    # Логин к панели выполняет сетевые вызовы — переносим в отдельный поток.
+    api, inbound = await asyncio.to_thread(
+        login_to_host,
         host_url=host_db_data['host_url'],
         username=host_db_data['host_username'],
         password=host_db_data['host_pass'],
-        inbound_id=host_db_data['host_inbound_id']
+        inbound_id=host_db_data['host_inbound_id'],
     )
     if not api or not inbound: return None
 
@@ -927,7 +962,13 @@ async def get_key_details_from_host(key_data: dict) -> dict | None:
                     
                     # Получаем subscription link из 3x-ui настроек
                     if subscription:
-                        sub_uri = get_sub_uri_from_panel(host_db_data['host_url'], host_db_data['host_username'], host_db_data['host_pass'])
+                        # Получение subURI — синхронный HTTP-вызов, выполняем его в отдельном потоке.
+                        sub_uri = await asyncio.to_thread(
+                            get_sub_uri_from_panel,
+                            host_db_data['host_url'],
+                            host_db_data['host_username'],
+                            host_db_data['host_pass'],
+                        )
                         if sub_uri:
                             subscription_link = f"{sub_uri}{subscription}"
                             logger.info(f"Created subscription link for key_id={key_data.get('key_id')}, email={cemail}: {subscription_link}")
@@ -989,11 +1030,13 @@ async def delete_client_by_uuid(client_uuid: str, client_email: str | None = Non
     # Пытаемся удалить клиента с каждого хоста
     for host_data in hosts:
         try:
-            api, inbound = login_to_host(
+            # Логин к каждому хосту выносим в отдельный поток, чтобы не блокировать event loop.
+            api, inbound = await asyncio.to_thread(
+                login_to_host,
                 host_url=host_data['host_url'],
                 username=host_data['host_username'],
                 password=host_data['host_pass'],
-                inbound_id=host_data['host_inbound_id']
+                inbound_id=host_data['host_inbound_id'],
             )
             
             if not api or not inbound:
@@ -1037,12 +1080,13 @@ async def update_client_attributes_on_host(host_name: str, email: str, subscript
             logger.error(f"Key with email '{email}' not found in database")
             return False
             
-        # Подключаемся к панели
-        api, inbound = login_to_host(
+        # Подключаемся к панели — операция блокирующая, выносим в отдельный поток.
+        api, inbound = await asyncio.to_thread(
+            login_to_host,
             host_url=host_data['host_url'],
             username=host_data['host_username'],
             password=host_data['host_pass'],
-            inbound_id=host_data['host_inbound_id']
+            inbound_id=host_data['host_inbound_id'],
         )
         
         if not api or not inbound:
@@ -1117,11 +1161,13 @@ async def delete_client_on_host(host_name: str, client_email: str, client_uuid: 
         logger.error(f"Cannot delete client: Host '{host_name}' not found.")
         return False
 
-    api, inbound = login_to_host(
+    # Логин к панели — синхронный сетевой вызов, выполняем его в отдельном потоке.
+    api, inbound = await asyncio.to_thread(
+        login_to_host,
         host_url=host_data['host_url'],
         username=host_data['host_username'],
         password=host_data['host_pass'],
-        inbound_id=host_data['host_inbound_id']
+        inbound_id=host_data['host_inbound_id'],
     )
 
     if not api or not inbound:
@@ -1392,7 +1438,14 @@ async def update_client_enabled_status_on_host(host_name: str, client_email: str
             logger.error(f"Host '{host_name}' not found in database.")
             return False
         
-        api, inbound = login_to_host(host_data['host_url'], host_data['host_username'], host_data['host_pass'], host_data['host_inbound_id'])
+        # Логин к панели — потенциально долгий сетевой вызов, выносим в поток.
+        api, inbound = await asyncio.to_thread(
+            login_to_host,
+            host_data['host_url'],
+            host_data['host_username'],
+            host_data['host_pass'],
+            host_data['host_inbound_id'],
+        )
         if not api or not inbound:
             logger.error(f"Failed to login to host '{host_name}'.")
             return False
@@ -1426,9 +1479,11 @@ async def update_client_enabled_status_on_host(host_name: str, client_email: str
         # Сохраняем изменения через inbound
         api.inbound.update(inbound.id, inbound_data)
         
-        # Дополнительно используем нативный эндпоинт панели для максимальной совместимости
+        # Дополнительно используем нативный эндпоинт панели для максимальной совместимости.
+        # Он синхронный, поэтому выполняем в отдельном потоке.
         try:
-            panel_success = _panel_update_client_enabled_status(
+            panel_success = await asyncio.to_thread(
+                _panel_update_client_enabled_status,
                 host_data['host_url'], 
                 host_data['host_username'], 
                 host_data['host_pass'], 
@@ -1436,7 +1491,7 @@ async def update_client_enabled_status_on_host(host_name: str, client_email: str
                 str(client.id), 
                 client_email, 
                 enabled,
-                client.expiry_time
+                client.expiry_time,
             )
             if panel_success:
                 logger.info(f"Successfully updated enabled status for client '{client_email}' via panel endpoint.")
@@ -1506,11 +1561,13 @@ async def get_client_subscription_link(host_name: str, client_email: str) -> str
             logger.error(f"Host '{host_name}' not found in database")
             return None
         
-        api, inbound = login_to_host(
+        # Логин к панели — выносим в отдельный поток.
+        api, inbound = await asyncio.to_thread(
+            login_to_host,
             host_data['host_url'],
             host_data['host_username'],
             host_data['host_pass'],
-            host_data['host_inbound_id']
+            host_data['host_inbound_id'],
         )
         
         if not api or not inbound:
@@ -1536,10 +1593,12 @@ async def get_client_subscription_link(host_name: str, client_email: str) -> str
             return None
         
         # Получаем настройки подписки из панели
-        sub_settings = get_subscription_settings(
+        # Получение настроек подписки использует requests — выполняем в отдельном потоке.
+        sub_settings = await asyncio.to_thread(
+            get_subscription_settings,
             host_data['host_url'],
             host_data['host_username'],
-            host_data['host_pass']
+            host_data['host_pass'],
         )
         
         if not sub_settings or not sub_settings.get('subURI'):

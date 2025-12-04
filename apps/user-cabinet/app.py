@@ -203,7 +203,7 @@ except Exception as e:
 
 # Rate limiting: храним время последнего запроса по IP
 rate_limit_store = defaultdict(list)
-RATE_LIMIT_REQUESTS = 10  # Максимум запросов
+RATE_LIMIT_REQUESTS = 30  # Увеличено с 10 до 30 запросов (по 15 на каждую проверку)
 RATE_LIMIT_WINDOW = 60  # Окно в секундах (1 минута)
 
 
@@ -300,6 +300,81 @@ def ip_info():
         "status": "error",
         "message": error_message or "Не удалось получить информацию об IP-адресе."
     }), 502
+
+
+@app.route('/api/ip-info-ipwho')
+@rate_limit
+def ip_info_ipwho():
+    """Возвращает данные об IP-адресе через ipwho.is"""
+    try:
+        response = requests.get('https://ipwho.is/', timeout=5)
+        if response.status_code != 200:
+            raise Exception(f"ipwho.is returned status {response.status_code}")
+        
+        data = response.json()
+        
+        if not data.get('success'):
+            raise Exception(data.get('message', 'Unknown error from ipwho.is'))
+        
+        connection = data.get('connection') or {}
+        formatted = {
+            "ip": data.get("ip"),
+            "country": data.get("country"),
+            "city": data.get("city"),
+            "provider": connection.get("isp") or connection.get("org"),
+            "region": data.get("region")
+        }
+        
+        result = jsonify({"status": "ok", "data": formatted})
+        result.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        result.headers['Pragma'] = 'no-cache'
+        result.headers['Expires'] = '0'
+        return result
+        
+    except Exception as e:
+        logger.error(f"ipwho.is API error: {e}")
+        result = jsonify({
+            "status": "error",
+            "message": f"Не удалось получить данные от ipwho.is: {str(e)}"
+        }), 502
+        result[0].headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        return result
+
+
+@app.route('/api/ip-info-2ip')
+@rate_limit
+def ip_info_2ip():
+    """Возвращает данные об IP-адресе через 2ip.ru API"""
+    try:
+        response = requests.get('https://api.2ip.io/?token=pb9x4n3dfnv0az2h&lang=ru', timeout=5)
+        if response.status_code != 200:
+            raise Exception(f"2ip.io returned status {response.status_code}")
+        
+        data = response.json()
+        
+        asn_info = data.get('asn') or {}
+        formatted = {
+            "ip": data.get("ip"),
+            "country": data.get("country"),
+            "city": data.get("city"),
+            "provider": asn_info.get("name"),
+            "region": data.get("region")
+        }
+        
+        result = jsonify({"status": "ok", "data": formatted})
+        result.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        result.headers['Pragma'] = 'no-cache'
+        result.headers['Expires'] = '0'
+        return result
+        
+    except Exception as e:
+        logger.error(f"2ip.io API error: {e}")
+        result = jsonify({
+            "status": "error",
+            "message": f"Не удалось получить данные от 2ip.io: {str(e)}"
+        }), 502
+        result[0].headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        return result
 
 
 def require_token(f):

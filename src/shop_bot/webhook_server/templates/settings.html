@@ -319,6 +319,23 @@
 					<small class="text-muted">Если не указан, будет использоваться localhost:50002</small>
 				</div>
 				<div class="form-group">
+					<label for="setup_direct_link">Прямая ссылка на базу знаний:</label>
+					<div class="input-with-button">
+						<input
+							type="url"
+							id="setup_direct_link"
+							name="setup_direct_link"
+							value="{{ settings.setup_direct_link or '' }}"
+							placeholder="https://help.dark-maximus.com/setup"
+							title="Прямая ссылка на страницу настройки VPN"
+						/>
+						<button type="button" class="button button-secondary button-sm" onclick="openDomain('setup_direct_link')" title="Открыть ссылку в новой вкладке">
+							<i class="fas fa-external-link-alt"></i>
+						</button>
+					</div>
+					<small class="text-muted">Ссылка вшита в кнопку "Настройка" после оплаты. Если не указана, используется домен codex-docs с путём /setup</small>
+				</div>
+				<div class="form-group">
 					<label for="user_cabinet_domain">Домен для личного кабинета:</label>
 					<div class="input-with-button">
 						<input

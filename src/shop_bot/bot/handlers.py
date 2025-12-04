@@ -13,6 +13,7 @@ import json
 import base64
 import asyncio
 import sqlite3
+import time
 
 from urllib.parse import urlencode
 from hmac import compare_digest
@@ -260,6 +261,7 @@ class PaymentProcess(StatesGroup):
     waiting_for_email = State()
     waiting_for_payment_method = State()
     waiting_for_promo_code = State()
+    waiting_for_payment = State()  # Ожидание оплаты (после создания ссылки)
 
 class TopupProcess(StatesGroup):
     waiting_for_custom_amount = State()
@@ -4051,7 +4053,7 @@ def get_user_router() -> Router:
 
         return message_text, reply_markup
 
-    @user_router.callback_query(StateFilter(PaymentProcess.waiting_for_email, PaymentProcess.waiting_for_payment_method), F.data == "back_to_plans")
+    @user_router.callback_query(StateFilter(PaymentProcess.waiting_for_email, PaymentProcess.waiting_for_payment_method, PaymentProcess.waiting_for_payment), F.data == "back_to_plans")
     @measure_performance("back_to_plans")
     async def back_to_plans_handler(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
@@ -4065,7 +4067,8 @@ def get_user_router() -> Router:
         key_id = data.get('key_id', 0)
         user_id = callback.from_user.id
 
-        if current_state == PaymentProcess.waiting_for_payment_method.state:
+        # Очищаем промокод при возврате из состояния выбора способа оплаты или ожидания оплаты
+        if current_state in (PaymentProcess.waiting_for_payment_method.state, PaymentProcess.waiting_for_payment.state):
             await _cleanup_promo_usage_if_needed(callback.from_user.id, data)
 
         # Очищаем состояние, но сохраняем selected_host и промокод для возможности дальнейшего возврата
@@ -4457,7 +4460,42 @@ def get_user_router() -> Router:
                     await callback.message.answer("❌ Ошибка при обработке тестового пополнения YooKassa.")
                 return
 
-            payment = Payment.create(payment_payload, uuid.uuid4())
+            # Выполняем создание платежа в отдельном потоке с таймаутом, чтобы не блокировать event loop
+            start_time = time.time()
+            try:
+                payment = await asyncio.wait_for(
+                    asyncio.to_thread(Payment.create, payment_payload, uuid.uuid4()),
+                    timeout=30.0
+                )
+                elapsed_time = time.time() - start_time
+                logger.info(
+                    f"[YOOKASSA_PAYMENT_TOPUP] Payment created successfully in {elapsed_time:.2f}s, "
+                    f"payment_id={payment.id}"
+                )
+            except asyncio.TimeoutError:
+                elapsed_time = time.time() - start_time
+                logger.error(
+                    f"[YOOKASSA_PAYMENT_TOPUP] Timeout after {elapsed_time:.2f}s while creating topup payment "
+                    f"for user_id={user_id}"
+                )
+                await callback.message.answer(
+                    "❌ Не удалось создать ссылку на оплату. Пожалуйста, попробуйте снова или выберите другой "
+                    "способ оплаты. Если проблема повториться обратитесь в службу поддержки"
+                )
+                await state.clear()
+                return
+            except Exception as e:
+                elapsed_time = time.time() - start_time
+                logger.error(
+                    f"[YOOKASSA_PAYMENT_TOPUP] Failed to create topup payment after {elapsed_time:.2f}s: {e}",
+                    exc_info=True
+                )
+                await callback.message.answer(
+                    "❌ Не удалось создать ссылку на оплату. Пожалуйста, попробуйте снова или выберите другой "
+                    "способ оплаты. Если проблема повториться обратитесь в службу поддержки"
+                )
+                await state.clear()
+                return
             
             # Создаем транзакцию в базе данных
             payment_metadata = {
@@ -4473,11 +4511,14 @@ def get_user_router() -> Router:
             
             await callback.message.edit_text(
                 f"💳 Пополнение баланса на {amount_rub:.2f} RUB\n\nНажмите на кнопку ниже для оплаты:",
-                reply_markup=keyboards.create_payment_keyboard(payment.confirmation.confirmation_url)
+                reply_markup=keyboards.create_payment_keyboard(payment.confirmation.confirmation_url, back_callback=None)
             )
         except Exception as e:
             logger.error(f"Failed to create YooKassa topup payment: {e}", exc_info=True)
-            await callback.message.answer("Не удалось создать ссылку на оплату пополнения.")
+            await callback.message.answer(
+                "❌ Не удалось создать ссылку на оплату. Пожалуйста, попробуйте снова или выберите другой "
+                "способ оплаты. Если проблема повториться обратитесь в службу поддержки"
+            )
             await state.clear()
 
     async def show_payment_options(message: types.Message, state: FSMContext):
@@ -5146,6 +5187,7 @@ def get_user_router() -> Router:
                     payment_link=None,  # Stub не имеет реальной ссылки
                     api_request=json.dumps(stub_payment_payload, ensure_ascii=False)
                 )
+                # Очищаем состояние для stub режима, так как платеж обрабатывается сразу
                 await state.clear()
                 await callback.message.edit_text(
                     "🧪 Тестовый режим YooKassa: платеж эмулирован локально.\n\n"
@@ -5159,7 +5201,42 @@ def get_user_router() -> Router:
                     await callback.message.answer("❌ Ошибка при обработке тестового платежа YooKassa.")
                 return
 
-            payment = Payment.create(payment_payload, uuid.uuid4())
+            # Выполняем создание платежа в отдельном потоке с таймаутом, чтобы не блокировать event loop
+            start_time = time.time()
+            try:
+                payment = await asyncio.wait_for(
+                    asyncio.to_thread(Payment.create, payment_payload, uuid.uuid4()),
+                    timeout=30.0
+                )
+                elapsed_time = time.time() - start_time
+                logger.info(
+                    f"[YOOKASSA_PAYMENT_PURCHASE] Payment created successfully in {elapsed_time:.2f}s, "
+                    f"payment_id={payment.id}"
+                )
+            except asyncio.TimeoutError:
+                elapsed_time = time.time() - start_time
+                logger.error(
+                    f"[YOOKASSA_PAYMENT_PURCHASE] Timeout after {elapsed_time:.2f}s while creating payment "
+                    f"for user_id={user_id}"
+                )
+                await callback.message.answer(
+                    "❌ Не удалось создать ссылку на оплату. Пожалуйста, попробуйте снова или выберите другой "
+                    "способ оплаты. Если проблема повториться обратитесь в службу поддержки"
+                )
+                await state.clear()
+                return
+            except Exception as e:
+                elapsed_time = time.time() - start_time
+                logger.error(
+                    f"[YOOKASSA_PAYMENT_PURCHASE] Failed to create payment after {elapsed_time:.2f}s: {e}",
+                    exc_info=True
+                )
+                await callback.message.answer(
+                    "❌ Не удалось создать ссылку на оплату. Пожалуйста, попробуйте снова или выберите другой "
+                    "способ оплаты. Если проблема повториться обратитесь в службу поддержки"
+                )
+                await state.clear()
+                return
             
             # Создаем транзакцию в базе данных с сохранением payment_link и api_request
             create_pending_transaction(
@@ -5171,7 +5248,8 @@ def get_user_router() -> Router:
                 api_request=json.dumps(payment_payload, ensure_ascii=False)
             )
             
-            await state.clear()
+            # Устанавливаем состояние ожидания оплаты вместо очистки
+            await state.set_state(PaymentProcess.waiting_for_payment)
             
             # Формируем текст с информацией о выбранных параметрах
             plan_name = plan.get('plan_name', 'Неизвестный тариф')
@@ -5193,7 +5271,10 @@ def get_user_router() -> Router:
             )
         except Exception as e:
             logger.error(f"Failed to create YooKassa payment: {e}", exc_info=True)
-            await callback.message.answer("Не удалось создать ссылку на оплату.")
+            await callback.message.answer(
+                "❌ Не удалось создать ссылку на оплату. Пожалуйста, попробуйте снова или выберите другой "
+                "способ оплаты. Если проблема повториться обратитесь в службу поддержки"
+            )
             await state.clear()
 
     @user_router.callback_query(PaymentProcess.waiting_for_payment_method, F.data == "pay_cryptobot")
@@ -5277,11 +5358,13 @@ def get_user_router() -> Router:
             if not invoice or not invoice.pay_url:
                 raise Exception("Failed to create invoice or pay_url is missing.")
 
+            # Устанавливаем состояние ожидания оплаты вместо очистки
+            await state.set_state(PaymentProcess.waiting_for_payment)
+            
             await callback.message.edit_text(
                 "Нажмите на кнопку ниже для оплаты:",
                 reply_markup=keyboards.create_payment_keyboard(invoice.pay_url)
             )
-            await state.clear()
 
         except Exception as e:
             logger.error(f"Failed to create Crypto Pay invoice for user {user_id}: {e}", exc_info=True)
@@ -5336,11 +5419,13 @@ def get_user_router() -> Router:
         )
         
         if pay_url:
+            # Устанавливаем состояние ожидания оплаты вместо очистки
+            await state.set_state(PaymentProcess.waiting_for_payment)
+            
             await callback.message.edit_text(
                 "Нажмите на кнопку ниже для оплаты:",
                 reply_markup=keyboards.create_payment_keyboard(pay_url)
             )
-            await state.clear()
         else:
             await callback.message.edit_text("❌ Не удалось создать счет Heleket. Попробуйте другой способ оплаты.")
 
