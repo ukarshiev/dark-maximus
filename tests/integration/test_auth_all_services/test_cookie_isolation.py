@@ -213,9 +213,29 @@ class TestCookieIsolation:
                 pytest.fail(f"Ошибка при авторизации на webhook_server: {e}")
         
         with allure.step("Проверка сессии веб-панели после авторизации"):
+            # Проверяем cookie из истории ответов (redirect ответы)
+            # Flask-Session устанавливает cookie в ответе redirect (302)
+            cookies_from_history = {}
+            if webhook_response.history:
+                for resp in webhook_response.history:
+                    cookies_from_history.update(resp.cookies.get_dict())
+            
+            # Объединяем cookie из истории и финального ответа
+            cookies_from_final = webhook_response.cookies.get_dict()
+            all_cookies = {**cookies_from_history, **cookies_from_final}
+            
+            # Также проверяем cookie в сессии (они должны быть там после redirect)
             webhook_cookies = webhook_session.cookies.get_dict()
-            assert 'panel_session' in webhook_cookies or any('session' in name.lower() for name in webhook_cookies.keys()), \
-                f"Cookie сессии не найдено для webhook_server. Cookie: {webhook_cookies}"
+            
+            # Проверяем наличие cookie сессии в любом из источников
+            assert 'panel_session' in all_cookies or 'panel_session' in webhook_cookies or \
+                   any('session' in name.lower() for name in all_cookies.keys()) or \
+                   any('session' in name.lower() for name in webhook_cookies.keys()), \
+                f"Cookie сессии не найдено для webhook_server. " \
+                f"Cookie из истории redirect: {cookies_from_history}, " \
+                f"Cookie из финального ответа: {cookies_from_final}, " \
+                f"Cookie в сессии: {webhook_cookies}, " \
+                f"Все объединенные cookie: {all_cookies}"
             
             # Проверяем доступ к защищенной странице
             dashboard_response = webhook_session.get(
@@ -247,9 +267,29 @@ class TestCookieIsolation:
                 pytest.fail(f"Ошибка при авторизации на docs-proxy: {e}")
         
         with allure.step("Проверка сессии docs-proxy после авторизации"):
+            # Проверяем cookie из истории ответов (redirect ответы)
+            # Flask-Session устанавливает cookie в ответе redirect (302)
+            cookies_from_history = {}
+            if docs_response.history:
+                for resp in docs_response.history:
+                    cookies_from_history.update(resp.cookies.get_dict())
+            
+            # Объединяем cookie из истории и финального ответа
+            cookies_from_final = docs_response.cookies.get_dict()
+            all_cookies = {**cookies_from_history, **cookies_from_final}
+            
+            # Также проверяем cookie в сессии (они должны быть там после redirect)
             docs_cookies = docs_session.cookies.get_dict()
-            assert 'docs_session' in docs_cookies or any('session' in name.lower() for name in docs_cookies.keys()), \
-                f"Cookie сессии не найдено для docs-proxy. Cookie: {docs_cookies}"
+            
+            # Проверяем наличие cookie сессии в любом из источников
+            assert 'docs_session' in all_cookies or 'docs_session' in docs_cookies or \
+                   any('session' in name.lower() for name in all_cookies.keys()) or \
+                   any('session' in name.lower() for name in docs_cookies.keys()), \
+                f"Cookie сессии не найдено для docs-proxy. " \
+                f"Cookie из истории redirect: {cookies_from_history}, " \
+                f"Cookie из финального ответа: {cookies_from_final}, " \
+                f"Cookie в сессии: {docs_cookies}, " \
+                f"Все объединенные cookie: {all_cookies}"
             
             # Проверяем доступ к защищенной странице
             protected_response = docs_session.get(
