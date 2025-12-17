@@ -226,7 +226,7 @@
       },
       {
         "file": "CHANGELOG.md",
-        "hash": "8912144083338804302"
+        "hash": "2745872835113277360"
       },
       {
         "file": "CONTRIBUTING.md",
@@ -1654,7 +1654,7 @@
       },
       {
         "file": "pyproject.toml",
-        "hash": "6940276511845659305"
+        "hash": "8832301121179702287"
       },
       {
         "file": "pyrightconfig.json",
@@ -1694,7 +1694,7 @@
       },
       {
         "file": "src/shop_bot/bot/handlers.py",
-        "hash": "5015247259826291208"
+        "hash": "4522782439599067613"
       },
       {
         "file": "src/shop_bot/bot/keyboards.py",
@@ -1742,11 +1742,11 @@
       },
       {
         "file": "src/shop_bot/data_manager/database.py",
-        "hash": "11739915276738437209"
+        "hash": "6044774627454756699"
       },
       {
         "file": "src/shop_bot/data_manager/scheduler.py",
-        "hash": "9114451371632490510"
+        "hash": "3568816934235299199"
       },
       {
         "file": "src/shop_bot/modules/__init__.py",
@@ -1798,7 +1798,7 @@
       },
       {
         "file": "src/shop_bot/utils/telegram_logger.py",
-        "hash": "10465831286994141666"
+        "hash": "10665756586166841791"
       },
       {
         "file": "src/shop_bot/webhook_server/__init__.py",
@@ -2010,7 +2010,7 @@
       },
       {
         "file": "tests/ad-hoc/final/ALLURE_PATCH_VALIDATION.md",
-        "hash": "15605031904624369156"
+        "hash": "8388568376841600351"
       },
       {
         "file": "tests/ad-hoc/reports/allure-defects-export.json",
@@ -2130,7 +2130,7 @@
       },
       {
         "file": "tests/integration/test_auth_all_services/test_cookie_isolation.py",
-        "hash": "14405663584372887702"
+        "hash": "2602375336971451666"
       },
       {
         "file": "tests/integration/test_auth_all_services/test_login_integration.py",
@@ -2290,7 +2290,7 @@
       },
       {
         "file": "tests/scripts/conftest.py",
-        "hash": "17618952639406495044"
+        "hash": "11117567308429901287"
       },
       {
         "file": "tests/scripts/test_autotest_validation.py",
@@ -2306,11 +2306,11 @@
       },
       {
         "file": "tests/scripts/test_install_validation.py",
-        "hash": "4435306990380589129"
+        "hash": "4060890667318844167"
       },
       {
         "file": "tests/scripts/test_ssl_validation.py",
-        "hash": "17662009410611846183"
+        "hash": "5773863407698971189"
       },
       {
         "file": "tests/unit/__init__.py",
@@ -2574,7 +2574,7 @@
       },
       {
         "file": "tests/unit/test_webhook_server/test_settings.py",
-        "hash": "2070313290380756745"
+        "hash": "13128702444239550918"
       },
       {
         "file": "tests/unit/test_webhook_server/test_support.py",
@@ -2760,6 +2760,18 @@
           "hash": "18133462376884655814"
         }
       ],
+      "user-docs": [
+        {
+          "file": "apps/user-docs/project.json",
+          "hash": "13555242358502357324"
+        }
+      ],
+      "bot": [
+        {
+          "file": "apps/bot/project.json",
+          "hash": "10076012873780615813"
+        }
+      ],
       "web-interface": [
         {
           "file": "apps/web-interface/project.json",
@@ -2778,18 +2790,6 @@
         {
           "file": "apps/admin-docs/project.json",
           "hash": "6731179136645926906"
-        }
-      ],
-      "bot": [
-        {
-          "file": "apps/bot/project.json",
-          "hash": "10076012873780615813"
-        }
-      ],
-      "user-docs": [
-        {
-          "file": "apps/user-docs/project.json",
-          "hash": "13555242358502357324"
         }
       ]
     }

@@ -124,7 +124,14 @@ def project_root() -> Path:
             logger.debug(f"Используем /app из Docker контейнера. Найдено скриптов: {len(found_scripts)}")
             return app_path
         else:
-            logger.warning(f"Директория /app существует, но скрипты не найдены. Проверяем: {[str(s) for s in test_scripts]}")
+            # Если скрипты не найдены, но мы в контейнере, все равно возвращаем /app
+            # Это может быть случай, когда файлы не маппятся на боевом сервере
+            logger.warning(
+                f"Директория /app существует, но скрипты не найдены. "
+                f"Проверяем: {[str(s) for s in test_scripts]}. "
+                f"Возвращаем /app как fallback."
+            )
+            return app_path  # Возвращаем /app даже если скрипты не найдены
     
     # Локальный запуск: вычисляем относительно расположения файла
     # tests/scripts/conftest.py -> tests/scripts/ -> tests/ -> корень проекта

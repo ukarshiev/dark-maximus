@@ -84,7 +84,7 @@ class TestSettings:
     @allure.tag("settings", "panel", "update", "webhook_server", "unit")
     def test_update_panel_settings(self, authenticated_session):
         """Тест обновления настроек панели (/settings/panel)"""
-        with patch('shop_bot.data_manager.database.update_setting'):
+        with patch('shop_bot.webhook_server.app.update_setting'):
             response = authenticated_session.post('/settings/panel', data={
                 'panel_login': 'admin',
                 'admin_timezone': 'Europe/Moscow'
@@ -115,7 +115,7 @@ class TestSettings:
     @allure.tag("settings", "panel", "setup_direct_link", "webhook_server", "unit")
     def test_update_setup_direct_link(self, authenticated_session):
         """Тест обновления настройки прямой ссылки на базу знаний"""
-        with patch('shop_bot.data_manager.database.update_setting') as mock_update:
+        with patch('shop_bot.webhook_server.app.update_setting') as mock_update:
             response = authenticated_session.post('/settings/panel', data={
                 'panel_login': 'admin',
                 'setup_direct_link': 'https://help.dark-maximus.com/setup'
@@ -148,7 +148,7 @@ class TestSettings:
     @allure.tag("settings", "bot", "update", "webhook_server", "unit")
     def test_update_bot_settings(self, authenticated_session):
         """Тест обновления настроек бота (/settings/bot)"""
-        with patch('shop_bot.data_manager.database.update_setting'):
+        with patch('shop_bot.webhook_server.app.update_setting'):
             response = authenticated_session.post('/settings/bot', data={
                 'telegram_bot_token': 'test_token',
                 'telegram_bot_username': 'test_bot'
@@ -176,7 +176,7 @@ class TestSettings:
     @allure.tag("settings", "payments", "update", "webhook_server", "unit")
     def test_update_payment_settings(self, authenticated_session):
         """Тест обновления платежных настроек (/settings/payments)"""
-        with patch('shop_bot.data_manager.database.update_setting'):
+        with patch('shop_bot.webhook_server.app.update_setting'):
             with patch('shop_bot.data_manager.database.get_setting', return_value='false'):
                 response = authenticated_session.post('/settings/payments', data={
                     'yookassa_shop_id': 'test_shop',
@@ -202,7 +202,7 @@ class TestSettings:
     def test_toggle_hidden_mode(self, authenticated_session):
         """Тест переключения скрытого режима (/toggle-hidden-mode)"""
         with patch('shop_bot.data_manager.database.get_setting', return_value='false'):
-            with patch('shop_bot.data_manager.database.update_setting'):
+            with patch('shop_bot.webhook_server.app.update_setting'):
                 response = authenticated_session.post('/toggle-hidden-mode')
                 assert response.status_code in [200, 302], "Переключение режима должно вернуть 200 или 302"
 

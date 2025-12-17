@@ -84,6 +84,57 @@ class TelegramLoggerHandler(logging.Handler):
         # Если очередь не пуста и цикл уже запущен — сразу инициируем обработку
         self._ensure_processing(loop)
     
+    def _should_filter_error(self, record: logging.LogRecord) -> bool:
+        """
+        Проверяет, нужно ли фильтровать ошибку (не отправлять в Telegram).
+        
+        Фильтрует сетевые ошибки Telegram API, которые aiogram обрабатывает автоматически.
+        
+        Args:
+            record: Запись лога
+            
+        Returns:
+            True если ошибку нужно отфильтровать, False если нужно отправить
+        """
+        message = record.getMessage().lower()
+        pathname = record.pathname.lower()
+        
+        # Фильтруем ошибки из aiogram dispatcher._listen_updates
+        # Это сетевые ошибки при получении обновлений, которые aiogram обрабатывает автоматически
+        if 'dispatcher' in pathname and 'failed to fetch updates' in message:
+            # Проверяем типичные сетевые ошибки
+            network_error_patterns = [
+                'telegramnetworkerror',
+                'telegramservererror',
+                'bad gateway',
+                'request timeout',
+                'cannot connect to host',
+                'ssl record layer failure',
+                'clientconnectorerror',
+                'clientoserror',
+                'ssl',
+            ]
+            
+            for pattern in network_error_patterns:
+                if pattern in message:
+                    return True
+        
+        # Фильтруем специфичные сетевые ошибки по сообщению
+        network_error_messages = [
+            'telegram server says - bad gateway',
+            'http client says - request timeout error',
+            'http client says - cannot connect to host',
+            'http client says - clientoserror',
+            'http client says - clientconnectorerror',
+            'ssl record layer failure',
+        ]
+        
+        for error_msg in network_error_messages:
+            if error_msg in message:
+                return True
+        
+        return False
+    
     def emit(self, record: logging.LogRecord):
         """
         Обработка лог-записи
@@ -92,6 +143,10 @@ class TelegramLoggerHandler(logging.Handler):
             record: Запись лога
         """
         if not self.enabled or self.log_level == "none":
+            return
+        
+        # Фильтруем сетевые ошибки Telegram API
+        if self._should_filter_error(record):
             return
             
         try:

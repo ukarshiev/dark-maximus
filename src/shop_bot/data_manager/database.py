@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 
 """
 
@@ -5004,13 +5004,41 @@ def get_auto_renewal_enabled(user_id: int) -> bool:
 
     except sqlite3.OperationalError as e:
 
-        # Если колонка еще не существует (миграция не выполнилась), возвращаем True по умолчанию
+        # Если колонка еще не существует (миграция не выполнилась), пытаемся создать её автоматически
 
         if "no such column" in str(e).lower():
 
-            logging.debug(f"Column auto_renewal_enabled does not exist yet for user {user_id}, returning default True")
+            logging.warning(f"Column auto_renewal_enabled does not exist yet for user {user_id}. Attempting to add it...")
 
-            return True  # По умолчанию включено
+            try:
+
+                # Пытаемся добавить колонку напрямую
+
+                with sqlite3.connect(DB_FILE) as conn2:
+
+                    cursor2 = conn2.cursor()
+
+                    cursor2.execute("ALTER TABLE users ADD COLUMN auto_renewal_enabled INTEGER DEFAULT 1")
+
+                    conn2.commit()
+
+                    logging.info(f"Column auto_renewal_enabled added successfully. Returning default True for user {user_id}")
+
+                    return True  # По умолчанию включено
+
+            except Exception as e2:
+
+                # Если не удалось создать колонку (возможно, уже создана другим процессом), просто возвращаем True
+
+                if "duplicate column name" in str(e2).lower() or "already exists" in str(e2).lower():
+
+                    logging.debug(f"Column auto_renewal_enabled already exists (created by another process). Returning default True for user {user_id}")
+
+                else:
+
+                    logging.warning(f"Failed to add column auto_renewal_enabled: {e2}. Returning default True for user {user_id}")
+
+                return True  # По умолчанию включено
 
         logging.error(f"Failed to get auto_renewal_enabled for user {user_id}: {e}")
 

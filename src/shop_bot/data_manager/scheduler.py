@@ -1054,7 +1054,7 @@ async def sync_keys_with_panels():
             )
 
             if not api or not inbound:
-                logger.error(f"Scheduler: Could not log in to host '{host_name}'. Skipping this host.")
+                logger.warning(f"Scheduler: Could not log in to host '{host_name}'. Skipping this host. This may be a temporary network issue.")
                 continue
             
             full_inbound_details = api.inbound.get_by_id(inbound.id)
@@ -1161,9 +1161,9 @@ async def sync_keys_with_panels():
                     orphan_summary_with_errors.append((host_name, count_orphans))
 
         except ConnectionError as e:
-            logger.error(f"Scheduler: Connection error while processing host '{host_name}': {e}")
+            logger.warning(f"Scheduler: Connection error while processing host '{host_name}': {e}. This may be a temporary network issue.")
         except TimeoutError as e:
-            logger.error(f"Scheduler: Timeout error while processing host '{host_name}': {e}")
+            logger.warning(f"Scheduler: Timeout error while processing host '{host_name}': {e}. This may be a temporary network issue.")
         except ValueError as e:
             logger.error(f"Scheduler: Invalid data while processing host '{host_name}': {e}")
         except Exception as e:

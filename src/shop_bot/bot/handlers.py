@@ -6531,16 +6531,30 @@ def get_user_router() -> Router:
                                      "Попробуйте позже или обратитесь в поддержку."
                             )
                         except Exception as send_error:
-                            logger.error(
-                                f"Failed to send error notification message to user {user_id}: {send_error}"
-                            )
+                            # Проверяем, не является ли это тоже устаревшим запросом
+                            send_error_msg = str(send_error).lower()
+                            if "query is too old" in send_error_msg or "response timeout expired" in send_error_msg or "query id is invalid" in send_error_msg:
+                                logger.debug(
+                                    f"Callback query expired for user {user_id} (second attempt). Skipping notification."
+                                )
+                            else:
+                                logger.warning(
+                                    f"Failed to send error notification message to user {user_id}: {send_error}"
+                                )
                     else:
                         # Другие ошибки TelegramBadRequest просто логируем
                         logger.error(
                             f"Failed to answer callback query for user {user_id}: {e}"
                         )
         except Exception as notification_error:
-            logger.error(f"Failed to send error notification to user {user_id}: {notification_error}")
+            # Проверяем, не является ли это устаревшим callback query
+            error_msg = str(notification_error).lower()
+            if "query is too old" in error_msg or "response timeout expired" in error_msg or "query id is invalid" in error_msg:
+                logger.debug(
+                    f"Callback query expired for user {user_id} during error notification. Skipping."
+                )
+            else:
+                logger.warning(f"Failed to send error notification to user {user_id}: {notification_error}")
 
     # Экспортируем функции для тестирования
     # Получаем функции из локальной области видимости и присваиваем глобальным переменным
