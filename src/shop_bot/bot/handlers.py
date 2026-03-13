@@ -4969,6 +4969,13 @@ def get_user_router() -> Router:
                     username = user_data.get('username', '') if user_data else ''
                     subscription = f"{user_id}-{username}".lower().replace('@', '')
                     telegram_chat_id = user_id
+                elif action == "extend":
+                    # Получаем существующий subscription из key_data для обновления подписки
+                    existing_subscription = key_data.get('subscription')
+                    if existing_subscription:
+                        subscription = existing_subscription
+                    else:
+                        logger.warning(f"Subscription not found for key_id={key_id}, email={email} during renewal. Subscription may not update correctly.")
                 
                 result = await xui_api.create_or_update_key_on_host(
                     host_name=host_name,
@@ -5536,6 +5543,13 @@ def get_user_router() -> Router:
                     username = user_data.get('username', '') if user_data else ''
                     subscription = f"{user_id}-{username}".lower().replace('@', '')
                     telegram_chat_id = user_id
+                elif action == "extend":
+                    # Получаем существующий subscription из key_data для обновления подписки
+                    existing_subscription = key_data.get('subscription')
+                    if existing_subscription:
+                        subscription = existing_subscription
+                    else:
+                        logger.warning(f"Subscription not found for key_id={key_id}, email={email} during renewal. Subscription may not update correctly.")
                 
                 result = await xui_api.create_or_update_key_on_host(
                     host_name=host_name,
@@ -6803,12 +6817,30 @@ async def is_url_reachable(url: str) -> bool:
         return False
 
 async def notify_admin_of_purchase(bot: Bot, metadata: dict):
-    if not ADMIN_ID:
-        logger.warning("Admin notification skipped: ADMIN_ID is not set.")
+    """Отправляет уведомление создателю/админу о новой покупке. Логирует payment_id, user_id, notification_target для диагностики."""
+    notification_target = ADMIN_ID
+    if not notification_target:
+        admin_str = get_setting("admin_telegram_id")
+        if admin_str:
+            try:
+                notification_target = int(admin_str)
+            except (ValueError, TypeError):
+                pass
+    if not notification_target:
+        logger.warning(
+            "Admin notification skipped: ADMIN_ID and admin_telegram_id are not set. "
+            "Set admin_telegram_id in panel Settings to receive purchase notifications."
+        )
         return
 
+    payment_id = metadata.get("payment_id") or metadata.get("transaction_id")
+    user_id = metadata.get("user_id")
+    logger.info(
+        "Sending creator purchase notification: payment_id=%s user_id=%s notification_target=%s",
+        payment_id, user_id, notification_target,
+    )
+
     try:
-        user_id = metadata.get('user_id')
         months = metadata.get('months')
         price = float(metadata.get('price') or 0)
         host_name = metadata.get('host_name')
@@ -6831,14 +6863,21 @@ async def notify_admin_of_purchase(bot: Bot, metadata: dict):
         )
 
         await bot.send_message(
-            chat_id=ADMIN_ID,
+            chat_id=notification_target,
             text=message_text,
             parse_mode='HTML'
         )
-        logger.info(f"Admin notification sent for a new purchase by user {user_id}.")
+        logger.info(
+            "Creator purchase notification sent: payment_id=%s user_id=%s notification_target=%s",
+            payment_id, user_id, notification_target,
+        )
 
     except Exception as e:
-        logger.error(f"Failed to send admin notification for purchase: {e}", exc_info=True)
+        logger.error(
+            "Failed to send admin notification for purchase: payment_id=%s user_id=%s notification_target=%s error=%s",
+            payment_id, user_id, notification_target, e,
+            exc_info=True,
+        )
 
 async def _create_heleket_payment_request(user_id: int, price: float, months: int, days: int, hours: int, host_name: str, state_data: dict) -> str | None:
     merchant_id = get_setting("heleket_merchant_id")
@@ -7275,6 +7314,11 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
             else:
                 await processing_message.edit_text("❌ Ошибка: не удалось создать ключ.")
         elif action == "extend":
+            # Получаем существующий subscription из key_data для обновления подписки
+            existing_subscription = key_data.get('subscription')
+            if not existing_subscription:
+                logger.warning(f"Subscription not found for key_id={key_id}, email={email} during renewal. Subscription may not update correctly.")
+            
             # Продлеваем существующий ключ через XUI API
             result = await xui_api.create_or_update_key_on_host(
                 host_name=host_name,
@@ -7282,7 +7326,7 @@ async def process_successful_yookassa_payment(bot: Bot, metadata: dict):
                 days_to_add=days_to_add,
                 comment=f"{user_id}",
                 traffic_gb=traffic_gb if traffic_gb > 0 else None,
-                sub_id=None,  # при продлении None, панель сохранит существующий subscription
+                sub_id=existing_subscription,  # передаем существующий subscription для обновления подписки
                 telegram_chat_id=user_id,
                 host_code=host_code_for_search
             )
@@ -7557,6 +7601,13 @@ async def process_successful_payment(bot: Bot, metadata: dict, tx_hash: str | No
             fullname = user_data.get('fullname', '') if user_data else ''
             subscription = f"{user_id}-{username}".lower().replace('@', '')
             telegram_chat_id = user_id
+        elif action == "extend":
+            # Получаем существующий subscription из key_data для обновления подписки
+            existing_subscription = key_data.get('subscription')
+            if existing_subscription:
+                subscription = existing_subscription
+            else:
+                logger.warning(f"Subscription not found for key_id={key_id}, email={email} during renewal. Subscription may not update correctly.")
             
         result = await xui_api.create_or_update_key_on_host(
             host_name=host_name,

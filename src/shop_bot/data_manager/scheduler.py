@@ -85,8 +85,11 @@ notified_users = {}
 
 logger = logging.getLogger(__name__)
 
-# Путь к лог-файлу удалённых orphan клиентов
+# Путь к лог-файлу удалённых orphan клиентов (только для ручного recovery; автоудаление отключено)
 ORPHAN_DELETION_LOG = database.PROJECT_ROOT / "logs" / "orphan_deletions.log"
+
+# Политика безопасности: удаление ключей из панели и БД отключено. Только логирование и репортинг.
+SYNC_DELETION_DISABLED = True
 
 
 def _format_datetime_for_user(user_id: int, dt_utc: datetime) -> str:
@@ -1029,9 +1032,12 @@ async def perform_auto_renewals(bot: Bot):
         logger.error(f"perform_auto_renewals: fatal error: {e}")
 
 async def sync_keys_with_panels():
+    """Синхронизация данных ключей с панелями 3x-ui. Удаление ключей отключено политикой безопасности."""
     logger.info("Scheduler: Starting sync with XUI panels...")
+    if SYNC_DELETION_DISABLED:
+        logger.info("Scheduler: Deletion of keys from panel and DB is disabled by security policy; only read/update sync.")
     total_affected_records = 0
-    
+
     all_hosts = database.get_all_hosts()
     if not all_hosts:
         logger.info("Scheduler: No hosts configured in the database. Sync skipped.")
@@ -1039,7 +1045,6 @@ async def sync_keys_with_panels():
 
     orphan_summary: list[tuple[str, int]] = []
     orphan_summary_with_errors: list[tuple[str, int]] = []
-    auto_delete = (database.get_setting("auto_delete_orphans") == "true")
 
     for host in all_hosts:
         host_name = host['host_name']
@@ -1056,10 +1061,15 @@ async def sync_keys_with_panels():
             if not api or not inbound:
                 logger.warning(f"Scheduler: Could not log in to host '{host_name}'. Skipping this host. This may be a temporary network issue.")
                 continue
-            
+            bound_inbound_id = host.get('host_inbound_id')
+            panel_inbound_id = getattr(inbound, 'id', bound_inbound_id)
+            logger.info(
+                f"Scheduler: Using bound inbound only for host '{host_name}' "
+                f"(host_inbound_id={bound_inbound_id}, panel_inbound_id={panel_inbound_id})."
+            )
             full_inbound_details = api.inbound.get_by_id(inbound.id)
             clients_on_server = {client.email: client for client in (full_inbound_details.settings.clients or [])}
-            logger.info(f"Scheduler: Found {len(clients_on_server)} clients on the '{host_name}' panel.")
+            logger.info(f"Scheduler: Found {len(clients_on_server)} clients on the '{host_name}' panel (inbound id={panel_inbound_id}).")
 
             keys_in_db = database.get_keys_for_host(host_name)
             
@@ -1072,13 +1082,10 @@ async def sync_keys_with_panels():
                 # Используем UTC для консистентности с данными в БД
                 now = datetime.now(timezone.utc).replace(tzinfo=None)
                 if expiry_date < now - timedelta(days=5):
-                    logger.info(f"Scheduler: Key '{key_email}' expired more than 5 days ago. Deleting from panel and DB.")
-                    try:
-                        await xui_api.delete_client_on_host(host_name, key_email)
-                    except Exception as e:
-                        logger.error(f"Scheduler: Failed to delete client '{key_email}' from panel: {e}")
-                    database.delete_key_by_email(key_email)
-                    total_affected_records += 1
+                    logger.info(
+                        f"Scheduler: Key '{key_email}' expired more than 5 days ago "
+                        "(deletion disabled by policy; key kept in DB and panel)."
+                    )
                     continue
 
                 server_client = clients_on_server.pop(key_email, None)
@@ -1094,9 +1101,10 @@ async def sync_keys_with_panels():
                         total_affected_records += 1
                         logger.info(f"Scheduler: Synced (updated) key '{key_email}' for host '{host_name}'.")
                 else:
-                    logger.warning(f"Scheduler: Key '{key_email}' for host '{host_name}' not found on server. Deleting from local DB.")
-                    database.update_key_status_from_server(key_email, None)
-                    total_affected_records += 1
+                    logger.warning(
+                        f"Scheduler: Key '{key_email}' for host '{host_name}' not found on server "
+                        "(deletion disabled by policy; key kept in DB)."
+                    )
 
             if clients_on_server:
                 count_orphans = len(clients_on_server)
@@ -1120,45 +1128,10 @@ async def sync_keys_with_panels():
                 
                 if count_orphans > 5:
                     logger.info(f"Scheduler: ... and {count_orphans - 5} more orphan client(s)")
-                
-                # Опциональное автоудаление осиротевших клиентов с панели
-                if auto_delete:
-                    deleted = 0
-                    failed = 0
-                    logger.info(f"Scheduler: Starting auto-deletion of {count_orphans} orphan client(s) on '{host_name}'...")
-                    
-                    for orphan_email in list(clients_on_server.keys()):
-                        try:
-                            result = await xui_api.delete_client_on_host(host_name, orphan_email)
-                            if result:
-                                deleted += 1
-                                logger.info(f"Scheduler: ✅ Successfully deleted orphan client '{orphan_email}' on '{host_name}'.")
-                                # Логируем удаление в файл
-                                orphan_client = clients_on_server[orphan_email]
-                                log_orphan_deletion(
-                                    host_name=host_name,
-                                    client_email=orphan_email,
-                                    client_id=orphan_client.id,
-                                    expiry_time=orphan_client.expiry_time
-                                )
-                            else:
-                                # Клиент не был найден (уже удален или не существует)
-                                deleted += 1
-                                logger.debug(f"Scheduler: ℹ️ Orphan client '{orphan_email}' on '{host_name}' already deleted or not found.")
-                        except Exception as de:
-                            failed += 1
-                            logger.error(f"Scheduler: ❌ Failed to auto-delete orphan '{orphan_email}' on '{host_name}': {de}")
-                    
-                    total_affected_records += deleted
-                    logger.info(f"Scheduler: ✅ Auto-deletion complete on '{host_name}': {deleted} deleted, {failed} failed.")
-                    
-                    # Если были ошибки при удалении, добавляем в список для предупреждения
-                    if failed > 0:
-                        orphan_summary_with_errors.append((host_name, failed))
-                else:
-                    # Если автоудаление выключено, добавляем в список для предупреждения
-                    logger.warning(f"Scheduler: ⚠️ Auto-deletion is disabled. {count_orphans} orphan client(s) will NOT be deleted.")
-                    orphan_summary_with_errors.append((host_name, count_orphans))
+                logger.info(
+                    f"Scheduler: Orphan client(s) on '{host_name}' will NOT be deleted (deletion disabled by security policy)."
+                )
+                orphan_summary_with_errors.append((host_name, count_orphans))
 
         except ConnectionError as e:
             logger.warning(f"Scheduler: Connection error while processing host '{host_name}': {e}. This may be a temporary network issue.")
